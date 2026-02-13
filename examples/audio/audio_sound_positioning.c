@@ -22,7 +22,7 @@
 //------------------------------------------------------------------------------------
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
-static void SetSoundPosition(Camera listener, Sound sound, Vector3 position, float maxDist);
+static void SetSoundPosition(RLCamera listener, RLSound sound, RLVector3 position, float maxDist);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -34,35 +34,35 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [audio] example - sound positioning");
+    RLInitWindow(screenWidth, screenHeight, "raylib [audio] example - sound positioning");
 
-    InitAudioDevice();
+    RLInitAudioDevice();
 
-    Sound sound = LoadSound("resources/coin.wav");
+    RLSound sound = RLLoadSound("resources/coin.wav");
 
-    Camera camera = {
-        .position = (Vector3) { 0, 5, 5 },
-        .target = (Vector3) { 0, 0, 0 },
-        .up = (Vector3) { 0, 1, 0 },
+    RLCamera camera = {
+        .position = (RLVector3) { 0, 5, 5 },
+        .target = (RLVector3) { 0, 0, 0 },
+        .up = (RLVector3) { 0, 1, 0 },
         .fovy = 60,
         .projection = CAMERA_PERSPECTIVE
     };
 
-    DisableCursor();
+    RLDisableCursor();
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())
+    while (!RLWindowShouldClose())
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_FREE);
+        RLUpdateCamera(&camera, CAMERA_FREE);
 
-        float th = (float)GetTime();
+        float th = (float)RLGetTime();
 
-        Vector3 spherePos = {
+        RLVector3 spherePos = {
             .x = 5.0f*cosf(th),
             .y = 0.0f,
             .z = 5.0f*sinf(th)
@@ -70,30 +70,30 @@ int main(void)
 
         SetSoundPosition(camera, sound, spherePos, 20.0f);
 
-        if (!IsSoundPlaying(sound)) PlaySound(sound);
+        if (!RLIsSoundPlaying(sound)) RLPlaySound(sound);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
-                DrawGrid(10, 2);
-                DrawSphere(spherePos, 0.5f, RED);
-            EndMode3D();
+            RLBeginMode3D(camera);
+                RLDrawGrid(10, 2);
+                RLDrawSphere(spherePos, 0.5f, RED);
+            RLEndMode3D();
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadSound(sound);
-    CloseAudioDevice();     // Close audio device
+    RLUnloadSound(sound);
+    RLCloseAudioDevice();     // Close audio device
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -103,10 +103,10 @@ int main(void)
 // Module Functions Definition
 //------------------------------------------------------------------------------------
 // Set sound 3d position
-static void SetSoundPosition(Camera listener, Sound sound, Vector3 position, float maxDist)
+static void SetSoundPosition(RLCamera listener, RLSound sound, RLVector3 position, float maxDist)
 {
     // Calculate direction vector and distance between listener and sound source
-    Vector3 direction = Vector3Subtract(position, listener.position);
+    RLVector3 direction = Vector3Subtract(position, listener.position);
     float distance = Vector3Length(direction);
 
     // Apply logarithmic distance attenuation and clamp between 0-1
@@ -114,9 +114,9 @@ static void SetSoundPosition(Camera listener, Sound sound, Vector3 position, flo
     attenuation = Clamp(attenuation, 0.0f, 1.0f);
 
     // Calculate normalized vectors for spatial positioning
-    Vector3 normalizedDirection = Vector3Normalize(direction);
-    Vector3 forward = Vector3Normalize(Vector3Subtract(listener.target, listener.position));
-    Vector3 right = Vector3Normalize(Vector3CrossProduct(listener.up, forward));
+    RLVector3 normalizedDirection = Vector3Normalize(direction);
+    RLVector3 forward = Vector3Normalize(Vector3Subtract(listener.target, listener.position));
+    RLVector3 right = Vector3Normalize(Vector3CrossProduct(listener.up, forward));
 
     // Reduce volume for sounds behind the listener
     float dotProduct = Vector3DotProduct(forward, normalizedDirection);
@@ -126,6 +126,6 @@ static void SetSoundPosition(Camera listener, Sound sound, Vector3 position, flo
     float pan = 0.5f + 0.5f*Vector3DotProduct(normalizedDirection, right);
 
     // Apply final sound properties
-    SetSoundVolume(sound, attenuation);
-    SetSoundPan(sound, pan);
+    RLSetSoundVolume(sound, attenuation);
+    RLSetSoundPan(sound, pan);
 }

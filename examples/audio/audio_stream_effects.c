@@ -41,17 +41,17 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [audio] example - stream effects");
+    RLInitWindow(screenWidth, screenHeight, "raylib [audio] example - stream effects");
 
-    InitAudioDevice();              // Initialize audio device
+    RLInitAudioDevice();              // Initialize audio device
 
-    Music music = LoadMusicStream("resources/country.mp3");
+    RLMusic music = RLLoadMusicStream("resources/country.mp3");
 
     // Allocate buffer for the delay effect
     delayBufferSize = 48000*2;      // 1 second delay (device sampleRate*channels)
     delayBuffer = (float *)RL_CALLOC(delayBufferSize, sizeof(float));
 
-    PlayMusicStream(music);
+    RLPlayMusicStream(music);
 
     float timePlayed = 0.0f;        // Time played normalized [0.0f..1.0f]
     bool pause = false;             // Music playing paused
@@ -59,85 +59,85 @@ int main(void)
     bool enableEffectLPF = false;   // Enable effect low-pass-filter
     bool enableEffectDelay = false; // Enable effect delay (1 second)
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateMusicStream(music);   // Update music buffer with new stream data
+        RLUpdateMusicStream(music);   // Update music buffer with new stream data
 
         // Restart music playing (stop and play)
-        if (IsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(KEY_SPACE))
         {
-            StopMusicStream(music);
-            PlayMusicStream(music);
+            RLStopMusicStream(music);
+            RLPlayMusicStream(music);
         }
 
         // Pause/Resume music playing
-        if (IsKeyPressed(KEY_P))
+        if (RLIsKeyPressed(KEY_P))
         {
             pause = !pause;
 
-            if (pause) PauseMusicStream(music);
-            else ResumeMusicStream(music);
+            if (pause) RLPauseMusicStream(music);
+            else RLResumeMusicStream(music);
         }
 
         // Add/Remove effect: lowpass filter
-        if (IsKeyPressed(KEY_F))
+        if (RLIsKeyPressed(KEY_F))
         {
             enableEffectLPF = !enableEffectLPF;
-            if (enableEffectLPF) AttachAudioStreamProcessor(music.stream, AudioProcessEffectLPF);
-            else DetachAudioStreamProcessor(music.stream, AudioProcessEffectLPF);
+            if (enableEffectLPF) RLAttachAudioStreamProcessor(music.stream, AudioProcessEffectLPF);
+            else RLDetachAudioStreamProcessor(music.stream, AudioProcessEffectLPF);
         }
 
         // Add/Remove effect: delay
-        if (IsKeyPressed(KEY_D))
+        if (RLIsKeyPressed(KEY_D))
         {
             enableEffectDelay = !enableEffectDelay;
-            if (enableEffectDelay) AttachAudioStreamProcessor(music.stream, AudioProcessEffectDelay);
-            else DetachAudioStreamProcessor(music.stream, AudioProcessEffectDelay);
+            if (enableEffectDelay) RLAttachAudioStreamProcessor(music.stream, AudioProcessEffectDelay);
+            else RLDetachAudioStreamProcessor(music.stream, AudioProcessEffectDelay);
         }
 
         // Get normalized time played for current music stream
-        timePlayed = GetMusicTimePlayed(music)/GetMusicTimeLength(music);
+        timePlayed = RLGetMusicTimePlayed(music)/RLGetMusicTimeLength(music);
 
         if (timePlayed > 1.0f) timePlayed = 1.0f;   // Make sure time played is no longer than music
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawText("MUSIC SHOULD BE PLAYING!", 245, 150, 20, LIGHTGRAY);
+            RLDrawText("MUSIC SHOULD BE PLAYING!", 245, 150, 20, LIGHTGRAY);
 
-            DrawRectangle(200, 180, 400, 12, LIGHTGRAY);
-            DrawRectangle(200, 180, (int)(timePlayed*400.0f), 12, MAROON);
-            DrawRectangleLines(200, 180, 400, 12, GRAY);
+            RLDrawRectangle(200, 180, 400, 12, LIGHTGRAY);
+            RLDrawRectangle(200, 180, (int)(timePlayed*400.0f), 12, MAROON);
+            RLDrawRectangleLines(200, 180, 400, 12, GRAY);
 
-            DrawText("PRESS SPACE TO RESTART MUSIC", 215, 230, 20, LIGHTGRAY);
-            DrawText("PRESS P TO PAUSE/RESUME MUSIC", 208, 260, 20, LIGHTGRAY);
+            RLDrawText("PRESS SPACE TO RESTART MUSIC", 215, 230, 20, LIGHTGRAY);
+            RLDrawText("PRESS P TO PAUSE/RESUME MUSIC", 208, 260, 20, LIGHTGRAY);
 
-            DrawText(TextFormat("PRESS F TO TOGGLE LPF EFFECT: %s", enableEffectLPF? "ON" : "OFF"), 200, 320, 20, GRAY);
-            DrawText(TextFormat("PRESS D TO TOGGLE DELAY EFFECT: %s", enableEffectDelay? "ON" : "OFF"), 180, 350, 20, GRAY);
+            RLDrawText(RLTextFormat("PRESS F TO TOGGLE LPF EFFECT: %s", enableEffectLPF? "ON" : "OFF"), 200, 320, 20, GRAY);
+            RLDrawText(RLTextFormat("PRESS D TO TOGGLE DELAY EFFECT: %s", enableEffectDelay? "ON" : "OFF"), 180, 350, 20, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadMusicStream(music);   // Unload music stream buffers from RAM
+    RLUnloadMusicStream(music);   // Unload music stream buffers from RAM
 
-    CloseAudioDevice();         // Close audio device (music streaming is automatically stopped)
+    RLCloseAudioDevice();         // Close audio device (music streaming is automatically stopped)
 
     RL_FREE(delayBuffer);       // Free delay buffer
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

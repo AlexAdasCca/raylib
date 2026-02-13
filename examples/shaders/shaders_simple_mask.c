@@ -41,62 +41,62 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - simple mask");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - simple mask");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 0.0f, 1.0f, 2.0f };    // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 0.0f, 1.0f, 2.0f };    // Camera position
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Define our three models to show the shader on
-    Mesh torus = GenMeshTorus(0.3f, 1, 16, 32);
-    Model model1 = LoadModelFromMesh(torus);
+    RLMesh torus = RLGenMeshTorus(0.3f, 1, 16, 32);
+    RLModel model1 = RLLoadModelFromMesh(torus);
 
-    Mesh cube = GenMeshCube(0.8f,0.8f,0.8f);
-    Model model2 = LoadModelFromMesh(cube);
+    RLMesh cube = RLGenMeshCube(0.8f,0.8f,0.8f);
+    RLModel model2 = RLLoadModelFromMesh(cube);
 
     // Generate model to be shaded just to see the gaps in the other two
-    Mesh sphere = GenMeshSphere(1, 16, 16);
-    Model model3 = LoadModelFromMesh(sphere);
+    RLMesh sphere = RLGenMeshSphere(1, 16, 16);
+    RLModel model3 = RLLoadModelFromMesh(sphere);
 
     // Load the shader
-    Shader shader = LoadShader(0, TextFormat("resources/shaders/glsl%i/mask.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/mask.fs", GLSL_VERSION));
 
     // Load and apply the diffuse texture (colour map)
-    Texture texDiffuse = LoadTexture("resources/plasma.png");
+    RLTexture texDiffuse = RLLoadTexture("resources/plasma.png");
     model1.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texDiffuse;
     model2.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texDiffuse;
 
     // Using MATERIAL_MAP_EMISSION as a spare slot to use for 2nd texture
     // NOTE: Don't use MATERIAL_MAP_IRRADIANCE, MATERIAL_MAP_PREFILTER or  MATERIAL_MAP_CUBEMAP as they are bound as cube maps
-    Texture texMask = LoadTexture("resources/mask.png");
+    RLTexture texMask = RLLoadTexture("resources/mask.png");
     model1.materials[0].maps[MATERIAL_MAP_EMISSION].texture = texMask;
     model2.materials[0].maps[MATERIAL_MAP_EMISSION].texture = texMask;
-    shader.locs[SHADER_LOC_MAP_EMISSION] = GetShaderLocation(shader, "mask");
+    shader.locs[SHADER_LOC_MAP_EMISSION] = RLGetShaderLocation(shader, "mask");
 
     // Frame is incremented each frame to animate the shader
-    int shaderFrame = GetShaderLocation(shader, "frame");
+    int shaderFrame = RLGetShaderLocation(shader, "frame");
 
     // Apply the shader to the two models
     model1.materials[0].shader = shader;
     model2.materials[0].shader = shader;
 
     int framesCounter = 0;
-    Vector3 rotation = { 0 };           // Model rotation angles
+    RLVector3 rotation = { 0 };           // Model rotation angles
 
-    DisableCursor();                    // Limit cursor to relative movement inside the window
-    SetTargetFPS(60);                   // Set  to run at 60 frames-per-second
+    RLDisableCursor();                    // Limit cursor to relative movement inside the window
+    RLSetTargetFPS(60);                   // Set  to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
 
         framesCounter++;
         rotation.x += 0.01f;
@@ -104,7 +104,7 @@ int main(void)
         rotation.z -= 0.0025f;
 
         // Send frames counter to shader for animation
-        SetShaderValue(shader, shaderFrame, &framesCounter, SHADER_UNIFORM_INT);
+        RLSetShaderValue(shader, shaderFrame, &framesCounter, SHADER_UNIFORM_INT);
 
         // Rotate one of the models
         model1.transform = MatrixRotateXYZ(rotation);
@@ -112,40 +112,40 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(DARKBLUE);
+            RLClearBackground(DARKBLUE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
-                DrawModel(model1, (Vector3){ 0.5f, 0.0f, 0.0f }, 1, WHITE);
-                DrawModelEx(model2, (Vector3){ -0.5f, 0.0f, 0.0f }, (Vector3){ 1.0f, 1.0f, 0.0f }, 50, (Vector3){ 1.0f, 1.0f, 1.0f }, WHITE);
-                DrawModel(model3,(Vector3){ 0.0f, 0.0f, -1.5f }, 1, WHITE);
-                DrawGrid(10, 1.0f);        // Draw a grid
+                RLDrawModel(model1, (RLVector3){ 0.5f, 0.0f, 0.0f }, 1, WHITE);
+                RLDrawModelEx(model2, (RLVector3){ -0.5f, 0.0f, 0.0f }, (RLVector3){ 1.0f, 1.0f, 0.0f }, 50, (RLVector3){ 1.0f, 1.0f, 1.0f }, WHITE);
+                RLDrawModel(model3,(RLVector3){ 0.0f, 0.0f, -1.5f }, 1, WHITE);
+                RLDrawGrid(10, 1.0f);        // Draw a grid
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawRectangle(16, 698, MeasureText(TextFormat("Frame: %i", framesCounter), 20) + 8, 42, BLUE);
-            DrawText(TextFormat("Frame: %i", framesCounter), 20, 700, 20, WHITE);
+            RLDrawRectangle(16, 698, RLMeasureText(RLTextFormat("Frame: %i", framesCounter), 20) + 8, 42, BLUE);
+            RLDrawText(RLTextFormat("Frame: %i", framesCounter), 20, 700, 20, WHITE);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadModel(model1);
-    UnloadModel(model2);
-    UnloadModel(model3);
+    RLUnloadModel(model1);
+    RLUnloadModel(model2);
+    RLUnloadModel(model3);
 
-    UnloadTexture(texDiffuse);  // Unload default diffuse texture
-    UnloadTexture(texMask);     // Unload texture mask
+    RLUnloadTexture(texDiffuse);  // Unload default diffuse texture
+    RLUnloadTexture(texMask);     // Unload texture mask
 
-    UnloadShader(shader);       // Unload shader
+    RLUnloadShader(shader);       // Unload shader
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -29,10 +29,10 @@
 // Module Functions Declaration
 //--------------------------------------------------------------------------------------
 // Load custom render texture, create a writable depth texture buffer
-static RenderTexture2D LoadRenderTextureDepthTex(int width, int height);
+static RLRenderTexture2D LoadRenderTextureDepthTex(int width, int height);
 
 // Unload render texture from GPU memory (VRAM)
-static void UnloadRenderTextureDepthTex(RenderTexture2D target);
+static void UnloadRenderTextureDepthTex(RLRenderTexture2D target);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -44,68 +44,68 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - depth writing");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - depth writing");
 
     // Define the camera to look into our 3d world
-    Camera camera = {
-        .position = (Vector3){ 2.0f, 2.0f, 3.0f },    // Camera position
-        .target = (Vector3){ 0.0f, 0.5f, 0.0f },      // Camera looking at point
-        .up = (Vector3){ 0.0f, 1.0f, 0.0f },          // Camera up vector (rotation towards target)
+    RLCamera camera = {
+        .position = (RLVector3){ 2.0f, 2.0f, 3.0f },    // Camera position
+        .target = (RLVector3){ 0.0f, 0.5f, 0.0f },      // Camera looking at point
+        .up = (RLVector3){ 0.0f, 1.0f, 0.0f },          // Camera up vector (rotation towards target)
         .fovy = 45.0f,                                // Camera field-of-view Y
         .projection = CAMERA_PERSPECTIVE              // Camera projection type
     };
 
     // Load custom render texture with writable depth texture buffer
-    RenderTexture2D target = LoadRenderTextureDepthTex(screenWidth, screenHeight);
+    RLRenderTexture2D target = LoadRenderTextureDepthTex(screenWidth, screenHeight);
 
     // Load depth writing shader
     // NOTE: The shader inverts the depth buffer by writing into it by `gl_FragDepth = 1 - gl_FragCoord.z;`
-    Shader shader = LoadShader(0, TextFormat("resources/shaders/glsl%i/depth_write.fs", GLSL_VERSION));
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/depth_write.fs", GLSL_VERSION));
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
         // Draw into our custom render texture
-        BeginTextureMode(target);
-            ClearBackground(WHITE);
+        RLBeginTextureMode(target);
+            RLClearBackground(WHITE);
 
-            BeginMode3D(camera);
-                BeginShaderMode(shader);
-                    DrawCubeWiresV((Vector3){ 0.0f, 0.5f, 1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, RED);
-                    DrawCubeV((Vector3){ 0.0f, 0.5f, 1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, PURPLE);
-                    DrawCubeWiresV((Vector3){ 0.0f, 0.5f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, DARKGREEN);
-                    DrawCubeV((Vector3) { 0.0f, 0.5f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, YELLOW);
-                    DrawGrid(10, 1.0f);
-                EndShaderMode();
-            EndMode3D();
-        EndTextureMode();
+            RLBeginMode3D(camera);
+                RLBeginShaderMode(shader);
+                    RLDrawCubeWiresV((RLVector3){ 0.0f, 0.5f, 1.0f }, (RLVector3){ 1.0f, 1.0f, 1.0f }, RED);
+                    RLDrawCubeV((RLVector3){ 0.0f, 0.5f, 1.0f }, (RLVector3){ 1.0f, 1.0f, 1.0f }, PURPLE);
+                    RLDrawCubeWiresV((RLVector3){ 0.0f, 0.5f, -1.0f }, (RLVector3){ 1.0f, 1.0f, 1.0f }, DARKGREEN);
+                    RLDrawCubeV((RLVector3) { 0.0f, 0.5f, -1.0f }, (RLVector3){ 1.0f, 1.0f, 1.0f }, YELLOW);
+                    RLDrawGrid(10, 1.0f);
+                RLEndShaderMode();
+            RLEndMode3D();
+        RLEndTextureMode();
 
         // Draw into screen our custom render texture
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
-            DrawTextureRec(target.texture, (Rectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, (Vector2) { 0, 0 }, WHITE);
+            RLDrawTextureRec(target.texture, (RLRectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, (RLVector2) { 0, 0 }, WHITE);
 
-            DrawFPS(10, 10);
-        EndDrawing();
+            RLDrawFPS(10, 10);
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
     UnloadRenderTextureDepthTex(target);
-    UnloadShader(shader);
+    RLUnloadShader(shader);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -115,9 +115,9 @@ int main(void)
 // Module Functions Definition
 //--------------------------------------------------------------------------------------
 // Load custom render texture, create a writable depth texture buffer
-static RenderTexture2D LoadRenderTextureDepthTex(int width, int height)
+static RLRenderTexture2D LoadRenderTextureDepthTex(int width, int height)
 {
-    RenderTexture2D target = { 0 };
+    RLRenderTexture2D target = { 0 };
 
     target.id = rlLoadFramebuffer(); // Load an empty framebuffer
 
@@ -154,7 +154,7 @@ static RenderTexture2D LoadRenderTextureDepthTex(int width, int height)
 }
 
 // Unload render texture from GPU memory (VRAM)
-void UnloadRenderTextureDepthTex(RenderTexture2D target)
+void UnloadRenderTextureDepthTex(RLRenderTexture2D target)
 {
     if (target.id > 0)
     {

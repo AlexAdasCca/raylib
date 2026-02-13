@@ -26,10 +26,10 @@
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 typedef struct Bullet {
-    Vector2 position;       // Bullet position on screen
-    Vector2 acceleration;   // Amount of pixels to be incremented to position every frame
+    RLVector2 position;       // Bullet position on screen
+    RLVector2 acceleration;   // Amount of pixels to be incremented to position every frame
     bool disabled;          // Skip processing and draw case out of screen
-    Color color;            // Bullet color
+    RLColor color;            // Bullet color
 } Bullet;
 
 //------------------------------------------------------------------------------------
@@ -42,7 +42,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - bullet hell");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - bullet hell");
 
     // Bullets definition
     Bullet *bullets = (Bullet *)RL_CALLOC(MAX_BULLETS, sizeof(Bullet)); // Bullets array
@@ -51,7 +51,7 @@ int main(void)
     int bulletRadius = 10;
     float bulletSpeed = 3.0f;
     int bulletRows = 6;
-    Color bulletColor[2] = { RED, BLUE };
+    RLColor bulletColor[2] = { RED, BLUE };
 
     // Spawner variables
     float baseDirection = 0;
@@ -63,22 +63,22 @@ int main(void)
     float magicCircleRotation = 0;
 
     // Used on performance drawing
-    RenderTexture bulletTexture = LoadRenderTexture(24, 24);
+    RLRenderTexture bulletTexture = RLLoadRenderTexture(24, 24);
 
     // Draw circle to bullet texture, then draw bullet using DrawTexture()
     // NOTE: This is done to improve the performance, since DrawCircle() is very slow
-    BeginTextureMode(bulletTexture);
-        DrawCircle(12, 12, (float)bulletRadius, WHITE);
-        DrawCircleLines(12, 12, (float)bulletRadius, BLACK);
-    EndTextureMode();
+    RLBeginTextureMode(bulletTexture);
+        RLDrawCircle(12, 12, (float)bulletRadius, WHITE);
+        RLDrawCircleLines(12, 12, (float)bulletRadius, BLACK);
+    RLEndTextureMode();
 
     bool drawInPerformanceMode = true; // Switch between DrawCircle() and DrawTexture()
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ int main(void)
             {
                 if (bulletCount < MAX_BULLETS)
                 {
-                    bullets[bulletCount].position = (Vector2){(float) screenWidth/2, (float) screenHeight/2};
+                    bullets[bulletCount].position = (RLVector2){(float) screenWidth/2, (float) screenHeight/2};
                     bullets[bulletCount].disabled = false;
                     bullets[bulletCount].color = bulletColor[row%2];
 
@@ -112,7 +112,7 @@ int main(void)
                     // only need to calculate it at the spawning time
                     // 0 degrees = right, 90 degrees = down, 180 degrees = left and 270 degrees = up, basically clockwise
                     // Case you want it to be anti-clockwise, add "* -1" at the y acceleration
-                    bullets[bulletCount].acceleration = (Vector2){
+                    bullets[bulletCount].acceleration = (RLVector2){
                         bulletSpeed*cosf(bulletDirection*DEG2RAD),
                         bulletSpeed*sinf(bulletDirection*DEG2RAD)
                     };
@@ -146,21 +146,21 @@ int main(void)
         }
 
         // Input logic
-        if ((IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) && (bulletRows < 359)) bulletRows++;
-        if ((IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) && (bulletRows > 1)) bulletRows--;
-        if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) bulletSpeed += 0.25f;
-        if ((IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) && (bulletSpeed > 0.50f)) bulletSpeed -= 0.25f;
-        if (IsKeyPressed(KEY_Z) && (spawnCooldown > 1)) spawnCooldown--;
-        if (IsKeyPressed(KEY_X)) spawnCooldown++;
-        if (IsKeyPressed(KEY_ENTER)) drawInPerformanceMode = !drawInPerformanceMode;
+        if ((RLIsKeyPressed(KEY_RIGHT) || RLIsKeyPressed(KEY_D)) && (bulletRows < 359)) bulletRows++;
+        if ((RLIsKeyPressed(KEY_LEFT) || RLIsKeyPressed(KEY_A)) && (bulletRows > 1)) bulletRows--;
+        if (RLIsKeyPressed(KEY_UP) || RLIsKeyPressed(KEY_W)) bulletSpeed += 0.25f;
+        if ((RLIsKeyPressed(KEY_DOWN) || RLIsKeyPressed(KEY_S)) && (bulletSpeed > 0.50f)) bulletSpeed -= 0.25f;
+        if (RLIsKeyPressed(KEY_Z) && (spawnCooldown > 1)) spawnCooldown--;
+        if (RLIsKeyPressed(KEY_X)) spawnCooldown++;
+        if (RLIsKeyPressed(KEY_ENTER)) drawInPerformanceMode = !drawInPerformanceMode;
 
-        if (IsKeyDown(KEY_SPACE))
+        if (RLIsKeyDown(KEY_SPACE))
         {
             angleIncrement += 1;
             angleIncrement %= 360;
         }
 
-        if (IsKeyPressed(KEY_C))
+        if (RLIsKeyPressed(KEY_C))
         {
             bulletCount = 0;
             bulletDisabledCount = 0;
@@ -169,18 +169,18 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
             // Draw magic circle
             magicCircleRotation++;
-            DrawRectanglePro((Rectangle){ (float)screenWidth/2, (float)screenHeight/2, 120, 120 },
-                (Vector2){ 60.0f, 60.0f }, magicCircleRotation, PURPLE);
-            DrawRectanglePro((Rectangle){ (float)screenWidth/2, (float)screenHeight/2, 120, 120 },
-                (Vector2){ 60.0f, 60.0f }, magicCircleRotation + 45, PURPLE);
-            DrawCircleLines(screenWidth/2, screenHeight/2, 70, BLACK);
-            DrawCircleLines(screenWidth/2, screenHeight/2, 50, BLACK);
-            DrawCircleLines(screenWidth/2, screenHeight/2, 30, BLACK);
+            RLDrawRectanglePro((RLRectangle){ (float)screenWidth/2, (float)screenHeight/2, 120, 120 },
+                (RLVector2){ 60.0f, 60.0f }, magicCircleRotation, PURPLE);
+            RLDrawRectanglePro((RLRectangle){ (float)screenWidth/2, (float)screenHeight/2, 120, 120 },
+                (RLVector2){ 60.0f, 60.0f }, magicCircleRotation + 45, PURPLE);
+            RLDrawCircleLines(screenWidth/2, screenHeight/2, 70, BLACK);
+            RLDrawCircleLines(screenWidth/2, screenHeight/2, 50, BLACK);
+            RLDrawCircleLines(screenWidth/2, screenHeight/2, 30, BLACK);
 
             // Draw bullets
             if (drawInPerformanceMode)
@@ -191,7 +191,7 @@ int main(void)
                     // Do not draw disabled bullets (out of screen)
                     if (!bullets[i].disabled)
                     {
-                        DrawTexture(bulletTexture.texture,
+                        RLDrawTexture(bulletTexture.texture,
                             (int)(bullets[i].position.x - bulletTexture.texture.width*0.5f),
                             (int)(bullets[i].position.y - bulletTexture.texture.height*0.5f),
                             bullets[i].color);
@@ -206,42 +206,42 @@ int main(void)
                     // Do not draw disabled bullets (out of screen)
                     if (!bullets[i].disabled)
                     {
-                        DrawCircleV(bullets[i].position, (float)bulletRadius, bullets[i].color);
-                        DrawCircleLinesV(bullets[i].position, (float)bulletRadius, BLACK);
+                        RLDrawCircleV(bullets[i].position, (float)bulletRadius, bullets[i].color);
+                        RLDrawCircleLinesV(bullets[i].position, (float)bulletRadius, BLACK);
                     }
                 }
             }
 
             // Draw UI
-            DrawRectangle(10, 10, 280, 150, (Color){0,0, 0, 200 });
-            DrawText("Controls:", 20, 20, 10, LIGHTGRAY);
-            DrawText("- Right/Left or A/D: Change rows number", 40, 40, 10, LIGHTGRAY);
-            DrawText("- Up/Down or W/S: Change bullet speed", 40, 60, 10, LIGHTGRAY);
-            DrawText("- Z or X: Change spawn cooldown", 40, 80, 10, LIGHTGRAY);
-            DrawText("- Space (Hold): Change the angle increment", 40, 100, 10, LIGHTGRAY);
-            DrawText("- Enter: Switch draw method (Performance)", 40, 120, 10, LIGHTGRAY);
-            DrawText("- C: Clear bullets", 40, 140, 10, LIGHTGRAY);
+            RLDrawRectangle(10, 10, 280, 150, (RLColor){0,0, 0, 200 });
+            RLDrawText("Controls:", 20, 20, 10, LIGHTGRAY);
+            RLDrawText("- Right/Left or A/D: Change rows number", 40, 40, 10, LIGHTGRAY);
+            RLDrawText("- Up/Down or W/S: Change bullet speed", 40, 60, 10, LIGHTGRAY);
+            RLDrawText("- Z or X: Change spawn cooldown", 40, 80, 10, LIGHTGRAY);
+            RLDrawText("- Space (Hold): Change the angle increment", 40, 100, 10, LIGHTGRAY);
+            RLDrawText("- Enter: Switch draw method (Performance)", 40, 120, 10, LIGHTGRAY);
+            RLDrawText("- C: Clear bullets", 40, 140, 10, LIGHTGRAY);
 
-            DrawRectangle(610, 10, 170, 30, (Color){0,0, 0, 200 });
-            if (drawInPerformanceMode) DrawText("Draw method: DrawTexture(*)", 620, 20, 10, GREEN);
-            else DrawText("Draw method: DrawCircle(*)", 620, 20, 10, RED);
+            RLDrawRectangle(610, 10, 170, 30, (RLColor){0,0, 0, 200 });
+            if (drawInPerformanceMode) RLDrawText("Draw method: DrawTexture(*)", 620, 20, 10, GREEN);
+            else RLDrawText("Draw method: DrawCircle(*)", 620, 20, 10, RED);
 
-            DrawRectangle(135, 410, 530, 30, (Color){0,0, 0, 200 });
-            DrawText(TextFormat("[ FPS: %d, Bullets: %d, Rows: %d, Bullet speed: %.2f, Angle increment per frame: %d, Cooldown: %.0f ]",
-                    GetFPS(), bulletCount - bulletDisabledCount, bulletRows, bulletSpeed,  angleIncrement, spawnCooldown),
+            RLDrawRectangle(135, 410, 530, 30, (RLColor){0,0, 0, 200 });
+            RLDrawText(RLTextFormat("[ FPS: %d, Bullets: %d, Rows: %d, Bullet speed: %.2f, Angle increment per frame: %d, Cooldown: %.0f ]",
+                    RLGetFPS(), bulletCount - bulletDisabledCount, bulletRows, bulletSpeed,  angleIncrement, spawnCooldown),
                 155, 420, 10, GREEN);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadRenderTexture(bulletTexture); // Unload bullet texture
+    RLUnloadRenderTexture(bulletTexture); // Unload bullet texture
 
     RL_FREE(bullets);     // Free bullets array data
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

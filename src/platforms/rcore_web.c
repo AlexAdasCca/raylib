@@ -164,7 +164,7 @@ EM_JS(void, SetCanvasIdJs, (char *out, int outSize), {
 // Check if application should close
 // This will always return false on a web-build as web builds have no control over this functionality
 // Sleep is handled in EndDrawing() for synchronous code
-bool WindowShouldClose(void)
+bool RLWindowShouldClose(void)
 {
     // Emscripten Asyncify is required to run synchronous code in asynchronous JS
     // REF: https://emscripten.org/docs/porting/asyncify.html
@@ -181,7 +181,7 @@ bool WindowShouldClose(void)
 }
 
 // Toggle fullscreen mode
-void ToggleFullscreen(void)
+void RLToggleFullscreen(void)
 {
     platform.ourFullscreen = true;
     bool enterFullscreen = false;
@@ -285,7 +285,7 @@ void ToggleFullscreen(void)
 }
 
 // Toggle borderless windowed mode
-void ToggleBorderlessWindowed(void)
+void RLToggleBorderlessWindowed(void)
 {
     platform.ourFullscreen = true;
     bool enterBorderless = false;
@@ -331,7 +331,7 @@ void ToggleBorderlessWindowed(void)
 }
 
 // Set window state: maximized, if resizable
-void MaximizeWindow(void)
+void RLMaximizeWindow(void)
 {
     if ((glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE) && !(FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)))
     {
@@ -348,13 +348,13 @@ void MaximizeWindow(void)
 }
 
 // Set window state: minimized
-void MinimizeWindow(void)
+void RLMinimizeWindow(void)
 {
     TRACELOG(LOG_WARNING, "MinimizeWindow() not available on target platform");
 }
 
 // Restore window from being minimized/maximized
-void RestoreWindow(void)
+void RLRestoreWindow(void)
 {
     if ((glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE) && (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)))
     {
@@ -365,7 +365,7 @@ void RestoreWindow(void)
 }
 
 // Set window configuration state using flags
-void SetWindowState(unsigned int flags)
+void RLSetWindowState(unsigned int flags)
 {
     if (!CORE.Window.ready) TRACELOG(LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
 
@@ -387,9 +387,9 @@ void SetWindowState(unsigned int flags)
         {
             const int canvasWidth = EM_ASM_INT( { return Module.canvas.width; }, 0);
             const int canvasStyleWidth = EM_ASM_INT( { return parseInt(Module.canvas.style.width); }, 0);
-            if ((FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE)) || canvasStyleWidth > canvasWidth) ToggleBorderlessWindowed();
+            if ((FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE)) || canvasStyleWidth > canvasWidth) RLToggleBorderlessWindowed();
         }
-        else ToggleBorderlessWindowed();
+        else RLToggleBorderlessWindowed();
     }
 
     // State change: FLAG_FULLSCREEN_MODE
@@ -401,9 +401,9 @@ void SetWindowState(unsigned int flags)
         {
             const int canvasWidth = EM_ASM_INT( { return Module.canvas.width; }, 0);
             const int screenWidth = EM_ASM_INT( { return screen.width; }, 0);
-            if ((FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE)) || screenWidth == canvasWidth ) ToggleFullscreen();
+            if ((FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE)) || screenWidth == canvasWidth ) RLToggleFullscreen();
         }
-        else ToggleFullscreen();
+        else RLToggleFullscreen();
     }
 
     // State change: FLAG_WINDOW_RESIZABLE
@@ -501,7 +501,7 @@ void SetWindowState(unsigned int flags)
 }
 
 // Clear window configuration state flags
-void ClearWindowState(unsigned int flags)
+void RLClearWindowState(unsigned int flags)
 {
     // Check previous state and requested state to apply required changes
     // NOTE: In most cases the functions already change the flags internally
@@ -629,38 +629,38 @@ void ClearWindowState(unsigned int flags)
 }
 
 // Set icon for window
-void SetWindowIcon(Image image)
+void RLSetWindowIcon(RLImage image)
 {
     TRACELOG(LOG_WARNING, "SetWindowIcon() not available on target platform");
 }
 
 // Set icon for window, multiple images
-void SetWindowIcons(Image *images, int count)
+void RLSetWindowIcons(RLImage *images, int count)
 {
     TRACELOG(LOG_WARNING, "SetWindowIcons() not available on target platform");
 }
 
 // Set title for window
-void SetWindowTitle(const char *title)
+void RLSetWindowTitle(const char *title)
 {
     CORE.Window.title = title;
     emscripten_set_window_title(title);
 }
 
 // Set window position on screen (windowed mode)
-void SetWindowPosition(int x, int y)
+void RLSetWindowPosition(int x, int y)
 {
     TRACELOG(LOG_WARNING, "SetWindowPosition() not available on target platform");
 }
 
 // Set monitor for the current window
-void SetWindowMonitor(int monitor)
+void RLSetWindowMonitor(int monitor)
 {
     TRACELOG(LOG_WARNING, "SetWindowMonitor() not available on target platform");
 }
 
 // Set window minimum dimensions (FLAG_WINDOW_RESIZABLE)
-void SetWindowMinSize(int width, int height)
+void RLSetWindowMinSize(int width, int height)
 {
     CORE.Window.screenMin.width = width;
     CORE.Window.screenMin.height = height;
@@ -670,7 +670,7 @@ void SetWindowMinSize(int width, int height)
 }
 
 // Set window maximum dimensions (FLAG_WINDOW_RESIZABLE)
-void SetWindowMaxSize(int width, int height)
+void RLSetWindowMaxSize(int width, int height)
 {
     CORE.Window.screenMax.width = width;
     CORE.Window.screenMax.height = height;
@@ -680,13 +680,13 @@ void SetWindowMaxSize(int width, int height)
 }
 
 // Set window dimensions
-void SetWindowSize(int width, int height)
+void RLSetWindowSize(int width, int height)
 {
     glfwSetWindowSize(platform.handle, width, height);
 }
 
 // Set window opacity, value opacity is between 0.0 and 1.0
-void SetWindowOpacity(float opacity)
+void RLSetWindowOpacity(float opacity)
 {
     if (opacity >= 1.0f) opacity = 1.0f;
     else if (opacity <= 0.0f) opacity = 0.0f;
@@ -694,41 +694,41 @@ void SetWindowOpacity(float opacity)
 }
 
 // Set window focused
-void SetWindowFocused(void)
+void RLSetWindowFocused(void)
 {
     TRACELOG(LOG_WARNING, "SetWindowFocused() not available on target platform");
 }
 
 // Get native window handle
-void *GetWindowHandle(void)
+void *RLGetWindowHandle(void)
 {
     TRACELOG(LOG_WARNING, "GetWindowHandle() not implemented on target platform");
     return NULL;
 }
 
 // Get number of monitors
-int GetMonitorCount(void)
+int RLGetMonitorCount(void)
 {
     TRACELOG(LOG_WARNING, "GetMonitorCount() not implemented on target platform");
     return 1;
 }
 
 // Get current monitor where window is placed
-int GetCurrentMonitor(void)
+int RLGetCurrentMonitor(void)
 {
     TRACELOG(LOG_WARNING, "GetCurrentMonitor() not implemented on target platform");
     return 0;
 }
 
 // Get selected monitor position
-Vector2 GetMonitorPosition(int monitor)
+RLVector2 RLGetMonitorPosition(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorPosition() not implemented on target platform");
-    return (Vector2){ 0, 0 };
+    return (RLVector2){ 0, 0 };
 }
 
 // Get selected monitor width (currently used by monitor)
-int GetMonitorWidth(int monitor)
+int RLGetMonitorWidth(int monitor)
 {
     // NOTE: Returned value is limited to the current monitor where the browser window is located
     int width = 0;
@@ -737,7 +737,7 @@ int GetMonitorWidth(int monitor)
 }
 
 // Get selected monitor height (currently used by monitor)
-int GetMonitorHeight(int monitor)
+int RLGetMonitorHeight(int monitor)
 {
     // NOTE: Returned value is limited to the current monitor where the browser window is located
     int height = 0;
@@ -746,55 +746,55 @@ int GetMonitorHeight(int monitor)
 }
 
 // Get selected monitor physical width in millimetres
-int GetMonitorPhysicalWidth(int monitor)
+int RLGetMonitorPhysicalWidth(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorPhysicalWidth() not implemented on target platform");
     return 0;
 }
 
 // Get selected monitor physical height in millimetres
-int GetMonitorPhysicalHeight(int monitor)
+int RLGetMonitorPhysicalHeight(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorPhysicalHeight() not implemented on target platform");
     return 0;
 }
 
 // Get selected monitor refresh rate
-int GetMonitorRefreshRate(int monitor)
+int RLGetMonitorRefreshRate(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorRefreshRate() not implemented on target platform");
     return 0;
 }
 
 // Get the human-readable, UTF-8 encoded name of the selected monitor
-const char *GetMonitorName(int monitor)
+const char *RLGetMonitorName(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorName() not implemented on target platform");
     return "";
 }
 
 // Get window position XY on monitor
-Vector2 GetWindowPosition(void)
+RLVector2 RLGetWindowPosition(void)
 {
     // NOTE: Returned position is relative to the current monitor where the browser window is located
-    Vector2 position = { 0, 0 };
+    RLVector2 position = { 0, 0 };
     position.x = (float)EM_ASM_INT( { return window.screenX; }, 0);
     position.y = (float)EM_ASM_INT( { return window.screenY; }, 0);
     return position;
 }
 
 // Get window scale DPI factor for current monitor
-Vector2 GetWindowScaleDPI(void)
+RLVector2 RLGetWindowScaleDPI(void)
 {
     // NOTE: Returned scale is relative to the current monitor where the browser window is located
-    Vector2 scale = { 1.0f, 1.0f };
+    RLVector2 scale = { 1.0f, 1.0f };
     scale.x = (float)EM_ASM_DOUBLE( { return window.devicePixelRatio; } );
     scale.y = scale.x;
     return scale;
 }
 
 // Set clipboard text content
-void SetClipboardText(const char *text)
+void RLSetClipboardText(const char *text)
 {
     // Security check to (partially) avoid malicious code
     if (strchr(text, '\'') != NULL) TRACELOG(LOG_WARNING, "SYSTEM: Provided Clipboard could be potentially malicious, avoid [\'] character");
@@ -803,7 +803,7 @@ void SetClipboardText(const char *text)
 
 // Get clipboard text content
 // NOTE: returned string is allocated and freed by GLFW
-const char *GetClipboardText(void)
+const char *RLGetClipboardText(void)
 {
 /*
     // Accessing clipboard data from browser is tricky due to security reasons
@@ -824,9 +824,9 @@ const char *GetClipboardText(void)
 }
 
 // Get clipboard image
-Image GetClipboardImage(void)
+RLImage RLGetClipboardImage(void)
 {
-    Image image = { 0 };
+    RLImage image = { 0 };
 
     TRACELOG(LOG_WARNING, "GetClipboardImage() not implemented on target platform");
 
@@ -834,7 +834,7 @@ Image GetClipboardImage(void)
 }
 
 // Show mouse cursor
-void ShowCursor(void)
+void RLShowCursor(void)
 {
     if (CORE.Input.Mouse.cursorHidden)
     {
@@ -845,7 +845,7 @@ void ShowCursor(void)
 }
 
 // Hides mouse cursor
-void HideCursor(void)
+void RLHideCursor(void)
 {
     if (!CORE.Input.Mouse.cursorHidden)
     {
@@ -856,29 +856,29 @@ void HideCursor(void)
 }
 
 // Enables cursor (unlock cursor)
-void EnableCursor(void)
+void RLEnableCursor(void)
 {
     emscripten_exit_pointerlock();
 
     // Set cursor position in the middle
-    SetMousePosition(CORE.Window.screen.width/2, CORE.Window.screen.height/2);
+    RLSetMousePosition(CORE.Window.screen.width/2, CORE.Window.screen.height/2);
 
     // NOTE: CORE.Input.Mouse.cursorLocked handled by EmscriptenPointerlockCallback()
 }
 
 // Disables cursor (lock cursor)
-void DisableCursor(void)
+void RLDisableCursor(void)
 {
     emscripten_request_pointerlock(platform.canvasId, 1);
 
     // Set cursor position in the middle
-    SetMousePosition(CORE.Window.screen.width/2, CORE.Window.screen.height/2);
+    RLSetMousePosition(CORE.Window.screen.width/2, CORE.Window.screen.height/2);
 
     // NOTE: CORE.Input.Mouse.cursorLocked handled by EmscriptenPointerlockCallback()
 }
 
 // Swap back buffer with front buffer (screen drawing)
-void SwapScreenBuffer(void)
+void RLSwapScreenBuffer(void)
 {
 #if defined(GRAPHICS_API_OPENGL_11_SOFTWARE)
     // Update framebuffer
@@ -914,7 +914,7 @@ void SwapScreenBuffer(void)
 //----------------------------------------------------------------------------------
 
 // Get elapsed time measure in seconds since InitTimer()
-double GetTime(void)
+double RLGetTime(void)
 {
     double time = glfwGetTime();   // Elapsed time since glfwInit()
     return time;
@@ -924,11 +924,11 @@ double GetTime(void)
 // NOTE: This function is only safe to use if you control the URL given
 // A user could craft a malicious string performing another action
 // Only call this function yourself not with user input or make sure to check the string yourself
-void OpenURL(const char *url)
+void RLOpenURL(const char *url)
 {
     // Security check to (partially) avoid malicious code on target platform
     if (strchr(url, '\'') != NULL) TRACELOG(LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
-    else emscripten_run_script(TextFormat("window.open('%s', '_blank')", url));
+    else emscripten_run_script(RLTextFormat("window.open('%s', '_blank')", url));
 }
 
 //----------------------------------------------------------------------------------
@@ -936,7 +936,7 @@ void OpenURL(const char *url)
 //----------------------------------------------------------------------------------
 
 // Set internal gamepad mappings
-int SetGamepadMappings(const char *mappings)
+int RLSetGamepadMappings(const char *mappings)
 {
     TRACELOG(LOG_INFO, "SetGamepadMappings not implemented in rcore_web.c");
 
@@ -944,7 +944,7 @@ int SetGamepadMappings(const char *mappings)
 }
 
 // Set gamepad vibration
-void SetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float duration)
+void RLSetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float duration)
 {
     if ((gamepad < MAX_GAMEPADS) && CORE.Input.Gamepad.ready[gamepad] && (duration > 0.0f))
     {
@@ -975,9 +975,9 @@ void SetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float d
 }
 
 // Set mouse position XY
-void SetMousePosition(int x, int y)
+void RLSetMousePosition(int x, int y)
 {
-    CORE.Input.Mouse.currentPosition = (Vector2){ (float)x, (float)y };
+    CORE.Input.Mouse.currentPosition = (RLVector2){ (float)x, (float)y };
     CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
 
     if (CORE.Input.Mouse.cursorLocked) CORE.Input.Mouse.lockedPosition = CORE.Input.Mouse.currentPosition;
@@ -987,7 +987,7 @@ void SetMousePosition(int x, int y)
 }
 
 // Set mouse cursor
-void SetMouseCursor(int cursor)
+void RLSetMouseCursor(int cursor)
 {
     if (CORE.Input.Mouse.cursor != cursor)
     {
@@ -998,14 +998,14 @@ void SetMouseCursor(int cursor)
 }
 
 // Get physical key name
-const char *GetKeyName(int key)
+const char *RLGetKeyName(int key)
 {
     TRACELOG(LOG_WARNING, "GetKeyName() not implemented on target platform");
     return "";
 }
 
 // Register all input events
-void PollInputEvents(void)
+void RLPollInputEvents(void)
 {
 #if defined(SUPPORT_GESTURES_SYSTEM)
     // NOTE: Gestures update must be called every frame to reset gestures correctly
@@ -1035,7 +1035,7 @@ void PollInputEvents(void)
 
     // Register previous mouse wheel state
     CORE.Input.Mouse.previousWheelMove = CORE.Input.Mouse.currentWheelMove;
-    CORE.Input.Mouse.currentWheelMove = (Vector2){ 0.0f, 0.0f };
+    CORE.Input.Mouse.currentWheelMove = (RLVector2){ 0.0f, 0.0f };
 
     // Register previous mouse position
     CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
@@ -1069,7 +1069,7 @@ void PollInputEvents(void)
             // Register buttons data for every connected gamepad
             for (int j = 0; (j < gamepadState.numButtons) && (j < MAX_GAMEPAD_BUTTONS); j++)
             {
-                GamepadButton button = -1;
+                RLGamepadButton button = -1;
 
                 // Gamepad Buttons reference: https://www.w3.org/TR/gamepad/#gamepad-interface
                 switch (j)
@@ -1365,7 +1365,7 @@ int InitPlatform(void)
         return -1;
     }
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) MinimizeWindow();
+    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) RLMinimizeWindow();
 
     // If graphic device is no properly initialized, we end program
     if (!CORE.Window.ready) { TRACELOG(LOG_FATAL, "PLATFORM: Failed to initialize graphic device"); return -1; }
@@ -1414,7 +1414,7 @@ int InitPlatform(void)
 
     // Initialize storage system
     //----------------------------------------------------------------------------
-    CORE.Storage.basePath = GetWorkingDirectory();
+    CORE.Storage.basePath = RLGetWorkingDirectory();
     //----------------------------------------------------------------------------
 
     TRACELOG(LOG_INFO, "PLATFORM: WEB: Initialized successfully");
@@ -1447,12 +1447,12 @@ static void WindowSizeCallback(GLFWwindow *window, int width, int height)
     CORE.Window.currentFbo.height = height;
     CORE.Window.resizedLastFrame = true;
 
-    if (IsWindowFullscreen()) return;
+    if (RLIsWindowFullscreen()) return;
 
     // Set current screen size
     if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI))
     {
-        Vector2 windowScaleDPI = GetWindowScaleDPI();
+        RLVector2 windowScaleDPI = RLGetWindowScaleDPI();
 
         CORE.Window.screen.width = (unsigned int)(width/windowScaleDPI.x);
         CORE.Window.screen.height = (unsigned int)(height/windowScaleDPI.y);
@@ -1581,15 +1581,15 @@ static void MouseButtonCallback(GLFWwindow *window, int button, int action, int 
     gestureEvent.pointCount = 1;
 
     // Register touch points position, only one point registered
-    gestureEvent.position[0] = GetMousePosition();
+    gestureEvent.position[0] = RLGetMousePosition();
 
     // Normalize gestureEvent.position[0] for CORE.Window.screen.width and CORE.Window.screen.height
-    gestureEvent.position[0].x /= (float)GetScreenWidth();
-    gestureEvent.position[0].y /= (float)GetScreenHeight();
+    gestureEvent.position[0].x /= (float)RLGetScreenWidth();
+    gestureEvent.position[0].y /= (float)RLGetScreenHeight();
 
     // Gesture data is sent to gestures-system for processing
     // Prevent calling ProcessGestureEvent() when Emscripten is present and there's a touch gesture, so EmscriptenTouchCallback() can handle it itself
-    if (GetMouseX() != 0 || GetMouseY() != 0) ProcessGestureEvent(gestureEvent);
+    if (RLGetMouseX() != 0 || RLGetMouseY() != 0) ProcessGestureEvent(gestureEvent);
 
 #endif
 }
@@ -1621,8 +1621,8 @@ static void MouseMoveCallback(GLFWwindow *window, double x, double y)
     gestureEvent.position[0] = CORE.Input.Touch.position[0];
 
     // Normalize gestureEvent.position[0] for CORE.Window.screen.width and CORE.Window.screen.height
-    gestureEvent.position[0].x /= (float)GetScreenWidth();
-    gestureEvent.position[0].y /= (float)GetScreenHeight();
+    gestureEvent.position[0].x /= (float)RLGetScreenWidth();
+    gestureEvent.position[0].y /= (float)RLGetScreenHeight();
 
     // Gesture data is sent to gestures-system for processing
     ProcessGestureEvent(gestureEvent);
@@ -1632,7 +1632,7 @@ static void MouseMoveCallback(GLFWwindow *window, double x, double y)
 // GLFW3: Called on mouse wheel scrolling
 static void MouseScrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
-    CORE.Input.Mouse.currentWheelMove = (Vector2){ (float)xoffset, (float)yoffset };
+    CORE.Input.Mouse.currentWheelMove = (RLVector2){ (float)xoffset, (float)yoffset };
 }
 
 // GLFW3: Called on mouse entering the window
@@ -1731,11 +1731,11 @@ static EM_BOOL EmscriptenTouchCallback(int eventType, const EmscriptenTouchEvent
         CORE.Input.Touch.pointId[i] = touchEvent->touches[i].identifier;
 
         // Register touch points position
-        CORE.Input.Touch.position[i] = (Vector2){touchEvent->touches[i].targetX, touchEvent->touches[i].targetY};
+        CORE.Input.Touch.position[i] = (RLVector2){touchEvent->touches[i].targetX, touchEvent->touches[i].targetY};
 
         // Normalize gestureEvent.position[x] for CORE.Window.screen.width and CORE.Window.screen.height
-        CORE.Input.Touch.position[i].x *= ((float)GetScreenWidth()/(float)canvasWidth);
-        CORE.Input.Touch.position[i].y *= ((float)GetScreenHeight()/(float)canvasHeight);
+        CORE.Input.Touch.position[i].x *= ((float)RLGetScreenWidth()/(float)canvasWidth);
+        CORE.Input.Touch.position[i].y *= ((float)RLGetScreenHeight()/(float)canvasHeight);
 
         if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART) CORE.Input.Touch.currentTouchState[i] = 1;
         else if (eventType == EMSCRIPTEN_EVENT_TOUCHEND) CORE.Input.Touch.currentTouchState[i] = 0;
@@ -1764,8 +1764,8 @@ static EM_BOOL EmscriptenTouchCallback(int eventType, const EmscriptenTouchEvent
         gestureEvent.position[i] = CORE.Input.Touch.position[i];
 
         // Normalize gestureEvent.position[i]
-        gestureEvent.position[i].x /= (float)GetScreenWidth();
-        gestureEvent.position[i].y /= (float)GetScreenHeight();
+        gestureEvent.position[i].x /= (float)RLGetScreenWidth();
+        gestureEvent.position[i].y /= (float)RLGetScreenHeight();
     }
 
     // Gesture data is sent to gestures system for processing
@@ -1841,7 +1841,7 @@ static EM_BOOL EmscriptenResizeCallback(int eventType, const EmscriptenUiEvent *
     CORE.Window.currentFbo.height = height;
     CORE.Window.resizedLastFrame = true;
 
-    if (IsWindowFullscreen()) return 1;
+    if (RLIsWindowFullscreen()) return 1;
 
     // Set current screen size
     CORE.Window.screen.width = width;

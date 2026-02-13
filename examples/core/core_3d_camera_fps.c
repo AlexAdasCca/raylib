@@ -45,29 +45,29 @@
 //----------------------------------------------------------------------------------
 // Body structure
 typedef struct {
-    Vector3 position;
-    Vector3 velocity;
-    Vector3 dir;
+    RLVector3 position;
+    RLVector3 velocity;
+    RLVector3 dir;
     bool isGrounded;
 } Body;
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-static Vector2 sensitivity = { 0.001f, 0.001f };
+static RLVector2 sensitivity = { 0.001f, 0.001f };
 
 static Body player = { 0 };
-static Vector2 lookRotation = { 0 };
+static RLVector2 lookRotation = { 0 };
 static float headTimer = 0.0f;
 static float walkLerp = 0.0f;
 static float headLerp = STAND_HEIGHT;
-static Vector2 lean = { 0 };
+static RLVector2 lean = { 0 };
 
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
 static void DrawLevel(void);
-static void UpdateCameraFPS(Camera *camera);
+static void UpdateCameraFPS(RLCamera *camera);
 static void UpdateBody(Body *body, float rot, char side, char forward, bool jumpPressed, bool crouchHold);
 
 //------------------------------------------------------------------------------------
@@ -80,14 +80,14 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - 3d camera fps");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - 3d camera fps");
 
     // Initialize camera variables
     // NOTE: UpdateCameraFPS() takes care of the rest
-    Camera camera = { 0 };
+    RLCamera camera = { 0 };
     camera.fovy = 60.0f;
     camera.projection = CAMERA_PERSPECTIVE;
-    camera.position = (Vector3){
+    camera.position = (RLVector3){
         player.position.x,
         player.position.y + (BOTTOM_HEIGHT + headLerp),
         player.position.z,
@@ -95,28 +95,28 @@ int main(void)
 
     UpdateCameraFPS(&camera); // Update camera parameters
 
-    DisableCursor();        // Limit cursor to relative movement inside the window
+    RLDisableCursor();        // Limit cursor to relative movement inside the window
 
-    SetTargetFPS(60);       // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);       // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        Vector2 mouseDelta = GetMouseDelta();
+        RLVector2 mouseDelta = RLGetMouseDelta();
         lookRotation.x -= mouseDelta.x*sensitivity.x;
         lookRotation.y += mouseDelta.y*sensitivity.y;
 
-        char sideway = (IsKeyDown(KEY_D) - IsKeyDown(KEY_A));
-        char forward = (IsKeyDown(KEY_W) - IsKeyDown(KEY_S));
-        bool crouching = IsKeyDown(KEY_LEFT_CONTROL);
-        UpdateBody(&player, lookRotation.x, sideway, forward, IsKeyPressed(KEY_SPACE), crouching);
+        char sideway = (RLIsKeyDown(KEY_D) - RLIsKeyDown(KEY_A));
+        char forward = (RLIsKeyDown(KEY_W) - RLIsKeyDown(KEY_S));
+        bool crouching = RLIsKeyDown(KEY_LEFT_CONTROL);
+        UpdateBody(&player, lookRotation.x, sideway, forward, RLIsKeyPressed(KEY_SPACE), crouching);
 
-        float delta = GetFrameTime();
+        float delta = RLGetFrameTime();
         headLerp = Lerp(headLerp, (crouching ? CROUCH_HEIGHT : STAND_HEIGHT), 20.0f*delta);
-        camera.position = (Vector3){
+        camera.position = (RLVector3){
             player.position.x,
             player.position.y + (BOTTOM_HEIGHT + headLerp),
             player.position.z,
@@ -142,30 +142,30 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
                 DrawLevel();
-            EndMode3D();
+            RLEndMode3D();
 
             // Draw info box
-            DrawRectangle(5, 5, 330, 75, Fade(SKYBLUE, 0.5f));
-            DrawRectangleLines(5, 5, 330, 75, BLUE);
+            RLDrawRectangle(5, 5, 330, 75, RLFade(SKYBLUE, 0.5f));
+            RLDrawRectangleLines(5, 5, 330, 75, BLUE);
 
-            DrawText("Camera controls:", 15, 15, 10, BLACK);
-            DrawText("- Move keys: W, A, S, D, Space, Left-Ctrl", 15, 30, 10, BLACK);
-            DrawText("- Look around: arrow keys or mouse", 15, 45, 10, BLACK);
-            DrawText(TextFormat("- Velocity Len: (%06.3f)", Vector2Length((Vector2){ player.velocity.x, player.velocity.z })), 15, 60, 10, BLACK);
+            RLDrawText("Camera controls:", 15, 15, 10, BLACK);
+            RLDrawText("- Move keys: W, A, S, D, Space, Left-Ctrl", 15, 30, 10, BLACK);
+            RLDrawText("- Look around: arrow keys or mouse", 15, 45, 10, BLACK);
+            RLDrawText(RLTextFormat("- Velocity Len: (%06.3f)", Vector2Length((RLVector2){ player.velocity.x, player.velocity.z })), 15, 60, 10, BLACK);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -177,14 +177,14 @@ int main(void)
 // Update body considering current world state
 void UpdateBody(Body *body, float rot, char side, char forward, bool jumpPressed, bool crouchHold)
 {
-    Vector2 input = (Vector2){ (float)side, (float)-forward };
+    RLVector2 input = (RLVector2){ (float)side, (float)-forward };
 
 #if defined(NORMALIZE_INPUT)
     // Slow down diagonal movement
     if ((side != 0) && (forward != 0)) input = Vector2Normalize(input);
 #endif
 
-    float delta = GetFrameTime();
+    float delta = RLGetFrameTime();
 
     if (!body->isGrounded) body->velocity.y -= GRAVITY*delta;
 
@@ -198,17 +198,17 @@ void UpdateBody(Body *body, float rot, char side, char forward, bool jumpPressed
         //PlaySound(fxJump);
     }
 
-    Vector3 front = (Vector3){ sinf(rot), 0.f, cosf(rot) };
-    Vector3 right = (Vector3){ cosf(-rot), 0.f, sinf(-rot) };
+    RLVector3 front = (RLVector3){ sinf(rot), 0.f, cosf(rot) };
+    RLVector3 right = (RLVector3){ cosf(-rot), 0.f, sinf(-rot) };
 
-    Vector3 desiredDir = (Vector3){ input.x*right.x + input.y*front.x, 0.0f, input.x*right.z + input.y*front.z, };
+    RLVector3 desiredDir = (RLVector3){ input.x*right.x + input.y*front.x, 0.0f, input.x*right.z + input.y*front.z, };
     body->dir = Vector3Lerp(body->dir, desiredDir, CONTROL*delta);
 
     float decel = (body->isGrounded ? FRICTION : AIR_DRAG);
-    Vector3 hvel = (Vector3){ body->velocity.x*decel, 0.0f, body->velocity.z*decel };
+    RLVector3 hvel = (RLVector3){ body->velocity.x*decel, 0.0f, body->velocity.z*decel };
 
     float hvelLength = Vector3Length(hvel); // Magnitude
-    if (hvelLength < (MAX_SPEED*0.01f)) hvel = (Vector3){ 0 };
+    if (hvelLength < (MAX_SPEED*0.01f)) hvel = (RLVector3){ 0 };
 
     // This is what creates strafing
     float speed = Vector3DotProduct(hvel, body->dir);
@@ -238,13 +238,13 @@ void UpdateBody(Body *body, float rot, char side, char forward, bool jumpPressed
 }
 
 // Update camera for FPS behaviour
-static void UpdateCameraFPS(Camera *camera)
+static void UpdateCameraFPS(RLCamera *camera)
 {
-    const Vector3 up = (Vector3){ 0.0f, 1.0f, 0.0f };
-    const Vector3 targetOffset = (Vector3){ 0.0f, 0.0f, -1.0f };
+    const RLVector3 up = (RLVector3){ 0.0f, 1.0f, 0.0f };
+    const RLVector3 targetOffset = (RLVector3){ 0.0f, 0.0f, -1.0f };
 
     // Left and right
-    Vector3 yaw = Vector3RotateByAxisAngle(targetOffset, up, lookRotation.x);
+    RLVector3 yaw = Vector3RotateByAxisAngle(targetOffset, up, lookRotation.x);
 
     // Clamp view up
     float maxAngleUp = Vector3Angle(up, yaw);
@@ -258,12 +258,12 @@ static void UpdateCameraFPS(Camera *camera)
     if ( -(lookRotation.y) < maxAngleDown) { lookRotation.y = -maxAngleDown; }
 
     // Up and down
-    Vector3 right = Vector3Normalize(Vector3CrossProduct(yaw, up));
+    RLVector3 right = Vector3Normalize(Vector3CrossProduct(yaw, up));
 
     // Rotate view vector around right axis
     float pitchAngle = -lookRotation.y - lean.y;
     pitchAngle = Clamp(pitchAngle, -PI/2 + 0.0001f, PI/2 - 0.0001f); // Clamp angle so it doesn't go past straight up or straight down
-    Vector3 pitch = Vector3RotateByAxisAngle(yaw, right, pitchAngle);
+    RLVector3 pitch = Vector3RotateByAxisAngle(yaw, right, pitchAngle);
 
     // Head animation
     // Rotate up direction around forward axis
@@ -275,7 +275,7 @@ static void UpdateCameraFPS(Camera *camera)
     // Camera BOB
     const float bobSide = 0.1f;
     const float bobUp = 0.15f;
-    Vector3 bobbing = Vector3Scale(right, headSin*bobSide);
+    RLVector3 bobbing = Vector3Scale(right, headSin*bobSide);
     bobbing.y = fabsf(headCos*bobUp);
 
     camera->position = Vector3Add(camera->position, Vector3Scale(bobbing, walkLerp));
@@ -287,7 +287,7 @@ static void DrawLevel(void)
 {
     const int floorExtent = 25;
     const float tileSize = 5.0f;
-    const Color tileColor1 = (Color){ 150, 200, 200, 255 };
+    const RLColor tileColor1 = (RLColor){ 150, 200, 200, 255 };
 
     // Floor tiles
     for (int y = -floorExtent; y < floorExtent; y++)
@@ -296,34 +296,34 @@ static void DrawLevel(void)
         {
             if ((y & 1) && (x & 1))
             {
-                DrawPlane((Vector3){ x*tileSize, 0.0f, y*tileSize}, (Vector2){ tileSize, tileSize }, tileColor1);
+                RLDrawPlane((RLVector3){ x*tileSize, 0.0f, y*tileSize}, (RLVector2){ tileSize, tileSize }, tileColor1);
             }
             else if (!(y & 1) && !(x & 1))
             {
-                DrawPlane((Vector3){ x*tileSize, 0.0f, y*tileSize}, (Vector2){ tileSize, tileSize }, LIGHTGRAY);
+                RLDrawPlane((RLVector3){ x*tileSize, 0.0f, y*tileSize}, (RLVector2){ tileSize, tileSize }, LIGHTGRAY);
             }
         }
     }
 
-    const Vector3 towerSize = (Vector3){ 16.0f, 32.0f, 16.0f };
-    const Color towerColor = (Color){ 150, 200, 200, 255 };
+    const RLVector3 towerSize = (RLVector3){ 16.0f, 32.0f, 16.0f };
+    const RLColor towerColor = (RLColor){ 150, 200, 200, 255 };
 
-    Vector3 towerPos = (Vector3){ 16.0f, 16.0f, 16.0f };
-    DrawCubeV(towerPos, towerSize, towerColor);
-    DrawCubeWiresV(towerPos, towerSize, DARKBLUE);
+    RLVector3 towerPos = (RLVector3){ 16.0f, 16.0f, 16.0f };
+    RLDrawCubeV(towerPos, towerSize, towerColor);
+    RLDrawCubeWiresV(towerPos, towerSize, DARKBLUE);
 
     towerPos.x *= -1;
-    DrawCubeV(towerPos, towerSize, towerColor);
-    DrawCubeWiresV(towerPos, towerSize, DARKBLUE);
+    RLDrawCubeV(towerPos, towerSize, towerColor);
+    RLDrawCubeWiresV(towerPos, towerSize, DARKBLUE);
 
     towerPos.z *= -1;
-    DrawCubeV(towerPos, towerSize, towerColor);
-    DrawCubeWiresV(towerPos, towerSize, DARKBLUE);
+    RLDrawCubeV(towerPos, towerSize, towerColor);
+    RLDrawCubeWiresV(towerPos, towerSize, DARKBLUE);
 
     towerPos.x *= -1;
-    DrawCubeV(towerPos, towerSize, towerColor);
-    DrawCubeWiresV(towerPos, towerSize, DARKBLUE);
+    RLDrawCubeV(towerPos, towerSize, towerColor);
+    RLDrawCubeWiresV(towerPos, towerSize, DARKBLUE);
 
     // Red sun
-    DrawSphere((Vector3){ 300.0f, 300.0f, 0.0f }, 100.0f, (Color){ 255, 0, 0, 255 });
+    RLDrawSphere((RLVector3){ 300.0f, 300.0f, 0.0f }, 100.0f, (RLColor){ 255, 0, 0, 255 });
 }

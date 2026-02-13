@@ -26,32 +26,32 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - billboard rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - billboard rendering");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 5.0f, 4.0f, 5.0f };    // Camera position
-    camera.target = (Vector3){ 0.0f, 2.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 5.0f, 4.0f, 5.0f };    // Camera position
+    camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
-    Texture2D bill = LoadTexture("resources/billboard.png");    // Our billboard texture
-    Vector3 billPositionStatic = { 0.0f, 2.0f, 0.0f };          // Position of static billboard
-    Vector3 billPositionRotating = { 1.0f, 2.0f, 1.0f };        // Position of rotating billboard
+    RLTexture2D bill = RLLoadTexture("resources/billboard.png");    // Our billboard texture
+    RLVector3 billPositionStatic = { 0.0f, 2.0f, 0.0f };          // Position of static billboard
+    RLVector3 billPositionRotating = { 1.0f, 2.0f, 1.0f };        // Position of rotating billboard
 
     // Entire billboard texture, source is used to take a segment from a larger texture
-    Rectangle source = { 0.0f, 0.0f, (float)bill.width, (float)bill.height };
+    RLRectangle source = { 0.0f, 0.0f, (float)bill.width, (float)bill.height };
 
     // NOTE: Billboard locked on axis-Y
-    Vector3 billUp = { 0.0f, 1.0f, 0.0f };
+    RLVector3 billUp = { 0.0f, 1.0f, 0.0f };
 
     // Set the height of the rotating billboard to 1.0 with the aspect ratio fixed
-    Vector2 size = { source.width/source.height, 1.0f };
+    RLVector2 size = { source.width/source.height, 1.0f };
 
     // Rotate around origin
     // Here we choose to rotate around the image center
-    Vector2 origin = Vector2Scale(size, 0.5f);
+    RLVector2 origin = Vector2Scale(size, 0.5f);
 
     // Distance is needed for the correct billboard draw order
     // Larger distance (further away from the camera) should be drawn prior to smaller distance
@@ -59,15 +59,15 @@ int main(void)
     float distanceRotating;
     float rotation = 0.0f;
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
 
         rotation += 0.4f;
         distanceStatic = Vector3Distance(camera.position, billPositionStatic);
@@ -76,39 +76,39 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
-                DrawGrid(10, 1.0f);        // Draw a grid
+                RLDrawGrid(10, 1.0f);        // Draw a grid
 
                 // Draw order matters!
                 if (distanceStatic > distanceRotating)
                 {
-                    DrawBillboard(camera, bill, billPositionStatic, 2.0f, WHITE);
-                    DrawBillboardPro(camera, bill, source, billPositionRotating, billUp, size, origin, rotation, WHITE);
+                    RLDrawBillboard(camera, bill, billPositionStatic, 2.0f, WHITE);
+                    RLDrawBillboardPro(camera, bill, source, billPositionRotating, billUp, size, origin, rotation, WHITE);
                 }
                 else
                 {
-                    DrawBillboardPro(camera, bill, source, billPositionRotating, billUp, size, origin, rotation, WHITE);
-                    DrawBillboard(camera, bill, billPositionStatic, 2.0f, WHITE);
+                    RLDrawBillboardPro(camera, bill, source, billPositionRotating, billUp, size, origin, rotation, WHITE);
+                    RLDrawBillboard(camera, bill, billPositionStatic, 2.0f, WHITE);
                 }
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(bill);        // Unload texture
+    RLUnloadTexture(bill);        // Unload texture
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

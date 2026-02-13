@@ -27,71 +27,71 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI);
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - highdpi testbed");
+    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI);
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - highdpi testbed");
 
-    Vector2 scaleDpi = GetWindowScaleDPI();
-    Vector2 mousePos = GetMousePosition();
-    int currentMonitor = GetCurrentMonitor();
-    Vector2 windowPos = GetWindowPosition();
+    RLVector2 scaleDpi = RLGetWindowScaleDPI();
+    RLVector2 mousePos = RLGetMousePosition();
+    int currentMonitor = RLGetCurrentMonitor();
+    RLVector2 windowPos = RLGetWindowPosition();
 
     int gridSpacing = 40;   // Grid spacing in pixels
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        mousePos = GetMousePosition();
-        currentMonitor = GetCurrentMonitor();
-        scaleDpi = GetWindowScaleDPI();
-        windowPos = GetWindowPosition();
+        mousePos = RLGetMousePosition();
+        currentMonitor = RLGetCurrentMonitor();
+        scaleDpi = RLGetWindowScaleDPI();
+        windowPos = RLGetWindowPosition();
 
-        if (IsKeyPressed(KEY_SPACE)) ToggleBorderlessWindowed();
-        if (IsKeyPressed(KEY_F)) ToggleFullscreen();
+        if (RLIsKeyPressed(KEY_SPACE)) RLToggleBorderlessWindowed();
+        if (RLIsKeyPressed(KEY_F)) RLToggleFullscreen();
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             // Draw grid
-            for (int h = 0; h < GetScreenHeight()/gridSpacing + 1; h++)
+            for (int h = 0; h < RLGetScreenHeight()/gridSpacing + 1; h++)
             {
-                DrawText(TextFormat("%02i", h*gridSpacing), 4, h*gridSpacing - 4, 10, GRAY);
-                DrawLine(24, h*gridSpacing, GetScreenWidth(), h*gridSpacing, LIGHTGRAY);
+                RLDrawText(RLTextFormat("%02i", h*gridSpacing), 4, h*gridSpacing - 4, 10, GRAY);
+                RLDrawLine(24, h*gridSpacing, RLGetScreenWidth(), h*gridSpacing, LIGHTGRAY);
             }
-            for (int v = 0; v < GetScreenWidth()/gridSpacing + 1; v++)
+            for (int v = 0; v < RLGetScreenWidth()/gridSpacing + 1; v++)
             {
-                DrawText(TextFormat("%02i", v*gridSpacing), v*gridSpacing - 10, 4, 10, GRAY);
-                DrawLine(v*gridSpacing, 20, v*gridSpacing, GetScreenHeight(), LIGHTGRAY);
+                RLDrawText(RLTextFormat("%02i", v*gridSpacing), v*gridSpacing - 10, 4, 10, GRAY);
+                RLDrawLine(v*gridSpacing, 20, v*gridSpacing, RLGetScreenHeight(), LIGHTGRAY);
             }
 
             // Draw UI info
-            DrawText(TextFormat("CURRENT MONITOR: %i/%i (%ix%i)", currentMonitor + 1, GetMonitorCount(), 
-                GetMonitorWidth(currentMonitor), GetMonitorHeight(currentMonitor)), 50, 50, 20, DARKGRAY);
-            DrawText(TextFormat("WINDOW POSITION: %ix%i", (int)windowPos.x, (int)windowPos.y), 50, 90, 20, DARKGRAY);
-            DrawText(TextFormat("SCREEN SIZE: %ix%i", GetScreenWidth(), GetScreenHeight()), 50, 130, 20, DARKGRAY);
-            DrawText(TextFormat("RENDER SIZE: %ix%i", GetRenderWidth(), GetRenderHeight()), 50, 170, 20, DARKGRAY);
-            DrawText(TextFormat("SCALE FACTOR: %.1fx%.1f", scaleDpi.x, scaleDpi.y), 50, 210, 20, GRAY);
+            RLDrawText(RLTextFormat("CURRENT MONITOR: %i/%i (%ix%i)", currentMonitor + 1, RLGetMonitorCount(), 
+                RLGetMonitorWidth(currentMonitor), RLGetMonitorHeight(currentMonitor)), 50, 50, 20, DARKGRAY);
+            RLDrawText(RLTextFormat("WINDOW POSITION: %ix%i", (int)windowPos.x, (int)windowPos.y), 50, 90, 20, DARKGRAY);
+            RLDrawText(RLTextFormat("SCREEN SIZE: %ix%i", RLGetScreenWidth(), RLGetScreenHeight()), 50, 130, 20, DARKGRAY);
+            RLDrawText(RLTextFormat("RENDER SIZE: %ix%i", RLGetRenderWidth(), RLGetRenderHeight()), 50, 170, 20, DARKGRAY);
+            RLDrawText(RLTextFormat("SCALE FACTOR: %.1fx%.1f", scaleDpi.x, scaleDpi.y), 50, 210, 20, GRAY);
 
             // Draw reference rectangles, top-left and bottom-right corners
-            DrawRectangle(0, 0, 30, 60, RED);
-            DrawRectangle(GetScreenWidth() - 30, GetScreenHeight() - 60, 30, 60, BLUE);
+            RLDrawRectangle(0, 0, 30, 60, RED);
+            RLDrawRectangle(RLGetScreenWidth() - 30, RLGetScreenHeight() - 60, 30, 60, BLUE);
 
             // Draw mouse position
-            DrawCircleV(GetMousePosition(), 20, MAROON);
-            DrawRectangle(mousePos.x - 25, mousePos.y, 50, 2, BLACK);
-            DrawRectangle(mousePos.x, mousePos.y - 25, 2, 50, BLACK);
-            DrawText(TextFormat("[%i,%i]", GetMouseX(), GetMouseY()), mousePos.x - 44,
-                (mousePos.y > GetScreenHeight() - 60)? mousePos.y - 46 : mousePos.y + 30, 20, BLACK);
+            RLDrawCircleV(RLGetMousePosition(), 20, MAROON);
+            RLDrawRectangle(mousePos.x - 25, mousePos.y, 50, 2, BLACK);
+            RLDrawRectangle(mousePos.x, mousePos.y - 25, 2, 50, BLACK);
+            RLDrawText(RLTextFormat("[%i,%i]", RLGetMouseX(), RLGetMouseY()), mousePos.x - 44,
+                (mousePos.y > RLGetScreenHeight() - 60)? mousePos.y - 46 : mousePos.y + 30, 20, BLACK);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -100,7 +100,7 @@ int main(void)
 
     // TODO: Unload all loaded resources at this point
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

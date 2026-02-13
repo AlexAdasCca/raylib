@@ -27,21 +27,21 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - easings box");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - easings box");
 
     // Box variables to be animated with easings
-    Rectangle rec = { GetScreenWidth()/2.0f, -100, 100, 100 };
+    RLRectangle rec = { RLGetScreenWidth()/2.0f, -100, 100, 100 };
     float rotation = 0.0f;
     float alpha = 1.0f;
 
     int state = 0;
     int framesCounter = 0;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -53,7 +53,7 @@ int main(void)
 
                 // NOTE: Remember that 3rd parameter of easing function refers to
                 // desired value variation, do not confuse it with expected final value!
-                rec.y = EaseElasticOut((float)framesCounter, -100, GetScreenHeight()/2.0f + 100, 120);
+                rec.y = EaseElasticOut((float)framesCounter, -100, RLGetScreenHeight()/2.0f + 100, 120);
 
                 if (framesCounter >= 120)
                 {
@@ -65,7 +65,7 @@ int main(void)
             {
                 framesCounter++;
                 rec.height = EaseBounceOut((float)framesCounter, 100, -90, 120);
-                rec.width = EaseBounceOut((float)framesCounter, 100, (float)GetScreenWidth(), 120);
+                rec.width = EaseBounceOut((float)framesCounter, 100, (float)RLGetScreenWidth(), 120);
 
                 if (framesCounter >= 120)
                 {
@@ -87,7 +87,7 @@ int main(void)
             case 3:     // Increase bar size to fill all screen
             {
                 framesCounter++;
-                rec.height = EaseCircOut((float)framesCounter, 10, (float)GetScreenWidth(), 120);
+                rec.height = EaseCircOut((float)framesCounter, 10, (float)RLGetScreenWidth(), 120);
 
                 if (framesCounter >= 120)
                 {
@@ -110,9 +110,9 @@ int main(void)
         }
 
         // Reset animation at any moment
-        if (IsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(KEY_SPACE))
         {
-            rec = (Rectangle){ GetScreenWidth()/2.0f, -100, 100, 100 };
+            rec = (RLRectangle){ RLGetScreenWidth()/2.0f, -100, 100, 100 };
             rotation = 0.0f;
             alpha = 1.0f;
             state = 0;
@@ -122,21 +122,21 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawRectanglePro(rec, (Vector2){ rec.width/2, rec.height/2 }, rotation, Fade(BLACK, alpha));
+            RLDrawRectanglePro(rec, (RLVector2){ rec.width/2, rec.height/2 }, rotation, RLFade(BLACK, alpha));
 
-            DrawText("PRESS [SPACE] TO RESET BOX ANIMATION!", 10, GetScreenHeight() - 25, 20, LIGHTGRAY);
+            RLDrawText("PRESS [SPACE] TO RESET BOX ANIMATION!", 10, RLGetScreenHeight() - 25, 20, LIGHTGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

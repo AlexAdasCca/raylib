@@ -26,26 +26,26 @@
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 typedef struct Player {
-    Vector2 position;
+    RLVector2 position;
     float speed;
     bool canJump;
 } Player;
 
 typedef struct EnvItem {
-    Rectangle rect;
+    RLRectangle rect;
     int blocking;
-    Color color;
+    RLColor color;
 } EnvItem;
 
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
 void UpdatePlayer(Player *player, EnvItem *envItems, int envItemsLength, float delta);
-void UpdateCameraCenter(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
-void UpdateCameraCenterInsideMap(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
-void UpdateCameraCenterSmoothFollow(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
-void UpdateCameraEvenOutOnLanding(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
-void UpdateCameraPlayerBoundsPush(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
+void UpdateCameraCenter(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
+void UpdateCameraCenterInsideMap(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
+void UpdateCameraCenterSmoothFollow(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
+void UpdateCameraEvenOutOnLanding(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
+void UpdateCameraPlayerBoundsPush(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -57,10 +57,10 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - 2d camera platformer");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - 2d camera platformer");
 
     Player player = { 0 };
-    player.position = (Vector2){ 400, 280 };
+    player.position = (RLVector2){ 400, 280 };
     player.speed = 0;
     player.canJump = false;
     EnvItem envItems[] = {
@@ -73,14 +73,14 @@ int main(void)
 
     int envItemsLength = sizeof(envItems)/sizeof(envItems[0]);
 
-    Camera2D camera = { 0 };
+    RLCamera2D camera = { 0 };
     camera.target = player.position;
-    camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+    camera.offset = (RLVector2){ screenWidth/2.0f, screenHeight/2.0f };
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
     // Store pointers to the multiple update camera functions
-    void (*cameraUpdaters[])(Camera2D*, Player*, EnvItem*, int, float, int, int) = {
+    void (*cameraUpdaters[])(RLCamera2D*, Player*, EnvItem*, int, float, int, int) = {
         UpdateCameraCenter,
         UpdateCameraCenterInsideMap,
         UpdateCameraCenterSmoothFollow,
@@ -99,30 +99,30 @@ int main(void)
         "Player push camera on getting too close to screen edge"
     };
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())
+    while (!RLWindowShouldClose())
     {
         // Update
         //----------------------------------------------------------------------------------
-        float deltaTime = GetFrameTime();
+        float deltaTime = RLGetFrameTime();
 
         UpdatePlayer(&player, envItems, envItemsLength, deltaTime);
 
-        camera.zoom += ((float)GetMouseWheelMove()*0.05f);
+        camera.zoom += ((float)RLGetMouseWheelMove()*0.05f);
 
         if (camera.zoom > 3.0f) camera.zoom = 3.0f;
         else if (camera.zoom < 0.25f) camera.zoom = 0.25f;
 
-        if (IsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(KEY_R))
         {
             camera.zoom = 1.0f;
-            player.position = (Vector2){ 400, 280 };
+            player.position = (RLVector2){ 400, 280 };
         }
 
-        if (IsKeyPressed(KEY_C)) cameraOption = (cameraOption + 1)%cameraUpdatersLength;
+        if (RLIsKeyPressed(KEY_C)) cameraOption = (cameraOption + 1)%cameraUpdatersLength;
 
         // Call update camera function by its pointer
         cameraUpdaters[cameraOption](&camera, &player, envItems, envItemsLength, deltaTime, screenWidth, screenHeight);
@@ -130,36 +130,36 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(LIGHTGRAY);
+            RLClearBackground(LIGHTGRAY);
 
-            BeginMode2D(camera);
+            RLBeginMode2D(camera);
 
-                for (int i = 0; i < envItemsLength; i++) DrawRectangleRec(envItems[i].rect, envItems[i].color);
+                for (int i = 0; i < envItemsLength; i++) RLDrawRectangleRec(envItems[i].rect, envItems[i].color);
 
-                Rectangle playerRect = { player.position.x - 20, player.position.y - 40, 40.0f, 40.0f };
-                DrawRectangleRec(playerRect, RED);
+                RLRectangle playerRect = { player.position.x - 20, player.position.y - 40, 40.0f, 40.0f };
+                RLDrawRectangleRec(playerRect, RED);
 
-                DrawCircleV(player.position, 5.0f, GOLD);
+                RLDrawCircleV(player.position, 5.0f, GOLD);
 
-            EndMode2D();
+            RLEndMode2D();
 
-            DrawText("Controls:", 20, 20, 10, BLACK);
-            DrawText("- Right/Left to move", 40, 40, 10, DARKGRAY);
-            DrawText("- Space to jump", 40, 60, 10, DARKGRAY);
-            DrawText("- Mouse Wheel to Zoom in-out, R to reset zoom", 40, 80, 10, DARKGRAY);
-            DrawText("- C to change camera mode", 40, 100, 10, DARKGRAY);
-            DrawText("Current camera mode:", 20, 120, 10, BLACK);
-            DrawText(cameraDescriptions[cameraOption], 40, 140, 10, DARKGRAY);
+            RLDrawText("Controls:", 20, 20, 10, BLACK);
+            RLDrawText("- Right/Left to move", 40, 40, 10, DARKGRAY);
+            RLDrawText("- Space to jump", 40, 60, 10, DARKGRAY);
+            RLDrawText("- Mouse Wheel to Zoom in-out, R to reset zoom", 40, 80, 10, DARKGRAY);
+            RLDrawText("- C to change camera mode", 40, 100, 10, DARKGRAY);
+            RLDrawText("Current camera mode:", 20, 120, 10, BLACK);
+            RLDrawText(cameraDescriptions[cameraOption], 40, 140, 10, DARKGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -167,9 +167,9 @@ int main(void)
 
 void UpdatePlayer(Player *player, EnvItem *envItems, int envItemsLength, float delta)
 {
-    if (IsKeyDown(KEY_LEFT)) player->position.x -= PLAYER_HOR_SPD*delta;
-    if (IsKeyDown(KEY_RIGHT)) player->position.x += PLAYER_HOR_SPD*delta;
-    if (IsKeyDown(KEY_SPACE) && player->canJump)
+    if (RLIsKeyDown(KEY_LEFT)) player->position.x -= PLAYER_HOR_SPD*delta;
+    if (RLIsKeyDown(KEY_RIGHT)) player->position.x += PLAYER_HOR_SPD*delta;
+    if (RLIsKeyDown(KEY_SPACE) && player->canJump)
     {
         player->speed = -PLAYER_JUMP_SPD;
         player->canJump = false;
@@ -179,7 +179,7 @@ void UpdatePlayer(Player *player, EnvItem *envItems, int envItemsLength, float d
     for (int i = 0; i < envItemsLength; i++)
     {
         EnvItem *ei = envItems + i;
-        Vector2 *p = &(player->position);
+        RLVector2 *p = &(player->position);
         if (ei->blocking &&
             ei->rect.x <= p->x &&
             ei->rect.x + ei->rect.width >= p->x &&
@@ -202,16 +202,16 @@ void UpdatePlayer(Player *player, EnvItem *envItems, int envItemsLength, float d
     else player->canJump = true;
 }
 
-void UpdateCameraCenter(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
+void UpdateCameraCenter(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
 {
-    camera->offset = (Vector2){ width/2.0f, height/2.0f };
+    camera->offset = (RLVector2){ width/2.0f, height/2.0f };
     camera->target = player->position;
 }
 
-void UpdateCameraCenterInsideMap(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
+void UpdateCameraCenterInsideMap(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
 {
     camera->target = player->position;
-    camera->offset = (Vector2){ width/2.0f, height/2.0f };
+    camera->offset = (RLVector2){ width/2.0f, height/2.0f };
     float minX = 1000, minY = 1000, maxX = -1000, maxY = -1000;
 
     for (int i = 0; i < envItemsLength; i++)
@@ -223,8 +223,8 @@ void UpdateCameraCenterInsideMap(Camera2D *camera, Player *player, EnvItem *envI
         maxY = fmaxf(ei->rect.y + ei->rect.height, maxY);
     }
 
-    Vector2 max = GetWorldToScreen2D((Vector2){ maxX, maxY }, *camera);
-    Vector2 min = GetWorldToScreen2D((Vector2){ minX, minY }, *camera);
+    RLVector2 max = RLGetWorldToScreen2D((RLVector2){ maxX, maxY }, *camera);
+    RLVector2 min = RLGetWorldToScreen2D((RLVector2){ minX, minY }, *camera);
 
     if (max.x < width) camera->offset.x = width - (max.x - (float)width/2);
     if (max.y < height) camera->offset.y = height - (max.y - (float)height/2);
@@ -232,14 +232,14 @@ void UpdateCameraCenterInsideMap(Camera2D *camera, Player *player, EnvItem *envI
     if (min.y > 0) camera->offset.y = (float)height/2 - min.y;
 }
 
-void UpdateCameraCenterSmoothFollow(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
+void UpdateCameraCenterSmoothFollow(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
 {
     static float minSpeed = 30;
     static float minEffectLength = 10;
     static float fractionSpeed = 0.8f;
 
-    camera->offset = (Vector2){ width/2.0f, height/2.0f };
-    Vector2 diff = Vector2Subtract(player->position, camera->target);
+    camera->offset = (RLVector2){ width/2.0f, height/2.0f };
+    RLVector2 diff = Vector2Subtract(player->position, camera->target);
     float length = Vector2Length(diff);
 
     if (length > minEffectLength)
@@ -249,13 +249,13 @@ void UpdateCameraCenterSmoothFollow(Camera2D *camera, Player *player, EnvItem *e
     }
 }
 
-void UpdateCameraEvenOutOnLanding(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
+void UpdateCameraEvenOutOnLanding(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
 {
     static float evenOutSpeed = 700;
     static int eveningOut = false;
     static float evenOutTarget;
 
-    camera->offset = (Vector2){ width/2.0f, height/2.0f };
+    camera->offset = (RLVector2){ width/2.0f, height/2.0f };
     camera->target.x = player->position.x;
 
     if (eveningOut)
@@ -291,13 +291,13 @@ void UpdateCameraEvenOutOnLanding(Camera2D *camera, Player *player, EnvItem *env
     }
 }
 
-void UpdateCameraPlayerBoundsPush(Camera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
+void UpdateCameraPlayerBoundsPush(RLCamera2D *camera, Player *player, EnvItem *envItems, int envItemsLength, float delta, int width, int height)
 {
-    static Vector2 bbox = { 0.2f, 0.2f };
+    static RLVector2 bbox = { 0.2f, 0.2f };
 
-    Vector2 bboxWorldMin = GetScreenToWorld2D((Vector2){ (1 - bbox.x)*0.5f*width, (1 - bbox.y)*0.5f*height }, *camera);
-    Vector2 bboxWorldMax = GetScreenToWorld2D((Vector2){ (1 + bbox.x)*0.5f*width, (1 + bbox.y)*0.5f*height }, *camera);
-    camera->offset = (Vector2){ (1 - bbox.x)*0.5f*width, (1 - bbox.y)*0.5f*height };
+    RLVector2 bboxWorldMin = RLGetScreenToWorld2D((RLVector2){ (1 - bbox.x)*0.5f*width, (1 - bbox.y)*0.5f*height }, *camera);
+    RLVector2 bboxWorldMax = RLGetScreenToWorld2D((RLVector2){ (1 + bbox.x)*0.5f*width, (1 + bbox.y)*0.5f*height }, *camera);
+    camera->offset = (RLVector2){ (1 - bbox.x)*0.5f*width, (1 - bbox.y)*0.5f*height };
 
     if (player->position.x < bboxWorldMin.x) camera->target.x = player->position.x;
     if (player->position.y < bboxWorldMin.y) camera->target.y = player->position.y;

@@ -215,8 +215,6 @@ GLFWAPI GLFWwindow* glfwCreateWindow(int width, int height,
         return NULL;
 
     window = _glfw_calloc(1, sizeof(_GLFWwindow));
-    window->next = _glfw.windowListHead;
-    _glfw.windowListHead = window;
 
     window->videoMode.width       = width;
     window->videoMode.height      = height;
@@ -249,6 +247,14 @@ GLFWAPI GLFWwindow* glfwCreateWindow(int width, int height,
         glfwDestroyWindow((GLFWwindow*) window);
         return NULL;
     }
+
+    // Only publish the window to the global list once the platform backend has
+    // successfully created it.  This avoids exposing a partially initialized
+    // window to other threads.
+    _glfwPlatformLockMutex(&_glfw.windowListLock);
+    window->next = _glfw.windowListHead;
+    _glfw.windowListHead = window;
+    _glfwPlatformUnlockMutex(&_glfw.windowListLock);
 
     return (GLFWwindow*) window;
 }
@@ -483,17 +489,22 @@ GLFWAPI void glfwDestroyWindow(GLFWwindow* handle)
     if (window == _glfwPlatformGetTls(&_glfw.contextSlot))
         glfwMakeContextCurrent(NULL);
 
-    _glfw.platform.destroyWindow(window);
-
     // Unlink window from global linked list
     {
+        _glfwPlatformLockMutex(&_glfw.windowListLock);
+
         _GLFWwindow** prev = &_glfw.windowListHead;
 
-        while (*prev != window)
+        while (*prev && *prev != window)
             prev = &((*prev)->next);
 
-        *prev = window->next;
+        if (*prev == window)
+            *prev = window->next;
+
+        _glfwPlatformUnlockMutex(&_glfw.windowListLock);
     }
+
+    _glfw.platform.destroyWindow(window);
 
     _glfw_free(window->title);
     _glfw_free(window);
@@ -1168,5 +1179,61 @@ GLFWAPI void glfwPostEmptyEvent(void)
 {
     _GLFW_REQUIRE_INIT();
     _glfw.platform.postEmptyEvent();
+}
+
+// -------------------------------------------------------------------------
+// Experimental thread-aware wake/task APIs (used by raylib multi-thread mode)
+// -------------------------------------------------------------------------
+
+GLFWAPI GLFWthread* glfwGetCurrentThread(void)
+{
+    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
+
+#if defined(_GLFW_WIN32)
+    return (GLFWthread*) _glfwGetThreadContextWin32();
+#else
+    return NULL;
+#endif
+}
+
+GLFWAPI void glfwWakeThread(GLFWthread* thread)
+{
+    _GLFW_REQUIRE_INIT();
+
+    if (!thread)
+        return;
+
+#if defined(_GLFW_WIN32)
+    _glfwWakeThreadWin32((_GLFWwin32ThreadContext*) thread);
+#else
+    // Fallback: wake any global wait (best-effort)
+    _glfw.platform.postEmptyEvent();
+#endif
+}
+
+GLFWAPI void glfwPostTask(GLFWthread* thread, GLFWthreadtaskfun fn, void* user)
+{
+    _GLFW_REQUIRE_INIT();
+
+    if (!thread || !fn)
+        return;
+
+#if defined(_GLFW_WIN32)
+    _glfwPostTaskWin32((_GLFWwin32ThreadContext*) thread, fn, user);
+#else
+    // Not implemented on other platforms in this branch.
+    _glfwInputError(GLFW_PLATFORM_ERROR, "Thread tasks are only supported on Win32 in this build");
+    (void) user;
+#endif
+}
+
+GLFWAPI void glfwPumpThreadTasks(void)
+{
+    _GLFW_REQUIRE_INIT();
+
+#if defined(_GLFW_WIN32)
+    _GLFWwin32ThreadContext* ctx = _glfwGetThreadContextWin32();
+    _glfwDrainThreadTasksWin32(ctx);
+#endif
 }
 

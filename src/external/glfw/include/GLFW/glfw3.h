@@ -4647,6 +4647,28 @@ GLFWAPI void glfwWaitEventsTimeout(double timeout);
  */
 GLFWAPI void glfwPostEmptyEvent(void);
 
+/*! @brief Opaque thread handle for thread-aware event waking and task dispatch.
+ *
+ *  This is an experimental extension used by raylib's multi-window / multi-thread
+ *  integration. Applications should treat it as an opaque handle.
+ */
+typedef struct GLFWthread GLFWthread;
+
+/*! @brief Thread task callback. */
+typedef void (*GLFWthreadtaskfun)(void* user);
+
+/*! @brief Returns an opaque handle representing the calling thread. */
+GLFWAPI GLFWthread* glfwGetCurrentThread(void);
+
+/*! @brief Wakes a specific thread that may be waiting for events. */
+GLFWAPI void glfwWakeThread(GLFWthread* thread);
+
+/*! @brief Posts a task callback to be executed on the target thread. */
+GLFWAPI void glfwPostTask(GLFWthread* thread, GLFWthreadtaskfun fn, void* user);
+
+/*! @brief Pumps and executes any pending thread tasks for the calling thread. */
+GLFWAPI void glfwPumpThreadTasks(void);
+
 /*! @brief Returns the value of an input option for the specified window.
  *
  *  This function returns the value of an input option for the specified window.

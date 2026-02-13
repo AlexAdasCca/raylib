@@ -699,6 +699,29 @@ int _glfwInitWin32(void)
     if (!createHelperWindow())
         return GLFW_FALSE;
 
+    // Initialize per-thread event wait/wake registry (used by waitEvents/postEmptyEvent)
+    _glfw.win32.mainThreadId = GetCurrentThreadId();
+    _glfw.win32.threadContexts = NULL;
+    _glfw.win32.threadLock = (_GLFWmutex*) _glfw_calloc(1, sizeof(_GLFWmutex));
+    if (!_glfw.win32.threadLock)
+        return GLFW_FALSE;
+
+    if (!_glfwPlatformCreateMutex(_glfw.win32.threadLock))
+    {
+        _glfw_free(_glfw.win32.threadLock);
+        _glfw.win32.threadLock = NULL;
+        return GLFW_FALSE;
+    }
+
+    // Create (and register) the main thread context, including wake event and
+    // dispatch window. This enables thread-aware wait/wake and task dispatch.
+    if (!_glfwGetThreadContextWin32())
+    {
+        _glfwPlatformDestroyMutex(_glfw.win32.threadLock);
+        _glfw_free(_glfw.win32.threadLock);
+        _glfw.win32.threadLock = NULL;
+        return GLFW_FALSE;
+    }
     _glfwPollMonitorsWin32();
     return GLFW_TRUE;
 }
@@ -707,6 +730,51 @@ void _glfwTerminateWin32(void)
 {
     if (_glfw.win32.blankCursor)
         DestroyIcon((HICON) _glfw.win32.blankCursor);
+
+    // Destroy per-thread wait/wake registry
+    if (_glfw.win32.threadLock)
+    {
+        _GLFWwin32ThreadContext* ctx = _glfw.win32.threadContexts;
+
+        _glfwPlatformLockMutex(_glfw.win32.threadLock);
+        _glfw.win32.threadContexts = NULL;
+        _glfwPlatformUnlockMutex(_glfw.win32.threadLock);
+
+        while (ctx)
+        {
+            _GLFWwin32ThreadContext* next = ctx->next;
+
+            // Cleanup per-thread dispatch window and task queue.
+            // The dispatch window is owned by its creating thread, so if we're
+            // terminating from another thread we can only request close.
+            if (ctx->dispatchWindow)
+            {
+                if (ctx->tid == GetCurrentThreadId())
+                    DestroyWindow(ctx->dispatchWindow);
+                else
+                    PostMessageW(ctx->dispatchWindow, WM_CLOSE, 0, 0);
+                ctx->dispatchWindow = NULL;
+            }
+
+            _glfwDrainThreadTasksWin32(ctx);
+            DeleteCriticalSection(&ctx->tasksLock);
+
+            if (ctx->wakeEvent)
+                CloseHandle(ctx->wakeEvent);
+
+            _glfw_free(ctx);
+            ctx = next;
+        }
+
+        if (_glfw.win32.dispatchWindowClass)
+        {
+            UnregisterClassW(MAKEINTATOM(_glfw.win32.dispatchWindowClass), _glfw.win32.instance);
+            _glfw.win32.dispatchWindowClass = 0;
+        }
+        _glfwPlatformDestroyMutex(_glfw.win32.threadLock);
+        _glfw_free(_glfw.win32.threadLock);
+        _glfw.win32.threadLock = NULL;
+    }
 
     if (_glfw.win32.deviceNotificationHandle)
         UnregisterDeviceNotification(_glfw.win32.deviceNotificationHandle);

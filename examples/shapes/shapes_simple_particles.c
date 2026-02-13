@@ -35,10 +35,10 @@ static const char particleTypeNames[3][10] = { "WATER", "SMOKE", "FIRE" };
 
 typedef struct Particle {
     ParticleType type;      // Particle type (WATER, SMOKE, FIRE)
-    Vector2 position;       // Particle position on screen
-    Vector2 velocity;       // Particle current speed and direction
+    RLVector2 position;       // Particle position on screen
+    RLVector2 velocity;       // Particle current speed and direction
     float radius;           // Particle radius
-    Color color;            // Particle color
+    RLColor color;            // Particle color
 
     float lifeTime;         // Particle life time
     bool alive;             // Particle alive: inside screen and life time
@@ -53,7 +53,7 @@ typedef struct CircularBuffer {
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
-static void EmitParticle(CircularBuffer *circularBuffer, Vector2 emitterPosition, ParticleType type);
+static void EmitParticle(CircularBuffer *circularBuffer, RLVector2 emitterPosition, ParticleType type);
 static Particle *AddToCircularBuffer(CircularBuffer *circularBuffer);
 static void UpdateParticles(CircularBuffer *circularBuffer, int screenWidth, int screenHeight);
 static void UpdateCircularBuffer(CircularBuffer *circularBuffer);
@@ -69,7 +69,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - simple particles");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - simple particles");
 
     // Definition of particles
     Particle *particles = (Particle*)RL_CALLOC(MAX_PARTICLES, sizeof(Particle)); // Particle array
@@ -78,13 +78,13 @@ int main(void)
     // Particle emitter parameters
     int emissionRate = -2;          // Negative: on average every -X frames. Positive: particles per frame
     ParticleType currentType = WATER;
-    Vector2 emitterPosition = { screenWidth/2.0f, screenHeight/2.0f };
+    RLVector2 emitterPosition = { screenWidth/2.0f, screenHeight/2.0f };
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -105,39 +105,39 @@ int main(void)
         UpdateCircularBuffer(&circularBuffer);
 
         // Change Particle Emission Rate (UP/DOWN arrows)
-        if (IsKeyPressed(KEY_UP)) emissionRate++;
-        if (IsKeyPressed(KEY_DOWN)) emissionRate--;
+        if (RLIsKeyPressed(KEY_UP)) emissionRate++;
+        if (RLIsKeyPressed(KEY_DOWN)) emissionRate--;
 
         // Change Particle Type (LEFT/RIGHT arrows)
-        if (IsKeyPressed(KEY_RIGHT)) (currentType == FIRE)? (currentType = WATER) : currentType++;
-        if (IsKeyPressed(KEY_LEFT)) (currentType == WATER)? (currentType = FIRE) : currentType--;
+        if (RLIsKeyPressed(KEY_RIGHT)) (currentType == FIRE)? (currentType = WATER) : currentType++;
+        if (RLIsKeyPressed(KEY_LEFT)) (currentType == WATER)? (currentType = FIRE) : currentType--;
 
-        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) emitterPosition = GetMousePosition();
+        if (RLIsMouseButtonDown(MOUSE_LEFT_BUTTON)) emitterPosition = RLGetMousePosition();
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             // Call the function with a loop to draw all particles
             DrawParticles(&circularBuffer);
 
             // Draw UI and Instructions
-            DrawRectangle(5, 5, 315, 75, Fade(SKYBLUE, 0.5f));
-            DrawRectangleLines(5, 5, 315, 75, BLUE);
+            RLDrawRectangle(5, 5, 315, 75, RLFade(SKYBLUE, 0.5f));
+            RLDrawRectangleLines(5, 5, 315, 75, BLUE);
 
-            DrawText("CONTROLS:", 15, 15, 10, BLACK);
-            DrawText("UP/DOWN: Change Particle Emission Rate", 15, 35, 10, BLACK);
-            DrawText("LEFT/RIGHT: Change Particle Type (Water, Smoke, Fire)", 15, 55, 10, BLACK);
+            RLDrawText("CONTROLS:", 15, 15, 10, BLACK);
+            RLDrawText("UP/DOWN: Change Particle Emission Rate", 15, 35, 10, BLACK);
+            RLDrawText("LEFT/RIGHT: Change Particle Type (Water, Smoke, Fire)", 15, 55, 10, BLACK);
 
-            if (emissionRate < 0) DrawText(TextFormat("Particles every %d frames | Type: %s", -emissionRate, particleTypeNames[currentType]), 15, 95, 10, DARKGRAY);
-            else DrawText(TextFormat("%d Particles per frame | Type: %s", emissionRate + 1, particleTypeNames[currentType]), 15, 95, 10, DARKGRAY);
+            if (emissionRate < 0) RLDrawText(RLTextFormat("Particles every %d frames | Type: %s", -emissionRate, particleTypeNames[currentType]), 15, 95, 10, DARKGRAY);
+            else RLDrawText(RLTextFormat("%d Particles per frame | Type: %s", emissionRate + 1, particleTypeNames[currentType]), 15, 95, 10, DARKGRAY);
 
-            DrawFPS(screenWidth - 80, 10);
+            RLDrawFPS(screenWidth - 80, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -145,7 +145,7 @@ int main(void)
     //--------------------------------------------------------------------------------------
     RL_FREE(particles);     // Free particles array data
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -154,7 +154,7 @@ int main(void)
 //----------------------------------------------------------------------------------
 // Module Functions Definition
 //----------------------------------------------------------------------------------
-static void EmitParticle(CircularBuffer *circularBuffer, Vector2 emitterPosition, ParticleType type)
+static void EmitParticle(CircularBuffer *circularBuffer, RLVector2 emitterPosition, ParticleType type)
 {
     Particle *newParticle = AddToCircularBuffer(circularBuffer);
 
@@ -189,7 +189,7 @@ static void EmitParticle(CircularBuffer *circularBuffer, Vector2 emitterPosition
         }
 
         float direction = (float)(rand()%360);
-        newParticle->velocity = (Vector2){ speed*cosf(direction*DEG2RAD), speed*sinf(direction*DEG2RAD) };
+        newParticle->velocity = (RLVector2){ speed*cosf(direction*DEG2RAD), speed*sinf(direction*DEG2RAD) };
     }
 }
 
@@ -250,7 +250,7 @@ static void UpdateParticles(CircularBuffer *circularBuffer, int screenWidth, int
         }
 
         // Disable particle when out of screen
-        Vector2 center = circularBuffer->buffer[i].position;
+        RLVector2 center = circularBuffer->buffer[i].position;
         float radius = circularBuffer->buffer[i].radius;
 
         if ((center.x < -radius) || (center.x > (screenWidth + radius)) ||
@@ -276,7 +276,7 @@ static void DrawParticles(CircularBuffer *circularBuffer)
     {
         if (circularBuffer->buffer[i].alive)
         {
-            DrawCircleV(circularBuffer->buffer[i].position,
+            RLDrawCircleV(circularBuffer->buffer[i].position,
                         circularBuffer->buffer[i].radius,
                         circularBuffer->buffer[i].color);
         }

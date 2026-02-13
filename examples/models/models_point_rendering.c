@@ -27,7 +27,7 @@
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
 // Generate mesh using points
-static Mesh GenMeshPoints(int numPoints);
+static RLMesh GenMeshPoints(int numPoints);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -39,9 +39,9 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - point rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - point rendering");
 
-    Camera camera = {
+    RLCamera camera = {
         .position   = { 3.0f, 3.0f, 3.0f },
         .target     = { 0.0f, 0.0f, 0.0f },
         .up         = { 0.0f, 1.0f, 0.0f },
@@ -49,31 +49,31 @@ int main(void)
         .projection = CAMERA_PERSPECTIVE
     };
 
-    Vector3 position = { 0.0f, 0.0f, 0.0f };
+    RLVector3 position = { 0.0f, 0.0f, 0.0f };
     bool useDrawModelPoints = true;
     bool numPointsChanged = false;
     int numPoints = 1000;
 
-    Mesh mesh = GenMeshPoints(numPoints);
-    Model model = LoadModelFromMesh(mesh);
+    RLMesh mesh = GenMeshPoints(numPoints);
+    RLModel model = RLLoadModelFromMesh(mesh);
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())
+    while (!RLWindowShouldClose())
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
 
-        if (IsKeyPressed(KEY_SPACE)) useDrawModelPoints = !useDrawModelPoints;
-        if (IsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(KEY_SPACE)) useDrawModelPoints = !useDrawModelPoints;
+        if (RLIsKeyPressed(KEY_UP))
         {
             numPoints = (numPoints*10 > MAX_POINTS)? MAX_POINTS : numPoints*10;
             numPointsChanged = true;
         }
-        if (IsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(KEY_DOWN))
         {
             numPoints = (numPoints/10 < MIN_POINTS)? MIN_POINTS : numPoints/10;
             numPointsChanged = true;
@@ -82,67 +82,67 @@ int main(void)
         // Upload a different point cloud size
         if (numPointsChanged)
         {
-            UnloadModel(model);
+            RLUnloadModel(model);
             mesh = GenMeshPoints(numPoints);
-            model = LoadModelFromMesh(mesh);
+            model = RLLoadModelFromMesh(mesh);
             numPointsChanged = false;
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(BLACK);
+            RLClearBackground(BLACK);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
                 // The new method only uploads the points once to the GPU
-                if (useDrawModelPoints) DrawModelPoints(model, position, 1.0f, WHITE);
+                if (useDrawModelPoints) RLDrawModelPoints(model, position, 1.0f, WHITE);
                 else
                 {
                     // The old method must continually draw the "points" (lines)
                     for (int i = 0; i < numPoints; i++)
                     {
-                        Vector3 pos = {
+                        RLVector3 pos = {
                             .x = mesh.vertices[i*3 + 0],
                             .y = mesh.vertices[i*3 + 1],
                             .z = mesh.vertices[i*3 + 2],
                         };
-                        Color color = {
+                        RLColor color = {
                             .r = mesh.colors[i*4 + 0],
                             .g = mesh.colors[i*4 + 1],
                             .b = mesh.colors[i*4 + 2],
                             .a = mesh.colors[i*4 + 3],
                         };
 
-                        DrawPoint3D(pos, color);
+                        RLDrawPoint3D(pos, color);
                     }
                 }
 
                 // Draw a unit sphere for reference
-                DrawSphereWires(position, 1.0f, 10, 10, YELLOW);
-            EndMode3D();
+                RLDrawSphereWires(position, 1.0f, 10, 10, YELLOW);
+            RLEndMode3D();
 
             // Draw UI text
-            DrawText(TextFormat("Point Count: %d", numPoints), 10, screenHeight - 50, 40, WHITE);
-            DrawText("UP - Increase points", 10, 40, 20, WHITE);
-            DrawText("DOWN - Decrease points", 10, 70, 20, WHITE);
-            DrawText("SPACE - Drawing function", 10, 100, 20, WHITE);
+            RLDrawText(RLTextFormat("Point Count: %d", numPoints), 10, screenHeight - 50, 40, WHITE);
+            RLDrawText("UP - Increase points", 10, 40, 20, WHITE);
+            RLDrawText("DOWN - Decrease points", 10, 70, 20, WHITE);
+            RLDrawText("SPACE - Drawing function", 10, 100, 20, WHITE);
 
-            if (useDrawModelPoints) DrawText("Using: DrawModelPoints()", 10, 130, 20, GREEN);
-            else DrawText("Using: DrawPoint3D()", 10, 130, 20, RED);
+            if (useDrawModelPoints) RLDrawText("Using: DrawModelPoints()", 10, 130, 20, GREEN);
+            else RLDrawText("Using: DrawPoint3D()", 10, 130, 20, RED);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadModel(model);
+    RLUnloadModel(model);
 
-    CloseWindow();
+    RLCloseWindow();
     //--------------------------------------------------------------------------------------
     return 0;
 }
@@ -151,13 +151,13 @@ int main(void)
 // Module Functions Definition
 //------------------------------------------------------------------------------------
 // Generate a spherical point cloud
-static Mesh GenMeshPoints(int numPoints)
+static RLMesh GenMeshPoints(int numPoints)
 {
-    Mesh mesh = {
+    RLMesh mesh = {
         .triangleCount = 1,
         .vertexCount = numPoints,
-        .vertices = (float *)MemAlloc(numPoints*3*sizeof(float)),
-        .colors = (unsigned char*)MemAlloc(numPoints*4*sizeof(unsigned char)),
+        .vertices = (float *)RLMemAlloc(numPoints*3*sizeof(float)),
+        .colors = (unsigned char*)RLMemAlloc(numPoints*4*sizeof(unsigned char)),
     };
 
     // REF: https://en.wikipedia.org/wiki/Spherical_coordinate_system
@@ -171,7 +171,7 @@ static Mesh GenMeshPoints(int numPoints)
         mesh.vertices[i*3 + 1] = r*sinf(theta)*sinf(phi);
         mesh.vertices[i*3 + 2] = r*cosf(theta);
 
-        Color color = ColorFromHSV(r*360.0f, 1.0f, 1.0f);
+        RLColor color = RLColorFromHSV(r*360.0f, 1.0f, 1.0f);
 
         mesh.colors[i*4 + 0] = color.r;
         mesh.colors[i*4 + 1] = color.g;
@@ -180,7 +180,7 @@ static Mesh GenMeshPoints(int numPoints)
     }
 
     // Upload mesh data from CPU (RAM) to GPU (VRAM) memory
-    UploadMesh(&mesh, false);
+    RLUploadMesh(&mesh, false);
 
     return mesh;
 }

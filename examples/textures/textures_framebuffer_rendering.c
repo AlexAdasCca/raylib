@@ -21,7 +21,7 @@
 //------------------------------------------------------------------------------------
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
-static void DrawCameraPrism(Camera3D camera, float aspect, Color color);
+static void DrawCameraPrism(RLCamera3D camera, float aspect, RLColor color);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -34,122 +34,122 @@ int main(void)
     const int screenHeight = 450;
     const int splitWidth = screenWidth/2;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - framebuffer rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - framebuffer rendering");
 
     // Camera to look at the 3D world
-    Camera3D subjectCamera = { 0 };
-    subjectCamera.position = (Vector3){ 5.0f, 5.0f, 5.0f };
-    subjectCamera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
-    subjectCamera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    RLCamera3D subjectCamera = { 0 };
+    subjectCamera.position = (RLVector3){ 5.0f, 5.0f, 5.0f };
+    subjectCamera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
+    subjectCamera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     subjectCamera.fovy = 45.0f;
     subjectCamera.projection = CAMERA_PERSPECTIVE;
 
     // Camera to observe the subject camera and 3D world
-    Camera3D observerCamera = { 0 };
-    observerCamera.position = (Vector3){ 10.0f, 10.0f, 10.0f };
-    observerCamera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
-    observerCamera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    RLCamera3D observerCamera = { 0 };
+    observerCamera.position = (RLVector3){ 10.0f, 10.0f, 10.0f };
+    observerCamera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
+    observerCamera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     observerCamera.fovy = 45.0f;
     observerCamera.projection = CAMERA_PERSPECTIVE;
 
     // Set up render textures
-    RenderTexture2D observerTarget = LoadRenderTexture(splitWidth, screenHeight);
-    Rectangle observerSource = { 0.0f, 0.0f, (float)observerTarget.texture.width, -(float)observerTarget.texture.height };
-    Rectangle observerDest = { 0.0f, 0.0f, (float)splitWidth, (float)screenHeight };
+    RLRenderTexture2D observerTarget = RLLoadRenderTexture(splitWidth, screenHeight);
+    RLRectangle observerSource = { 0.0f, 0.0f, (float)observerTarget.texture.width, -(float)observerTarget.texture.height };
+    RLRectangle observerDest = { 0.0f, 0.0f, (float)splitWidth, (float)screenHeight };
 
-    RenderTexture2D subjectTarget = LoadRenderTexture(splitWidth, screenHeight);
-    Rectangle subjectSource = { 0.0f, 0.0f, (float)subjectTarget.texture.width, -(float)subjectTarget.texture.height };
-    Rectangle subjectDest = { (float)splitWidth, 0.0f, (float)splitWidth, (float)screenHeight };
+    RLRenderTexture2D subjectTarget = RLLoadRenderTexture(splitWidth, screenHeight);
+    RLRectangle subjectSource = { 0.0f, 0.0f, (float)subjectTarget.texture.width, -(float)subjectTarget.texture.height };
+    RLRectangle subjectDest = { (float)splitWidth, 0.0f, (float)splitWidth, (float)screenHeight };
     const float textureAspectRatio = (float)subjectTarget.texture.width/(float)subjectTarget.texture.height;
 
     // Rectangles for cropping render texture
     const float captureSize = 128.0f;
-    Rectangle cropSource = { (subjectTarget.texture.width - captureSize)/2.0f, (subjectTarget.texture.height - captureSize)/2.0f, captureSize, -captureSize };
-    Rectangle cropDest = { splitWidth + 20, 20, captureSize, captureSize};
+    RLRectangle cropSource = { (subjectTarget.texture.width - captureSize)/2.0f, (subjectTarget.texture.height - captureSize)/2.0f, captureSize, -captureSize };
+    RLRectangle cropDest = { splitWidth + 20, 20, captureSize, captureSize};
 
-    SetTargetFPS(60);
-    DisableCursor();
+    RLSetTargetFPS(60);
+    RLDisableCursor();
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&observerCamera, CAMERA_FREE);
-        UpdateCamera(&subjectCamera, CAMERA_ORBITAL);
+        RLUpdateCamera(&observerCamera, CAMERA_FREE);
+        RLUpdateCamera(&subjectCamera, CAMERA_ORBITAL);
 
-        if (IsKeyPressed(KEY_R)) observerCamera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
+        if (RLIsKeyPressed(KEY_R)) observerCamera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
 
         // Build LHS observer view texture
-        BeginTextureMode(observerTarget);
+        RLBeginTextureMode(observerTarget);
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(observerCamera);
+            RLBeginMode3D(observerCamera);
 
-                DrawGrid(10, 1.0f);
-                DrawCube((Vector3){ 0.0f, 0.0f, 0.0f }, 2.0f, 2.0f, 2.0f, GOLD);
-                DrawCubeWires((Vector3){ 0.0f, 0.0f, 0.0f }, 2.0f, 2.0f, 2.0f, PINK);
+                RLDrawGrid(10, 1.0f);
+                RLDrawCube((RLVector3){ 0.0f, 0.0f, 0.0f }, 2.0f, 2.0f, 2.0f, GOLD);
+                RLDrawCubeWires((RLVector3){ 0.0f, 0.0f, 0.0f }, 2.0f, 2.0f, 2.0f, PINK);
                 DrawCameraPrism(subjectCamera, textureAspectRatio, GREEN);
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawText("Observer View", 10, observerTarget.texture.height - 30, 20, BLACK);
-            DrawText("WASD + Mouse to Move", 10, 10, 20, DARKGRAY);
-            DrawText("Scroll to Zoom", 10, 30, 20, DARKGRAY);
-            DrawText("R to Reset Observer Target", 10, 50, 20, DARKGRAY);
+            RLDrawText("Observer View", 10, observerTarget.texture.height - 30, 20, BLACK);
+            RLDrawText("WASD + Mouse to Move", 10, 10, 20, DARKGRAY);
+            RLDrawText("Scroll to Zoom", 10, 30, 20, DARKGRAY);
+            RLDrawText("R to Reset Observer Target", 10, 50, 20, DARKGRAY);
 
-        EndTextureMode();
+        RLEndTextureMode();
 
         // Build RHS subject view texture
-        BeginTextureMode(subjectTarget);
+        RLBeginTextureMode(subjectTarget);
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(subjectCamera);
+            RLBeginMode3D(subjectCamera);
 
-                DrawCube((Vector3){ 0.0f, 0.0f, 0.0f }, 2.0f, 2.0f, 2.0f, GOLD);
-                DrawCubeWires((Vector3){ 0.0f, 0.0f, 0.0f }, 2.0f, 2.0f, 2.0f, PINK);
-                DrawGrid(10, 1.0f);
+                RLDrawCube((RLVector3){ 0.0f, 0.0f, 0.0f }, 2.0f, 2.0f, 2.0f, GOLD);
+                RLDrawCubeWires((RLVector3){ 0.0f, 0.0f, 0.0f }, 2.0f, 2.0f, 2.0f, PINK);
+                RLDrawGrid(10, 1.0f);
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawRectangleLines((subjectTarget.texture.width - captureSize)/2, (subjectTarget.texture.height - captureSize)/2, captureSize, captureSize, GREEN);
-            DrawText("Subject View", 10, subjectTarget.texture.height - 30, 20, BLACK);
+            RLDrawRectangleLines((subjectTarget.texture.width - captureSize)/2, (subjectTarget.texture.height - captureSize)/2, captureSize, captureSize, GREEN);
+            RLDrawText("Subject View", 10, subjectTarget.texture.height - 30, 20, BLACK);
 
-        EndTextureMode();
+        RLEndTextureMode();
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(BLACK);
+            RLClearBackground(BLACK);
 
             // Draw observer texture LHS
-            DrawTexturePro(observerTarget.texture, observerSource, observerDest, (Vector2){0.0f, 0.0f }, 0.0f, WHITE);
+            RLDrawTexturePro(observerTarget.texture, observerSource, observerDest, (RLVector2){0.0f, 0.0f }, 0.0f, WHITE);
 
             // Draw subject texture RHS
-            DrawTexturePro(subjectTarget.texture, subjectSource, subjectDest, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
+            RLDrawTexturePro(subjectTarget.texture, subjectSource, subjectDest, (RLVector2){ 0.0f, 0.0f }, 0.0f, WHITE);
 
             // Draw the small crop overlay on top
-            DrawTexturePro(subjectTarget.texture, cropSource, cropDest, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
-            DrawRectangleLinesEx(cropDest, 2, BLACK);
+            RLDrawTexturePro(subjectTarget.texture, cropSource, cropDest, (RLVector2){ 0.0f, 0.0f }, 0.0f, WHITE);
+            RLDrawRectangleLinesEx(cropDest, 2, BLACK);
 
             // Draw split screen divider line
-            DrawLine(splitWidth, 0, splitWidth, screenHeight, BLACK);
+            RLDrawLine(splitWidth, 0, splitWidth, screenHeight, BLACK);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadRenderTexture(observerTarget);
-    UnloadRenderTexture(subjectTarget);
+    RLUnloadRenderTexture(observerTarget);
+    RLUnloadRenderTexture(subjectTarget);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -158,11 +158,11 @@ int main(void)
 //----------------------------------------------------------------------------------
 // Module Functions Definition
 //----------------------------------------------------------------------------------
-static void DrawCameraPrism(Camera3D camera, float aspect, Color color)
+static void DrawCameraPrism(RLCamera3D camera, float aspect, RLColor color)
 {
     float length = Vector3Distance(camera.position, camera.target);
     // Define the 4 corners of the camera's prism plane sliced at the target in Normalized Device Coordinates
-    Vector3 planeNDC[4] = {
+    RLVector3 planeNDC[4] = {
         { -1.0f, -1.0f, 1.0f }, // Bottom Left
         {  1.0f, -1.0f, 1.0f }, // Bottom Right
         {  1.0f,  1.0f, 1.0f }, // Top Right
@@ -170,15 +170,15 @@ static void DrawCameraPrism(Camera3D camera, float aspect, Color color)
     };
 
     // Build the matrices
-    Matrix view = GetCameraMatrix(camera);
-    Matrix proj = MatrixPerspective(camera.fovy * DEG2RAD, aspect, 0.05f, length);
+    RLMatrix view = RLGetCameraMatrix(camera);
+    RLMatrix proj = MatrixPerspective(camera.fovy * DEG2RAD, aspect, 0.05f, length);
     // Combine view and projection so we can reverse the full camera transform
-    Matrix viewProj = MatrixMultiply(view, proj);
+    RLMatrix viewProj = MatrixMultiply(view, proj);
     // Invert the view-projection matrix to unproject points from NDC space back into world space
-    Matrix inverseViewProj = MatrixInvert(viewProj);
+    RLMatrix inverseViewProj = MatrixInvert(viewProj);
 
     // Transform the 4 plane corners from NDC into world space
-    Vector3 corners[4];
+    RLVector3 corners[4];
     for (int i = 0; i < 4; i++)
     {
         float x = planeNDC[i].x;
@@ -192,18 +192,18 @@ static void DrawCameraPrism(Camera3D camera, float aspect, Color color)
         float vz = inverseViewProj.m2*x + inverseViewProj.m6*y + inverseViewProj.m10*z + inverseViewProj.m14;
         float vw = inverseViewProj.m3*x + inverseViewProj.m7*y + inverseViewProj.m11*z + inverseViewProj.m15;
 
-        corners[i] = (Vector3){ vx/vw, vy/vw, vz/vw };
+        corners[i] = (RLVector3){ vx/vw, vy/vw, vz/vw };
     }
 
     // Draw the far plane sliced at the target
-    DrawLine3D(corners[0], corners[1], color);
-    DrawLine3D(corners[1], corners[2], color);
-    DrawLine3D(corners[2], corners[3], color);
-    DrawLine3D(corners[3], corners[0], color);
+    RLDrawLine3D(corners[0], corners[1], color);
+    RLDrawLine3D(corners[1], corners[2], color);
+    RLDrawLine3D(corners[2], corners[3], color);
+    RLDrawLine3D(corners[3], corners[0], color);
 
     // Draw the prism lines from the far plane to the camera position
     for (int i = 0; i < 4; i++)
     {
-        DrawLine3D(camera.position, corners[i], color);
+        RLDrawLine3D(camera.position, corners[i], color);
     }
 }

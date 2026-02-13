@@ -30,13 +30,13 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [others] example - embedded files loading");
+    RLInitWindow(screenWidth, screenHeight, "raylib [others] example - embedded files loading");
 
-    InitAudioDevice();              // Initialize audio device
+    RLInitAudioDevice();              // Initialize audio device
 
     // Loaded in CPU memory (RAM) from header file (audio_data.h)
     // Same as: Wave wave = LoadWave("sound.wav");
-    Wave wave = {
+    RLWave wave = {
         .data = AUDIO_DATA,
         .frameCount = AUDIO_FRAME_COUNT,
         .sampleRate = AUDIO_SAMPLE_RATE,
@@ -45,7 +45,7 @@ int main(void)
     };
 
     // Wave converted to Sound to be played
-    Sound sound = LoadSoundFromWave(wave);
+    RLSound sound = RLLoadSoundFromWave(wave);
 
     // With a Wave loaded from file, after Sound is loaded, we can unload Wave
     // but in our case, Wave is embedded in executable, in program .data segment
@@ -54,7 +54,7 @@ int main(void)
 
     // Loaded in CPU memory (RAM) from header file (image_data.h)
     // Same as: Image image = LoadImage("raylib_logo.png");
-    Image image = {
+    RLImage image = {
         .data = IMAGE_DATA,
         .width = IMAGE_WIDTH,
         .height = IMAGE_HEIGHT,
@@ -63,47 +63,47 @@ int main(void)
     };
 
     // Image converted to Texture (VRAM) to be drawn
-    Texture2D texture = LoadTextureFromImage(image);
+    RLTexture2D texture = RLLoadTextureFromImage(image);
 
     // With an Image loaded from file, after Texture is loaded, we can unload Image
     // but in our case, Image is embedded in executable, in program .data segment
     // we can not (and should not) try to free that private memory region
     //UnloadImage(image);           // Do not unload image data!
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_SPACE)) PlaySound(sound);      // Play sound
+        if (RLIsKeyPressed(KEY_SPACE)) RLPlaySound(sound);      // Play sound
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawTexture(texture, screenWidth/2 - texture.width/2, 40, WHITE);
+            RLDrawTexture(texture, screenWidth/2 - texture.width/2, 40, WHITE);
 
-            DrawText("raylib logo and sound loaded from header files", 150, 320, 20, LIGHTGRAY);
-            DrawText("Press SPACE to PLAY the sound!", 220, 370, 20, LIGHTGRAY);
+            RLDrawText("raylib logo and sound loaded from header files", 150, 320, 20, LIGHTGRAY);
+            RLDrawText("Press SPACE to PLAY the sound!", 220, 370, 20, LIGHTGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadSound(sound);     // Unload sound from VRAM
-    UnloadTexture(texture); // Unload texture from VRAM
+    RLUnloadSound(sound);     // Unload sound from VRAM
+    RLUnloadTexture(texture); // Unload texture from VRAM
 
-    CloseAudioDevice();     // Close audio device
+    RLCloseAudioDevice();     // Close audio device
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

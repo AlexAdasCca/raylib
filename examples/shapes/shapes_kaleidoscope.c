@@ -26,8 +26,8 @@
 
 // Line data type
 typedef struct {
-    Vector2 start;
-    Vector2 end;
+    RLVector2 start;
+    RLVector2 end;
 } Line;
 
 // Lines array as a global static variable to be stored
@@ -44,22 +44,22 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - kaleidoscope");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - kaleidoscope");
 
     // Line drawing properties
     int symmetry = 6;
     float angle = 360.0f/(float)symmetry;
     float thickness = 3.0f;
-    Rectangle resetButtonRec = { screenWidth - 55.0f, 5.0f, 50, 25 };
-    Rectangle backButtonRec = { screenWidth - 55.0f, screenHeight - 30.0f, 25, 25 };
-    Rectangle nextButtonRec = { screenWidth - 30.0f, screenHeight - 30.0f, 25, 25 };
-    Vector2 mousePos = { 0 };
-    Vector2 prevMousePos = { 0 };
-    Vector2 scaleVector = { 1.0f, -1.0f };
-    Vector2 offset = { (float)screenWidth/2.0f, (float)screenHeight/2.0f };
+    RLRectangle resetButtonRec = { screenWidth - 55.0f, 5.0f, 50, 25 };
+    RLRectangle backButtonRec = { screenWidth - 55.0f, screenHeight - 30.0f, 25, 25 };
+    RLRectangle nextButtonRec = { screenWidth - 30.0f, screenHeight - 30.0f, 25, 25 };
+    RLVector2 mousePos = { 0 };
+    RLVector2 prevMousePos = { 0 };
+    RLVector2 scaleVector = { 1.0f, -1.0f };
+    RLVector2 offset = { (float)screenWidth/2.0f, (float)screenHeight/2.0f };
 
-    Camera2D camera = { 0 };
-    camera.target = (Vector2){ 0 };
+    RLCamera2D camera = { 0 };
+    camera.target = (RLVector2){ 0 };
     camera.offset = offset;
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
@@ -70,25 +70,25 @@ int main(void)
     int backButtonClicked = false;
     int nextButtonClicked = false;
 
-    SetTargetFPS(20);
+    RLSetTargetFPS(20);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         prevMousePos = mousePos;
-        mousePos = GetMousePosition();
+        mousePos = RLGetMousePosition();
 
-        Vector2 lineStart = Vector2Subtract(mousePos, offset);
-        Vector2 lineEnd = Vector2Subtract(prevMousePos, offset);
+        RLVector2 lineStart = Vector2Subtract(mousePos, offset);
+        RLVector2 lineEnd = Vector2Subtract(prevMousePos, offset);
 
         if (
-            IsMouseButtonDown(MOUSE_LEFT_BUTTON)
-            && (CheckCollisionPointRec(mousePos, resetButtonRec) == false)
-            && (CheckCollisionPointRec(mousePos, backButtonRec) == false)
-            && (CheckCollisionPointRec(mousePos, nextButtonRec) == false)
+            RLIsMouseButtonDown(MOUSE_LEFT_BUTTON)
+            && (RLCheckCollisionPointRec(mousePos, resetButtonRec) == false)
+            && (RLCheckCollisionPointRec(mousePos, backButtonRec) == false)
+            && (RLCheckCollisionPointRec(mousePos, nextButtonRec) == false)
         )
         {
             for (int s = 0; (s < symmetry) && (totalLineCounter < (MAX_DRAW_LINES - 1)); s++)
@@ -129,21 +129,21 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
-            BeginMode2D(camera);
+            RLClearBackground(RAYWHITE);
+            RLBeginMode2D(camera);
 
                 for (int s = 0; s < symmetry; s++)
                 {
                     for (int i = 0; i < currentLineCounter; i += 2)
                     {
-                        DrawLineEx(lines[i].start, lines[i].end, thickness, BLACK);
-                        DrawLineEx(lines[i + 1].start, lines[i + 1].end, thickness, BLACK);
+                        RLDrawLineEx(lines[i].start, lines[i].end, thickness, BLACK);
+                        RLDrawLineEx(lines[i + 1].start, lines[i + 1].end, thickness, BLACK);
                     }
                 }
 
-            EndMode2D();
+            RLEndMode2D();
 
             if ((currentLineCounter - 1) < 0) GuiDisable();
 
@@ -156,16 +156,16 @@ int main(void)
             GuiEnable();
             resetButtonClicked = GuiButton(resetButtonRec, "Reset");
 
-            DrawText(TextFormat("LINES: %i/%i", currentLineCounter, MAX_DRAW_LINES), 10, screenHeight - 30, 20, MAROON);
-            DrawFPS(10, 10);
+            RLDrawText(RLTextFormat("LINES: %i/%i", currentLineCounter, MAX_DRAW_LINES), 10, screenHeight - 30, 20, MAROON);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

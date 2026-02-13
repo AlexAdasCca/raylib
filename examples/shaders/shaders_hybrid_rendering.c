@@ -41,9 +41,9 @@ typedef struct {
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
 // Load custom render texture, create a writable depth texture buffer
-static RenderTexture2D LoadRenderTextureDepthTex(int width, int height);
+static RLRenderTexture2D LoadRenderTextureDepthTex(int width, int height);
 // Unload render texture from GPU memory (VRAM)
-static void UnloadRenderTextureDepthTex(RenderTexture2D target);
+static void UnloadRenderTextureDepthTex(RLRenderTexture2D target);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -55,35 +55,35 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - hybrid rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - hybrid rendering");
 
     // This Shader calculates pixel depth and color using raymarch
-    Shader shdrRaymarch = LoadShader(0, TextFormat("resources/shaders/glsl%i/hybrid_raymarch.fs", GLSL_VERSION));
+    RLShader shdrRaymarch = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/hybrid_raymarch.fs", GLSL_VERSION));
 
     // This Shader is a standard rasterization fragment shader with the addition of depth writing
     // You are required to write depth for all shaders if one shader does it
-    Shader shdrRaster = LoadShader(0, TextFormat("resources/shaders/glsl%i/hybrid_raster.fs", GLSL_VERSION));
+    RLShader shdrRaster = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/hybrid_raster.fs", GLSL_VERSION));
 
     // Declare Struct used to store camera locs
     RayLocs marchLocs = { 0 };
 
     // Fill the struct with shader locs
-    marchLocs.camPos = GetShaderLocation(shdrRaymarch, "camPos");
-    marchLocs.camDir = GetShaderLocation(shdrRaymarch, "camDir");
-    marchLocs.screenCenter = GetShaderLocation(shdrRaymarch, "screenCenter");
+    marchLocs.camPos = RLGetShaderLocation(shdrRaymarch, "camPos");
+    marchLocs.camDir = RLGetShaderLocation(shdrRaymarch, "camDir");
+    marchLocs.screenCenter = RLGetShaderLocation(shdrRaymarch, "screenCenter");
 
     // Transfer screenCenter position to shader. Which is used to calculate ray direction
-    Vector2 screenCenter = {.x = screenWidth/2.0f, .y = screenHeight/2.0f};
-    SetShaderValue(shdrRaymarch, marchLocs.screenCenter , &screenCenter , SHADER_UNIFORM_VEC2);
+    RLVector2 screenCenter = {.x = screenWidth/2.0f, .y = screenHeight/2.0f};
+    RLSetShaderValue(shdrRaymarch, marchLocs.screenCenter , &screenCenter , SHADER_UNIFORM_VEC2);
 
     // Use Customized function to create writable depth texture buffer
-    RenderTexture2D target = LoadRenderTextureDepthTex(screenWidth, screenHeight);
+    RLRenderTexture2D target = LoadRenderTextureDepthTex(screenWidth, screenHeight);
 
     // Define the camera to look into our 3d world
-    Camera camera = {
-        .position = (Vector3){ 0.5f, 1.0f, 1.5f },    // Camera position
-        .target = (Vector3){ 0.0f, 0.5f, 0.0f },      // Camera looking at point
-        .up = (Vector3){ 0.0f, 1.0f, 0.0f },          // Camera up vector (rotation towards target)
+    RLCamera camera = {
+        .position = (RLVector3){ 0.5f, 1.0f, 1.5f },    // Camera position
+        .target = (RLVector3){ 0.0f, 0.5f, 0.0f },      // Camera looking at point
+        .up = (RLVector3){ 0.0f, 1.0f, 0.0f },          // Camera up vector (rotation towards target)
         .fovy = 45.0f,                                // Camera field-of-view Y
         .projection = CAMERA_PERSPECTIVE              // Camera projection type
     };
@@ -91,66 +91,66 @@ int main(void)
     // Camera FOV is pre-calculated in the camera distance
     float camDist = 1.0f/(tanf(camera.fovy*0.5f*DEG2RAD));
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
 
         // Update Camera Postion in the ray march shader
-        SetShaderValue(shdrRaymarch, marchLocs.camPos, &(camera.position), RL_SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shdrRaymarch, marchLocs.camPos, &(camera.position), RL_SHADER_UNIFORM_VEC3);
 
         // Update Camera Looking Vector. Vector length determines FOV
-        Vector3 camDir = Vector3Scale( Vector3Normalize( Vector3Subtract(camera.target, camera.position)) , camDist);
-        SetShaderValue(shdrRaymarch, marchLocs.camDir, &(camDir), RL_SHADER_UNIFORM_VEC3);
+        RLVector3 camDir = Vector3Scale( Vector3Normalize( Vector3Subtract(camera.target, camera.position)) , camDist);
+        RLSetShaderValue(shdrRaymarch, marchLocs.camDir, &(camDir), RL_SHADER_UNIFORM_VEC3);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
         // Draw into our custom render texture (framebuffer)
-        BeginTextureMode(target);
-            ClearBackground(WHITE);
+        RLBeginTextureMode(target);
+            RLClearBackground(WHITE);
 
             // Raymarch Scene
             rlEnableDepthTest(); // Manually enable Depth Test to handle multiple rendering methods
-            BeginShaderMode(shdrRaymarch);
-                DrawRectangleRec((Rectangle){ 0,0, (float)screenWidth, (float)screenHeight },WHITE);
-            EndShaderMode();
+            RLBeginShaderMode(shdrRaymarch);
+                RLDrawRectangleRec((RLRectangle){ 0,0, (float)screenWidth, (float)screenHeight },WHITE);
+            RLEndShaderMode();
 
             // Rasterize Scene
-            BeginMode3D(camera);
-                BeginShaderMode(shdrRaster);
-                    DrawCubeWiresV((Vector3){ 0.0f, 0.5f, 1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, RED);
-                    DrawCubeV((Vector3){ 0.0f, 0.5f, 1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, PURPLE);
-                    DrawCubeWiresV((Vector3){ 0.0f, 0.5f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, DARKGREEN);
-                    DrawCubeV((Vector3) { 0.0f, 0.5f, -1.0f }, (Vector3){ 1.0f, 1.0f, 1.0f }, YELLOW);
-                    DrawGrid(10, 1.0f);
-                EndShaderMode();
-            EndMode3D();
-        EndTextureMode();
+            RLBeginMode3D(camera);
+                RLBeginShaderMode(shdrRaster);
+                    RLDrawCubeWiresV((RLVector3){ 0.0f, 0.5f, 1.0f }, (RLVector3){ 1.0f, 1.0f, 1.0f }, RED);
+                    RLDrawCubeV((RLVector3){ 0.0f, 0.5f, 1.0f }, (RLVector3){ 1.0f, 1.0f, 1.0f }, PURPLE);
+                    RLDrawCubeWiresV((RLVector3){ 0.0f, 0.5f, -1.0f }, (RLVector3){ 1.0f, 1.0f, 1.0f }, DARKGREEN);
+                    RLDrawCubeV((RLVector3) { 0.0f, 0.5f, -1.0f }, (RLVector3){ 1.0f, 1.0f, 1.0f }, YELLOW);
+                    RLDrawGrid(10, 1.0f);
+                RLEndShaderMode();
+            RLEndMode3D();
+        RLEndTextureMode();
 
         // Draw into screen our custom render texture
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
-            DrawTextureRec(target.texture, (Rectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, (Vector2) { 0, 0 }, WHITE);
+            RLDrawTextureRec(target.texture, (RLRectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, (RLVector2) { 0, 0 }, WHITE);
 
-            DrawFPS(10, 10);
-        EndDrawing();
+            RLDrawFPS(10, 10);
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
     UnloadRenderTextureDepthTex(target);
-    UnloadShader(shdrRaymarch);
-    UnloadShader(shdrRaster);
+    RLUnloadShader(shdrRaymarch);
+    RLUnloadShader(shdrRaster);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -160,9 +160,9 @@ int main(void)
 // Module Functions Definition
 //------------------------------------------------------------------------------------
 // Load custom render texture, create a writable depth texture buffer
-static RenderTexture2D LoadRenderTextureDepthTex(int width, int height)
+static RLRenderTexture2D LoadRenderTextureDepthTex(int width, int height)
 {
-    RenderTexture2D target = { 0 };
+    RLRenderTexture2D target = { 0 };
 
     target.id = rlLoadFramebuffer(); // Load an empty framebuffer
 
@@ -199,7 +199,7 @@ static RenderTexture2D LoadRenderTextureDepthTex(int width, int height)
 }
 
 // Unload render texture from GPU memory (VRAM)
-static void UnloadRenderTextureDepthTex(RenderTexture2D target)
+static void UnloadRenderTextureDepthTex(RLRenderTexture2D target)
 {
     if (target.id > 0)
     {

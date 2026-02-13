@@ -86,71 +86,71 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - palette switch");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - palette switch");
 
     // Load shader to be used on some parts drawing
     // NOTE 1: Using GLSL 330 shader version, on OpenGL ES 2.0 use GLSL 100 shader version
     // NOTE 2: Defining 0 (NULL) for vertex shader forces usage of internal default vertex shader
-    Shader shader = LoadShader(0, TextFormat("resources/shaders/glsl%i/palette_switch.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/palette_switch.fs", GLSL_VERSION));
 
     // Get variable (uniform) location on the shader to connect with the program
     // NOTE: If uniform variable could not be found in the shader, function returns -1
-    int paletteLoc = GetShaderLocation(shader, "palette");
+    int paletteLoc = RLGetShaderLocation(shader, "palette");
 
     int currentPalette = 0;
     int lineHeight = screenHeight/COLORS_PER_PALETTE;
 
-    SetTargetFPS(60);                       // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                       // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())            // Detect window close button or ESC key
+    while (!RLWindowShouldClose())            // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_RIGHT)) currentPalette++;
-        else if (IsKeyPressed(KEY_LEFT)) currentPalette--;
+        if (RLIsKeyPressed(KEY_RIGHT)) currentPalette++;
+        else if (RLIsKeyPressed(KEY_LEFT)) currentPalette--;
 
         if (currentPalette >= MAX_PALETTES) currentPalette = 0;
         else if (currentPalette < 0) currentPalette = MAX_PALETTES - 1;
 
         // Send palette data to the shader to be used on drawing
         // NOTE: We are sending RGB triplets w/o the alpha channel
-        SetShaderValueV(shader, paletteLoc, palettes[currentPalette], SHADER_UNIFORM_IVEC3, COLORS_PER_PALETTE);
+        RLSetShaderValueV(shader, paletteLoc, palettes[currentPalette], SHADER_UNIFORM_IVEC3, COLORS_PER_PALETTE);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginShaderMode(shader);
+            RLBeginShaderMode(shader);
 
                 for (int i = 0; i < COLORS_PER_PALETTE; i++)
                 {
                     // Draw horizontal screen-wide rectangles with increasing "palette index"
                     // The used palette index is encoded in the RGB components of the pixel
-                    DrawRectangle(0, lineHeight*i, GetScreenWidth(), lineHeight, (Color){ i, i, i, 255 });
+                    RLDrawRectangle(0, lineHeight*i, RLGetScreenWidth(), lineHeight, (RLColor){ i, i, i, 255 });
                 }
 
-            EndShaderMode();
+            RLEndShaderMode();
 
-            DrawText("< >", 10, 10, 30, DARKBLUE);
-            DrawText("CURRENT PALETTE:", 60, 15, 20, RAYWHITE);
-            DrawText(paletteText[currentPalette], 300, 15, 20, RED);
+            RLDrawText("< >", 10, 10, 30, DARKBLUE);
+            RLDrawText("CURRENT PALETTE:", 60, 15, 20, RAYWHITE);
+            RLDrawText(paletteText[currentPalette], 300, 15, 20, RED);
 
-            DrawFPS(700, 15);
+            RLDrawFPS(700, 15);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shader);       // Unload shader
+    RLUnloadShader(shader);       // Unload shader
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

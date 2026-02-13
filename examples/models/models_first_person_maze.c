@@ -27,47 +27,47 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - first person maze");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - first person maze");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 0.2f, 0.4f, 0.2f };    // Camera position
-    camera.target = (Vector3){ 0.185f, 0.4f, 0.0f };    // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 0.2f, 0.4f, 0.2f };    // Camera position
+    camera.target = (RLVector3){ 0.185f, 0.4f, 0.0f };    // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
-    Image imMap = LoadImage("resources/cubicmap.png");      // Load cubicmap image (RAM)
-    Texture2D cubicmap = LoadTextureFromImage(imMap);       // Convert image to texture to display (VRAM)
-    Mesh mesh = GenMeshCubicmap(imMap, (Vector3){ 1.0f, 1.0f, 1.0f });
-    Model model = LoadModelFromMesh(mesh);
+    RLImage imMap = RLLoadImage("resources/cubicmap.png");      // Load cubicmap image (RAM)
+    RLTexture2D cubicmap = RLLoadTextureFromImage(imMap);       // Convert image to texture to display (VRAM)
+    RLMesh mesh = RLGenMeshCubicmap(imMap, (RLVector3){ 1.0f, 1.0f, 1.0f });
+    RLModel model = RLLoadModelFromMesh(mesh);
 
     // NOTE: By default each cube is mapped to one part of texture atlas
-    Texture2D texture = LoadTexture("resources/cubicmap_atlas.png");    // Load map texture
+    RLTexture2D texture = RLLoadTexture("resources/cubicmap_atlas.png");    // Load map texture
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;    // Set map diffuse texture
 
     // Get map image data to be used for collision detection
-    Color *mapPixels = LoadImageColors(imMap);
-    UnloadImage(imMap);             // Unload image from RAM
+    RLColor *mapPixels = RLLoadImageColors(imMap);
+    RLUnloadImage(imMap);             // Unload image from RAM
 
-    Vector3 mapPosition = { -16.0f, 0.0f, -8.0f };  // Set model position
+    RLVector3 mapPosition = { -16.0f, 0.0f, -8.0f };  // Set model position
 
-    DisableCursor();                // Limit cursor to relative movement inside the window
+    RLDisableCursor();                // Limit cursor to relative movement inside the window
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        Vector3 oldCamPos = camera.position;    // Store old camera position
+        RLVector3 oldCamPos = camera.position;    // Store old camera position
 
-        UpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
 
         // Check player collision (we simplify to 2D collision detection)
-        Vector2 playerPos = { camera.position.x, camera.position.z };
+        RLVector2 playerPos = { camera.position.x, camera.position.z };
         float playerRadius = 0.1f;  // Collision radius (player is modelled as a cilinder for collision)
 
         int playerCellX = (int)(playerPos.x - mapPosition.x + 0.5f);
@@ -91,8 +91,8 @@ int main(void)
                     // NOTE: Collision: Only checking R channel for white pixel
                     if (((x >= 0) && (x < cubicmap.width)) &&
                         (mapPixels[y*cubicmap.width + x].r == 255) &&
-                        (CheckCollisionCircleRec(playerPos, playerRadius,
-                        (Rectangle){ mapPosition.x - 0.5f + x*1.0f, mapPosition.z - 0.5f + y*1.0f, 1.0f, 1.0f })))
+                        (RLCheckCollisionCircleRec(playerPos, playerRadius,
+                        (RLRectangle){ mapPosition.x - 0.5f + x*1.0f, mapPosition.z - 0.5f + y*1.0f, 1.0f, 1.0f })))
                     {
                         // Collision detected, reset camera position
                         camera.position = oldCamPos;
@@ -104,35 +104,35 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
-                DrawModel(model, mapPosition, 1.0f, WHITE);                     // Draw maze map
-            EndMode3D();
+            RLBeginMode3D(camera);
+                RLDrawModel(model, mapPosition, 1.0f, WHITE);                     // Draw maze map
+            RLEndMode3D();
 
-            DrawTextureEx(cubicmap, (Vector2){ GetScreenWidth() - cubicmap.width*4.0f - 20, 20.0f }, 0.0f, 4.0f, WHITE);
-            DrawRectangleLines(GetScreenWidth() - cubicmap.width*4 - 20, 20, cubicmap.width*4, cubicmap.height*4, GREEN);
+            RLDrawTextureEx(cubicmap, (RLVector2){ RLGetScreenWidth() - cubicmap.width*4.0f - 20, 20.0f }, 0.0f, 4.0f, WHITE);
+            RLDrawRectangleLines(RLGetScreenWidth() - cubicmap.width*4 - 20, 20, cubicmap.width*4, cubicmap.height*4, GREEN);
 
             // Draw player position radar
-            DrawRectangle(GetScreenWidth() - cubicmap.width*4 - 20 + playerCellX*4, 20 + playerCellY*4, 4, 4, RED);
+            RLDrawRectangle(RLGetScreenWidth() - cubicmap.width*4 - 20 + playerCellX*4, 20 + playerCellY*4, 4, 4, RED);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadImageColors(mapPixels);   // Unload color array
+    RLUnloadImageColors(mapPixels);   // Unload color array
 
-    UnloadTexture(cubicmap);        // Unload cubicmap texture
-    UnloadTexture(texture);         // Unload map texture
-    UnloadModel(model);             // Unload map model
+    RLUnloadTexture(cubicmap);        // Unload cubicmap texture
+    RLUnloadTexture(texture);         // Unload map texture
+    RLUnloadModel(model);             // Unload map model
 
-    CloseWindow();                  // Close window and OpenGL context
+    RLCloseWindow();                  // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

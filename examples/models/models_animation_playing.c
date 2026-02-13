@@ -33,80 +33,80 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - animation playing");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - animation playing");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f }; // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 10.0f, 10.0f, 10.0f }; // Camera position
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera mode type
 
-    Model model = LoadModel("resources/models/iqm/guy.iqm");                    // Load the animated model mesh and basic data
-    Texture2D texture = LoadTexture("resources/models/iqm/guytex.png");         // Load model texture and set material
-    SetMaterialTexture(&model.materials[0], MATERIAL_MAP_DIFFUSE, texture);     // Set model material map texture
+    RLModel model = RLLoadModel("resources/models/iqm/guy.iqm");                    // Load the animated model mesh and basic data
+    RLTexture2D texture = RLLoadTexture("resources/models/iqm/guytex.png");         // Load model texture and set material
+    RLSetMaterialTexture(&model.materials[0], MATERIAL_MAP_DIFFUSE, texture);     // Set model material map texture
 
-    Vector3 position = { 0.0f, 0.0f, 0.0f };            // Set model position
+    RLVector3 position = { 0.0f, 0.0f, 0.0f };            // Set model position
 
     // Load animation data
     int animsCount = 0;
-    ModelAnimation *anims = LoadModelAnimations("resources/models/iqm/guyanim.iqm", &animsCount);
+    RLModelAnimation *anims = RLLoadModelAnimations("resources/models/iqm/guyanim.iqm", &animsCount);
     int animFrameCounter = 0;
 
-    DisableCursor();                    // Catch cursor
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLDisableCursor();                    // Catch cursor
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
 
         // Play animation when spacebar is held down
-        if (IsKeyDown(KEY_SPACE))
+        if (RLIsKeyDown(KEY_SPACE))
         {
             animFrameCounter++;
-            UpdateModelAnimation(model, anims[0], animFrameCounter);
+            RLUpdateModelAnimation(model, anims[0], animFrameCounter);
             if (animFrameCounter >= anims[0].frameCount) animFrameCounter = 0;
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
-                DrawModelEx(model, position, (Vector3){ 1.0f, 0.0f, 0.0f }, -90.0f, (Vector3){ 1.0f, 1.0f, 1.0f }, WHITE);
+                RLDrawModelEx(model, position, (RLVector3){ 1.0f, 0.0f, 0.0f }, -90.0f, (RLVector3){ 1.0f, 1.0f, 1.0f }, WHITE);
 
                 for (int i = 0; i < model.boneCount; i++)
                 {
-                    DrawCube(anims[0].framePoses[animFrameCounter][i].translation, 0.2f, 0.2f, 0.2f, RED);
+                    RLDrawCube(anims[0].framePoses[animFrameCounter][i].translation, 0.2f, 0.2f, 0.2f, RED);
                 }
 
-                DrawGrid(10, 1.0f);         // Draw a grid
+                RLDrawGrid(10, 1.0f);         // Draw a grid
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawText("PRESS SPACE to PLAY MODEL ANIMATION", 10, 10, 20, MAROON);
-            DrawText("(c) Guy IQM 3D model by @culacant", screenWidth - 200, screenHeight - 20, 10, GRAY);
+            RLDrawText("PRESS SPACE to PLAY MODEL ANIMATION", 10, 10, 20, MAROON);
+            RLDrawText("(c) Guy IQM 3D model by @culacant", screenWidth - 200, screenHeight - 20, 10, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(texture);                     // Unload texture
-    UnloadModelAnimations(anims, animsCount);   // Unload model animations data
-    UnloadModel(model);                         // Unload model
+    RLUnloadTexture(texture);                     // Unload texture
+    RLUnloadModelAnimations(anims, animsCount);   // Unload model animations data
+    RLUnloadModel(model);                         // Unload model
 
-    CloseWindow();                  // Close window and OpenGL context
+    RLCloseWindow();                  // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

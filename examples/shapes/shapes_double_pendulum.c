@@ -26,8 +26,8 @@
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
-static Vector2 CalculatePendulumEndPoint(float l, float theta);
-static Vector2 CalculateDoublePendulumEndPoint(float l1, float theta1, float l2, float theta2);
+static RLVector2 CalculatePendulumEndPoint(float l, float theta);
+static RLVector2 CalculateDoublePendulumEndPoint(float l1, float theta1, float l2, float theta2);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -39,8 +39,8 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_WINDOW_HIGHDPI);
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - double pendulum");
+    RLSetConfigFlags(FLAG_WINDOW_HIGHDPI);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - double pendulum");
 
     // Simulation Parameters
     float l1 = 15.0f, m1 = 0.2f, theta1 = DEG2RAD*170, w1 = 0;
@@ -48,7 +48,7 @@ int main(void)
     float lengthScaler = 0.1f;
     float totalM = m1 + m2;
 
-    Vector2 previousPosition = CalculateDoublePendulumEndPoint(l1, theta1, l2, theta2);
+    RLVector2 previousPosition = CalculateDoublePendulumEndPoint(l1, theta1, l2, theta2);
     previousPosition.x += ((float)screenWidth/2);
     previousPosition.y += ((float)screenHeight/2 - 100);
 
@@ -61,18 +61,18 @@ int main(void)
     float fateAlpha = 0.01f;
 
     // Create framebuffer
-    RenderTexture2D target = LoadRenderTexture(screenWidth, screenHeight);
-    SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
+    RLRenderTexture2D target = RLLoadRenderTexture(screenWidth, screenHeight);
+    RLSetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        float dt = GetFrameTime();
+        float dt = RLGetFrameTime();
         float step = dt/SIMULATION_STEPS, step2 = step*step;
 
         // Update Physics - larger steps = better approximation
@@ -104,19 +104,19 @@ int main(void)
         }
 
         // Calculate position
-        Vector2 currentPosition = CalculateDoublePendulumEndPoint(l1, theta1, l2, theta2);
+        RLVector2 currentPosition = CalculateDoublePendulumEndPoint(l1, theta1, l2, theta2);
         currentPosition.x += (float)screenWidth/2;
         currentPosition.y += (float)screenHeight/2 - 100;
 
         // Draw to render texture
-        BeginTextureMode(target);
+        RLBeginTextureMode(target);
             // Draw a transparent rectangle - smaller alpha = longer trails
-            DrawRectangle(0, 0, screenWidth, screenHeight, Fade(BLACK, fateAlpha));
+            RLDrawRectangle(0, 0, screenWidth, screenHeight, RLFade(BLACK, fateAlpha));
 
             // Draw trail
-            DrawCircleV(previousPosition, trailThick, RED);
-            DrawLineEx(previousPosition, currentPosition, trailThick*2, RED);
-        EndTextureMode();
+            RLDrawCircleV(previousPosition, trailThick, RED);
+            RLDrawLineEx(previousPosition, currentPosition, trailThick*2, RED);
+        RLEndTextureMode();
 
         // Update previous position
         previousPosition = currentPosition;
@@ -124,30 +124,30 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(BLACK);
+            RLClearBackground(BLACK);
 
             // Draw trails texture
-            DrawTextureRec(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height }, (Vector2){ 0, 0 }, WHITE);
+            RLDrawTextureRec(target.texture, (RLRectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height }, (RLVector2){ 0, 0 }, WHITE);
 
             // Draw double pendulum
-            DrawRectanglePro((Rectangle){ screenWidth/2.0f, screenHeight/2.0f - 100, 10*l1, lineThick },
-                (Vector2){0, lineThick*0.5f}, 90 - RAD2DEG*theta1, RAYWHITE);
+            RLDrawRectanglePro((RLRectangle){ screenWidth/2.0f, screenHeight/2.0f - 100, 10*l1, lineThick },
+                (RLVector2){0, lineThick*0.5f}, 90 - RAD2DEG*theta1, RAYWHITE);
 
-            Vector2 endpoint1 = CalculatePendulumEndPoint(l1, theta1);
-            DrawRectanglePro((Rectangle){ screenWidth/2.0f + endpoint1.x, screenHeight/2.0f - 100 + endpoint1.y, 10*l2, lineThick },
-                (Vector2){0, lineThick*0.5f}, 90 - RAD2DEG*theta2, RAYWHITE);
+            RLVector2 endpoint1 = CalculatePendulumEndPoint(l1, theta1);
+            RLDrawRectanglePro((RLRectangle){ screenWidth/2.0f + endpoint1.x, screenHeight/2.0f - 100 + endpoint1.y, 10*l2, lineThick },
+                (RLVector2){0, lineThick*0.5f}, 90 - RAD2DEG*theta2, RAYWHITE);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadRenderTexture(target);
+    RLUnloadRenderTexture(target);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -157,15 +157,15 @@ int main(void)
 // Module Functions Definition
 //----------------------------------------------------------------------------------
 // Calculate pendulum end point
-static Vector2 CalculatePendulumEndPoint(float l, float theta)
+static RLVector2 CalculatePendulumEndPoint(float l, float theta)
 {
-    return (Vector2){ 10*l*sinf(theta), 10*l*cosf(theta) };
+    return (RLVector2){ 10*l*sinf(theta), 10*l*cosf(theta) };
 }
 
 // Calculate double pendulum end point
-static Vector2 CalculateDoublePendulumEndPoint(float l1, float theta1, float l2, float theta2)
+static RLVector2 CalculateDoublePendulumEndPoint(float l1, float theta1, float l2, float theta2)
 {
-    Vector2 endpoint1 = CalculatePendulumEndPoint(l1, theta1);
-    Vector2 endpoint2 = CalculatePendulumEndPoint(l2, theta2);
-    return (Vector2){ endpoint1.x + endpoint2.x, endpoint1.y + endpoint2.y };
+    RLVector2 endpoint1 = CalculatePendulumEndPoint(l1, theta1);
+    RLVector2 endpoint2 = CalculatePendulumEndPoint(l2, theta2);
+    return (RLVector2){ endpoint1.x + endpoint2.x, endpoint1.y + endpoint2.y };
 }

@@ -1,4 +1,4 @@
-/**********************************************************************************************
+﻿/**********************************************************************************************
 *
 *   rcore_desktop_win32 - Functions to manage window, graphics device and inputs
 *
@@ -42,28 +42,8 @@
 *
 **********************************************************************************************/
 
-// Move windows.h symbols to new names to avoid redefining the same names as raylib
-#define CloseWindow CloseWindowWin32
-#define Rectangle RectangleWin32
-#define ShowCursor ShowCursorWin32
-#define DrawTextA DrawTextAWin32
-#define DrawTextW DrawTextWin32
-#define DrawTextExA DrawTextExAWin32
-#define DrawTextExW DrawTextExWin32
-
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-
-#undef CloseWindow      // raylib symbol collision
-#undef Rectangle        // raylib symbol collision
-#undef ShowCursor       // raylib symbol collision
-#undef LoadImage        // raylib symbol collision
-#undef DrawText         // raylib symbol collision
-#undef DrawTextA
-#undef DrawTextW
-#undef DrawTextEx       // raylib symbol collision
-#undef DrawTextExA
-#undef DrawTextExW
 
 #include <windowsx.h>
 #include <shellscalingapi.h>
@@ -481,7 +461,7 @@ static void *WglGetProcAddress(const char *procname)
 }
 
 // Get key from wparam (mapping)
-static KeyboardKey GetKeyFromWparam(WPARAM wparam)
+static RLKeyboardKey GetKeyFromWparam(WPARAM wparam)
 {
     switch (wparam)
     {
@@ -810,60 +790,60 @@ static bool IsWglExtensionAvailable(HDC hdc, const char *extension);
 //----------------------------------------------------------------------------------
 
 // Check if application should close
-bool WindowShouldClose(void)
+bool RLWindowShouldClose(void)
 {
     return CORE.Window.shouldClose;
 }
 
 // Toggle fullscreen mode
-void ToggleFullscreen(void)
+void RLToggleFullscreen(void)
 {
     TRACELOG(LOG_WARNING, "WIN32: Toggle full screen functionality not implemented");
 }
 
 // Toggle borderless windowed mode
-void ToggleBorderlessWindowed(void)
+void RLToggleBorderlessWindowed(void)
 {
-    if (CORE.Window.flags & FLAG_BORDERLESS_WINDOWED_MODE) ClearWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
-    else SetWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
+    if (CORE.Window.flags & FLAG_BORDERLESS_WINDOWED_MODE) RLClearWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
+    else RLSetWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
 }
 
 // Set window state: maximized, if resizable
-void MaximizeWindow(void)
+void RLMaximizeWindow(void)
 {
-    SetWindowState(FLAG_WINDOW_MAXIMIZED);
+    RLSetWindowState(FLAG_WINDOW_MAXIMIZED);
 }
 
 // Set window state: minimized
-void MinimizeWindow(void)
+void RLMinimizeWindow(void)
 {
-    SetWindowState(FLAG_WINDOW_MINIMIZED);
+    RLSetWindowState(FLAG_WINDOW_MINIMIZED);
 }
 
 // Restore window from being minimized/maximized
-void RestoreWindow(void)
+void RLRestoreWindow(void)
 {
     if ((CORE.Window.flags & FLAG_WINDOW_MAXIMIZED) &&
-        (CORE.Window.flags & FLAG_WINDOW_MINIMIZED)) ClearWindowState(FLAG_WINDOW_MINIMIZED);
-    else ClearWindowState(FLAG_WINDOW_MINIMIZED | FLAG_WINDOW_MAXIMIZED);
+        (CORE.Window.flags & FLAG_WINDOW_MINIMIZED)) RLClearWindowState(FLAG_WINDOW_MINIMIZED);
+    else RLClearWindowState(FLAG_WINDOW_MINIMIZED | FLAG_WINDOW_MAXIMIZED);
 }
 
 // Set window configuration state using flags
-void SetWindowState(unsigned int flags)
+void RLSetWindowState(unsigned int flags)
 {
     platform.desiredFlags = SanitizeFlags(1 /*SANITIZE_FLAGS_NORMAL*/, CORE.Window.flags | flags);
     UpdateFlags(platform.hwnd, platform.desiredFlags, platform.appScreenWidth, platform.appScreenHeight);
 }
 
 // Clear window configuration state flags
-void ClearWindowState(unsigned int flags)
+void RLClearWindowState(unsigned int flags)
 {
     platform.desiredFlags = SanitizeFlags(1 /*SANITIZE_FLAGS_NORMAL*/, CORE.Window.flags & ~flags);
     UpdateFlags(platform.hwnd, platform.desiredFlags, platform.appScreenWidth, platform.appScreenHeight);
 }
 
 // Set icon for window
-void SetWindowIcon(Image image)
+void RLSetWindowIcon(RLImage image)
 {
     if (!platform.hwnd || (image.data == NULL) || (image.width <= 0) || (image.height <= 0)) return;
 
@@ -930,12 +910,12 @@ void SetWindowIcon(Image image)
 }
 
 // Set icon for window
-void SetWindowIcons(Image *images, int count)
+void RLSetWindowIcons(RLImage *images, int count)
 {
     // TODO: Implement SetWindowIcons()
 }
 
-void SetWindowTitle(const char *title)
+void RLSetWindowTitle(const char *title)
 {
     CORE.Window.title = title;
 
@@ -947,7 +927,7 @@ void SetWindowTitle(const char *title)
 }
 
 // Set window position on screen (windowed mode)
-void SetWindowPosition(int x, int y)
+void RLSetWindowPosition(int x, int y)
 {
     if (platform.hwnd != NULL)
     {
@@ -964,13 +944,13 @@ void SetWindowPosition(int x, int y)
 }
 
 // Set monitor for the current window
-void SetWindowMonitor(int monitor)
+void RLSetWindowMonitor(int monitor)
 {
     TRACELOG(LOG_WARNING, "SetWindowMonitor not implemented");
 }
 
 // Set window minimum dimensions (FLAG_WINDOW_RESIZABLE)
-void SetWindowMinSize(int width, int height)
+void RLSetWindowMinSize(int width, int height)
 {
     if ((width > CORE.Window.screenMax.width) || (height > CORE.Window.screenMax.height))
     {
@@ -981,11 +961,11 @@ void SetWindowMinSize(int width, int height)
     CORE.Window.screenMin.width = width;
     CORE.Window.screenMin.height = height;
 
-    SetWindowSize(platform.appScreenWidth, platform.appScreenHeight);
+    RLSetWindowSize(platform.appScreenWidth, platform.appScreenHeight);
 }
 
 // Set window maximum dimensions (FLAG_WINDOW_RESIZABLE)
-void SetWindowMaxSize(int width, int height)
+void RLSetWindowMaxSize(int width, int height)
 {
     if ((width < CORE.Window.screenMin.width) || (height < CORE.Window.screenMin.height))
     {
@@ -996,11 +976,11 @@ void SetWindowMaxSize(int width, int height)
     CORE.Window.screenMax.width = width;
     CORE.Window.screenMax.height = height;
     
-    SetWindowSize(platform.appScreenWidth, platform.appScreenHeight);
+    RLSetWindowSize(platform.appScreenWidth, platform.appScreenHeight);
 }
 
 // Set window dimensions
-void SetWindowSize(int width, int height)
+void RLSetWindowSize(int width, int height)
 {
     int screenWidth = fmaxf(CORE.Window.screenMin.width, fminf(CORE.Window.screenMax.width, width));
     int screenHeight = fmaxf(CORE.Window.screenMin.height, fminf(CORE.Window.screenMax.height, height));
@@ -1009,24 +989,24 @@ void SetWindowSize(int width, int height)
 }
 
 // Set window opacity, value opacity is between 0.0 and 1.0
-void SetWindowOpacity(float opacity)
+void RLSetWindowOpacity(float opacity)
 {
     TRACELOG(LOG_WARNING, "SetWindowOpacity not implemented");
 }
 
 // Set window focused
-void SetWindowFocused(void)
+void RLSetWindowFocused(void)
 {
     TRACELOG(LOG_WARNING, "SetWindowFocused not implemented");
 }
 
 // Get native window handle
-void *GetWindowHandle(void)
+void *RLGetWindowHandle(void)
 {
     return platform.hwnd;
 }
 
-int GetMonitorCount(void)
+int RLGetMonitorCount(void)
 {
     int count = 0;
 
@@ -1037,7 +1017,7 @@ int GetMonitorCount(void)
 }
 
 // Get current monitor where window is placed
-int GetCurrentMonitor(void)
+int RLGetCurrentMonitor(void)
 {
     HMONITOR monitor = MonitorFromWindow(platform.hwnd, MONITOR_DEFAULTTOPRIMARY);
     if (!monitor) TRACELOG(LOG_ERROR, "%s failed, error=%lu", "MonitorFromWindow", GetLastError());
@@ -1054,85 +1034,85 @@ int GetCurrentMonitor(void)
 }
 
 // Get selected monitor position
-Vector2 GetMonitorPosition(int monitor)
+RLVector2 RLGetMonitorPosition(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorPosition not implemented");
-    return (Vector2){ 0, 0 };
+    return (RLVector2){ 0, 0 };
 }
 
 // Get selected monitor width (currently used by monitor)
-int GetMonitorWidth(int monitor)
+int RLGetMonitorWidth(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorWidth not implemented");
     return 0;
 }
 
 // Get selected monitor height (currently used by monitor)
-int GetMonitorHeight(int monitor)
+int RLGetMonitorHeight(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorHeight not implemented");
     return 0;
 }
 
 // Get selected monitor physical width in millimetres
-int GetMonitorPhysicalWidth(int monitor)
+int RLGetMonitorPhysicalWidth(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorPhysicalWidth not implemented");
     return 0;
 }
 
 // Get selected monitor physical height in millimetres
-int GetMonitorPhysicalHeight(int monitor)
+int RLGetMonitorPhysicalHeight(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorPhysicalHeight not implemented");
     return 0;
 }
 
 // Get selected monitor refresh rate
-int GetMonitorRefreshRate(int monitor)
+int RLGetMonitorRefreshRate(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorRefreshRate not implemented");
     return 0;
 }
 
 // Get the human-readable, UTF-8 encoded name of the selected monitor
-const char *GetMonitorName(int monitor)
+const char *RLGetMonitorName(int monitor)
 {
     TRACELOG(LOG_WARNING, "GetMonitorName not implemented");
     return 0;
 }
 
 // Get window position XY on monitor
-Vector2 GetWindowPosition(void)
+RLVector2 RLGetWindowPosition(void)
 {
     TRACELOG(LOG_WARNING, "GetWindowPosition not implemented");
-    return (Vector2){ 0, 0 };
+    return (RLVector2){ 0, 0 };
 }
 
 // Get window scale DPI factor for current monitor
-Vector2 GetWindowScaleDPI(void)
+RLVector2 RLGetWindowScaleDPI(void)
 {
     float scale = ((float)GetDpiForWindow(platform.hwnd))/96.0f;
-    return (Vector2){ scale, scale };
+    return (RLVector2){ scale, scale };
 }
 
 // Set clipboard text content
-void SetClipboardText(const char *text)
+void RLSetClipboardText(const char *text)
 {
     TRACELOG(LOG_WARNING, "SetClipboardText not implemented");
 }
 
 // Get clipboard text content
-const char *GetClipboardText(void)
+const char *RLGetClipboardText(void)
 {
     TRACELOG(LOG_WARNING, "GetClipboardText not implemented");
     return NULL;
 }
 
 // Get clipboard image
-Image GetClipboardImage(void)
+RLImage RLGetClipboardImage(void)
 {
-    Image image = { 0 };
+    RLImage image = { 0 };
 
     TRACELOG(LOG_WARNING, "GetClipboardText not implemented");
 
@@ -1140,14 +1120,14 @@ Image GetClipboardImage(void)
 }
 
 // Show mouse cursor
-void ShowCursor(void)
+void RLShowCursor(void)
 {
     SetCursor(LoadCursorW(NULL, (LPCWSTR)IDC_ARROW));
     CORE.Input.Mouse.cursorHidden = false;
 }
 
 // Hides mouse cursor
-void HideCursor(void)
+void RLHideCursor(void)
 {
     // NOTE: Using SetCursor() instead of ShowCursor() because
     // it makes it easy to only hide the cursor while it's inside the client area
@@ -1156,7 +1136,7 @@ void HideCursor(void)
 }
 
 // Enables cursor (unlock cursor)
-void EnableCursor(void)
+void RLEnableCursor(void)
 {
     if (CORE.Input.Mouse.cursorLocked)
     {
@@ -1170,13 +1150,13 @@ void EnableCursor(void)
         int result = RegisterRawInputDevices(&rid, 1, sizeof(rid));
         if (result == 0) TRACELOG(LOG_WARNING, "WIN32: Failed to register raw input devices [ERROR: %lu]", GetLastError());
 
-        ShowCursor();
+        RLShowCursor();
         CORE.Input.Mouse.cursorLocked = false;
     }
 }
 
 // Disables cursor (lock cursor)
-void DisableCursor(void)
+void RLDisableCursor(void)
 {
     if (!CORE.Input.Mouse.cursorLocked)
     {
@@ -1205,16 +1185,16 @@ void DisableCursor(void)
         RECT clipRect = { centerX, centerY, centerX + 1, centerY + 1 };
         if (!ClipCursor(&clipRect)) TRACELOG(LOG_WARNING, "WIN32: Failed to clip cursor [ERROR: %lu]", GetLastError());
 
-        CORE.Input.Mouse.previousPosition = (Vector2){ 0, 0 };
-        CORE.Input.Mouse.currentPosition = (Vector2){ 0, 0 };
-        HideCursor();
+        CORE.Input.Mouse.previousPosition = (RLVector2){ 0, 0 };
+        CORE.Input.Mouse.currentPosition = (RLVector2){ 0, 0 };
+        RLHideCursor();
 
         CORE.Input.Mouse.cursorLocked = true;
     }
 }
 
 // Swap back buffer with front buffer (screen drawing)
-void SwapScreenBuffer(void)
+void RLSwapScreenBuffer(void)
 {
     if (!platform.hdc) abort();
 
@@ -1236,7 +1216,7 @@ void SwapScreenBuffer(void)
 //----------------------------------------------------------------------------------
 
 // Get elapsed time measure in seconds
-double GetTime(void)
+double RLGetTime(void)
 {
     LARGE_INTEGER now = { 0 };
     QueryPerformanceCounter(&now);
@@ -1248,7 +1228,7 @@ double GetTime(void)
 // A user could craft a malicious string performing another action
 // Only call this function yourself not with user input or make sure to check the string yourself
 // REF: https://github.com/raysan5/raylib/issues/686
-void OpenURL(const char *url)
+void RLOpenURL(const char *url)
 {
     // Security check to (partially) avoid malicious code on target platform
     if (strchr(url, '\'') != NULL) TRACELOG(LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
@@ -1267,7 +1247,7 @@ void OpenURL(const char *url)
 //----------------------------------------------------------------------------------
 
 // Set internal gamepad mappings
-int SetGamepadMappings(const char *mappings)
+int RLSetGamepadMappings(const char *mappings)
 {
     TRACELOG(LOG_WARNING, "SetGamepadMappings not implemented");
 
@@ -1275,17 +1255,17 @@ int SetGamepadMappings(const char *mappings)
 }
 
 // Set gamepad vibration
-void SetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float duration)
+void RLSetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float duration)
 {
     TRACELOG(LOG_WARNING, "SetGamepadVibration not implemented");
 }
 
 // Set mouse position XY
-void SetMousePosition(int x, int y)
+void RLSetMousePosition(int x, int y)
 {
     if (!CORE.Input.Mouse.cursorLocked)
     {
-        CORE.Input.Mouse.currentPosition = (Vector2){ (float)x, (float)y };
+        CORE.Input.Mouse.currentPosition = (RLVector2){ (float)x, (float)y };
         CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
         TRACELOG(LOG_WARNING, "SetMousePosition not implemented");
     }
@@ -1293,7 +1273,7 @@ void SetMousePosition(int x, int y)
 }
 
 // Set mouse cursor
-void SetMouseCursor(int cursor)
+void RLSetMouseCursor(int cursor)
 {
     LPCWSTR cursorName = GetCursorName(cursor);
     HCURSOR hcursor = LoadCursorW(NULL, cursorName);
@@ -1304,14 +1284,14 @@ void SetMouseCursor(int cursor)
 }
 
 // Get physical key name
-const char *GetKeyName(int key)
+const char *RLGetKeyName(int key)
 {
     TRACELOG(LOG_WARNING, "GetKeyName not implemented");
     return NULL;
 }
 
 // Register all input events
-void PollInputEvents(void)
+void RLPollInputEvents(void)
 {
     // Reset keys/chars pressed registered
     CORE.Input.Keyboard.keyPressedQueueCount = 0;
@@ -1337,7 +1317,7 @@ void PollInputEvents(void)
 
     // Register previous mouse wheel state
     CORE.Input.Mouse.previousWheelMove = CORE.Input.Mouse.currentWheelMove;
-    CORE.Input.Mouse.currentWheelMove = (Vector2){ 0.0f, 0.0f };
+    CORE.Input.Mouse.currentWheelMove = (RLVector2){ 0.0f, 0.0f };
 
     // Register previous mouse position
     CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
@@ -1667,7 +1647,7 @@ int InitPlatform(void)
 
     // Initialize storage system
     //----------------------------------------------------------------------------
-    CORE.Storage.basePath = GetWorkingDirectory();
+    CORE.Storage.basePath = RLGetWorkingDirectory();
     //----------------------------------------------------------------------------
 
     TRACELOG(LOG_INFO, "PLATFORM: DESKTOP: WIN32: Initialized successfully");
@@ -2007,7 +1987,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 // Handle keyboard input event
 static void HandleKey(WPARAM wparam, LPARAM lparam, char state)
 {
-    KeyboardKey key = GetKeyFromWparam(wparam);
+    RLKeyboardKey key = GetKeyFromWparam(wparam);
 
     // TODO: Use scancode?
     //BYTE scancode = lparam >> 16;

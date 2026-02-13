@@ -41,19 +41,19 @@ const int linesUpdatedPerFrame = 4;
 //----------------------------------------------------------------------------------
 // Functions
 //----------------------------------------------------------------------------------
-void ComputeLine(Image *image, int line, int rule)
+void ComputeLine(RLImage *image, int line, int rule)
 {
     // Compute next line pixels. Boundaries are not computed, always 0
     for (int i = 1; i < imageWidth - 1; i++)
     {
         // Get, from the previous line, the 3 pixels states as a binary value
-        const int prevValue = ((GetImageColor(*image, i - 1, line - 1).r < 5)? 4 : 0) +     // Left pixel
-                              ((GetImageColor(*image, i,     line - 1).r < 5)? 2 : 0) +     // Center pixel
-                              ((GetImageColor(*image, i + 1, line - 1).r < 5)? 1 : 0);      // Right pixel
+        const int prevValue = ((RLGetImageColor(*image, i - 1, line - 1).r < 5)? 4 : 0) +     // Left pixel
+                              ((RLGetImageColor(*image, i,     line - 1).r < 5)? 2 : 0) +     // Center pixel
+                              ((RLGetImageColor(*image, i + 1, line - 1).r < 5)? 1 : 0);      // Right pixel
         // Get next value from rule bitmask
         const bool currValue = (rule & (1 << prevValue));
         // Update pixel color
-        ImageDrawPixel(image, i, line, (currValue)? BLACK : RAYWHITE);
+        RLImageDrawPixel(image, i, line, (currValue)? BLACK : RAYWHITE);
     }
 }
 
@@ -64,14 +64,14 @@ int main(void)
 {
     // Initialization
     //--------------------------------------------------------------------------------------
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - cellular automata");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - cellular automata");
 
     // Image that contains the cellular automaton
-    Image image = GenImageColor(imageWidth, imageHeight, RAYWHITE);
+    RLImage image = RLGenImageColor(imageWidth, imageHeight, RAYWHITE);
     // The top central pixel set as black
-    ImageDrawPixel(&image, imageWidth/2, 0, BLACK);
+    RLImageDrawPixel(&image, imageWidth/2, 0, BLACK);
 
-    Texture2D texture = LoadTextureFromImage(image);
+    RLTexture2D texture = RLLoadTextureFromImage(image);
 
     // Some interesting rules
     const int presetValues[] = { 18, 30, 60, 86, 102, 124, 126, 150, 182, 225 };
@@ -81,16 +81,16 @@ int main(void)
     int rule = 30;  // Starting rule
     int line = 1;   // Line to compute, starting from line 1. One point in line 0 is already set
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //---------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         // Handle mouse
-        const Vector2 mouse = GetMousePosition();
+        const RLVector2 mouse = RLGetMousePosition();
         int mouseInCell = -1;   // -1: outside any button; 0-7: rule cells; 8+: preset cells
 
         // Check mouse on rule cells
@@ -122,7 +122,7 @@ int main(void)
             }
         }
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && (mouseInCell >= 0))
+        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) && (mouseInCell >= 0))
         {
             // Rule changed both by selecting a preset or toggling a bit
             if (mouseInCell < 8)
@@ -131,8 +131,8 @@ int main(void)
                 rule = presetValues[mouseInCell - 8];
 
             // Reset image
-            ImageClearBackground(&image, RAYWHITE);
-            ImageDrawPixel(&image, imageWidth/2, 0, BLACK);
+            RLImageClearBackground(&image, RAYWHITE);
+            RLImageDrawPixel(&image, imageWidth/2, 0, BLACK);
             line = 1;
         }
 
@@ -144,28 +144,28 @@ int main(void)
                 ComputeLine(&image, line + i, rule);
             line += linesUpdatedPerFrame;
 
-            UpdateTexture(texture, image.data);
+            RLUpdateTexture(texture, image.data);
         }
 
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
             // Draw cellular automaton texture
-            DrawTexture(texture, 0, screenHeight - imageHeight, WHITE);
+            RLDrawTexture(texture, 0, screenHeight - imageHeight, WHITE);
 
             // Draw preset values
             for (int i = 0; i < presetsCount; i++)
             {
-                DrawText(TextFormat("%i", presetValues[i]), 8 + (presetsSizeX + 2)*(i/2), 4 + (presetsSizeY + 2)*(i%2), 20, GRAY);
-                DrawRectangleLines(4 + (presetsSizeX + 2)*(i/2), 2 + (presetsSizeY + 2)*(i%2), presetsSizeX, presetsSizeY, BLUE);
+                RLDrawText(RLTextFormat("%i", presetValues[i]), 8 + (presetsSizeX + 2)*(i/2), 4 + (presetsSizeY + 2)*(i%2), 20, GRAY);
+                RLDrawRectangleLines(4 + (presetsSizeX + 2)*(i/2), 2 + (presetsSizeY + 2)*(i%2), presetsSizeX, presetsSizeY, BLUE);
 
                 // If the mouse is on this preset, highlight it
                 if (mouseInCell == i + 8)
-                    DrawRectangleLinesEx((Rectangle) { 2 + (presetsSizeX + 2.0f)*((float)i/2),
+                    RLDrawRectangleLinesEx((RLRectangle) { 2 + (presetsSizeX + 2.0f)*((float)i/2),
                                                        (presetsSizeY + 2.0f)*(i%2),
                                                        presetsSizeX + 4.0f, presetsSizeY + 4.0f }, 3, RED);
             }
@@ -176,35 +176,35 @@ int main(void)
                 // The three input bits
                 for (int j = 0; j < 3; j++)
                 {
-                    DrawRectangleLines(drawRuleStartX - drawRuleGroupSpacing*i + drawRuleSpacing*j, drawRuleStartY, drawRuleSize, drawRuleSize, GRAY);
+                    RLDrawRectangleLines(drawRuleStartX - drawRuleGroupSpacing*i + drawRuleSpacing*j, drawRuleStartY, drawRuleSize, drawRuleSize, GRAY);
                     if (i & (4 >> j))
-                        DrawRectangle(drawRuleStartX + 2 - drawRuleGroupSpacing*i + drawRuleSpacing*j, drawRuleStartY + 2, drawRuleInnerSize, drawRuleInnerSize, BLACK);
+                        RLDrawRectangle(drawRuleStartX + 2 - drawRuleGroupSpacing*i + drawRuleSpacing*j, drawRuleStartY + 2, drawRuleInnerSize, drawRuleInnerSize, BLACK);
                 }
 
                 // The output bit
-                DrawRectangleLines(drawRuleStartX - drawRuleGroupSpacing*i + drawRuleSpacing, drawRuleStartY + drawRuleSpacing, drawRuleSize, drawRuleSize, BLUE);
+                RLDrawRectangleLines(drawRuleStartX - drawRuleGroupSpacing*i + drawRuleSpacing, drawRuleStartY + drawRuleSpacing, drawRuleSize, drawRuleSize, BLUE);
                 if (rule & (1 << i))
-                    DrawRectangle(drawRuleStartX + 2 - drawRuleGroupSpacing*i + drawRuleSpacing, drawRuleStartY + 2 + drawRuleSpacing, drawRuleInnerSize, drawRuleInnerSize, BLACK);
+                    RLDrawRectangle(drawRuleStartX + 2 - drawRuleGroupSpacing*i + drawRuleSpacing, drawRuleStartY + 2 + drawRuleSpacing, drawRuleInnerSize, drawRuleInnerSize, BLACK);
 
                 // If the mouse is on this rule bit, highlight it
                 if (mouseInCell == i)
-                    DrawRectangleLinesEx((Rectangle){ drawRuleStartX - drawRuleGroupSpacing*i + drawRuleSpacing - 2.0f,
+                    RLDrawRectangleLinesEx((RLRectangle){ drawRuleStartX - drawRuleGroupSpacing*i + drawRuleSpacing - 2.0f,
                                                       drawRuleStartY + drawRuleSpacing - 2.0f,
                                                       drawRuleSize + 4.0f, drawRuleSize + 4.0f }, 3, RED);
             }
 
-            DrawText(TextFormat("RULE: %i", rule), drawRuleStartX + drawRuleSpacing*4, drawRuleStartY + 1, 30, GRAY);
+            RLDrawText(RLTextFormat("RULE: %i", rule), drawRuleStartX + drawRuleSpacing*4, drawRuleStartY + 1, 30, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadImage(image);
-    UnloadTexture(texture);
+    RLUnloadImage(image);
+    RLUnloadTexture(texture);
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

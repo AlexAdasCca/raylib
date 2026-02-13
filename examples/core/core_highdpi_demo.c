@@ -20,7 +20,7 @@
 //------------------------------------------------------------------------------------
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
-static void DrawTextCenter(const char *text, int x, int y, int fontSize, Color color);
+static void DrawTextCenter(const char *text, int x, int y, int fontSize, RLColor color);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -32,9 +32,9 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - highdpi demo");
-    SetWindowMinSize(450, 450);
+    RLSetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - highdpi demo");
+    RLSetWindowMinSize(450, 450);
 
     int logicalGridDescY = 120;
     int logicalGridLabelY = logicalGridDescY + 30;
@@ -47,77 +47,77 @@ int main(void)
     int cellSize = 50;
     float cellSizePx = (float)cellSize;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        int monitorCount = GetMonitorCount();
+        int monitorCount = RLGetMonitorCount();
 
-        if ((monitorCount > 1) && IsKeyPressed(KEY_N))
+        if ((monitorCount > 1) && RLIsKeyPressed(KEY_N))
         {
-            SetWindowMonitor((GetCurrentMonitor() + 1)%monitorCount);
+            RLSetWindowMonitor((RLGetCurrentMonitor() + 1)%monitorCount);
         }
 
-        int currentMonitor = GetCurrentMonitor();
-        Vector2 dpiScale = GetWindowScaleDPI();
+        int currentMonitor = RLGetCurrentMonitor();
+        RLVector2 dpiScale = RLGetWindowScaleDPI();
         cellSizePx = ((float)cellSize)/dpiScale.x;
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            int windowCenter = GetScreenWidth()/2;
-            DrawTextCenter(TextFormat("Dpi Scale: %f", dpiScale.x), windowCenter, 30, 40, DARKGRAY);
-            DrawTextCenter(TextFormat("Monitor: %d/%d ([N] next monitor)", currentMonitor+1, monitorCount), windowCenter, 70, 20, LIGHTGRAY);
-            DrawTextCenter(TextFormat("Window is %d \"logical points\" wide", GetScreenWidth()), windowCenter, logicalGridDescY, 20, ORANGE);
+            int windowCenter = RLGetScreenWidth()/2;
+            DrawTextCenter(RLTextFormat("Dpi Scale: %f", dpiScale.x), windowCenter, 30, 40, DARKGRAY);
+            DrawTextCenter(RLTextFormat("Monitor: %d/%d ([N] next monitor)", currentMonitor+1, monitorCount), windowCenter, 70, 20, LIGHTGRAY);
+            DrawTextCenter(RLTextFormat("Window is %d \"logical points\" wide", RLGetScreenWidth()), windowCenter, logicalGridDescY, 20, ORANGE);
 
             bool odd = true;
-            for (int i = cellSize; i < GetScreenWidth(); i += cellSize, odd = !odd)
+            for (int i = cellSize; i < RLGetScreenWidth(); i += cellSize, odd = !odd)
             {
-                if (odd) DrawRectangle(i, logicalGridTop, cellSize, logicalGridBottom-logicalGridTop, ORANGE);
+                if (odd) RLDrawRectangle(i, logicalGridTop, cellSize, logicalGridBottom-logicalGridTop, ORANGE);
 
-                DrawTextCenter(TextFormat("%d", i), i, logicalGridLabelY, 10, LIGHTGRAY);
-                DrawLine(i, logicalGridLabelY + 10, i, logicalGridBottom, GRAY);
+                DrawTextCenter(RLTextFormat("%d", i), i, logicalGridLabelY, 10, LIGHTGRAY);
+                RLDrawLine(i, logicalGridLabelY + 10, i, logicalGridBottom, GRAY);
             }
 
             odd = true;
             const int minTextSpace = 30;
             int lastTextX = -minTextSpace;
-            for (int i = cellSize; i < GetRenderWidth(); i += cellSize, odd = !odd)
+            for (int i = cellSize; i < RLGetRenderWidth(); i += cellSize, odd = !odd)
             {
                 int x = (int)(((float)i)/dpiScale.x);
-                if (odd) DrawRectangle(x, pixelGridTop, (int)cellSizePx, pixelGridBottom - pixelGridTop, CLITERAL(Color){ 0, 121, 241, 100 });
+                if (odd) RLDrawRectangle(x, pixelGridTop, (int)cellSizePx, pixelGridBottom - pixelGridTop, CLITERAL(RLColor){ 0, 121, 241, 100 });
 
-                DrawLine(x, pixelGridTop, (int)(((float)i)/dpiScale.x), pixelGridLabelY - 10, GRAY);
+                RLDrawLine(x, pixelGridTop, (int)(((float)i)/dpiScale.x), pixelGridLabelY - 10, GRAY);
 
                 if ((x - lastTextX) >= minTextSpace)
                 {
-                    DrawTextCenter(TextFormat("%d", i), x, pixelGridLabelY, 10, LIGHTGRAY);
+                    DrawTextCenter(RLTextFormat("%d", i), x, pixelGridLabelY, 10, LIGHTGRAY);
                     lastTextX = x;
                 }
             }
 
-            DrawTextCenter(TextFormat("Window is %d \"physical pixels\" wide", GetRenderWidth()), windowCenter, pixelGridDescY, 20, BLUE);
+            DrawTextCenter(RLTextFormat("Window is %d \"physical pixels\" wide", RLGetRenderWidth()), windowCenter, pixelGridDescY, 20, BLUE);
 
             const char *text = "Can you see this?";
-            Vector2 size = MeasureTextEx(GetFontDefault(), text, 20, 3);
-            Vector2 pos = (Vector2){ GetScreenWidth() - size.x - 5, GetScreenHeight() - size.y - 5 };
-            DrawTextEx(GetFontDefault(), text, pos, 20, 3, LIGHTGRAY);
+            RLVector2 size = RLMeasureTextEx(RLGetFontDefault(), text, 20, 3);
+            RLVector2 pos = (RLVector2){ RLGetScreenWidth() - size.x - 5, RLGetScreenHeight() - size.y - 5 };
+            RLDrawTextEx(RLGetFontDefault(), text, pos, 20, 3, LIGHTGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -126,9 +126,9 @@ int main(void)
 //------------------------------------------------------------------------------------
 // Module Functions Definition
 //------------------------------------------------------------------------------------
-static void DrawTextCenter(const char *text, int x, int y, int fontSize, Color color)
+static void DrawTextCenter(const char *text, int x, int y, int fontSize, RLColor color)
 {
-    Vector2 size = MeasureTextEx(GetFontDefault(), text, (float)fontSize, 3);
-    Vector2 pos = (Vector2){ x - size.x/2, y - size.y/2 };
-    DrawTextEx(GetFontDefault(), text, pos, (float)fontSize, 3, color);
+    RLVector2 size = RLMeasureTextEx(RLGetFontDefault(), text, (float)fontSize, 3);
+    RLVector2 pos = (RLVector2){ x - size.x/2, y - size.y/2 };
+    RLDrawTextEx(RLGetFontDefault(), text, pos, (float)fontSize, 3, color);
 }

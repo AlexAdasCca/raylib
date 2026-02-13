@@ -27,44 +27,44 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - image drawing");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - image drawing");
 
     // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
 
-    Image cat = LoadImage("resources/cat.png");             // Load image in CPU memory (RAM)
-    ImageCrop(&cat, (Rectangle){ 100, 10, 280, 380 });      // Crop an image piece
-    ImageFlipHorizontal(&cat);                              // Flip cropped image horizontally
-    ImageResize(&cat, 150, 200);                            // Resize flipped-cropped image
+    RLImage cat = RLLoadImage("resources/cat.png");             // Load image in CPU memory (RAM)
+    RLImageCrop(&cat, (RLRectangle){ 100, 10, 280, 380 });      // Crop an image piece
+    RLImageFlipHorizontal(&cat);                              // Flip cropped image horizontally
+    RLImageResize(&cat, 150, 200);                            // Resize flipped-cropped image
 
-    Image parrots = LoadImage("resources/parrots.png");     // Load image in CPU memory (RAM)
+    RLImage parrots = RLLoadImage("resources/parrots.png");     // Load image in CPU memory (RAM)
 
     // Draw one image over the other with a scaling of 1.5f
-    ImageDraw(&parrots, cat, (Rectangle){ 0, 0, (float)cat.width, (float)cat.height }, (Rectangle){ 30, 40, cat.width*1.5f, cat.height*1.5f }, WHITE);
-    ImageCrop(&parrots, (Rectangle){ 0, 50, (float)parrots.width, (float)parrots.height - 100 }); // Crop resulting image
+    RLImageDraw(&parrots, cat, (RLRectangle){ 0, 0, (float)cat.width, (float)cat.height }, (RLRectangle){ 30, 40, cat.width*1.5f, cat.height*1.5f }, WHITE);
+    RLImageCrop(&parrots, (RLRectangle){ 0, 50, (float)parrots.width, (float)parrots.height - 100 }); // Crop resulting image
 
     // Draw on the image with a few image draw methods
-    ImageDrawPixel(&parrots, 10, 10, RAYWHITE);
-    ImageDrawCircleLines(&parrots, 10, 10, 5, RAYWHITE);
-    ImageDrawRectangle(&parrots, 5, 20, 10, 10, RAYWHITE);
+    RLImageDrawPixel(&parrots, 10, 10, RAYWHITE);
+    RLImageDrawCircleLines(&parrots, 10, 10, 5, RAYWHITE);
+    RLImageDrawRectangle(&parrots, 5, 20, 10, 10, RAYWHITE);
 
-    UnloadImage(cat);       // Unload image from RAM
+    RLUnloadImage(cat);       // Unload image from RAM
 
     // Load custom font for drawing on image
-    Font font = LoadFont("resources/custom_jupiter_crash.png");
+    RLFont font = RLLoadFont("resources/custom_jupiter_crash.png");
 
     // Draw over image using custom font
-    ImageDrawTextEx(&parrots, font, "PARROTS & CAT", (Vector2){ 300, 230 }, (float)font.baseSize, -2, WHITE);
+    RLImageDrawTextEx(&parrots, font, "PARROTS & CAT", (RLVector2){ 300, 230 }, (float)font.baseSize, -2, WHITE);
 
-    UnloadFont(font);       // Unload custom font (already drawn used on image)
+    RLUnloadFont(font);       // Unload custom font (already drawn used on image)
 
-    Texture2D texture = LoadTextureFromImage(parrots);      // Image converted to texture, uploaded to GPU memory (VRAM)
-    UnloadImage(parrots);   // Once image has been converted to texture and uploaded to VRAM, it can be unloaded from RAM
+    RLTexture2D texture = RLLoadTextureFromImage(parrots);      // Image converted to texture, uploaded to GPU memory (VRAM)
+    RLUnloadImage(parrots);   // Once image has been converted to texture and uploaded to VRAM, it can be unloaded from RAM
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //---------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -73,25 +73,25 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawTexture(texture, screenWidth/2 - texture.width/2, screenHeight/2 - texture.height/2 - 40, WHITE);
-            DrawRectangleLines(screenWidth/2 - texture.width/2, screenHeight/2 - texture.height/2 - 40, texture.width, texture.height, DARKGRAY);
+            RLDrawTexture(texture, screenWidth/2 - texture.width/2, screenHeight/2 - texture.height/2 - 40, WHITE);
+            RLDrawRectangleLines(screenWidth/2 - texture.width/2, screenHeight/2 - texture.height/2 - 40, texture.width, texture.height, DARKGRAY);
 
-            DrawText("We are drawing only one texture from various images composed!", 240, 350, 10, DARKGRAY);
-            DrawText("Source images have been cropped, scaled, flipped and copied one over the other.", 190, 370, 10, DARKGRAY);
+            RLDrawText("We are drawing only one texture from various images composed!", 240, 350, 10, DARKGRAY);
+            RLDrawText("Source images have been cropped, scaled, flipped and copied one over the other.", 190, 370, 10, DARKGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(texture);       // Texture unloading
+    RLUnloadTexture(texture);       // Texture unloading
 
-    CloseWindow();                // Close window and OpenGL context
+    RLCloseWindow();                // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

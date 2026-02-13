@@ -26,9 +26,9 @@
 //------------------------------------------------------------------------------------
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
-static Vector2 *LoadHilbertPath(int order, float size, int *strokeCount);
-static void UnloadHilbertPath(Vector2 *hilbertPath);
-static Vector2 ComputeHilbertStep(int order, int index);
+static RLVector2 *LoadHilbertPath(int order, float size, int *strokeCount);
+static void UnloadHilbertPath(RLVector2 *hilbertPath);
+static RLVector2 ComputeHilbertStep(int order, int index);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -40,12 +40,12 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - hilbert curve");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - hilbert curve");
 
     int order = 2;
-    float size = GetScreenHeight();
+    float size = RLGetScreenHeight();
     int strokeCount = 0;
-    Vector2 *hilbertPath = LoadHilbertPath(order, size, &strokeCount);
+    RLVector2 *hilbertPath = LoadHilbertPath(order, size, &strokeCount);
     
     int prevOrder = order;
     int prevSize = (int)size;       // NOTE: Size from slider is float but for comparison we use int
@@ -53,12 +53,12 @@ int main(void)
     float thick = 2.0f;
     bool animate = true;
     
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
     //--------------------------------------------------------------------------------------
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -79,16 +79,16 @@ int main(void)
         
         // Draw
         //--------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
         
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             if (counter < strokeCount)
             {
                 // Draw Hilbert path animation, one stroke every frame
                 for (int i = 1; i <= counter; i++)
                 {
-                    DrawLineEx(hilbertPath[i], hilbertPath[i - 1], thick, ColorFromHSV(((float)i/strokeCount)*360.0f, 1.0f, 1.0f));
+                    RLDrawLineEx(hilbertPath[i], hilbertPath[i - 1], thick, RLColorFromHSV(((float)i/strokeCount)*360.0f, 1.0f, 1.0f));
                 }
                 
                 counter += 1;
@@ -98,17 +98,17 @@ int main(void)
                 // Draw full Hilbert path
                 for (int i = 1; i < strokeCount; i++)
                 {
-                    DrawLineEx(hilbertPath[i], hilbertPath[i - 1], thick, ColorFromHSV(((float)i/strokeCount)*360.0f, 1.0f, 1.0f));
+                    RLDrawLineEx(hilbertPath[i], hilbertPath[i - 1], thick, RLColorFromHSV(((float)i/strokeCount)*360.0f, 1.0f, 1.0f));
                 }
             }
         
             // Draw UI using raygui
-            GuiCheckBox((Rectangle){ 450, 50, 20, 20 }, "ANIMATE GENERATION ON CHANGE", &animate);
-            GuiSpinner((Rectangle){ 585, 100, 180, 30 }, "HILBERT CURVE ORDER:  ", &order, 2, 8, false);
-            GuiSlider((Rectangle){ 524, 150, 240, 24 }, "THICKNESS:  ", NULL, &thick, 1.0f, 10.0f);
-            GuiSlider((Rectangle){ 524, 190, 240, 24 }, "TOTAL SIZE: ", NULL, &size, 10.0f, GetScreenHeight()*1.5f);
+            GuiCheckBox((RLRectangle){ 450, 50, 20, 20 }, "ANIMATE GENERATION ON CHANGE", &animate);
+            GuiSpinner((RLRectangle){ 585, 100, 180, 30 }, "HILBERT CURVE ORDER:  ", &order, 2, 8, false);
+            GuiSlider((RLRectangle){ 524, 150, 240, 24 }, "THICKNESS:  ", NULL, &thick, 1.0f, 10.0f);
+            GuiSlider((RLRectangle){ 524, 190, 240, 24 }, "TOTAL SIZE: ", NULL, &size, 10.0f, RLGetScreenHeight()*1.5f);
         
-        EndDrawing();
+        RLEndDrawing();
         //--------------------------------------------------------------------------
     }
     //--------------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ int main(void)
     //--------------------------------------------------------------------------------------
     UnloadHilbertPath(hilbertPath);
     
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
     return 0;
 }
@@ -126,13 +126,13 @@ int main(void)
 // Module Functions Definition
 //------------------------------------------------------------------------------------
 // Load the whole Hilbert Path (including each U and their link)
-static Vector2 *LoadHilbertPath(int order, float size, int *strokeCount)
+static RLVector2 *LoadHilbertPath(int order, float size, int *strokeCount)
 {
     int N = 1 << order;
     float len = size/N;
     *strokeCount = N*N;
 
-    Vector2 *hilbertPath = (Vector2 *)RL_CALLOC(*strokeCount, sizeof(Vector2));
+    RLVector2 *hilbertPath = (RLVector2 *)RL_CALLOC(*strokeCount, sizeof(RLVector2));
     
     for (int i = 0; i < *strokeCount; i++)
     {
@@ -145,16 +145,16 @@ static Vector2 *LoadHilbertPath(int order, float size, int *strokeCount)
 }
 
 // Unload Hilbert path data
-static void UnloadHilbertPath(Vector2 *hilbertPath)
+static void UnloadHilbertPath(RLVector2 *hilbertPath)
 {
     RL_FREE(hilbertPath);
 }
 
 // Compute Hilbert path U positions
-static Vector2 ComputeHilbertStep(int order, int index)
+static RLVector2 ComputeHilbertStep(int order, int index)
 {
     // Hilbert points base pattern
-    static const Vector2 hilbertPoints[4] = {
+    static const RLVector2 hilbertPoints[4] = {
         [0] = { .x = 0, .y = 0 },
         [1] = { .x = 0, .y = 1 },
         [2] = { .x = 1, .y = 1 },
@@ -162,7 +162,7 @@ static Vector2 ComputeHilbertStep(int order, int index)
     };
        
     int hilbertIndex = index&3;
-    Vector2 vect = hilbertPoints[hilbertIndex];
+    RLVector2 vect = hilbertPoints[hilbertIndex];
     float temp = 0.0f;
     int len = 0;
 

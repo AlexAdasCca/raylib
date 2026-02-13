@@ -28,15 +28,15 @@
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 typedef struct Player {
-    Vector2 position;
+    RLVector2 position;
     float speed;
     bool canJump;
 } Player;
 
 typedef struct EnvElement {
-    Rectangle rect;
+    RLRectangle rect;
     int blocking;
-    Color color;
+    RLColor color;
 } EnvElement;
 
 //------------------------------------------------------------------------------------
@@ -49,11 +49,11 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - automation events");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - automation events");
 
     // Define player
     Player player = { 0 };
-    player.position = (Vector2){ 400, 280 };
+    player.position = (RLVector2){ 400, 280 };
     player.speed = 0;
     player.canJump = false;
 
@@ -67,15 +67,15 @@ int main(void)
     };
 
     // Define camera
-    Camera2D camera = { 0 };
+    RLCamera2D camera = { 0 };
     camera.target = player.position;
-    camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+    camera.offset = (RLVector2){ screenWidth/2.0f, screenHeight/2.0f };
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
     // Automation events
-    AutomationEventList aelist = LoadAutomationEventList(0);  // Initialize list of automation events to record new events
-    SetAutomationEventList(&aelist);
+    RLAutomationEventList aelist = RLLoadAutomationEventList(0);  // Initialize list of automation events to record new events
+    RLSetAutomationEventList(&aelist);
     bool eventRecording = false;
     bool eventPlaying = false;
 
@@ -83,11 +83,11 @@ int main(void)
     unsigned int playFrameCounter = 0;
     unsigned int currentPlayFrame = 0;
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())
+    while (!RLWindowShouldClose())
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -95,15 +95,15 @@ int main(void)
 
         // Dropped files logic
         //----------------------------------------------------------------------------------
-        if (IsFileDropped())
+        if (RLIsFileDropped())
         {
-            FilePathList droppedFiles = LoadDroppedFiles();
+            RLFilePathList droppedFiles = RLLoadDroppedFiles();
 
             // Supports loading .rgs style files (text or binary) and .png style palette images
-            if (IsFileExtension(droppedFiles.paths[0], ".txt;.rae"))
+            if (RLIsFileExtension(droppedFiles.paths[0], ".txt;.rae"))
             {
-                UnloadAutomationEventList(aelist);
-                aelist = LoadAutomationEventList(droppedFiles.paths[0]);
+                RLUnloadAutomationEventList(aelist);
+                aelist = RLLoadAutomationEventList(droppedFiles.paths[0]);
 
                 eventRecording = false;
 
@@ -112,25 +112,25 @@ int main(void)
                 playFrameCounter = 0;
                 currentPlayFrame = 0;
 
-                player.position = (Vector2){ 400, 280 };
+                player.position = (RLVector2){ 400, 280 };
                 player.speed = 0;
                 player.canJump = false;
 
                 camera.target = player.position;
-                camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+                camera.offset = (RLVector2){ screenWidth/2.0f, screenHeight/2.0f };
                 camera.rotation = 0.0f;
                 camera.zoom = 1.0f;
             }
 
-            UnloadDroppedFiles(droppedFiles);   // Unload filepaths from memory
+            RLUnloadDroppedFiles(droppedFiles);   // Unload filepaths from memory
         }
         //----------------------------------------------------------------------------------
 
         // Update player
         //----------------------------------------------------------------------------------
-        if (IsKeyDown(KEY_LEFT)) player.position.x -= PLAYER_HOR_SPD*deltaTime;
-        if (IsKeyDown(KEY_RIGHT)) player.position.x += PLAYER_HOR_SPD*deltaTime;
-        if (IsKeyDown(KEY_SPACE) && player.canJump)
+        if (RLIsKeyDown(KEY_LEFT)) player.position.x -= PLAYER_HOR_SPD*deltaTime;
+        if (RLIsKeyDown(KEY_RIGHT)) player.position.x += PLAYER_HOR_SPD*deltaTime;
+        if (RLIsKeyDown(KEY_SPACE) && player.canJump)
         {
             player.speed = -PLAYER_JUMP_SPD;
             player.canJump = false;
@@ -140,7 +140,7 @@ int main(void)
         for (int i = 0; i < MAX_ENVIRONMENT_ELEMENTS; i++)
         {
             EnvElement *element = &envElements[i];
-            Vector2 *p = &(player.position);
+            RLVector2 *p = &(player.position);
             if (element->blocking &&
                 element->rect.x <= p->x &&
                 element->rect.x + element->rect.width >= p->x &&
@@ -161,15 +161,15 @@ int main(void)
         }
         else player.canJump = true;
 
-        if (IsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(KEY_R))
         {
             // Reset game state
-            player.position = (Vector2){ 400, 280 };
+            player.position = (RLVector2){ 400, 280 };
             player.speed = 0;
             player.canJump = false;
 
             camera.target = player.position;
-            camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+            camera.offset = (RLVector2){ screenWidth/2.0f, screenHeight/2.0f };
             camera.rotation = 0.0f;
             camera.zoom = 1.0f;
         }
@@ -184,7 +184,7 @@ int main(void)
             // NOTE: Multiple events could be executed in a single frame
             while (playFrameCounter == aelist.events[currentPlayFrame].frame)
             {
-                PlayAutomationEvent(aelist.events[currentPlayFrame]);
+                RLPlayAutomationEvent(aelist.events[currentPlayFrame]);
                 currentPlayFrame++;
 
                 if (currentPlayFrame == aelist.count)
@@ -193,7 +193,7 @@ int main(void)
                     currentPlayFrame = 0;
                     playFrameCounter = 0;
 
-                    TraceLog(LOG_INFO, "FINISH PLAYING!");
+                    RLTraceLog(LOG_INFO, "FINISH PLAYING!");
                     break;
                 }
             }
@@ -205,11 +205,11 @@ int main(void)
         // Update camera
         //----------------------------------------------------------------------------------
         camera.target = player.position;
-        camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+        camera.offset = (RLVector2){ screenWidth/2.0f, screenHeight/2.0f };
         float minX = 1000, minY = 1000, maxX = -1000, maxY = -1000;
 
         // WARNING: On event replay, mouse-wheel internal value is set
-        camera.zoom += ((float)GetMouseWheelMove()*0.05f);
+        camera.zoom += ((float)RLGetMouseWheelMove()*0.05f);
         if (camera.zoom > 3.0f) camera.zoom = 3.0f;
         else if (camera.zoom < 0.25f) camera.zoom = 0.25f;
 
@@ -222,8 +222,8 @@ int main(void)
             maxY = fmaxf(element->rect.y + element->rect.height, maxY);
         }
 
-        Vector2 max = GetWorldToScreen2D((Vector2){ maxX, maxY }, camera);
-        Vector2 min = GetWorldToScreen2D((Vector2){ minX, minY }, camera);
+        RLVector2 max = RLGetWorldToScreen2D((RLVector2){ maxX, maxY }, camera);
+        RLVector2 min = RLGetWorldToScreen2D((RLVector2){ minX, minY }, camera);
 
         if (max.x < screenWidth) camera.offset.x = screenWidth - (max.x - (float)screenWidth/2);
         if (max.y < screenHeight) camera.offset.y = screenHeight - (max.y - (float)screenHeight/2);
@@ -232,28 +232,28 @@ int main(void)
         //----------------------------------------------------------------------------------
 
         // Events management
-        if (IsKeyPressed(KEY_S))    // Toggle events recording
+        if (RLIsKeyPressed(KEY_S))    // Toggle events recording
         {
             if (!eventPlaying)
             {
                 if (eventRecording)
                 {
-                    StopAutomationEventRecording();
+                    RLStopAutomationEventRecording();
                     eventRecording = false;
 
-                    ExportAutomationEventList(aelist, "automation.rae");
+                    RLExportAutomationEventList(aelist, "automation.rae");
 
-                    TraceLog(LOG_INFO, "RECORDED FRAMES: %i", aelist.count);
+                    RLTraceLog(LOG_INFO, "RECORDED FRAMES: %i", aelist.count);
                 }
                 else
                 {
-                    SetAutomationEventBaseFrame(180);
-                    StartAutomationEventRecording();
+                    RLSetAutomationEventBaseFrame(180);
+                    RLStartAutomationEventRecording();
                     eventRecording = true;
                 }
             }
         }
-        else if (IsKeyPressed(KEY_A)) // Toggle events playing (WARNING: Starts next frame)
+        else if (RLIsKeyPressed(KEY_A)) // Toggle events playing (WARNING: Starts next frame)
         {
             if (!eventRecording && (aelist.count > 0))
             {
@@ -262,12 +262,12 @@ int main(void)
                 playFrameCounter = 0;
                 currentPlayFrame = 0;
 
-                player.position = (Vector2){ 400, 280 };
+                player.position = (RLVector2){ 400, 280 };
                 player.speed = 0;
                 player.canJump = false;
 
                 camera.target = player.position;
-                camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+                camera.offset = (RLVector2){ screenWidth/2.0f, screenHeight/2.0f };
                 camera.rotation = 0.0f;
                 camera.zoom = 1.0f;
             }
@@ -279,61 +279,61 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(LIGHTGRAY);
+            RLClearBackground(LIGHTGRAY);
 
-            BeginMode2D(camera);
+            RLBeginMode2D(camera);
 
                 // Draw environment elements
                 for (int i = 0; i < MAX_ENVIRONMENT_ELEMENTS; i++)
                 {
-                    DrawRectangleRec(envElements[i].rect, envElements[i].color);
+                    RLDrawRectangleRec(envElements[i].rect, envElements[i].color);
                 }
 
                 // Draw player rectangle
-                DrawRectangleRec((Rectangle){ player.position.x - 20, player.position.y - 40, 40, 40 }, RED);
+                RLDrawRectangleRec((RLRectangle){ player.position.x - 20, player.position.y - 40, 40, 40 }, RED);
 
-            EndMode2D();
+            RLEndMode2D();
 
             // Draw game controls
-            DrawRectangle(10, 10, 290, 145, Fade(SKYBLUE, 0.5f));
-            DrawRectangleLines(10, 10, 290, 145, Fade(BLUE, 0.8f));
+            RLDrawRectangle(10, 10, 290, 145, RLFade(SKYBLUE, 0.5f));
+            RLDrawRectangleLines(10, 10, 290, 145, RLFade(BLUE, 0.8f));
 
-            DrawText("Controls:", 20, 20, 10, BLACK);
-            DrawText("- RIGHT | LEFT: Player movement", 30, 40, 10, DARKGRAY);
-            DrawText("- SPACE: Player jump", 30, 60, 10, DARKGRAY);
-            DrawText("- R: Reset game state", 30, 80, 10, DARKGRAY);
+            RLDrawText("Controls:", 20, 20, 10, BLACK);
+            RLDrawText("- RIGHT | LEFT: Player movement", 30, 40, 10, DARKGRAY);
+            RLDrawText("- SPACE: Player jump", 30, 60, 10, DARKGRAY);
+            RLDrawText("- R: Reset game state", 30, 80, 10, DARKGRAY);
 
-            DrawText("- S: START/STOP RECORDING INPUT EVENTS", 30, 110, 10, BLACK);
-            DrawText("- A: REPLAY LAST RECORDED INPUT EVENTS", 30, 130, 10, BLACK);
+            RLDrawText("- S: START/STOP RECORDING INPUT EVENTS", 30, 110, 10, BLACK);
+            RLDrawText("- A: REPLAY LAST RECORDED INPUT EVENTS", 30, 130, 10, BLACK);
 
             // Draw automation events recording indicator
             if (eventRecording)
             {
-                DrawRectangle(10, 160, 290, 30, Fade(RED, 0.3f));
-                DrawRectangleLines(10, 160, 290, 30, Fade(MAROON, 0.8f));
-                DrawCircle(30, 175, 10, MAROON);
+                RLDrawRectangle(10, 160, 290, 30, RLFade(RED, 0.3f));
+                RLDrawRectangleLines(10, 160, 290, 30, RLFade(MAROON, 0.8f));
+                RLDrawCircle(30, 175, 10, MAROON);
 
-                if (((frameCounter/15)%2) == 1) DrawText(TextFormat("RECORDING EVENTS... [%i]", aelist.count), 50, 170, 10, MAROON);
+                if (((frameCounter/15)%2) == 1) RLDrawText(RLTextFormat("RECORDING EVENTS... [%i]", aelist.count), 50, 170, 10, MAROON);
             }
             else if (eventPlaying)
             {
-                DrawRectangle(10, 160, 290, 30, Fade(LIME, 0.3f));
-                DrawRectangleLines(10, 160, 290, 30, Fade(DARKGREEN, 0.8f));
-                DrawTriangle((Vector2){ 20, 155 + 10 }, (Vector2){ 20, 155 + 30 }, (Vector2){ 40, 155 + 20 }, DARKGREEN);
+                RLDrawRectangle(10, 160, 290, 30, RLFade(LIME, 0.3f));
+                RLDrawRectangleLines(10, 160, 290, 30, RLFade(DARKGREEN, 0.8f));
+                RLDrawTriangle((RLVector2){ 20, 155 + 10 }, (RLVector2){ 20, 155 + 30 }, (RLVector2){ 40, 155 + 20 }, DARKGREEN);
 
-                if (((frameCounter/15)%2) == 1) DrawText(TextFormat("PLAYING RECORDED EVENTS... [%i]", currentPlayFrame), 50, 170, 10, DARKGREEN);
+                if (((frameCounter/15)%2) == 1) RLDrawText(RLTextFormat("PLAYING RECORDED EVENTS... [%i]", currentPlayFrame), 50, 170, 10, DARKGREEN);
             }
 
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

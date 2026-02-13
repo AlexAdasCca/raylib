@@ -102,7 +102,7 @@
 #endif
 
 #if defined(SUPPORT_TRACELOG)
-    #define TRACELOG(level, ...) TraceLog(level, __VA_ARGS__)
+    #define TRACELOG(level, ...) RLTraceLog(level, __VA_ARGS__)
 #else
     #define TRACELOG(level, ...) (void)0
 #endif

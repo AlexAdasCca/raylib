@@ -30,9 +30,9 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - sprite stacking");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - sprite stacking");
 
-    Texture2D booth = LoadTexture("resources/booth.png");
+    RLTexture2D booth = RLLoadTexture("resources/booth.png");
 
     float stackScale = 3.0f; // Overall scale of the stacked sprite
     float stackSpacing = 2.0f; // Vertical spacing between each layer
@@ -41,30 +41,30 @@ int main(void)
     float rotation = 0.0f; // Current rotation of the stacked sprite
     const float speedChange = 0.25f; // Amount speed will change by when the user presses A/D
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         // Use mouse wheel to affect stack separation
-        stackSpacing += GetMouseWheelMove()*0.1f;
+        stackSpacing += RLGetMouseWheelMove()*0.1f;
         stackSpacing = Clamp(stackSpacing, 0.0f, 5.0f);
 
         // Add a positive/negative offset to spin right/left at different speeds
-        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) rotationSpeed -= speedChange;
-        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) rotationSpeed += speedChange;
+        if (RLIsKeyDown(KEY_LEFT) || RLIsKeyDown(KEY_A)) rotationSpeed -= speedChange;
+        if (RLIsKeyDown(KEY_RIGHT) || RLIsKeyDown(KEY_D)) rotationSpeed += speedChange;
 
-        rotation += rotationSpeed*GetFrameTime();
+        rotation += rotationSpeed*RLGetFrameTime();
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             // Get the size of a single slice
             float frameWidth = (float)booth.width;
@@ -78,27 +78,27 @@ int main(void)
             for (int i = stackCount - 1; i >= 0; i--)
             {
                 // Center vertically
-                Rectangle source = { 0.0f, (float)i*frameHeight, frameWidth, frameHeight };
-                Rectangle dest = { screenWidth/2.0f, (screenHeight/2.0f) + (i*stackSpacing) - (stackSpacing*stackCount/2.0f), scaledWidth, scaledHeight };
-                Vector2 origin = { scaledWidth/2.0f, scaledHeight/2.0f };
+                RLRectangle source = { 0.0f, (float)i*frameHeight, frameWidth, frameHeight };
+                RLRectangle dest = { screenWidth/2.0f, (screenHeight/2.0f) + (i*stackSpacing) - (stackSpacing*stackCount/2.0f), scaledWidth, scaledHeight };
+                RLVector2 origin = { scaledWidth/2.0f, scaledHeight/2.0f };
 
-                DrawTexturePro(booth, source, dest, origin, rotation, WHITE);
+                RLDrawTexturePro(booth, source, dest, origin, rotation, WHITE);
             }
 
-            DrawText("A/D to spin\nmouse wheel to change separation (aka 'angle')", 10, 10, 20, DARKGRAY);
-            DrawText(TextFormat("current spacing: %.01f", stackSpacing), 10, 50, 20, DARKGRAY);
-            DrawText(TextFormat("current speed: %.02f", rotationSpeed), 10, 70, 20, DARKGRAY);
-            DrawText("redbooth model (c) kluchek under cc 4.0", 10, 420, 20, DARKGRAY);
+            RLDrawText("A/D to spin\nmouse wheel to change separation (aka 'angle')", 10, 10, 20, DARKGRAY);
+            RLDrawText(RLTextFormat("current spacing: %.01f", stackSpacing), 10, 50, 20, DARKGRAY);
+            RLDrawText(RLTextFormat("current speed: %.02f", rotationSpeed), 10, 70, 20, DARKGRAY);
+            RLDrawText("redbooth model (c) kluchek under cc 4.0", 10, 420, 20, DARKGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(booth);
+    RLUnloadTexture(booth);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -28,8 +28,8 @@
 // Cubic Bezier spline control points
 // NOTE: Every segment has two control points
 typedef struct {
-    Vector2 start;
-    Vector2 end;
+    RLVector2 start;
+    RLVector2 end;
 } ControlPoint;
 
 // Spline types
@@ -50,10 +50,10 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - splines drawing");
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - splines drawing");
 
-    Vector2 points[MAX_SPLINE_POINTS] = {
+    RLVector2 points[MAX_SPLINE_POINTS] = {
         {  50.0f, 400.0f },
         { 160.0f, 220.0f },
         { 340.0f, 380.0f },
@@ -63,20 +63,20 @@ int main(void)
 
     // Array required for spline bezier-cubic,
     // including control points interleaved with start-end segment points
-    Vector2 pointsInterleaved[3*(MAX_SPLINE_POINTS - 1) + 1] = { 0 };
+    RLVector2 pointsInterleaved[3*(MAX_SPLINE_POINTS - 1) + 1] = { 0 };
 
     int pointCount = 5;
     int selectedPoint = -1;
     int focusedPoint = -1;
-    Vector2 *selectedControlPoint = NULL;
-    Vector2 *focusedControlPoint = NULL;
+    RLVector2 *selectedControlPoint = NULL;
+    RLVector2 *focusedControlPoint = NULL;
 
     // Cubic Bezier control points initialization
     ControlPoint control[MAX_SPLINE_POINTS-1] = { 0 };
     for (int i = 0; i < pointCount - 1; i++)
     {
-        control[i].start = (Vector2){ points[i].x + 50, points[i].y };
-        control[i].end = (Vector2){ points[i + 1].x - 50, points[i + 1].y };
+        control[i].start = (RLVector2){ points[i].x + 50, points[i].y };
+        control[i].end = (RLVector2){ points[i + 1].x - 50, points[i + 1].y };
     }
 
     // Spline config variables
@@ -85,21 +85,21 @@ int main(void)
     bool splineTypeEditMode = false;
     bool splineHelpersActive = true;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         // Spline points creation logic (at the end of spline)
-        if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON) && (pointCount < MAX_SPLINE_POINTS))
+        if (RLIsMouseButtonPressed(MOUSE_RIGHT_BUTTON) && (pointCount < MAX_SPLINE_POINTS))
         {
-            points[pointCount] = GetMousePosition();
+            points[pointCount] = RLGetMousePosition();
             int i = pointCount - 1;
-            control[i].start = (Vector2){ points[i].x + 50, points[i].y };
-            control[i].end = (Vector2){ points[i + 1].x - 50, points[i + 1].y };
+            control[i].start = (RLVector2){ points[i].x + 50, points[i].y };
+            control[i].end = (RLVector2){ points[i + 1].x - 50, points[i + 1].y };
             pointCount++;
         }
 
@@ -109,20 +109,20 @@ int main(void)
             focusedPoint = -1;
             for (int i = 0; i < pointCount; i++)
             {
-                if (CheckCollisionPointCircle(GetMousePosition(), points[i], 8.0f))
+                if (RLCheckCollisionPointCircle(RLGetMousePosition(), points[i], 8.0f))
                 {
                     focusedPoint = i;
                     break;
                 }
             }
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) selectedPoint = focusedPoint;
+            if (RLIsMouseButtonPressed(MOUSE_LEFT_BUTTON)) selectedPoint = focusedPoint;
         }
 
         // Spline point movement logic
         if (selectedPoint >= 0)
         {
-            points[selectedPoint] = GetMousePosition();
-            if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) selectedPoint = -1;
+            points[selectedPoint] = RLGetMousePosition();
+            if (RLIsMouseButtonReleased(MOUSE_LEFT_BUTTON)) selectedPoint = -1;
         }
 
         // Cubic Bezier spline control points logic
@@ -134,53 +134,53 @@ int main(void)
                 focusedControlPoint = NULL;
                 for (int i = 0; i < pointCount - 1; i++)
                 {
-                    if (CheckCollisionPointCircle(GetMousePosition(), control[i].start, 6.0f))
+                    if (RLCheckCollisionPointCircle(RLGetMousePosition(), control[i].start, 6.0f))
                     {
                         focusedControlPoint = &control[i].start;
                         break;
                     }
-                    else if (CheckCollisionPointCircle(GetMousePosition(), control[i].end, 6.0f))
+                    else if (RLCheckCollisionPointCircle(RLGetMousePosition(), control[i].end, 6.0f))
                     {
                         focusedControlPoint = &control[i].end;
                         break;
                     }
                 }
-                if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) selectedControlPoint = focusedControlPoint;
+                if (RLIsMouseButtonPressed(MOUSE_LEFT_BUTTON)) selectedControlPoint = focusedControlPoint;
             }
 
             // Spline control point movement logic
             if (selectedControlPoint != NULL)
             {
-                *selectedControlPoint = GetMousePosition();
-                if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) selectedControlPoint = NULL;
+                *selectedControlPoint = RLGetMousePosition();
+                if (RLIsMouseButtonReleased(MOUSE_LEFT_BUTTON)) selectedControlPoint = NULL;
             }
         }
 
         // Spline selection logic
-        if (IsKeyPressed(KEY_ONE)) splineTypeActive = 0;
-        else if (IsKeyPressed(KEY_TWO)) splineTypeActive = 1;
-        else if (IsKeyPressed(KEY_THREE)) splineTypeActive = 2;
-        else if (IsKeyPressed(KEY_FOUR)) splineTypeActive = 3;
+        if (RLIsKeyPressed(KEY_ONE)) splineTypeActive = 0;
+        else if (RLIsKeyPressed(KEY_TWO)) splineTypeActive = 1;
+        else if (RLIsKeyPressed(KEY_THREE)) splineTypeActive = 2;
+        else if (RLIsKeyPressed(KEY_FOUR)) splineTypeActive = 3;
 
         // Clear selection when changing to a spline without control points
-        if (IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_TWO) || IsKeyPressed(KEY_THREE)) selectedControlPoint = NULL;
+        if (RLIsKeyPressed(KEY_ONE) || RLIsKeyPressed(KEY_TWO) || RLIsKeyPressed(KEY_THREE)) selectedControlPoint = NULL;
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             if (splineTypeActive == SPLINE_LINEAR)
             {
                 // Draw spline: linear
-                DrawSplineLinear(points, pointCount, splineThickness, RED);
+                RLDrawSplineLinear(points, pointCount, splineThickness, RED);
             }
             else if (splineTypeActive == SPLINE_BASIS)
             {
                 // Draw spline: basis
-                DrawSplineBasis(points, pointCount, splineThickness, RED);  // Provide connected points array
+                RLDrawSplineBasis(points, pointCount, splineThickness, RED);  // Provide connected points array
 
                 /*
                 for (int i = 0; i < (pointCount - 3); i++)
@@ -193,7 +193,7 @@ int main(void)
             else if (splineTypeActive == SPLINE_CATMULLROM)
             {
                 // Draw spline: catmull-rom
-                DrawSplineCatmullRom(points, pointCount, splineThickness, RED); // Provide connected points array
+                RLDrawSplineCatmullRom(points, pointCount, splineThickness, RED); // Provide connected points array
 
                 /*
                 for (int i = 0; i < (pointCount - 3); i++)
@@ -217,7 +217,7 @@ int main(void)
                 pointsInterleaved[3*(pointCount - 1)] = points[pointCount - 1];
 
                 // Draw spline: cubic-bezier (with control points)
-                DrawSplineBezierCubic(pointsInterleaved, 3*(pointCount - 1) + 1, splineThickness, RED);
+                RLDrawSplineBezierCubic(pointsInterleaved, 3*(pointCount - 1) + 1, splineThickness, RED);
 
                 /*
                 for (int i = 0; i < 3*(pointCount - 1); i += 3)
@@ -231,17 +231,17 @@ int main(void)
                 for (int i = 0; i < pointCount - 1; i++)
                 {
                     // Every cubic bezier point have two control points
-                    DrawCircleV(control[i].start, 6, GOLD);
-                    DrawCircleV(control[i].end, 6, GOLD);
-                    if (focusedControlPoint == &control[i].start) DrawCircleV(control[i].start, 8, GREEN);
-                    else if (focusedControlPoint == &control[i].end) DrawCircleV(control[i].end, 8, GREEN);
-                    DrawLineEx(points[i], control[i].start, 1.0f, LIGHTGRAY);
-                    DrawLineEx(points[i + 1], control[i].end, 1.0f, LIGHTGRAY);
+                    RLDrawCircleV(control[i].start, 6, GOLD);
+                    RLDrawCircleV(control[i].end, 6, GOLD);
+                    if (focusedControlPoint == &control[i].start) RLDrawCircleV(control[i].start, 8, GREEN);
+                    else if (focusedControlPoint == &control[i].end) RLDrawCircleV(control[i].end, 8, GREEN);
+                    RLDrawLineEx(points[i], control[i].start, 1.0f, LIGHTGRAY);
+                    RLDrawLineEx(points[i + 1], control[i].end, 1.0f, LIGHTGRAY);
 
                     // Draw spline control lines
-                    DrawLineV(points[i], control[i].start, GRAY);
+                    RLDrawLineV(points[i], control[i].start, GRAY);
                     //DrawLineV(control[i].start, control[i].end, LIGHTGRAY);
-                    DrawLineV(control[i].end, points[i + 1], GRAY);
+                    RLDrawLineV(control[i].end, points[i + 1], GRAY);
                 }
             }
 
@@ -250,12 +250,12 @@ int main(void)
                 // Draw spline point helpers
                 for (int i = 0; i < pointCount; i++)
                 {
-                    DrawCircleLinesV(points[i], (focusedPoint == i)? 12.0f : 8.0f, (focusedPoint == i)? BLUE: DARKBLUE);
+                    RLDrawCircleLinesV(points[i], (focusedPoint == i)? 12.0f : 8.0f, (focusedPoint == i)? BLUE: DARKBLUE);
                     if ((splineTypeActive != SPLINE_LINEAR) &&
                         (splineTypeActive != SPLINE_BEZIER) &&
-                        (i < pointCount - 1)) DrawLineV(points[i], points[i + 1], GRAY);
+                        (i < pointCount - 1)) RLDrawLineV(points[i], points[i + 1], GRAY);
 
-                    DrawText(TextFormat("[%.0f, %.0f]", points[i].x, points[i].y), (int)points[i].x, (int)points[i].y + 10, 10, BLACK);
+                    RLDrawText(RLTextFormat("[%.0f, %.0f]", points[i].x, points[i].y), (int)points[i].x, (int)points[i].y + 10, 10, BLACK);
                 }
             }
 
@@ -263,25 +263,25 @@ int main(void)
             if (splineTypeEditMode || (selectedPoint != -1) || (selectedControlPoint != NULL)) GuiLock();
 
             // Draw spline config
-            GuiLabel((Rectangle){ 12, 62, 140, 24 }, TextFormat("Spline thickness: %i", (int)splineThickness));
-            GuiSliderBar((Rectangle){ 12, 60 + 24, 140, 16 }, NULL, NULL, &splineThickness, 1.0f, 40.0f);
+            GuiLabel((RLRectangle){ 12, 62, 140, 24 }, RLTextFormat("Spline thickness: %i", (int)splineThickness));
+            GuiSliderBar((RLRectangle){ 12, 60 + 24, 140, 16 }, NULL, NULL, &splineThickness, 1.0f, 40.0f);
 
-            GuiCheckBox((Rectangle){ 12, 110, 20, 20 }, "Show point helpers", &splineHelpersActive);
+            GuiCheckBox((RLRectangle){ 12, 110, 20, 20 }, "Show point helpers", &splineHelpersActive);
 
             if (splineTypeEditMode) GuiUnlock();
 
-            GuiLabel((Rectangle){ 12, 10, 140, 24 }, "Spline type:");
-            if (GuiDropdownBox((Rectangle){ 12, 8 + 24, 140, 28 }, "LINEAR;BSPLINE;CATMULLROM;BEZIER", &splineTypeActive, splineTypeEditMode)) splineTypeEditMode = !splineTypeEditMode;
+            GuiLabel((RLRectangle){ 12, 10, 140, 24 }, "Spline type:");
+            if (GuiDropdownBox((RLRectangle){ 12, 8 + 24, 140, 28 }, "LINEAR;BSPLINE;CATMULLROM;BEZIER", &splineTypeActive, splineTypeEditMode)) splineTypeEditMode = !splineTypeEditMode;
 
             GuiUnlock();
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

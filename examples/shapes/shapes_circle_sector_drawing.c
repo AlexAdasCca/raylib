@@ -30,9 +30,9 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - circle sector drawing");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - circle sector drawing");
 
-    Vector2 center = {(GetScreenWidth() - 300)/2.0f, GetScreenHeight()/2.0f };
+    RLVector2 center = {(RLGetScreenWidth() - 300)/2.0f, RLGetScreenHeight()/2.0f };
 
     float outerRadius = 180.0f;
     float startAngle = 0.0f;
@@ -40,11 +40,11 @@ int main(void)
     float segments = 10.0f;
     float minSegments = 4;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -53,37 +53,37 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawLine(500, 0, 500, GetScreenHeight(), Fade(LIGHTGRAY, 0.6f));
-            DrawRectangle(500, 0, GetScreenWidth() - 500, GetScreenHeight(), Fade(LIGHTGRAY, 0.3f));
+            RLDrawLine(500, 0, 500, RLGetScreenHeight(), RLFade(LIGHTGRAY, 0.6f));
+            RLDrawRectangle(500, 0, RLGetScreenWidth() - 500, RLGetScreenHeight(), RLFade(LIGHTGRAY, 0.3f));
 
-            DrawCircleSector(center, outerRadius, startAngle, endAngle, (int)segments, Fade(MAROON, 0.3f));
-            DrawCircleSectorLines(center, outerRadius, startAngle, endAngle, (int)segments, Fade(MAROON, 0.6f));
+            RLDrawCircleSector(center, outerRadius, startAngle, endAngle, (int)segments, RLFade(MAROON, 0.3f));
+            RLDrawCircleSectorLines(center, outerRadius, startAngle, endAngle, (int)segments, RLFade(MAROON, 0.6f));
 
             // Draw GUI controls
             //------------------------------------------------------------------------------
-            GuiSliderBar((Rectangle){ 600, 40, 120, 20}, "StartAngle", TextFormat("%.2f", startAngle), &startAngle, 0, 720);
-            GuiSliderBar((Rectangle){ 600, 70, 120, 20}, "EndAngle", TextFormat("%.2f", endAngle), &endAngle, 0, 720);
+            GuiSliderBar((RLRectangle){ 600, 40, 120, 20}, "StartAngle", RLTextFormat("%.2f", startAngle), &startAngle, 0, 720);
+            GuiSliderBar((RLRectangle){ 600, 70, 120, 20}, "EndAngle", RLTextFormat("%.2f", endAngle), &endAngle, 0, 720);
 
-            GuiSliderBar((Rectangle){ 600, 140, 120, 20}, "Radius", TextFormat("%.2f", outerRadius), &outerRadius, 0, 200);
-            GuiSliderBar((Rectangle){ 600, 170, 120, 20}, "Segments", TextFormat("%.2f", segments), &segments, 0, 100);
+            GuiSliderBar((RLRectangle){ 600, 140, 120, 20}, "Radius", RLTextFormat("%.2f", outerRadius), &outerRadius, 0, 200);
+            GuiSliderBar((RLRectangle){ 600, 170, 120, 20}, "Segments", RLTextFormat("%.2f", segments), &segments, 0, 100);
             //------------------------------------------------------------------------------
 
             minSegments = truncf(ceilf((endAngle - startAngle)/90));
-            DrawText(TextFormat("MODE: %s", (segments >= minSegments)? "MANUAL" : "AUTO"), 600, 200, 10, (segments >= minSegments)? MAROON : DARKGRAY);
+            RLDrawText(RLTextFormat("MODE: %s", (segments >= minSegments)? "MANUAL" : "AUTO"), 600, 200, 10, (segments >= minSegments)? MAROON : DARKGRAY);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

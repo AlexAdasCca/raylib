@@ -25,31 +25,31 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - srcrec dstrec");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - srcrec dstrec");
 
     // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
 
-    Texture2D scarfy = LoadTexture("resources/scarfy.png");        // Texture loading
+    RLTexture2D scarfy = RLLoadTexture("resources/scarfy.png");        // Texture loading
 
     int frameWidth = scarfy.width/6;
     int frameHeight = scarfy.height;
 
     // Source rectangle (part of the texture to use for drawing)
-    Rectangle sourceRec = { 0.0f, 0.0f, (float)frameWidth, (float)frameHeight };
+    RLRectangle sourceRec = { 0.0f, 0.0f, (float)frameWidth, (float)frameHeight };
 
     // Destination rectangle (screen rectangle where drawing part of texture)
-    Rectangle destRec = { screenWidth/2.0f, screenHeight/2.0f, frameWidth*2.0f, frameHeight*2.0f };
+    RLRectangle destRec = { screenWidth/2.0f, screenHeight/2.0f, frameWidth*2.0f, frameHeight*2.0f };
 
     // Origin of the texture (rotation/scale point), it's relative to destination rectangle size
-    Vector2 origin = { (float)frameWidth, (float)frameHeight };
+    RLVector2 origin = { (float)frameWidth, (float)frameHeight };
 
     int rotation = 0;
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -58,31 +58,31 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             // NOTE: Using DrawTexturePro() we can easily rotate and scale the part of the texture we draw
             // sourceRec defines the part of the texture we use for drawing
             // destRec defines the rectangle where our texture part will fit (scaling it to fit)
             // origin defines the point of the texture used as reference for rotation and scaling
             // rotation defines the texture rotation (using origin as rotation point)
-            DrawTexturePro(scarfy, sourceRec, destRec, origin, (float)rotation, WHITE);
+            RLDrawTexturePro(scarfy, sourceRec, destRec, origin, (float)rotation, WHITE);
 
-            DrawLine((int)destRec.x, 0, (int)destRec.x, screenHeight, GRAY);
-            DrawLine(0, (int)destRec.y, screenWidth, (int)destRec.y, GRAY);
+            RLDrawLine((int)destRec.x, 0, (int)destRec.x, screenHeight, GRAY);
+            RLDrawLine(0, (int)destRec.y, screenWidth, (int)destRec.y, GRAY);
 
-            DrawText("(c) Scarfy sprite by Eiden Marsal", screenWidth - 200, screenHeight - 20, 10, GRAY);
+            RLDrawText("(c) Scarfy sprite by Eiden Marsal", screenWidth - 200, screenHeight - 20, 10, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(scarfy);        // Texture unloading
+    RLUnloadTexture(scarfy);        // Texture unloading
 
-    CloseWindow();                // Close window and OpenGL context
+    RLCloseWindow();                // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

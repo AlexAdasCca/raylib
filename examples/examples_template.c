@@ -84,15 +84,15 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [<module>] example - <name>");
+    RLInitWindow(screenWidth, screenHeight, "raylib [<module>] example - <name>");
 
     // TODO: Load resources / Initialize variables at this point
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -101,17 +101,17 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             // TODO: Draw everything that requires to be drawn at this point
 
-            DrawLineEx((Vector2){ 0, 0 }, (Vector2){ screenWidth, screenHeight }, 2.0f, RED);
-            DrawLineEx((Vector2){ 0, screenHeight }, (Vector2){ screenWidth, 0 }, 2.0f, RED);
-            DrawText("example base code template", 260, 400, 20, LIGHTGRAY);
+            RLDrawLineEx((RLVector2){ 0, 0 }, (RLVector2){ screenWidth, screenHeight }, 2.0f, RED);
+            RLDrawLineEx((RLVector2){ 0, screenHeight }, (RLVector2){ screenWidth, 0 }, 2.0f, RED);
+            RLDrawText("example base code template", 260, 400, 20, LIGHTGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -120,7 +120,7 @@ int main(void)
 
     // TODO: Unload all loaded resources at this point
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -25,57 +25,57 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - input mouse");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - input mouse");
 
-    Vector2 ballPosition = { -100.0f, -100.0f };
-    Color ballColor = DARKBLUE;
+    RLVector2 ballPosition = { -100.0f, -100.0f };
+    RLColor ballColor = DARKBLUE;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //---------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_H))
+        if (RLIsKeyPressed(KEY_H))
         {
-            if (IsCursorHidden()) ShowCursor();
-            else HideCursor();
+            if (RLIsCursorHidden()) RLShowCursor();
+            else RLHideCursor();
         }
 
-        ballPosition = GetMousePosition();
+        ballPosition = RLGetMousePosition();
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) ballColor = MAROON;
-        else if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) ballColor = LIME;
-        else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) ballColor = DARKBLUE;
-        else if (IsMouseButtonPressed(MOUSE_BUTTON_SIDE)) ballColor = PURPLE;
-        else if (IsMouseButtonPressed(MOUSE_BUTTON_EXTRA)) ballColor = YELLOW;
-        else if (IsMouseButtonPressed(MOUSE_BUTTON_FORWARD)) ballColor = ORANGE;
-        else if (IsMouseButtonPressed(MOUSE_BUTTON_BACK)) ballColor = BEIGE;
+        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) ballColor = MAROON;
+        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) ballColor = LIME;
+        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) ballColor = DARKBLUE;
+        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_SIDE)) ballColor = PURPLE;
+        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_EXTRA)) ballColor = YELLOW;
+        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_FORWARD)) ballColor = ORANGE;
+        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_BACK)) ballColor = BEIGE;
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawCircleV(ballPosition, 40, ballColor);
+            RLDrawCircleV(ballPosition, 40, ballColor);
 
-            DrawText("move ball with mouse and click mouse button to change color", 10, 10, 20, DARKGRAY);
-            DrawText("Press 'H' to toggle cursor visibility", 10, 30, 20, DARKGRAY);
+            RLDrawText("move ball with mouse and click mouse button to change color", 10, 10, 20, DARKGRAY);
+            RLDrawText("Press 'H' to toggle cursor visibility", 10, 30, 20, DARKGRAY);
 
-            if (IsCursorHidden()) DrawText("CURSOR HIDDEN", 20, 60, 20, RED);
-            else DrawText("CURSOR VISIBLE", 20, 60, 20, LIME);
+            if (RLIsCursorHidden()) RLDrawText("CURSOR HIDDEN", 20, 60, 20, RED);
+            else RLDrawText("CURSOR VISIBLE", 20, 60, 20, LIME);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

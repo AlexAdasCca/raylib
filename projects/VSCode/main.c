@@ -28,8 +28,8 @@
 //----------------------------------------------------------------------------------
 // Global Variables Definition (local to this module)
 //----------------------------------------------------------------------------------
-Camera camera = { 0 };
-Vector3 cubePosition = { 0 };
+RLCamera camera = { 0 };
+RLVector3 cubePosition = { 0 };
 
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
@@ -46,11 +46,11 @@ int main()
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib");
+    RLInitWindow(screenWidth, screenHeight, "raylib");
 
-    camera.position = (Vector3){ 10.0f, 10.0f, 8.0f };
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.position = (RLVector3){ 10.0f, 10.0f, 8.0f };
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 60.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
@@ -59,11 +59,11 @@ int main()
 #if defined(PLATFORM_WEB)
     emscripten_set_main_loop(UpdateDrawFrame, 60, 1);
 #else
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         UpdateDrawFrame();
     }
@@ -71,7 +71,7 @@ int main()
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();                  // Close window and OpenGL context
+    RLCloseWindow();                  // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -82,27 +82,27 @@ static void UpdateDrawFrame(void)
 {
     // Update
     //----------------------------------------------------------------------------------
-    UpdateCamera(&camera, CAMERA_ORBITAL);
+    RLUpdateCamera(&camera, CAMERA_ORBITAL);
     //----------------------------------------------------------------------------------
 
     // Draw
     //----------------------------------------------------------------------------------
-    BeginDrawing();
+    RLBeginDrawing();
 
-        ClearBackground(RAYWHITE);
+        RLClearBackground(RAYWHITE);
 
-        BeginMode3D(camera);
+        RLBeginMode3D(camera);
 
-            DrawCube(cubePosition, 2.0f, 2.0f, 2.0f, RED);
-            DrawCubeWires(cubePosition, 2.0f, 2.0f, 2.0f, MAROON);
-            DrawGrid(10, 1.0f);
+            RLDrawCube(cubePosition, 2.0f, 2.0f, 2.0f, RED);
+            RLDrawCubeWires(cubePosition, 2.0f, 2.0f, 2.0f, MAROON);
+            RLDrawGrid(10, 1.0f);
 
-        EndMode3D();
+        RLEndMode3D();
 
-        DrawText("This is a raylib example", 10, 40, 20, DARKGRAY);
+        RLDrawText("This is a raylib example", 10, 40, 20, DARKGRAY);
 
-        DrawFPS(10, 10);
+        RLDrawFPS(10, 10);
 
-    EndDrawing();
+    RLEndDrawing();
     //----------------------------------------------------------------------------------
 }

@@ -32,68 +32,68 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - directory files");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - directory files");
 
     char directory[MAX_FILEPATH_SIZE] = { 0 };
-    strcpy(directory, GetWorkingDirectory());
+    strcpy(directory, RLGetWorkingDirectory());
 
-    FilePathList files = LoadDirectoryFiles(directory);
+    RLFilePathList files = RLLoadDirectoryFiles(directory);
 
     int btnBackPressed = false;
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         if (btnBackPressed)
         {
-            TextCopy(directory, GetPrevDirectoryPath(directory));
-            UnloadDirectoryFiles(files);
-            files = LoadDirectoryFiles(directory);
+            RLTextCopy(directory, RLGetPrevDirectoryPath(directory));
+            RLUnloadDirectoryFiles(files);
+            files = RLLoadDirectoryFiles(directory);
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
-            DrawText(directory, 100, 40, 20, DARKGRAY);
+            RLDrawText(directory, 100, 40, 20, DARKGRAY);
 
-            btnBackPressed = GuiButton((Rectangle){ 40.0f, 38.0f, 48, 24 }, "<");
+            btnBackPressed = GuiButton((RLRectangle){ 40.0f, 38.0f, 48, 24 }, "<");
 
             for (int i = 0; i < (int)files.count; i++)
             {
-                Color color = Fade(LIGHTGRAY, 0.3f);
+                RLColor color = RLFade(LIGHTGRAY, 0.3f);
 
-                if (!IsPathFile(files.paths[i]) && DirectoryExists(files.paths[i]))
+                if (!RLIsPathFile(files.paths[i]) && RLDirectoryExists(files.paths[i]))
                 {
-                    if (GuiButton((Rectangle){0.0f, 85.0f + 40.0f*(float)i, screenWidth, 40}, ""))
+                    if (GuiButton((RLRectangle){0.0f, 85.0f + 40.0f*(float)i, screenWidth, 40}, ""))
                     {
-                        TextCopy(directory, files.paths[i]);
-                        UnloadDirectoryFiles(files);
-                        files = LoadDirectoryFiles(directory);
+                        RLTextCopy(directory, files.paths[i]);
+                        RLUnloadDirectoryFiles(files);
+                        files = RLLoadDirectoryFiles(directory);
                         continue;
                     }
                 }
 
-                DrawRectangle(0, 85 + 40*i, screenWidth, 40, color);
-                DrawText(GetFileName(files.paths[i]), 120, 100 + 40*i, 10, GRAY);
+                RLDrawRectangle(0, 85 + 40*i, screenWidth, 40, color);
+                RLDrawText(RLGetFileName(files.paths[i]), 120, 100 + 40*i, 10, GRAY);
             }
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadDirectoryFiles(files);
+    RLUnloadDirectoryFiles(files);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -29,7 +29,7 @@
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 typedef struct TurtleState {
-    Vector2 origin;
+    RLVector2 origin;
     double angle;
 } TurtleState;
 
@@ -69,8 +69,8 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - penrose tile");
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - penrose tile");
 
     float drawLength = 460.0f;
     int minGenerations = 0;
@@ -81,16 +81,16 @@ int main(void)
     PenroseLSystem ls = CreatePenroseLSystem(drawLength*(generations/(float)maxGenerations));
     for (int i = 0; i < generations; i++) BuildProductionStep(&ls);
 
-    SetTargetFPS(120);              // Set our game to run at 120 frames-per-second
+    RLSetTargetFPS(120);              // Set our game to run at 120 frames-per-second
     //---------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         bool rebuild = false;
-        if (IsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(KEY_UP))
         {
             if (generations < maxGenerations)
             {
@@ -98,7 +98,7 @@ int main(void)
                 rebuild = true;
             }
         }
-        else if (IsKeyPressed(KEY_DOWN))
+        else if (RLIsKeyPressed(KEY_DOWN))
         {
             if (generations > minGenerations)
             {
@@ -117,23 +117,23 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
         
-            ClearBackground( RAYWHITE );
+            RLClearBackground( RAYWHITE );
             
             if (generations > 0) DrawPenroseLSystem(&ls);
             
-            DrawText("penrose l-system", 10, 10, 20, DARKGRAY);
-            DrawText("press up or down to change generations", 10, 30, 20, DARKGRAY);
-            DrawText(TextFormat("generations: %d", generations), 10, 50, 20, DARKGRAY);
+            RLDrawText("penrose l-system", 10, 10, 20, DARKGRAY);
+            RLDrawText("press up or down to change generations", 10, 30, 20, DARKGRAY);
+            RLDrawText(RLTextFormat("generations: %d", generations), 10, 50, 20, DARKGRAY);
             
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -146,14 +146,14 @@ int main(void)
 static void PushTurtleState(TurtleState state)
 {
     if (turtleTop < (TURTLE_STACK_MAX_SIZE - 1)) turtleStack[++turtleTop] = state;
-    else TraceLog(LOG_WARNING, "TURTLE STACK OVERFLOW!");
+    else RLTraceLog(LOG_WARNING, "TURTLE STACK OVERFLOW!");
 }
 
 // Pop turtle state step
 static TurtleState PopTurtleState(void)
 {
     if (turtleTop >= 0) return turtleStack[turtleTop--];
-    else TraceLog(LOG_WARNING, "TURTLE STACK UNDERFLOW!");
+    else RLTraceLog(LOG_WARNING, "TURTLE STACK UNDERFLOW!");
 
     return (TurtleState){ 0 };
 }
@@ -218,7 +218,7 @@ static void BuildProductionStep(PenroseLSystem *ls)
 // Draw penrose tile lines
 static void DrawPenroseLSystem(PenroseLSystem *ls)
 {
-    Vector2 screenCenter = { GetScreenWidth()/2.0f, GetScreenHeight()/2.0f };
+    RLVector2 screenCenter = { RLGetScreenWidth()/2.0f, RLGetScreenHeight()/2.0f };
 
     TurtleState turtle = {
         .origin = { 0 },
@@ -238,14 +238,14 @@ static void DrawPenroseLSystem(PenroseLSystem *ls)
         {
             for (int j = 0; j < repeats; j++)
             {
-                Vector2 startPosWorld = turtle.origin;
+                RLVector2 startPosWorld = turtle.origin;
                 float radAngle = DEG2RAD*turtle.angle;
                 turtle.origin.x += ls->drawLength*cosf(radAngle);
                 turtle.origin.y += ls->drawLength*sinf(radAngle);
-                Vector2 startPosScreen = { startPosWorld.x + screenCenter.x, startPosWorld.y + screenCenter.y };
-                Vector2 endPosScreen = { turtle.origin.x + screenCenter.x, turtle.origin.y + screenCenter.y };
+                RLVector2 startPosScreen = { startPosWorld.x + screenCenter.x, startPosWorld.y + screenCenter.y };
+                RLVector2 endPosScreen = { turtle.origin.x + screenCenter.x, turtle.origin.y + screenCenter.y };
                 
-                DrawLineEx(startPosScreen, endPosScreen, 2, Fade(BLACK, 0.2f));
+                RLDrawLineEx(startPosScreen, endPosScreen, 2, RLFade(BLACK, 0.2f));
             }
             
             repeats = 1;

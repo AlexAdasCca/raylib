@@ -33,53 +33,53 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - texture rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - texture rendering");
 
-    Image imBlank = GenImageColor(1024, 1024, BLANK);
-    Texture2D texture = LoadTextureFromImage(imBlank);  // Load blank texture to fill on shader
-    UnloadImage(imBlank);
+    RLImage imBlank = RLGenImageColor(1024, 1024, BLANK);
+    RLTexture2D texture = RLLoadTextureFromImage(imBlank);  // Load blank texture to fill on shader
+    RLUnloadImage(imBlank);
 
     // NOTE: Using GLSL 330 shader version, on OpenGL ES 2.0 use GLSL 100 shader version
-    Shader shader = LoadShader(0, TextFormat("resources/shaders/glsl%i/cubes_panning.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/cubes_panning.fs", GLSL_VERSION));
 
     float time = 0.0f;
-    int timeLoc = GetShaderLocation(shader, "uTime");
-    SetShaderValue(shader, timeLoc, &time, SHADER_UNIFORM_FLOAT);
+    int timeLoc = RLGetShaderLocation(shader, "uTime");
+    RLSetShaderValue(shader, timeLoc, &time, SHADER_UNIFORM_FLOAT);
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     // -------------------------------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        time = (float)GetTime();
-        SetShaderValue(shader, timeLoc, &time, SHADER_UNIFORM_FLOAT);
+        time = (float)RLGetTime();
+        RLSetShaderValue(shader, timeLoc, &time, SHADER_UNIFORM_FLOAT);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginShaderMode(shader);    // Enable our custom shader for next shapes/textures drawings
-                DrawTexture(texture, 0, 0, WHITE);  // Drawing BLANK texture, all rendering magic happens on shader
-            EndShaderMode();            // Disable our custom shader, return to default shader
+            RLBeginShaderMode(shader);    // Enable our custom shader for next shapes/textures drawings
+                RLDrawTexture(texture, 0, 0, WHITE);  // Drawing BLANK texture, all rendering magic happens on shader
+            RLEndShaderMode();            // Disable our custom shader, return to default shader
 
-            DrawText("BACKGROUND is PAINTED and ANIMATED on SHADER!", 10, 10, 20, MAROON);
+            RLDrawText("BACKGROUND is PAINTED and ANIMATED on SHADER!", 10, 10, 20, MAROON);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shader);
-    UnloadTexture(texture);
+    RLUnloadShader(shader);
+    RLUnloadTexture(texture);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

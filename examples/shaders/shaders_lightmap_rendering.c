@@ -45,18 +45,18 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);  // Enable Multi Sampling Anti Aliasing 4x (if available)
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - lightmap rendering");
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);  // Enable Multi Sampling Anti Aliasing 4x (if available)
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - lightmap rendering");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 4.0f, 6.0f, 8.0f };    // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 4.0f, 6.0f, 8.0f };    // Camera position
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
-    Mesh mesh = GenMeshPlane((float)MAP_SIZE, (float)MAP_SIZE, 1, 1);
+    RLMesh mesh = RLGenMeshPlane((float)MAP_SIZE, (float)MAP_SIZE, 1, 1);
 
     // GenMeshPlane doesn't generate texcoords2 so we will upload them separately
     mesh.texcoords2 = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
@@ -77,99 +77,99 @@ int main(void)
     rlDisableVertexArray();
 
     // Load lightmap shader
-    Shader shader = LoadShader(TextFormat("resources/shaders/glsl%i/lightmap.vs", GLSL_VERSION),
-                               TextFormat("resources/shaders/glsl%i/lightmap.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/lightmap.vs", GLSL_VERSION),
+                               RLTextFormat("resources/shaders/glsl%i/lightmap.fs", GLSL_VERSION));
 
-    Texture texture = LoadTexture("resources/cubicmap_atlas.png");
-    Texture light = LoadTexture("resources/spark_flame.png");
+    RLTexture texture = RLLoadTexture("resources/cubicmap_atlas.png");
+    RLTexture light = RLLoadTexture("resources/spark_flame.png");
 
-    GenTextureMipmaps(&texture);
-    SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+    RLGenTextureMipmaps(&texture);
+    RLSetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
 
-    RenderTexture lightmap = LoadRenderTexture(MAP_SIZE, MAP_SIZE);
+    RLRenderTexture lightmap = RLLoadRenderTexture(MAP_SIZE, MAP_SIZE);
 
-    Material material = LoadMaterialDefault();
+    RLMaterial material = RLLoadMaterialDefault();
     material.shader = shader;
     material.maps[MATERIAL_MAP_ALBEDO].texture = texture;
     material.maps[MATERIAL_MAP_METALNESS].texture = lightmap.texture;
 
     // Drawing to lightmap
-    BeginTextureMode(lightmap);
-        ClearBackground(BLACK);
+    RLBeginTextureMode(lightmap);
+        RLClearBackground(BLACK);
 
-        BeginBlendMode(BLEND_ADDITIVE);
-            DrawTexturePro(
+        RLBeginBlendMode(BLEND_ADDITIVE);
+            RLDrawTexturePro(
                 light,
-                (Rectangle){ 0, 0, (float)light.width, (float)light.height },
-                (Rectangle){ 0, 0, 2.0f*MAP_SIZE, 2.0f*MAP_SIZE },
-                (Vector2){ (float)MAP_SIZE, (float)MAP_SIZE },
+                (RLRectangle){ 0, 0, (float)light.width, (float)light.height },
+                (RLRectangle){ 0, 0, 2.0f*MAP_SIZE, 2.0f*MAP_SIZE },
+                (RLVector2){ (float)MAP_SIZE, (float)MAP_SIZE },
                 0.0,
                 RED
             );
-            DrawTexturePro(
+            RLDrawTexturePro(
                 light,
-                (Rectangle){ 0, 0, (float)light.width, (float)light.height },
-                (Rectangle){ (float)MAP_SIZE*0.8f, (float)MAP_SIZE/2.0f, 2.0f*MAP_SIZE, 2.0f*MAP_SIZE },
-                (Vector2){ (float)MAP_SIZE, (float)MAP_SIZE },
+                (RLRectangle){ 0, 0, (float)light.width, (float)light.height },
+                (RLRectangle){ (float)MAP_SIZE*0.8f, (float)MAP_SIZE/2.0f, 2.0f*MAP_SIZE, 2.0f*MAP_SIZE },
+                (RLVector2){ (float)MAP_SIZE, (float)MAP_SIZE },
                 0.0,
                 BLUE
             );
-            DrawTexturePro(
+            RLDrawTexturePro(
                 light,
-                (Rectangle){ 0, 0, (float)light.width, (float)light.height },
-                (Rectangle){ (float)MAP_SIZE*0.8f, (float)MAP_SIZE*0.8f, (float)MAP_SIZE, (float)MAP_SIZE },
-                (Vector2){ (float)MAP_SIZE/2.0f, (float)MAP_SIZE/2.0f },
+                (RLRectangle){ 0, 0, (float)light.width, (float)light.height },
+                (RLRectangle){ (float)MAP_SIZE*0.8f, (float)MAP_SIZE*0.8f, (float)MAP_SIZE, (float)MAP_SIZE },
+                (RLVector2){ (float)MAP_SIZE/2.0f, (float)MAP_SIZE/2.0f },
                 0.0,
                 GREEN
             );
-        BeginBlendMode(BLEND_ALPHA);
-    EndTextureMode();
+        RLBeginBlendMode(BLEND_ALPHA);
+    RLEndTextureMode();
 
     // NOTE: To enable trilinear filtering we need mipmaps available for texture
-    GenTextureMipmaps(&lightmap.texture);
-    SetTextureFilter(lightmap.texture, TEXTURE_FILTER_TRILINEAR);
+    RLGenTextureMipmaps(&lightmap.texture);
+    RLSetTextureFilter(lightmap.texture, TEXTURE_FILTER_TRILINEAR);
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
-                DrawMesh(mesh, material, MatrixIdentity());
-            EndMode3D();
+            RLBeginMode3D(camera);
+                RLDrawMesh(mesh, material, MatrixIdentity());
+            RLEndMode3D();
 
-            DrawTexturePro(lightmap.texture, (Rectangle){ 0, 0, -MAP_SIZE, -MAP_SIZE },
-                (Rectangle){ (float)GetRenderWidth() - MAP_SIZE*8 - 10, 10, (float)MAP_SIZE*8, (float)MAP_SIZE*8 },
-                (Vector2){ 0.0, 0.0 }, 0.0, WHITE);
+            RLDrawTexturePro(lightmap.texture, (RLRectangle){ 0, 0, -MAP_SIZE, -MAP_SIZE },
+                (RLRectangle){ (float)RLGetRenderWidth() - MAP_SIZE*8 - 10, 10, (float)MAP_SIZE*8, (float)MAP_SIZE*8 },
+                (RLVector2){ 0.0, 0.0 }, 0.0, WHITE);
 
-            DrawText(TextFormat("LIGHTMAP: %ix%i pixels", MAP_SIZE, MAP_SIZE), GetRenderWidth() - 130, 20 + MAP_SIZE*8, 10, GREEN);
+            RLDrawText(RLTextFormat("LIGHTMAP: %ix%i pixels", MAP_SIZE, MAP_SIZE), RLGetRenderWidth() - 130, 20 + MAP_SIZE*8, 10, GREEN);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadMesh(mesh);       // Unload the mesh
-    UnloadShader(shader);   // Unload shader
-    UnloadTexture(texture); // Unload texture
-    UnloadTexture(light);   // Unload texture
+    RLUnloadMesh(mesh);       // Unload the mesh
+    RLUnloadShader(shader);   // Unload shader
+    RLUnloadTexture(texture); // Unload texture
+    RLUnloadTexture(light);   // Unload texture
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

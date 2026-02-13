@@ -30,36 +30,36 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - directional billboard");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - directional billboard");
 
     // Set up the camera
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 2.0f, 1.0f, 2.0f }; // Starting position
-    camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };  // Target position
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f }; // Up vector
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 2.0f, 1.0f, 2.0f }; // Starting position
+    camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };  // Target position
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f }; // Up vector
     camera.fovy = 45.0f; // FOV
     camera.projection = CAMERA_PERSPECTIVE; // Projection type (Standard 3D perspective)
 
     // Load billboard texture
-    Texture skillbot = LoadTexture("resources/skillbot.png");
+    RLTexture skillbot = RLLoadTexture("resources/skillbot.png");
 
     // Timer to update animation
     float anim_timer = 0.0f;
     // Animation frame
     unsigned int anim = 0;
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
 
         // Update timer with delta time
-        anim_timer += GetFrameTime();
+        anim_timer += RLGetFrameTime();
 
         // Update frame index after a certain amount of time (half a second)
         if (anim_timer > 0.5f)
@@ -72,7 +72,7 @@ int main(void)
         if (anim >= 4) anim = 0;
 
         // Find the current direction frame based on the camera position to the billboard object
-        float dir = (float)floor(((Vector2Angle((Vector2){ 2.0f, 0.0f }, (Vector2){ camera.position.x, camera.position.z })/PI)*4.0f) + 0.25f);
+        float dir = (float)floor(((Vector2Angle((RLVector2){ 2.0f, 0.0f }, (RLVector2){ camera.position.x, camera.position.z })/PI)*4.0f) + 0.25f);
 
         // Correct frame index if angle is negative
         if (dir < 0.0f)
@@ -83,33 +83,33 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-        ClearBackground(RAYWHITE);
+        RLClearBackground(RAYWHITE);
 
-        BeginMode3D(camera);
+        RLBeginMode3D(camera);
 
-            DrawGrid(10, 1.0f);
+            RLDrawGrid(10, 1.0f);
 
             // Draw billboard pointing straight up to the sky, rotated relative to the camera and offset from the bottom
-            DrawBillboardPro(camera, skillbot, (Rectangle){ 0.0f + (anim*24.0f), 0.0f + (dir*24.0f), 24.0f, 24.0f }, Vector3Zero(), (Vector3){ 0.0f, 1.0f, 0.0f }, Vector2One(), (Vector2){ 0.5f, 0.0f }, 0, WHITE);
+            RLDrawBillboardPro(camera, skillbot, (RLRectangle){ 0.0f + (anim*24.0f), 0.0f + (dir*24.0f), 24.0f, 24.0f }, Vector3Zero(), (RLVector3){ 0.0f, 1.0f, 0.0f }, Vector2One(), (RLVector2){ 0.5f, 0.0f }, 0, WHITE);
 
-        EndMode3D();
+        RLEndMode3D();
 
         // Render various variables for reference
-        DrawText(TextFormat("animation: %d", anim), 10, 10, 20, DARKGRAY);
-        DrawText(TextFormat("direction frame: %.0f", dir), 10, 40, 20, DARKGRAY);
+        RLDrawText(RLTextFormat("animation: %d", anim), 10, 10, 20, DARKGRAY);
+        RLDrawText(RLTextFormat("direction frame: %.0f", dir), 10, 40, 20, DARKGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
     // Unload billboard texture
-    UnloadTexture(skillbot);
+    RLUnloadTexture(skillbot);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -26,20 +26,20 @@
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-static Texture texRoad = { 0 };
+static RLTexture texRoad = { 0 };
 
 static bool showCurve = false;
 
 static float curveWidth = 50;
 static int curveSegments = 24;
 
-static Vector2 curveStartPosition = { 0 };
-static Vector2 curveStartPositionTangent = { 0 };
+static RLVector2 curveStartPosition = { 0 };
+static RLVector2 curveStartPositionTangent = { 0 };
 
-static Vector2 curveEndPosition = { 0 };
-static Vector2 curveEndPositionTangent = { 0 };
+static RLVector2 curveEndPosition = { 0 };
+static RLVector2 curveEndPositionTangent = { 0 };
 
-static Vector2 *curveSelectedPoint = NULL;
+static RLVector2 *curveSelectedPoint = NULL;
 
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
@@ -56,97 +56,97 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - textured curve");
+    RLSetConfigFlags(FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - textured curve");
 
     // Load the road texture
-    texRoad = LoadTexture("resources/road.png");
-    SetTextureFilter(texRoad, TEXTURE_FILTER_BILINEAR);
+    texRoad = RLLoadTexture("resources/road.png");
+    RLSetTextureFilter(texRoad, TEXTURE_FILTER_BILINEAR);
 
     // Setup the curve
-    curveStartPosition = (Vector2){ 80, 100 };
-    curveStartPositionTangent = (Vector2){ 100, 300 };
+    curveStartPosition = (RLVector2){ 80, 100 };
+    curveStartPositionTangent = (RLVector2){ 100, 300 };
 
-    curveEndPosition = (Vector2){ 700, 350 };
-    curveEndPositionTangent = (Vector2){ 600, 100 };
+    curveEndPosition = (RLVector2){ 700, 350 };
+    curveEndPositionTangent = (RLVector2){ 600, 100 };
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         // Curve config options
-        if (IsKeyPressed(KEY_SPACE)) showCurve = !showCurve;
-        if (IsKeyPressed(KEY_EQUAL)) curveWidth += 2;
-        if (IsKeyPressed(KEY_MINUS)) curveWidth -= 2;
+        if (RLIsKeyPressed(KEY_SPACE)) showCurve = !showCurve;
+        if (RLIsKeyPressed(KEY_EQUAL)) curveWidth += 2;
+        if (RLIsKeyPressed(KEY_MINUS)) curveWidth -= 2;
         if (curveWidth < 2) curveWidth = 2;
 
         // Update segments
-        if (IsKeyPressed(KEY_LEFT)) curveSegments -= 2;
-        if (IsKeyPressed(KEY_RIGHT)) curveSegments += 2;
+        if (RLIsKeyPressed(KEY_LEFT)) curveSegments -= 2;
+        if (RLIsKeyPressed(KEY_RIGHT)) curveSegments += 2;
 
         if (curveSegments < 2) curveSegments = 2;
 
         // Update curve logic
         // If the mouse is not down, we are not editing the curve so clear the selection
-        if (!IsMouseButtonDown(MOUSE_LEFT_BUTTON))  curveSelectedPoint = NULL;
+        if (!RLIsMouseButtonDown(MOUSE_LEFT_BUTTON))  curveSelectedPoint = NULL;
 
         // If a point was selected, move it
-        if (curveSelectedPoint) *curveSelectedPoint = Vector2Add(*curveSelectedPoint, GetMouseDelta());
+        if (curveSelectedPoint) *curveSelectedPoint = Vector2Add(*curveSelectedPoint, RLGetMouseDelta());
 
         // The mouse is down, and nothing was selected, so see if anything was picked
-        Vector2 mouse = GetMousePosition();
-        if (CheckCollisionPointCircle(mouse, curveStartPosition, 6)) curveSelectedPoint = &curveStartPosition;
-        else if (CheckCollisionPointCircle(mouse, curveStartPositionTangent, 6)) curveSelectedPoint = &curveStartPositionTangent;
-        else if (CheckCollisionPointCircle(mouse, curveEndPosition, 6)) curveSelectedPoint = &curveEndPosition;
-        else if (CheckCollisionPointCircle(mouse, curveEndPositionTangent, 6)) curveSelectedPoint = &curveEndPositionTangent;
+        RLVector2 mouse = RLGetMousePosition();
+        if (RLCheckCollisionPointCircle(mouse, curveStartPosition, 6)) curveSelectedPoint = &curveStartPosition;
+        else if (RLCheckCollisionPointCircle(mouse, curveStartPositionTangent, 6)) curveSelectedPoint = &curveStartPositionTangent;
+        else if (RLCheckCollisionPointCircle(mouse, curveEndPosition, 6)) curveSelectedPoint = &curveEndPosition;
+        else if (RLCheckCollisionPointCircle(mouse, curveEndPositionTangent, 6)) curveSelectedPoint = &curveEndPositionTangent;
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             DrawTexturedCurve();    // Draw a textured Spline Cubic Bezier
 
             // Draw spline for reference
-            if (showCurve) DrawSplineSegmentBezierCubic(curveStartPosition, curveEndPosition, curveStartPositionTangent, curveEndPositionTangent, 2, BLUE);
+            if (showCurve) RLDrawSplineSegmentBezierCubic(curveStartPosition, curveEndPosition, curveStartPositionTangent, curveEndPositionTangent, 2, BLUE);
 
             // Draw the various control points and highlight where the mouse is
-            DrawLineV(curveStartPosition, curveStartPositionTangent, SKYBLUE);
-            DrawLineV(curveStartPositionTangent, curveEndPositionTangent, Fade(LIGHTGRAY, 0.4f));
-            DrawLineV(curveEndPosition, curveEndPositionTangent, PURPLE);
+            RLDrawLineV(curveStartPosition, curveStartPositionTangent, SKYBLUE);
+            RLDrawLineV(curveStartPositionTangent, curveEndPositionTangent, RLFade(LIGHTGRAY, 0.4f));
+            RLDrawLineV(curveEndPosition, curveEndPositionTangent, PURPLE);
 
-            if (CheckCollisionPointCircle(mouse, curveStartPosition, 6)) DrawCircleV(curveStartPosition, 7, YELLOW);
-            DrawCircleV(curveStartPosition, 5, RED);
+            if (RLCheckCollisionPointCircle(mouse, curveStartPosition, 6)) RLDrawCircleV(curveStartPosition, 7, YELLOW);
+            RLDrawCircleV(curveStartPosition, 5, RED);
 
-            if (CheckCollisionPointCircle(mouse, curveStartPositionTangent, 6)) DrawCircleV(curveStartPositionTangent, 7, YELLOW);
-            DrawCircleV(curveStartPositionTangent, 5, MAROON);
+            if (RLCheckCollisionPointCircle(mouse, curveStartPositionTangent, 6)) RLDrawCircleV(curveStartPositionTangent, 7, YELLOW);
+            RLDrawCircleV(curveStartPositionTangent, 5, MAROON);
 
-            if (CheckCollisionPointCircle(mouse, curveEndPosition, 6)) DrawCircleV(curveEndPosition, 7, YELLOW);
-            DrawCircleV(curveEndPosition, 5, GREEN);
+            if (RLCheckCollisionPointCircle(mouse, curveEndPosition, 6)) RLDrawCircleV(curveEndPosition, 7, YELLOW);
+            RLDrawCircleV(curveEndPosition, 5, GREEN);
 
-            if (CheckCollisionPointCircle(mouse, curveEndPositionTangent, 6)) DrawCircleV(curveEndPositionTangent, 7, YELLOW);
-            DrawCircleV(curveEndPositionTangent, 5, DARKGREEN);
+            if (RLCheckCollisionPointCircle(mouse, curveEndPositionTangent, 6)) RLDrawCircleV(curveEndPositionTangent, 7, YELLOW);
+            RLDrawCircleV(curveEndPositionTangent, 5, DARKGREEN);
 
             // Draw usage info
-            DrawText("Drag points to move curve, press SPACE to show/hide base curve", 10, 10, 10, DARKGRAY);
-            DrawText(TextFormat("Curve width: %2.0f (Use + and - to adjust)", curveWidth), 10, 30, 10, DARKGRAY);
-            DrawText(TextFormat("Curve segments: %d (Use LEFT and RIGHT to adjust)", curveSegments), 10, 50, 10, DARKGRAY);
+            RLDrawText("Drag points to move curve, press SPACE to show/hide base curve", 10, 10, 10, DARKGRAY);
+            RLDrawText(RLTextFormat("Curve width: %2.0f (Use + and - to adjust)", curveWidth), 10, 30, 10, DARKGRAY);
+            RLDrawText(RLTextFormat("Curve segments: %d (Use LEFT and RIGHT to adjust)", curveSegments), 10, 50, 10, DARKGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(texRoad);
+    RLUnloadTexture(texRoad);
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -160,14 +160,14 @@ static void DrawTexturedCurve(void)
 {
     const float step = 1.0f/curveSegments;
 
-    Vector2 previous = curveStartPosition;
-    Vector2 previousTangent = { 0 };
+    RLVector2 previous = curveStartPosition;
+    RLVector2 previousTangent = { 0 };
     float previousV = 0;
 
     // We can't compute a tangent for the first point, so we need to reuse the tangent from the first segment
     bool tangentSet = false;
 
-    Vector2 current = { 0 };
+    RLVector2 current = { 0 };
     float t = 0.0f;
 
     for (int i = 1; i <= curveSegments; i++)
@@ -184,10 +184,10 @@ static void DrawTexturedCurve(void)
         current.x = a*curveStartPosition.x + b*curveStartPositionTangent.x + c*curveEndPositionTangent.x + d*curveEndPosition.x;
 
         // Vector from previous to current
-        Vector2 delta = { current.x - previous.x, current.y - previous.y };
+        RLVector2 delta = { current.x - previous.x, current.y - previous.y };
 
         // The right hand normal to the delta vector
-        Vector2 normal = Vector2Normalize((Vector2){ -delta.y, delta.x });
+        RLVector2 normal = Vector2Normalize((RLVector2){ -delta.y, delta.x });
 
         // The v texture coordinate of the segment (add up the length of all the segments so far)
         float v = previousV + Vector2Length(delta) / (float)(texRoad.height * 2);
@@ -200,11 +200,11 @@ static void DrawTexturedCurve(void)
         }
 
         // Extend out the normals from the previous and current points to get the quad for this segment
-        Vector2 prevPosNormal = Vector2Add(previous, Vector2Scale(previousTangent, curveWidth));
-        Vector2 prevNegNormal = Vector2Add(previous, Vector2Scale(previousTangent, -curveWidth));
+        RLVector2 prevPosNormal = Vector2Add(previous, Vector2Scale(previousTangent, curveWidth));
+        RLVector2 prevNegNormal = Vector2Add(previous, Vector2Scale(previousTangent, -curveWidth));
 
-        Vector2 currentPosNormal = Vector2Add(current, Vector2Scale(normal, curveWidth));
-        Vector2 currentNegNormal = Vector2Add(current, Vector2Scale(normal, -curveWidth));
+        RLVector2 currentPosNormal = Vector2Add(current, Vector2Scale(normal, curveWidth));
+        RLVector2 currentNegNormal = Vector2Add(current, Vector2Scale(normal, -curveWidth));
 
         // Draw the segment as a quad
         rlSetTexture(texRoad.id);

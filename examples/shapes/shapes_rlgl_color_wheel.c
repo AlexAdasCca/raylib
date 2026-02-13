@@ -46,12 +46,12 @@ int main(void)
     float value = 1.0f;
 
     // The center of the screen
-    Vector2 center = { (float)screenWidth/2.0f, (float)screenHeight/2.0f };
+    RLVector2 center = { (float)screenWidth/2.0f, (float)screenHeight/2.0f };
     // The location of the color wheel
-    Vector2 circlePosition = center;
+    RLVector2 circlePosition = center;
 
     // The currently selected color
-    Color color = { 255, 255, 255, 255 };
+    RLColor color = { 255, 255, 255, 255 };
 
     // Indicates if the slider is being clicked
     bool sliderClicked = false;
@@ -63,37 +63,37 @@ int main(void)
     unsigned int renderType = RL_TRIANGLES;
 
     // Enable anti-aliasing
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - rlgl color wheel");
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - rlgl color wheel");
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        triangleCount += (unsigned int)GetMouseWheelMove();
+        triangleCount += (unsigned int)RLGetMouseWheelMove();
         triangleCount = (unsigned int)Clamp((float)triangleCount, (float)pointsMin, (float)pointsMax);
 
-        Rectangle sliderRectangle = { 42.0f, 16.0f + 64.0f + 45.0f, 64.0f, 16.0f };
-        Vector2 mousePosition = GetMousePosition();
+        RLRectangle sliderRectangle = { 42.0f, 16.0f + 64.0f + 45.0f, 64.0f, 16.0f };
+        RLVector2 mousePosition = RLGetMousePosition();
 
         // Checks if the user is hovering over the value slider
         bool sliderHover = (mousePosition.x >= sliderRectangle.x && mousePosition.y >= sliderRectangle.y && mousePosition.x < sliderRectangle.x + sliderRectangle.width && mousePosition.y < sliderRectangle.y + sliderRectangle.height);
 
         // Copy color as hex
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_C))
+        if (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsKeyDown(KEY_C))
         {
-            if (IsKeyPressed(KEY_C))
+            if (RLIsKeyPressed(KEY_C))
             {
-                SetClipboardText(TextFormat("#%02X%02X%02X", color.r, color.g, color.b));
+                RLSetClipboardText(RLTextFormat("#%02X%02X%02X", color.r, color.g, color.b));
             }
         }
 
         // Scale up the color wheel, adjusting the handle visually
-        if (IsKeyDown(KEY_UP))
+        if (RLIsKeyDown(KEY_UP))
         {
             pointScale *= 1.025f;
 
@@ -103,12 +103,12 @@ int main(void)
             }
             else
             {
-                circlePosition = Vector2Add(Vector2Multiply(Vector2Subtract(circlePosition, center), (Vector2){ 1.025f, 1.025f }), center);
+                circlePosition = Vector2Add(Vector2Multiply(Vector2Subtract(circlePosition, center), (RLVector2){ 1.025f, 1.025f }), center);
             }
         }
 
         // Scale down the wheel, adjusting the handle visually
-        if (IsKeyDown(KEY_DOWN))
+        if (RLIsKeyDown(KEY_DOWN))
         {
             pointScale *= 0.975f;
 
@@ -118,58 +118,58 @@ int main(void)
             }
             else
             {
-                circlePosition = Vector2Add(Vector2Multiply(Vector2Subtract(circlePosition, center), (Vector2){ 0.975f, 0.975f }), center);
+                circlePosition = Vector2Add(Vector2Multiply(Vector2Subtract(circlePosition, center), (RLVector2){ 0.975f, 0.975f }), center);
             }
 
             float distance = Vector2Distance(center, circlePosition)/pointScale;
-            float angle = ((Vector2Angle((Vector2){ 0.0f, -pointScale }, Vector2Subtract(center, circlePosition))/PI + 1.0f)/2.0f);
+            float angle = ((Vector2Angle((RLVector2){ 0.0f, -pointScale }, Vector2Subtract(center, circlePosition))/PI + 1.0f)/2.0f);
 
             if (distance > 1.0f)
             {
-                circlePosition = Vector2Add((Vector2){ sinf(angle*(PI*2.0f))*pointScale, -cosf(angle*(PI*2.0f))*pointScale }, center);
+                circlePosition = Vector2Add((RLVector2){ sinf(angle*(PI*2.0f))*pointScale, -cosf(angle*(PI*2.0f))*pointScale }, center);
             }
         }
 
         // Checks if the user clicked on the color wheel
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && Vector2Distance(GetMousePosition(), center) <= pointScale + 10.0f)
+        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) && Vector2Distance(RLGetMousePosition(), center) <= pointScale + 10.0f)
         {
             settingColor = true;
         }
 
         // Update flag when mouse button is released
-        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) settingColor = false;
+        if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) settingColor = false;
 
         // Check if the user clicked/released the slider for the color's value
-        if (sliderHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) sliderClicked = true;
+        if (sliderHover && RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) sliderClicked = true;
 
-        if (sliderClicked && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) sliderClicked = false;
+        if (sliderClicked && RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) sliderClicked = false;
 
         // Update render mode accordingly
-        if (IsKeyPressed(KEY_SPACE)) renderType = RL_LINES;
+        if (RLIsKeyPressed(KEY_SPACE)) renderType = RL_LINES;
 
-        if (IsKeyReleased(KEY_SPACE)) renderType = RL_TRIANGLES;
+        if (RLIsKeyReleased(KEY_SPACE)) renderType = RL_TRIANGLES;
 
         // If the slider or the wheel was clicked, update the current color
         if (settingColor || sliderClicked)
         {
-            if (settingColor) circlePosition = GetMousePosition();
+            if (settingColor) circlePosition = RLGetMousePosition();
 
             float distance = Vector2Distance(center, circlePosition)/pointScale;
 
-            float angle = ((Vector2Angle((Vector2){ 0.0f, -pointScale }, Vector2Subtract(center, circlePosition))/PI + 1.0f)/2.0f);
-            if (settingColor && distance > 1.0f) circlePosition = Vector2Add((Vector2){ sinf(angle*(PI*2.0f))*pointScale, -cosf(angle*(PI* 2.0f))*pointScale }, center);
+            float angle = ((Vector2Angle((RLVector2){ 0.0f, -pointScale }, Vector2Subtract(center, circlePosition))/PI + 1.0f)/2.0f);
+            if (settingColor && distance > 1.0f) circlePosition = Vector2Add((RLVector2){ sinf(angle*(PI*2.0f))*pointScale, -cosf(angle*(PI* 2.0f))*pointScale }, center);
 
             float angle360 = angle*360.0f;
             float valueActual = Clamp(distance, 0.0f, 1.0f);
-            color = ColorLerp((Color){ (int)(value*255.0f), (int)(value*255.0f), (int)(value*255.0f), 255 }, ColorFromHSV(angle360, Clamp(distance, 0.0f, 1.0f), 1.0f), valueActual);
+            color = RLColorLerp((RLColor){ (int)(value*255.0f), (int)(value*255.0f), (int)(value*255.0f), 255 }, RLColorFromHSV(angle360, Clamp(distance, 0.0f, 1.0f), 1.0f), valueActual);
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-        ClearBackground(RAYWHITE);
+        RLClearBackground(RAYWHITE);
 
         // Begin rendering color wheel
         rlBegin(renderType);
@@ -178,19 +178,19 @@ int main(void)
             float angleOffset = ((PI*2.0f)/(float)triangleCount);
             float angle = angleOffset*(float)i;
             float angleOffsetCalculated = ((float)i + 1)*angleOffset;
-            Vector2 scale = (Vector2){ pointScale, pointScale };
+            RLVector2 scale = (RLVector2){ pointScale, pointScale };
 
-            Vector2 offset = Vector2Multiply((Vector2){ sinf(angle), -cosf(angle) }, scale);
-            Vector2 offset2 = Vector2Multiply((Vector2){ sinf(angleOffsetCalculated), -cosf(angleOffsetCalculated) }, scale);
+            RLVector2 offset = Vector2Multiply((RLVector2){ sinf(angle), -cosf(angle) }, scale);
+            RLVector2 offset2 = Vector2Multiply((RLVector2){ sinf(angleOffsetCalculated), -cosf(angleOffsetCalculated) }, scale);
 
-            Vector2 position = Vector2Add(center, offset);
-            Vector2 position2 = Vector2Add(center, offset2);
+            RLVector2 position = Vector2Add(center, offset);
+            RLVector2 position2 = Vector2Add(center, offset2);
 
             float angleNonRadian = (angle/(2.0f*PI))*360.0f;
             float angleNonRadianOffset = (angleOffset/(2.0f*PI))*360.0f;
 
-            Color currentColor = ColorFromHSV(angleNonRadian, 1.0f, 1.0f);
-            Color offsetColor = ColorFromHSV(angleNonRadian + angleNonRadianOffset, 1.0f, 1.0f);
+            RLColor currentColor = RLColorFromHSV(angleNonRadian, 1.0f, 1.0f);
+            RLColor offsetColor = RLColorFromHSV(angleNonRadian + angleNonRadianOffset, 1.0f, 1.0f);
 
             // Input vertices differently depending on mode
             if (renderType == RL_TRIANGLES)
@@ -223,7 +223,7 @@ int main(void)
         rlEnd();
 
         // Make the handle slightly more visible overtop darker colors
-        Color handleColor = BLACK;
+        RLColor handleColor = BLACK;
 
         if (Vector2Distance(center, circlePosition)/pointScale <= 0.5f && value <= 0.5f)
         {
@@ -231,43 +231,43 @@ int main(void)
         }
 
         // Draw the color handle
-        DrawCircleLinesV(circlePosition, 4.0f, handleColor);
+        RLDrawCircleLinesV(circlePosition, 4.0f, handleColor);
 
         // Draw the color in a preview, with a darkened outline.
-        DrawRectangleV((Vector2){ 8.0f, 8.0f }, (Vector2){ 64.0f, 64.0f }, color);
-        DrawRectangleLinesEx((Rectangle){ 8.0f, 8.0f, 64.0f, 64.0f }, 2.0f, ColorLerp(color, BLACK, 0.5f));
+        RLDrawRectangleV((RLVector2){ 8.0f, 8.0f }, (RLVector2){ 64.0f, 64.0f }, color);
+        RLDrawRectangleLinesEx((RLRectangle){ 8.0f, 8.0f, 64.0f, 64.0f }, 2.0f, RLColorLerp(color, BLACK, 0.5f));
 
         // Draw current color as hex and decimal
-        DrawText(TextFormat("#%02X%02X%02X\n(%d, %d, %d)", color.r, color.g, color.b, color.r, color.g, color.b), 8, 8 + 64 + 8, 20, DARKGRAY);
+        RLDrawText(RLTextFormat("#%02X%02X%02X\n(%d, %d, %d)", color.r, color.g, color.b, color.r, color.g, color.b), 8, 8 + 64 + 8, 20, DARKGRAY);
 
         // Update the visuals for the copying text
-        Color copyColor = DARKGRAY;
+        RLColor copyColor = DARKGRAY;
         unsigned int offset = 0;
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_C))
+        if (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsKeyDown(KEY_C))
         {
             copyColor = DARKGREEN;
             offset = 4;
         }
 
         // Draw the copying text
-        DrawText("press ctrl+c to copy!", 8, 425 - offset, 20, copyColor);
+        RLDrawText("press ctrl+c to copy!", 8, 425 - offset, 20, copyColor);
 
         // Display the number of rendered triangles
-        DrawText(TextFormat("triangle count: %d", triangleCount), 8, 395, 20, DARKGRAY);
+        RLDrawText(RLTextFormat("triangle count: %d", triangleCount), 8, 395, 20, DARKGRAY);
 
         // Slider to change color's value
         GuiSliderBar(sliderRectangle, "value: ", "", &value, 0.0f, 1.0f);
 
         // Draw FPS next to outlined color preview
-        DrawFPS(64 + 16, 8);
+        RLDrawFPS(64 + 16, 8);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

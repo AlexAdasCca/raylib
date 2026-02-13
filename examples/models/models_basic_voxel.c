@@ -30,21 +30,21 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - basic voxel");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - basic voxel");
 
-    DisableCursor();                    // Lock mouse to window center
+    RLDisableCursor();                    // Lock mouse to window center
 
     // Define the camera to look into our 3d world (first person)
-    Camera3D camera = { 0 };
-    camera.position = (Vector3){ -2.0f, 0.0f, -2.0f };  // Camera position at ground level
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector
+    RLCamera3D camera = { 0 };
+    camera.position = (RLVector3){ -2.0f, 0.0f, -2.0f };  // Camera position at ground level
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector
     camera.fovy = 45.0f;                                 // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;              // Camera projection type
 
     // Create a cube model
-    Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);      // Create a unit cube mesh
-    Model cubeModel = LoadModelFromMesh(cubeMesh);       // Convert mesh to a model
+    RLMesh cubeMesh = RLGenMeshCube(1.0f, 1.0f, 1.0f);      // Create a unit cube mesh
+    RLModel cubeModel = RLLoadModelFromMesh(cubeMesh);       // Convert mesh to a model
     cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].color = BEIGE;
 
     // Initialize voxel world - fill with voxels
@@ -60,22 +60,22 @@ int main(void)
         }
     }
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
 
         // Handle voxel removal with mouse click
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+        if (RLIsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
             // Cast a ray from the screen center (where crosshair would be)
-            Vector2 screenCenter = { screenWidth/2.0f, screenHeight/2.0f };
-            Ray ray = GetMouseRay(screenCenter, camera);
+            RLVector2 screenCenter = { screenWidth/2.0f, screenHeight/2.0f };
+            RLRay ray = GetMouseRay(screenCenter, camera);
 
             // Check ray collision with all voxels
             bool voxelRemoved = false;
@@ -88,14 +88,14 @@ int main(void)
                         if (!voxels[x][y][z]) continue; // Skip empty voxels
 
                         // Build a bounding box for this voxel
-                        Vector3 position = { (float)x, (float)y, (float)z };
-                        BoundingBox box = {
-                            (Vector3){ position.x - 0.5f, position.y - 0.5f, position.z - 0.5f },
-                            (Vector3){ position.x + 0.5f, position.y + 0.5f, position.z + 0.5f }
+                        RLVector3 position = { (float)x, (float)y, (float)z };
+                        RLBoundingBox box = {
+                            (RLVector3){ position.x - 0.5f, position.y - 0.5f, position.z - 0.5f },
+                            (RLVector3){ position.x + 0.5f, position.y + 0.5f, position.z + 0.5f }
                         };
 
                         // Check ray-box collision
-                        RayCollision collision = GetRayCollisionBox(ray, box);
+                        RLRayCollision collision = RLGetRayCollisionBox(ray, box);
                         if (collision.hit)
                         {
                             voxels[x][y][z] = false;    // Remove this voxel
@@ -109,13 +109,13 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
-                DrawGrid(10, 1.0f);
+                RLDrawGrid(10, 1.0f);
 
                 // Draw all voxels
                 for (int x = 0; x < WORLD_SIZE; x++)
@@ -126,26 +126,26 @@ int main(void)
                         {
                             if (!voxels[x][y][z]) continue;
 
-                            Vector3 position = { (float)x, (float)y, (float)z };
-                            DrawModel(cubeModel, position, 1.0f, BEIGE);
-                            DrawCubeWires(position, 1.0f, 1.0f, 1.0f, BLACK);
+                            RLVector3 position = { (float)x, (float)y, (float)z };
+                            RLDrawModel(cubeModel, position, 1.0f, BEIGE);
+                            RLDrawCubeWires(position, 1.0f, 1.0f, 1.0f, BLACK);
                         }
                     }
                 }
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawText("Left-click a voxel to remove it!", 10, 10, 20, DARKGRAY);
-            DrawText("WASD to move, mouse to look around", 10, 35, 10, GRAY);
+            RLDrawText("Left-click a voxel to remove it!", 10, 10, 20, DARKGRAY);
+            RLDrawText("WASD to move, mouse to look around", 10, 35, 10, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadModel(cubeModel);
-    CloseWindow();
+    RLUnloadModel(cubeModel);
+    RLCloseWindow();
     //--------------------------------------------------------------------------------------
 
     return 0;

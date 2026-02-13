@@ -35,74 +35,74 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - texture tiling");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - texture tiling");
 
     // Define the camera to look into our 3d world
-    Camera3D camera = { 0 };
-    camera.position = (Vector3){ 4.0f, 4.0f, 4.0f }; // Camera position
-    camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera3D camera = { 0 };
+    camera.position = (RLVector3){ 4.0f, 4.0f, 4.0f }; // Camera position
+    camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load a cube model
-    Mesh cube = GenMeshCube(1.0f, 1.0f, 1.0f);
-    Model model = LoadModelFromMesh(cube);
+    RLMesh cube = RLGenMeshCube(1.0f, 1.0f, 1.0f);
+    RLModel model = RLLoadModelFromMesh(cube);
 
     // Load a texture and assign to cube model
-    Texture2D texture = LoadTexture("resources/cubicmap_atlas.png");
+    RLTexture2D texture = RLLoadTexture("resources/cubicmap_atlas.png");
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
 
     // Set the texture tiling using a shader
     float tiling[2] = { 3.0f, 3.0f };
-    Shader shader = LoadShader(0, TextFormat("resources/shaders/glsl%i/tiling.fs", GLSL_VERSION));
-    SetShaderValue(shader, GetShaderLocation(shader, "tiling"), tiling, SHADER_UNIFORM_VEC2);
+    RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/tiling.fs", GLSL_VERSION));
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "tiling"), tiling, SHADER_UNIFORM_VEC2);
     model.materials[0].shader = shader;
 
-    DisableCursor();                    // Limit cursor to relative movement inside the window
+    RLDisableCursor();                    // Limit cursor to relative movement inside the window
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_FREE);
+        RLUpdateCamera(&camera, CAMERA_FREE);
 
-        if (IsKeyPressed('Z')) camera.target = (Vector3){ 0.0f, 0.5f, 0.0f };
+        if (RLIsKeyPressed('Z')) camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
-                BeginShaderMode(shader);
-                    DrawModel(model, (Vector3){ 0.0f, 0.0f, 0.0f }, 2.0f, WHITE);
-                EndShaderMode();
+                RLBeginShaderMode(shader);
+                    RLDrawModel(model, (RLVector3){ 0.0f, 0.0f, 0.0f }, 2.0f, WHITE);
+                RLEndShaderMode();
 
-                DrawGrid(10, 1.0f);
+                RLDrawGrid(10, 1.0f);
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawText("Use mouse to rotate the camera", 10, 10, 20, DARKGRAY);
+            RLDrawText("Use mouse to rotate the camera", 10, 10, 20, DARKGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadModel(model);         // Unload model
-    UnloadShader(shader);       // Unload shader
-    UnloadTexture(texture);     // Unload texture
+    RLUnloadModel(model);         // Unload model
+    RLUnloadShader(shader);       // Unload shader
+    RLUnloadTexture(texture);     // Unload texture
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

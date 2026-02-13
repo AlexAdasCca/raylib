@@ -18,7 +18,7 @@
 #include "raylib.h"
 
 #define MAX_SOUNDS 10
-Sound soundArray[MAX_SOUNDS] = { 0 };
+RLSound soundArray[MAX_SOUNDS] = { 0 };
 int currentSound;
 
 //------------------------------------------------------------------------------------
@@ -31,30 +31,30 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [audio] example - sound multi");
+    RLInitWindow(screenWidth, screenHeight, "raylib [audio] example - sound multi");
 
-    InitAudioDevice();      // Initialize audio device
+    RLInitAudioDevice();      // Initialize audio device
 
     // Load audio file into the first slot as the 'source' sound,
     // this sound owns the sample data
-    soundArray[0] = LoadSound("resources/sound.wav");
+    soundArray[0] = RLLoadSound("resources/sound.wav");
 
     // Load an alias of the sound into slots 1-9. These do not own the sound data, but can be played
-    for (int i = 1; i < MAX_SOUNDS; i++) soundArray[i] = LoadSoundAlias(soundArray[0]);
+    for (int i = 1; i < MAX_SOUNDS; i++) soundArray[i] = RLLoadSoundAlias(soundArray[0]);
 
     currentSound = 0;               // Set the sound list to the start
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(KEY_SPACE))
         {
-            PlaySound(soundArray[currentSound]);    // Play the next open sound slot
+            RLPlaySound(soundArray[currentSound]);    // Play the next open sound slot
             currentSound++;                         // Increment the sound slot
 
             // If the sound slot is out of bounds, go back to 0
@@ -67,24 +67,24 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawText("Press SPACE to PLAY a WAV sound!", 200, 180, 20, LIGHTGRAY);
+            RLDrawText("Press SPACE to PLAY a WAV sound!", 200, 180, 20, LIGHTGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    for (int i = 1; i < MAX_SOUNDS; i++) UnloadSoundAlias(soundArray[i]); // Unload sound aliases
-    UnloadSound(soundArray[0]); // Unload source sound data
+    for (int i = 1; i < MAX_SOUNDS; i++) RLUnloadSoundAlias(soundArray[i]); // Unload sound aliases
+    RLUnloadSound(soundArray[0]); // Unload source sound data
 
-    CloseAudioDevice();     // Close audio device
+    RLCloseAudioDevice();     // Close audio device
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

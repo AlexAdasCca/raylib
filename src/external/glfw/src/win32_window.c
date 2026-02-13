@@ -36,6 +36,235 @@
 #include <windowsx.h>
 #include <shellapi.h>
 
+// -------------------------------------------------------------------------
+// Win32 per-thread event wait / wake support
+// -------------------------------------------------------------------------
+
+_GLFWwin32ThreadContext* _glfwGetThreadContextWin32(void)
+{
+    _GLFWwin32ThreadContext* ctx = NULL;
+    const DWORD tid = GetCurrentThreadId();
+
+    if (_glfw.win32.threadLock)
+        _glfwPlatformLockMutex(_glfw.win32.threadLock);
+
+    // Find existing context
+    for (ctx = _glfw.win32.threadContexts; ctx; ctx = ctx->next)
+    {
+        if (ctx->tid == tid)
+            break;
+    }
+
+    if (!ctx)
+    {
+        ctx = _glfw_calloc(1, sizeof(_GLFWwin32ThreadContext));
+        if (!ctx)
+        {
+            if (_glfw.win32.threadLock)
+                _glfwPlatformUnlockMutex(_glfw.win32.threadLock);
+
+            _glfwInputError(GLFW_OUT_OF_MEMORY, "Win32: Failed to allocate thread context");
+            return NULL;
+        }
+
+        ctx->tid = tid;
+        ctx->wakeEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+        if (!ctx->wakeEvent)
+        {
+            if (_glfw.win32.threadLock)
+                _glfwPlatformUnlockMutex(_glfw.win32.threadLock);
+
+            _glfw_free(ctx);
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Win32: Failed to create thread wake event");
+            return NULL;
+        }
+
+        InitializeCriticalSection(&ctx->tasksLock);
+        ctx->tasksHead = NULL;
+        ctx->tasksTail = NULL;
+        ctx->dispatchWindow = NULL;
+
+        ctx->next = _glfw.win32.threadContexts;
+        _glfw.win32.threadContexts = ctx;
+    }
+
+    if (_glfw.win32.threadLock)
+        _glfwPlatformUnlockMutex(_glfw.win32.threadLock);
+
+    // Ensure dispatch window exists (outside of global threadLock)
+    _glfwEnsureDispatchWindowWin32(ctx);
+
+    return ctx;
+}
+
+
+// -------------------------------------------------------------------------
+// Win32 dispatch window and cross-thread task queue
+// -------------------------------------------------------------------------
+
+#define GLFW_WM_THREAD_TASK   (WM_APP + 0x3A)
+#define GLFW_WM_THREAD_WAKE   (WM_APP + 0x3B)
+#define GLFW_TIMER_REFRESH    1
+
+static LRESULT CALLBACK dispatchWindowProcWin32(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    _GLFWwin32ThreadContext* ctx = (_GLFWwin32ThreadContext*) GetWindowLongPtrW(hWnd, GWLP_USERDATA);
+
+    if (uMsg == WM_NCCREATE)
+    {
+        const CREATESTRUCTW* cs = (const CREATESTRUCTW*) lParam;
+        ctx = (_GLFWwin32ThreadContext*) cs->lpCreateParams;
+        SetWindowLongPtrW(hWnd, GWLP_USERDATA, (LONG_PTR) ctx);
+        return TRUE;
+    }
+
+    if (!ctx)
+        return DefWindowProcW(hWnd, uMsg, wParam, lParam);
+
+    switch (uMsg)
+    {
+        case GLFW_WM_THREAD_TASK:
+            _glfwDrainThreadTasksWin32(ctx);
+            return 0;
+        case GLFW_WM_THREAD_WAKE:
+            // No-op message used to break modal loops / wake message waits
+            return 0;
+    }
+
+    return DefWindowProcW(hWnd, uMsg, wParam, lParam);
+}
+
+GLFWbool _glfwEnsureDispatchWindowWin32(_GLFWwin32ThreadContext* ctx)
+{
+    if (!ctx)
+        return GLFW_FALSE;
+
+    if (ctx->dispatchWindow)
+        return GLFW_TRUE;
+
+    // Ensure the dispatch window class is registered once per process
+    if (!_glfw.win32.dispatchWindowClass)
+    {
+        WNDCLASSEXW wc;
+        ZeroMemory(&wc, sizeof(wc));
+        wc.cbSize = sizeof(wc);
+        wc.style = CS_HREDRAW | CS_VREDRAW;
+        wc.lpfnWndProc = dispatchWindowProcWin32;
+        wc.hInstance = _glfw.win32.instance;
+        wc.lpszClassName = L"GLFW3 Thread Dispatch";
+
+        _glfw.win32.dispatchWindowClass = RegisterClassExW(&wc);
+        if (!_glfw.win32.dispatchWindowClass)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Win32: Failed to register dispatch window class");
+            return GLFW_FALSE;
+        }
+    }
+
+    ctx->dispatchWindow = CreateWindowExW(0,
+                                         MAKEINTATOM(_glfw.win32.dispatchWindowClass),
+                                         L"",
+                                         0, 0, 0, 0, 0,
+                                         HWND_MESSAGE,
+                                         NULL,
+                                         _glfw.win32.instance,
+                                         ctx);
+
+    if (!ctx->dispatchWindow)
+    {
+        _glfwInputError(GLFW_PLATFORM_ERROR, "Win32: Failed to create dispatch window");
+        return GLFW_FALSE;
+    }
+
+    return GLFW_TRUE;
+}
+
+void _glfwDrainThreadTasksWin32(_GLFWwin32ThreadContext* ctx)
+{
+    if (!ctx)
+        return;
+
+    for (;;)
+    {
+        _GLFWwin32ThreadTask* task = NULL;
+
+        EnterCriticalSection(&ctx->tasksLock);
+        task = ctx->tasksHead;
+        if (task)
+        {
+            ctx->tasksHead = task->next;
+            if (!ctx->tasksHead)
+                ctx->tasksTail = NULL;
+        }
+        LeaveCriticalSection(&ctx->tasksLock);
+
+        if (!task)
+            break;
+
+        if (task->fn)
+            task->fn(task->user);
+
+        _glfw_free(task);
+    }
+}
+
+void _glfwPostTaskWin32(_GLFWwin32ThreadContext* ctx, void (*fn)(void* user), void* user)
+{
+    if (!ctx || !fn)
+        return;
+
+    if (!_glfwEnsureDispatchWindowWin32(ctx))
+        return;
+
+    _GLFWwin32ThreadTask* task = _glfw_calloc(1, sizeof(_GLFWwin32ThreadTask));
+    if (!task)
+    {
+        _glfwInputError(GLFW_OUT_OF_MEMORY, NULL);
+        return;
+    }
+
+    task->fn = fn;
+    task->user = user;
+
+    EnterCriticalSection(&ctx->tasksLock);
+    if (ctx->tasksTail)
+        ctx->tasksTail->next = task;
+    else
+        ctx->tasksHead = task;
+    ctx->tasksTail = task;
+    LeaveCriticalSection(&ctx->tasksLock);
+
+    // Wake the owning thread even if it's blocked in WaitEvents or a modal loop
+    if (ctx->wakeEvent)
+        SetEvent(ctx->wakeEvent);
+    PostMessageW(ctx->dispatchWindow, GLFW_WM_THREAD_TASK, 0, 0);
+}
+
+void _glfwWakeThreadWin32(_GLFWwin32ThreadContext* ctx)
+{
+    if (!ctx)
+        return;
+
+    if (ctx->wakeEvent)
+        SetEvent(ctx->wakeEvent);
+
+    if (ctx->dispatchWindow)
+        PostMessageW(ctx->dispatchWindow, GLFW_WM_THREAD_WAKE, 0, 0);
+}
+
+static void wakeAllThreadsWin32(void)
+{
+    _GLFWwin32ThreadContext* ctx;
+
+    _glfwPlatformLockMutex(_glfw.win32.threadLock);
+    for (ctx = _glfw.win32.threadContexts; ctx; ctx = ctx->next)
+    {
+        if (ctx->wakeEvent)
+            SetEvent(ctx->wakeEvent);
+    }
+    _glfwPlatformUnlockMutex(_glfw.win32.threadLock);
+}
+
 // Returns the window style for the specified window
 //
 static DWORD getWindowStyle(const _GLFWwindow* window)
@@ -989,6 +1218,20 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
             return 0;
         }
 
+        case WM_TIMER:
+        {
+            if (wParam == GLFW_TIMER_REFRESH)
+            {
+                // Drive refresh callbacks while in modal move/size loops so that
+                // rendering can be woken even when DefWindowProc enters a modal loop.
+                if (window->callbacks.refresh)
+                    _glfwInputWindowDamage(window);
+                return 0;
+            }
+
+            break;
+        }
+
         case WM_ENTERSIZEMOVE:
         case WM_ENTERMENULOOP:
         {
@@ -1001,6 +1244,11 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
                 enableCursor(window);
             else if (window->cursorMode == GLFW_CURSOR_CAPTURED)
                 releaseCursor();
+
+            // Optional: While moving/resizing, generate periodic refresh so that
+            // applications can keep repainting.
+            if (uMsg == WM_ENTERSIZEMOVE && window->callbacks.refresh && !window->win32.refreshTimerId)
+                window->win32.refreshTimerId = SetTimer(window->win32.handle, GLFW_TIMER_REFRESH, 16, NULL);
 
             break;
         }
@@ -1017,6 +1265,14 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
                 disableCursor(window);
             else if (window->cursorMode == GLFW_CURSOR_CAPTURED)
                 captureCursor(window);
+
+            if (uMsg == WM_EXITSIZEMOVE && window->win32.refreshTimerId)
+            {
+                KillTimer(window->win32.handle, GLFW_TIMER_REFRESH);
+                window->win32.refreshTimerId = 0;
+                if (window->callbacks.refresh)
+                    _glfwInputWindowDamage(window);
+            }
 
             break;
         }
@@ -2105,19 +2361,68 @@ void _glfwPollEventsWin32(void)
     HWND handle;
     _GLFWwindow* window;
 
+    // Ensure this thread is registered for event wake-ups
+    (void) _glfwGetThreadContextWin32();
+
     while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
     {
         if (msg.message == WM_QUIT)
         {
             // NOTE: While GLFW does not itself post WM_QUIT, other processes
             //       may post it to this one, for example Task Manager
-            // HACK: Treat WM_QUIT as a close on all windows
+            // NOTE: Treat WM_QUIT as a close request for windows owned by this thread
 
-            window = _glfw.windowListHead;
-            while (window)
+            const DWORD tid = GetCurrentThreadId();
+            int count = 0, i = 0;
+            _GLFWwindow** list = NULL;
+
+            _glfwPlatformLockMutex(&_glfw.windowListLock);
+            for (window = _glfw.windowListHead; window; window = window->next)
             {
-                _glfwInputWindowCloseRequest(window);
-                window = window->next;
+                if (window->win32.handle &&
+                    GetWindowThreadProcessId(window->win32.handle, NULL) == tid)
+                {
+                    count++;
+                }
+            }
+            _glfwPlatformUnlockMutex(&_glfw.windowListLock);
+
+            if (count > 0)
+                list = _glfw_calloc(count, sizeof(*list));
+
+            if (list)
+            {
+                _glfwPlatformLockMutex(&_glfw.windowListLock);
+                for (window = _glfw.windowListHead; window; window = window->next)
+                {
+                    if (window->win32.handle &&
+                        GetWindowThreadProcessId(window->win32.handle, NULL) == tid)
+                    {
+                        if (i < count)
+                            list[i++] = window;
+                    }
+                }
+                _glfwPlatformUnlockMutex(&_glfw.windowListLock);
+
+                for (i = 0; i < count; i++)
+                    _glfwInputWindowCloseRequest(list[i]);
+
+                _glfw_free(list);
+            }
+            else
+            {
+                // Fallback: best-effort without snapshot (avoid holding the list lock across callbacks)
+                _glfwPlatformLockMutex(&_glfw.windowListLock);
+                for (window = _glfw.windowListHead; window; window = window->next)
+                {
+                    if (!window->win32.handle)
+                        continue;
+                    if (GetWindowThreadProcessId(window->win32.handle, NULL) != tid)
+                        continue;
+                    // Mark close request without invoking user callback directly
+                    window->shouldClose = GLFW_TRUE;
+                }
+                _glfwPlatformUnlockMutex(&_glfw.windowListLock);
             }
         }
         else
@@ -2184,20 +2489,37 @@ void _glfwPollEventsWin32(void)
 
 void _glfwWaitEventsWin32(void)
 {
-    WaitMessage();
+    _GLFWwin32ThreadContext* ctx = _glfwGetThreadContextWin32();
+    HANDLE handle = ctx ? ctx->wakeEvent : NULL;
+
+    if (handle)
+        MsgWaitForMultipleObjectsEx(1, &handle, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+    else
+        WaitMessage();
 
     _glfwPollEventsWin32();
 }
 
 void _glfwWaitEventsTimeoutWin32(double timeout)
 {
-    MsgWaitForMultipleObjects(0, NULL, FALSE, (DWORD) (timeout * 1e3), QS_ALLINPUT);
+    _GLFWwin32ThreadContext* ctx = _glfwGetThreadContextWin32();
+    HANDLE handle = ctx ? ctx->wakeEvent : NULL;
+    DWORD millis = (DWORD) (timeout * 1e3);
+
+    if (handle)
+        MsgWaitForMultipleObjectsEx(1, &handle, millis, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+    else
+        MsgWaitForMultipleObjects(0, NULL, FALSE, millis, QS_ALLINPUT);
 
     _glfwPollEventsWin32();
 }
 
 void _glfwPostEmptyEventWin32(void)
 {
+    // Wake all threads currently pumping GLFW events
+    wakeAllThreadsWin32();
+
+    // Also poke the helper window message queue (legacy behavior)
     PostMessageW(_glfw.win32.helperWindowHandle, WM_NULL, 0, 0);
 }
 

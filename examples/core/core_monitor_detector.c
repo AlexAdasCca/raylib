@@ -21,7 +21,7 @@
 
 // Monitor info
 typedef struct MonitorInfo {
-    Vector2 position;
+    RLVector2 position;
     const char *name;
     int width;
     int height;
@@ -40,17 +40,17 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - monitor detector");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - monitor detector");
 
     MonitorInfo monitors[MAX_MONITORS] = { 0 };
-    int currentMonitorIndex = GetCurrentMonitor();
+    int currentMonitorIndex = RLGetCurrentMonitor();
     int monitorCount = 0;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -62,17 +62,17 @@ int main(void)
         int monitorOffsetX = 0;
 
         // Rebuild monitors array every frame
-        monitorCount = GetMonitorCount();
+        monitorCount = RLGetMonitorCount();
         for (int i = 0; i < monitorCount; i++)
         {
             monitors[i] = (MonitorInfo){
-                GetMonitorPosition(i),
-                GetMonitorName(i),
-                GetMonitorWidth(i),
-                GetMonitorHeight(i),
-                GetMonitorPhysicalWidth(i),
-                GetMonitorPhysicalHeight(i),
-                GetMonitorRefreshRate(i)
+                RLGetMonitorPosition(i),
+                RLGetMonitorName(i),
+                RLGetMonitorWidth(i),
+                RLGetMonitorHeight(i),
+                RLGetMonitorPhysicalWidth(i),
+                RLGetMonitorPhysicalHeight(i),
+                RLGetMonitorRefreshRate(i)
             };
 
             if (monitors[i].position.x < monitorOffsetX) monitorOffsetX = -(int)monitors[i].position.x;
@@ -84,16 +84,16 @@ int main(void)
             if (maxHeight < height) maxHeight = height;
         }
 
-        if (IsKeyPressed(KEY_ENTER) && (monitorCount > 1))
+        if (RLIsKeyPressed(KEY_ENTER) && (monitorCount > 1))
         {
             currentMonitorIndex += 1;
 
             // Set index to 0 if the last one
             if (currentMonitorIndex == monitorCount) currentMonitorIndex = 0;
 
-            SetWindowMonitor(currentMonitorIndex); // Move window to currentMonitorIndex
+            RLSetWindowMonitor(currentMonitorIndex); // Move window to currentMonitorIndex
         }
-        else currentMonitorIndex = GetCurrentMonitor(); // Get currentMonitorIndex if manually moved
+        else currentMonitorIndex = RLGetCurrentMonitor(); // Get currentMonitorIndex if manually moved
 
         float monitorScale = 0.6f;
 
@@ -103,19 +103,19 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawText("Press [Enter] to move window to next monitor available", 20, 20, 20, DARKGRAY);
+            RLDrawText("Press [Enter] to move window to next monitor available", 20, 20, 20, DARKGRAY);
 
-            DrawRectangleLines(20, 60, screenWidth - 40, screenHeight - 100, DARKGRAY);
+            RLDrawRectangleLines(20, 60, screenWidth - 40, screenHeight - 100, DARKGRAY);
 
             // Draw Monitor Rectangles with information inside
             for (int i = 0; i < monitorCount; i++)
             {
                 // Calculate retangle position and size using monitorScale
-                const Rectangle rec = (Rectangle){
+                const RLRectangle rec = (RLRectangle){
                     (monitors[i].position.x + monitorOffsetX)*monitorScale + 140,
                     monitors[i].position.y*monitorScale + 80,
                     monitors[i].width*monitorScale,
@@ -123,9 +123,9 @@ int main(void)
                 };
 
                 // Draw monitor name and information inside the rectangle
-                DrawText(TextFormat("[%i] %s", i, monitors[i].name), (int)rec.x + 10, (int)rec.y + (int)(100*monitorScale), (int)(120*monitorScale), BLUE);
-                DrawText(
-                    TextFormat("Resolution: [%ipx x %ipx]\nRefreshRate: [%ihz]\nPhysical Size: [%imm x %imm]\nPosition: %3.0f x %3.0f",
+                RLDrawText(RLTextFormat("[%i] %s", i, monitors[i].name), (int)rec.x + 10, (int)rec.y + (int)(100*monitorScale), (int)(120*monitorScale), BLUE);
+                RLDrawText(
+                    RLTextFormat("Resolution: [%ipx x %ipx]\nRefreshRate: [%ihz]\nPhysical Size: [%imm x %imm]\nPosition: %3.0f x %3.0f",
                         monitors[i].width,
                         monitors[i].height,
                         monitors[i].refreshRate,
@@ -138,22 +138,22 @@ int main(void)
                 // Highlight current monitor
                 if (i == currentMonitorIndex)
                 {
-                    DrawRectangleLinesEx(rec, 5, RED);
-                    Vector2 windowPosition = (Vector2){ (GetWindowPosition().x + monitorOffsetX)*monitorScale  + 140, GetWindowPosition().y*monitorScale + 80 };
+                    RLDrawRectangleLinesEx(rec, 5, RED);
+                    RLVector2 windowPosition = (RLVector2){ (RLGetWindowPosition().x + monitorOffsetX)*monitorScale  + 140, RLGetWindowPosition().y*monitorScale + 80 };
 
                     // Draw window position based on monitors
-                    DrawRectangleV(windowPosition, (Vector2){screenWidth*monitorScale, screenHeight*monitorScale}, Fade(GREEN, 0.5));
+                    RLDrawRectangleV(windowPosition, (RLVector2){screenWidth*monitorScale, screenHeight*monitorScale}, RLFade(GREEN, 0.5));
                 }
-                else DrawRectangleLinesEx(rec, 5, GRAY);
+                else RLDrawRectangleLinesEx(rec, 5, GRAY);
             }
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

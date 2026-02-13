@@ -22,8 +22,8 @@
 //----------------------------------------------------------------------------------
 // Particle structure
 typedef struct {
-    Vector2 position;
-    Color color;
+    RLVector2 position;
+    RLColor color;
     float alpha;
     float size;
     float rotation;
@@ -40,7 +40,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - particles blending");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - particles blending");
 
     // Particles pool, reuse them!
     Particle mouseTail[MAX_PARTICLES] = { 0 };
@@ -48,25 +48,25 @@ int main(void)
     // Initialize particles
     for (int i = 0; i < MAX_PARTICLES; i++)
     {
-        mouseTail[i].position = (Vector2){ 0, 0 };
-        mouseTail[i].color = (Color){ GetRandomValue(0, 255), GetRandomValue(0, 255), GetRandomValue(0, 255), 255 };
+        mouseTail[i].position = (RLVector2){ 0, 0 };
+        mouseTail[i].color = (RLColor){ RLGetRandomValue(0, 255), RLGetRandomValue(0, 255), RLGetRandomValue(0, 255), 255 };
         mouseTail[i].alpha = 1.0f;
-        mouseTail[i].size = (float)GetRandomValue(1, 30)/20.0f;
-        mouseTail[i].rotation = (float)GetRandomValue(0, 360);
+        mouseTail[i].size = (float)RLGetRandomValue(1, 30)/20.0f;
+        mouseTail[i].rotation = (float)RLGetRandomValue(0, 360);
         mouseTail[i].active = false;
     }
 
     float gravity = 3.0f;
 
-    Texture2D smoke = LoadTexture("resources/spark_flame.png");
+    RLTexture2D smoke = RLLoadTexture("resources/spark_flame.png");
 
     int blending = BLEND_ALPHA;
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -81,7 +81,7 @@ int main(void)
             {
                 mouseTail[i].active = true;
                 mouseTail[i].alpha = 1.0f;
-                mouseTail[i].position = GetMousePosition();
+                mouseTail[i].position = RLGetMousePosition();
                 i = MAX_PARTICLES;
             }
         }
@@ -99,7 +99,7 @@ int main(void)
             }
         }
 
-        if (IsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(KEY_SPACE))
         {
             if (blending == BLEND_ALPHA) blending = BLEND_ADDITIVE;
             else blending = BLEND_ALPHA;
@@ -108,37 +108,37 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(DARKGRAY);
+            RLClearBackground(DARKGRAY);
 
-            BeginBlendMode(blending);
+            RLBeginBlendMode(blending);
 
                 // Draw active particles
                 for (int i = 0; i < MAX_PARTICLES; i++)
                 {
-                    if (mouseTail[i].active) DrawTexturePro(smoke, (Rectangle){ 0.0f, 0.0f, (float)smoke.width, (float)smoke.height },
-                                                           (Rectangle){ mouseTail[i].position.x, mouseTail[i].position.y, smoke.width*mouseTail[i].size, smoke.height*mouseTail[i].size },
-                                                           (Vector2){ (float)(smoke.width*mouseTail[i].size/2.0f), (float)(smoke.height*mouseTail[i].size/2.0f) }, mouseTail[i].rotation,
-                                                           Fade(mouseTail[i].color, mouseTail[i].alpha));
+                    if (mouseTail[i].active) RLDrawTexturePro(smoke, (RLRectangle){ 0.0f, 0.0f, (float)smoke.width, (float)smoke.height },
+                                                           (RLRectangle){ mouseTail[i].position.x, mouseTail[i].position.y, smoke.width*mouseTail[i].size, smoke.height*mouseTail[i].size },
+                                                           (RLVector2){ (float)(smoke.width*mouseTail[i].size/2.0f), (float)(smoke.height*mouseTail[i].size/2.0f) }, mouseTail[i].rotation,
+                                                           RLFade(mouseTail[i].color, mouseTail[i].alpha));
                 }
 
-            EndBlendMode();
+            RLEndBlendMode();
 
-            DrawText("PRESS SPACE to CHANGE BLENDING MODE", 180, 20, 20, BLACK);
+            RLDrawText("PRESS SPACE to CHANGE BLENDING MODE", 180, 20, 20, BLACK);
 
-            if (blending == BLEND_ALPHA) DrawText("ALPHA BLENDING", 290, screenHeight - 40, 20, BLACK);
-            else DrawText("ADDITIVE BLENDING", 280, screenHeight - 40, 20, RAYWHITE);
+            if (blending == BLEND_ALPHA) RLDrawText("ALPHA BLENDING", 290, screenHeight - 40, 20, BLACK);
+            else RLDrawText("ADDITIVE BLENDING", 280, screenHeight - 40, 20, RAYWHITE);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(smoke);
+    RLUnloadTexture(smoke);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

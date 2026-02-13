@@ -24,7 +24,7 @@
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
 static const char *GetKeyText(int key);
-static void GuiKeyboardKey(Rectangle bounds, int key);
+static void GuiKeyboardKey(RLRectangle bounds, int key);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -36,8 +36,8 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard testbed");
-    SetExitKey(KEY_NULL); // Avoid exit on KEY_ESCAPE
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard testbed");
+    RLSetExitKey(KEY_NULL); // Avoid exit on KEY_ESCAPE
 
     // Keyboard line 01
     int line01KeyWidths[15] = { 0 };
@@ -104,36 +104,36 @@ int main(void)
         KEY_RIGHT_CONTROL, KEY_LEFT, KEY_DOWN, KEY_RIGHT
     };
     
-    Vector2 keyboardOffset = { 26, 80 };
+    RLVector2 keyboardOffset = { 26, 80 };
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        int key = GetKeyPressed(); // Get pressed keycode
-        if (key > 0) TraceLog(LOG_INFO, "KEYBOARD TESTBED: KEY PRESSED:    %d", key);
+        int key = RLGetKeyPressed(); // Get pressed keycode
+        if (key > 0) RLTraceLog(LOG_INFO, "KEYBOARD TESTBED: KEY PRESSED:    %d", key);
 
-        int ch = GetCharPressed(); // Get pressed char for text input, using OS mapping
-        if (ch > 0) TraceLog(LOG_INFO,  "KEYBOARD TESTBED: CHAR PRESSED:   %c (%d)", ch, ch);
+        int ch = RLGetCharPressed(); // Get pressed char for text input, using OS mapping
+        if (ch > 0) RLTraceLog(LOG_INFO,  "KEYBOARD TESTBED: CHAR PRESSED:   %c (%d)", ch, ch);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawText("KEYBOARD LAYOUT: ENG-US", 26, 38, 20, LIGHTGRAY);
+            RLDrawText("KEYBOARD LAYOUT: ENG-US", 26, 38, 20, LIGHTGRAY);
             
             // Keyboard line 01 - 15 keys
             // ESC, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, IMP, CLOSE
             for (int i = 0, recOffsetX = 0; i < 15; i++) 
             {
-                GuiKeyboardKey((Rectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y, line01KeyWidths[i], 30 }, line01Keys[i]);
+                GuiKeyboardKey((RLRectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y, line01KeyWidths[i], 30 }, line01Keys[i]);
                 recOffsetX += line01KeyWidths[i] + KEY_REC_SPACING;
             }
  
@@ -141,7 +141,7 @@ int main(void)
             // `, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, -, =, BACKSPACE, DEL
             for (int i = 0, recOffsetX = 0; i < 15; i++) 
             {
-                GuiKeyboardKey((Rectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + KEY_REC_SPACING, line02KeyWidths[i], 38 }, line02Keys[i]);
+                GuiKeyboardKey((RLRectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + KEY_REC_SPACING, line02KeyWidths[i], 38 }, line02Keys[i]);
                 recOffsetX += line02KeyWidths[i] + KEY_REC_SPACING;
             }
             
@@ -149,7 +149,7 @@ int main(void)
             // TAB, Q, W, E, R, T, Y, U, I, O, P, [, ], \, INS
             for (int i = 0, recOffsetX = 0; i < 15; i++)
             {
-                GuiKeyboardKey((Rectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + 38 + KEY_REC_SPACING*2, line03KeyWidths[i], 38 }, line03Keys[i]);
+                GuiKeyboardKey((RLRectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + 38 + KEY_REC_SPACING*2, line03KeyWidths[i], 38 }, line03Keys[i]);
                 recOffsetX += line03KeyWidths[i] + KEY_REC_SPACING;
             }
 
@@ -157,7 +157,7 @@ int main(void)
             // MAYUS, A, S, D, F, G, H, J, K, L, ;, ', ENTER, REPAG
             for (int i = 0, recOffsetX = 0; i < 14; i++)
             {
-                GuiKeyboardKey((Rectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + 38*2 + KEY_REC_SPACING*3, line04KeyWidths[i], 38 }, line04Keys[i]);
+                GuiKeyboardKey((RLRectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + 38*2 + KEY_REC_SPACING*3, line04KeyWidths[i], 38 }, line04Keys[i]);
                 recOffsetX += line04KeyWidths[i] + KEY_REC_SPACING;
             }
 
@@ -165,7 +165,7 @@ int main(void)
             // LSHIFT, Z, X, C, V, B, N, M, ,, ., /, RSHIFT, UP, AVPAG
             for (int i = 0, recOffsetX = 0; i < 14; i++)
             {
-                GuiKeyboardKey((Rectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + 38*3 + KEY_REC_SPACING*4, line05KeyWidths[i], 38 }, line05Keys[i]);
+                GuiKeyboardKey((RLRectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + 38*3 + KEY_REC_SPACING*4, line05KeyWidths[i], 38 }, line05Keys[i]);
                 recOffsetX += line05KeyWidths[i] + KEY_REC_SPACING;
             }
 
@@ -173,17 +173,17 @@ int main(void)
             // LCTRL, WIN, LALT, SPACE, ALTGR, \, FN, RCTRL, LEFT, DOWN, RIGHT
             for (int i = 0, recOffsetX = 0; i < 11; i++)
             {
-                GuiKeyboardKey((Rectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + 38*4 + KEY_REC_SPACING*5, line06KeyWidths[i], 38 }, line06Keys[i]);
+                GuiKeyboardKey((RLRectangle){ keyboardOffset.x + recOffsetX, keyboardOffset.y + 30 + 38*4 + KEY_REC_SPACING*5, line06KeyWidths[i], 38 }, line06Keys[i]);
                 recOffsetX += line06KeyWidths[i] + KEY_REC_SPACING;
             }
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -308,26 +308,26 @@ static const char *GetKeyText(int key)
 }
 
 // Draw keyboard key
-static void GuiKeyboardKey(Rectangle bounds, int key)
+static void GuiKeyboardKey(RLRectangle bounds, int key)
 {
-    if (key == KEY_NULL) DrawRectangleLinesEx(bounds, 2.0f, LIGHTGRAY);
+    if (key == KEY_NULL) RLDrawRectangleLinesEx(bounds, 2.0f, LIGHTGRAY);
     else
     {
-        if (IsKeyDown(key))
+        if (RLIsKeyDown(key))
         {
-            DrawRectangleLinesEx(bounds, 2.0f, MAROON);
-            DrawText(GetKeyText(key), bounds.x + 4, bounds.y + 4, 10, MAROON);
+            RLDrawRectangleLinesEx(bounds, 2.0f, MAROON);
+            RLDrawText(GetKeyText(key), bounds.x + 4, bounds.y + 4, 10, MAROON);
         }
         else
         {
-            DrawRectangleLinesEx(bounds, 2.0f, DARKGRAY);
-            DrawText(GetKeyText(key), bounds.x + 4, bounds.y + 4, 10, DARKGRAY);
+            RLDrawRectangleLinesEx(bounds, 2.0f, DARKGRAY);
+            RLDrawText(GetKeyText(key), bounds.x + 4, bounds.y + 4, 10, DARKGRAY);
         }
     }
     
-    if (CheckCollisionPointRec(GetMousePosition(), bounds)) 
+    if (RLCheckCollisionPointRec(RLGetMousePosition(), bounds)) 
     {
-        DrawRectangleRec(bounds, Fade(RED, 0.2f));
-        DrawRectangleLinesEx(bounds, 3.0f, RED);
+        RLDrawRectangleRec(bounds, RLFade(RED, 0.2f));
+        RLDrawRectangleLinesEx(bounds, 3.0f, RED);
     }
 }

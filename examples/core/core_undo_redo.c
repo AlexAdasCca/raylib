@@ -39,14 +39,14 @@ typedef struct {
 // NOTE: Contains all player data that needs to be affected by undo/redo
 typedef struct {
     Point cell;
-    Color color;
+    RLColor color;
 } PlayerState;
 
 //------------------------------------------------------------------------------------
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
 // Draw undo system visualization logic
-static void DrawUndoBuffer(Vector2 position, int firstUndoIndex, int lastUndoIndex, int currentUndoIndex, int slotSize);
+static void DrawUndoBuffer(RLVector2 position, int firstUndoIndex, int lastUndoIndex, int currentUndoIndex, int slotSize);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -66,14 +66,14 @@ int main(void)
     // just record PlayerState changes when detected, checking for changes every certain frames
     // This approach requires more memory and is more performance costly but it is quite simple to implement
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - undo redo");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - undo redo");
 
     // Undo/redo system variables
     int currentUndoIndex = 0;
     int firstUndoIndex = 0;
     int lastUndoIndex = 0;
     int undoFrameCounter = 0;
-    Vector2 undoInfoPos = { 110, 400 };
+    RLVector2 undoInfoPos = { 110, 400 };
 
     // Init current player state and undo/redo recorded states array
     PlayerState player = { 0 };
@@ -86,21 +86,21 @@ int main(void)
     for (int i = 0; i < MAX_UNDO_STATES; i++) memcpy(&states[i], &player, sizeof(PlayerState));
 
     // Grid variables
-    Vector2 gridPosition = { 40, 60 };
+    RLVector2 gridPosition = { 40, 60 };
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         // Player movement logic
-        if (IsKeyPressed(KEY_RIGHT)) player.cell.x++;
-        else if (IsKeyPressed(KEY_LEFT)) player.cell.x--;
-        else if (IsKeyPressed(KEY_UP)) player.cell.y--;
-        else if (IsKeyPressed(KEY_DOWN)) player.cell.y++;
+        if (RLIsKeyPressed(KEY_RIGHT)) player.cell.x++;
+        else if (RLIsKeyPressed(KEY_LEFT)) player.cell.x--;
+        else if (RLIsKeyPressed(KEY_UP)) player.cell.y--;
+        else if (RLIsKeyPressed(KEY_DOWN)) player.cell.y++;
 
         // Make sure player does not go out of bounds
         if (player.cell.x < 0) player.cell.x = 0;
@@ -109,11 +109,11 @@ int main(void)
         else if (player.cell.y >= MAX_GRID_CELLS_Y) player.cell.y = MAX_GRID_CELLS_Y - 1;
 
         // Player color change logic
-        if (IsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(KEY_SPACE))
         {
-            player.color.r = (unsigned char)GetRandomValue(20, 255);
-            player.color.g = (unsigned char)GetRandomValue(20, 220);
-            player.color.b = (unsigned char)GetRandomValue(20, 240);
+            player.color.r = (unsigned char)RLGetRandomValue(20, 255);
+            player.color.g = (unsigned char)RLGetRandomValue(20, 220);
+            player.color.b = (unsigned char)RLGetRandomValue(20, 240);
         }
 
         // Undo state change logic
@@ -138,7 +138,7 @@ int main(void)
         }
 
         // Recover previous state from buffer: CTRL+Z
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Z))
+        if (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsKeyPressed(KEY_Z))
         {
             if (currentUndoIndex != firstUndoIndex)
             {
@@ -153,7 +153,7 @@ int main(void)
         }
 
         // Recover next state from buffer: CTRL+Y
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Y))
+        if (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsKeyPressed(KEY_Y))
         {
             if (currentUndoIndex != lastUndoIndex)
             {
@@ -175,11 +175,11 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
             // Draw controls info
-            DrawText("[ARROWS] MOVE PLAYER - [SPACE] CHANGE PLAYER COLOR", 40, 20, 20, DARKGRAY);
+            RLDrawText("[ARROWS] MOVE PLAYER - [SPACE] CHANGE PLAYER COLOR", 40, 20, 20, DARKGRAY);
 
             // Draw player visited cells recorded by undo
             // NOTE: Remember we are using a ring buffer approach so,
@@ -187,7 +187,7 @@ int main(void)
             if (lastUndoIndex > firstUndoIndex)
             {
                 for (int i = firstUndoIndex; i < currentUndoIndex; i++)
-                    DrawRectangleRec((Rectangle){gridPosition.x + states[i].cell.x*GRID_CELL_SIZE, gridPosition.y + states[i].cell.y*GRID_CELL_SIZE,
+                    RLDrawRectangleRec((RLRectangle){gridPosition.x + states[i].cell.x*GRID_CELL_SIZE, gridPosition.y + states[i].cell.y*GRID_CELL_SIZE,
                         GRID_CELL_SIZE, GRID_CELL_SIZE }, LIGHTGRAY);
             }
             else if (firstUndoIndex > lastUndoIndex)
@@ -195,37 +195,37 @@ int main(void)
                 if ((currentUndoIndex < MAX_UNDO_STATES) && (currentUndoIndex > lastUndoIndex))
                 {
                     for (int i = firstUndoIndex; i < currentUndoIndex; i++)
-                        DrawRectangleRec((Rectangle) { gridPosition.x + states[i].cell.x*GRID_CELL_SIZE, gridPosition.y + states[i].cell.y*GRID_CELL_SIZE,
+                        RLDrawRectangleRec((RLRectangle) { gridPosition.x + states[i].cell.x*GRID_CELL_SIZE, gridPosition.y + states[i].cell.y*GRID_CELL_SIZE,
                             GRID_CELL_SIZE, GRID_CELL_SIZE }, LIGHTGRAY);
                 }
                 else
                 {
                     for (int i = firstUndoIndex; i < MAX_UNDO_STATES; i++)
-                        DrawRectangle((int)gridPosition.x + states[i].cell.x*GRID_CELL_SIZE, (int)gridPosition.y + states[i].cell.y*GRID_CELL_SIZE,
+                        RLDrawRectangle((int)gridPosition.x + states[i].cell.x*GRID_CELL_SIZE, (int)gridPosition.y + states[i].cell.y*GRID_CELL_SIZE,
                             GRID_CELL_SIZE, GRID_CELL_SIZE, LIGHTGRAY);
                     for (int i = 0; i < currentUndoIndex; i++)
-                        DrawRectangle((int)gridPosition.x + states[i].cell.x*GRID_CELL_SIZE, (int)gridPosition.y + states[i].cell.y*GRID_CELL_SIZE,
+                        RLDrawRectangle((int)gridPosition.x + states[i].cell.x*GRID_CELL_SIZE, (int)gridPosition.y + states[i].cell.y*GRID_CELL_SIZE,
                             GRID_CELL_SIZE, GRID_CELL_SIZE, LIGHTGRAY);
                 }
             }
 
             // Draw game grid
             for (int y = 0; y <= MAX_GRID_CELLS_Y; y++)
-                DrawLine((int)gridPosition.x, (int)gridPosition.y + y*GRID_CELL_SIZE,
+                RLDrawLine((int)gridPosition.x, (int)gridPosition.y + y*GRID_CELL_SIZE,
                     (int)gridPosition.x + MAX_GRID_CELLS_X*GRID_CELL_SIZE, (int)gridPosition.y + y*GRID_CELL_SIZE, GRAY);
             for (int x = 0; x <= MAX_GRID_CELLS_X; x++)
-                DrawLine((int)gridPosition.x + x*GRID_CELL_SIZE, (int)gridPosition.y,
+                RLDrawLine((int)gridPosition.x + x*GRID_CELL_SIZE, (int)gridPosition.y,
                     (int)gridPosition.x + x*GRID_CELL_SIZE, (int)gridPosition.y + MAX_GRID_CELLS_Y*GRID_CELL_SIZE, GRAY);
 
             // Draw player
-            DrawRectangle((int)gridPosition.x + player.cell.x*GRID_CELL_SIZE, (int)gridPosition.y + player.cell.y*GRID_CELL_SIZE,
+            RLDrawRectangle((int)gridPosition.x + player.cell.x*GRID_CELL_SIZE, (int)gridPosition.y + player.cell.y*GRID_CELL_SIZE,
                 GRID_CELL_SIZE + 1, GRID_CELL_SIZE + 1, player.color);
 
             // Draw undo system buffer info
-            DrawText("UNDO STATES:", (int)undoInfoPos.x - 85, (int)undoInfoPos.y + 9, 10, DARKGRAY);
+            RLDrawText("UNDO STATES:", (int)undoInfoPos.x - 85, (int)undoInfoPos.y + 9, 10, DARKGRAY);
             DrawUndoBuffer(undoInfoPos, firstUndoIndex, lastUndoIndex, currentUndoIndex, 24);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -233,7 +233,7 @@ int main(void)
     //--------------------------------------------------------------------------------------
     RL_FREE(states);        // Free undo states array
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -244,18 +244,18 @@ int main(void)
 //------------------------------------------------------------------------------------
 // Draw undo system visualization logic
 // NOTE: Visualizing the ring buffer array, every square can store a player state
-static void DrawUndoBuffer(Vector2 position, int firstUndoIndex, int lastUndoIndex, int currentUndoIndex, int slotSize)
+static void DrawUndoBuffer(RLVector2 position, int firstUndoIndex, int lastUndoIndex, int currentUndoIndex, int slotSize)
 {
     // Draw index marks
-    DrawRectangle((int)position.x + 8 + slotSize*currentUndoIndex, (int)position.y - 10, 8, 8, RED);
-    DrawRectangleLines((int)position.x + 2 + slotSize*firstUndoIndex, (int)position.y + 27, 8, 8, BLACK);
-    DrawRectangle((int)position.x + 14 + slotSize*lastUndoIndex, (int)position.y + 27, 8, 8, BLACK);
+    RLDrawRectangle((int)position.x + 8 + slotSize*currentUndoIndex, (int)position.y - 10, 8, 8, RED);
+    RLDrawRectangleLines((int)position.x + 2 + slotSize*firstUndoIndex, (int)position.y + 27, 8, 8, BLACK);
+    RLDrawRectangle((int)position.x + 14 + slotSize*lastUndoIndex, (int)position.y + 27, 8, 8, BLACK);
 
     // Draw background gray slots
     for (int i = 0; i < MAX_UNDO_STATES; i++)
     {
-        DrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, LIGHTGRAY);
-        DrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, GRAY);
+        RLDrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, LIGHTGRAY);
+        RLDrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, GRAY);
     }
 
     // Draw occupied slots: firstUndoIndex --> lastUndoIndex
@@ -263,22 +263,22 @@ static void DrawUndoBuffer(Vector2 position, int firstUndoIndex, int lastUndoInd
     {
         for (int i = firstUndoIndex; i < lastUndoIndex + 1; i++)
         {
-            DrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, SKYBLUE);
-            DrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, BLUE);
+            RLDrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, SKYBLUE);
+            RLDrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, BLUE);
         }
     }
     else if (lastUndoIndex < firstUndoIndex)
     {
         for (int i = firstUndoIndex; i < MAX_UNDO_STATES; i++)
         {
-            DrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, SKYBLUE);
-            DrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, BLUE);
+            RLDrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, SKYBLUE);
+            RLDrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, BLUE);
         }
 
         for (int i = 0; i < lastUndoIndex + 1; i++)
         {
-            DrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, SKYBLUE);
-            DrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, BLUE);
+            RLDrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, SKYBLUE);
+            RLDrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, BLUE);
         }
     }
 
@@ -287,26 +287,26 @@ static void DrawUndoBuffer(Vector2 position, int firstUndoIndex, int lastUndoInd
     {
         for (int i = firstUndoIndex; i < currentUndoIndex; i++)
         {
-            DrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, GREEN);
-            DrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, LIME);
+            RLDrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, GREEN);
+            RLDrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, LIME);
         }
     }
     else if (currentUndoIndex < firstUndoIndex)
     {
         for (int i = firstUndoIndex; i < MAX_UNDO_STATES; i++)
         {
-            DrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, GREEN);
-            DrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, LIME);
+            RLDrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, GREEN);
+            RLDrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, LIME);
         }
 
         for (int i = 0; i < currentUndoIndex; i++)
         {
-            DrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, GREEN);
-            DrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, LIME);
+            RLDrawRectangle((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, GREEN);
+            RLDrawRectangleLines((int)position.x + slotSize*i, (int)position.y, slotSize, slotSize, LIME);
         }
     }
 
     // Draw current selected UNDO slot
-    DrawRectangle((int)position.x + slotSize*currentUndoIndex, (int)position.y, slotSize, slotSize, GOLD);
-    DrawRectangleLines((int)position.x + slotSize*currentUndoIndex, (int)position.y, slotSize, slotSize, ORANGE);
+    RLDrawRectangle((int)position.x + slotSize*currentUndoIndex, (int)position.y, slotSize, slotSize, GOLD);
+    RLDrawRectangleLines((int)position.x + slotSize*currentUndoIndex, (int)position.y, slotSize, slotSize, ORANGE);
 }

@@ -34,9 +34,9 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - image kernel");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - image kernel");
 
-    Image image = LoadImage("resources/cat.png"); // Loaded in CPU memory (RAM)
+    RLImage image = RLLoadImage("resources/cat.png"); // Loaded in CPU memory (RAM)
 
     float gaussiankernel[] = {
         1.0f, 2.0f, 1.0f,
@@ -60,42 +60,42 @@ int main(void)
     NormalizeKernel(sharpenkernel, 9);
     NormalizeKernel(sobelkernel, 9);
 
-    Image catSharpend = ImageCopy(image);
-    ImageKernelConvolution(&catSharpend, sharpenkernel, 9);
+    RLImage catSharpend = RLImageCopy(image);
+    RLImageKernelConvolution(&catSharpend, sharpenkernel, 9);
 
-    Image catSobel = ImageCopy(image);
-    ImageKernelConvolution(&catSobel, sobelkernel, 9);
+    RLImage catSobel = RLImageCopy(image);
+    RLImageKernelConvolution(&catSobel, sobelkernel, 9);
 
-    Image catGaussian = ImageCopy(image);
+    RLImage catGaussian = RLImageCopy(image);
 
     for (int i = 0; i < 6; i++)
     {
-        ImageKernelConvolution(&catGaussian, gaussiankernel, 9);
+        RLImageKernelConvolution(&catGaussian, gaussiankernel, 9);
     }
 
-    ImageCrop(&image, (Rectangle){ 0, 0, (float)200, (float)450 });
-    ImageCrop(&catGaussian, (Rectangle){ 0, 0, (float)200, (float)450 });
-    ImageCrop(&catSobel, (Rectangle){ 0, 0, (float)200, (float)450 });
-    ImageCrop(&catSharpend, (Rectangle){ 0, 0, (float)200, (float)450 });
+    RLImageCrop(&image, (RLRectangle){ 0, 0, (float)200, (float)450 });
+    RLImageCrop(&catGaussian, (RLRectangle){ 0, 0, (float)200, (float)450 });
+    RLImageCrop(&catSobel, (RLRectangle){ 0, 0, (float)200, (float)450 });
+    RLImageCrop(&catSharpend, (RLRectangle){ 0, 0, (float)200, (float)450 });
 
     // Images converted to texture, GPU memory (VRAM)
-    Texture2D texture = LoadTextureFromImage(image);
-    Texture2D catSharpendTexture = LoadTextureFromImage(catSharpend);
-    Texture2D catSobelTexture = LoadTextureFromImage(catSobel);
-    Texture2D catGaussianTexture = LoadTextureFromImage(catGaussian);
+    RLTexture2D texture = RLLoadTextureFromImage(image);
+    RLTexture2D catSharpendTexture = RLLoadTextureFromImage(catSharpend);
+    RLTexture2D catSobelTexture = RLLoadTextureFromImage(catSobel);
+    RLTexture2D catGaussianTexture = RLLoadTextureFromImage(catGaussian);
 
     // Once images have been converted to texture and uploaded to VRAM,
     // they can be unloaded from RAM
-    UnloadImage(image);
-    UnloadImage(catGaussian);
-    UnloadImage(catSobel);
-    UnloadImage(catSharpend);
+    RLUnloadImage(image);
+    RLUnloadImage(catGaussian);
+    RLUnloadImage(catSobel);
+    RLUnloadImage(catSharpend);
 
-    SetTargetFPS(60);     // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);     // Set our game to run at 60 frames-per-second
     //---------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -104,27 +104,27 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawTexture(catSharpendTexture, 0, 0, WHITE);
-            DrawTexture(catSobelTexture, 200, 0, WHITE);
-            DrawTexture(catGaussianTexture, 400, 0, WHITE);
-            DrawTexture(texture, 600, 0, WHITE);
+            RLDrawTexture(catSharpendTexture, 0, 0, WHITE);
+            RLDrawTexture(catSobelTexture, 200, 0, WHITE);
+            RLDrawTexture(catGaussianTexture, 400, 0, WHITE);
+            RLDrawTexture(texture, 600, 0, WHITE);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(texture);
-    UnloadTexture(catGaussianTexture);
-    UnloadTexture(catSobelTexture);
-    UnloadTexture(catSharpendTexture);
+    RLUnloadTexture(texture);
+    RLUnloadTexture(catGaussianTexture);
+    RLUnloadTexture(catSobelTexture);
+    RLUnloadTexture(catSharpendTexture);
 
-    CloseWindow();                // Close window and OpenGL context
+    RLCloseWindow();                // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

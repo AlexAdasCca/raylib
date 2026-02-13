@@ -34,85 +34,85 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - raymarching rendering");
+    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - raymarching rendering");
 
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 2.5f, 2.5f, 3.0f };    // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.7f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 2.5f, 2.5f, 3.0f };    // Camera position
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.7f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 65.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load raymarching shader
     // NOTE: Defining 0 (NULL) for vertex shader forces usage of internal default vertex shader
-    Shader shader = LoadShader(0, TextFormat("resources/shaders/glsl%i/raymarching.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/raymarching.fs", GLSL_VERSION));
 
     // Get shader locations for required uniforms
-    int viewEyeLoc = GetShaderLocation(shader, "viewEye");
-    int viewCenterLoc = GetShaderLocation(shader, "viewCenter");
-    int runTimeLoc = GetShaderLocation(shader, "runTime");
-    int resolutionLoc = GetShaderLocation(shader, "resolution");
+    int viewEyeLoc = RLGetShaderLocation(shader, "viewEye");
+    int viewCenterLoc = RLGetShaderLocation(shader, "viewCenter");
+    int runTimeLoc = RLGetShaderLocation(shader, "runTime");
+    int resolutionLoc = RLGetShaderLocation(shader, "resolution");
 
     float resolution[2] = { (float)screenWidth, (float)screenHeight };
-    SetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
 
     float runTime = 0.0f;
 
-    DisableCursor();                    // Limit cursor to relative movement inside the window
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLDisableCursor();                    // Limit cursor to relative movement inside the window
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
 
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
         float cameraTarget[3] = { camera.target.x, camera.target.y, camera.target.z };
 
-        float deltaTime = GetFrameTime();
+        float deltaTime = RLGetFrameTime();
         runTime += deltaTime;
 
         // Set shader required uniform values
-        SetShaderValue(shader, viewEyeLoc, cameraPos, SHADER_UNIFORM_VEC3);
-        SetShaderValue(shader, viewCenterLoc, cameraTarget, SHADER_UNIFORM_VEC3);
-        SetShaderValue(shader, runTimeLoc, &runTime, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, viewEyeLoc, cameraPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, viewCenterLoc, cameraTarget, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, runTimeLoc, &runTime, SHADER_UNIFORM_FLOAT);
 
         // Check if screen is resized
-        if (IsWindowResized())
+        if (RLIsWindowResized())
         {
-            resolution[0] = (float)GetScreenWidth();
-            resolution[1] = (float)GetScreenHeight();
-            SetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+            resolution[0] = (float)RLGetScreenWidth();
+            resolution[1] = (float)RLGetScreenHeight();
+            RLSetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             // We only draw a white full-screen rectangle,
             // frame is generated in shader using raymarching
-            BeginShaderMode(shader);
-                DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), WHITE);
-            EndShaderMode();
+            RLBeginShaderMode(shader);
+                RLDrawRectangle(0, 0, RLGetScreenWidth(), RLGetScreenHeight(), WHITE);
+            RLEndShaderMode();
 
-            DrawText("(c) Raymarching shader by Iñigo Quilez. MIT License.", GetScreenWidth() - 280, GetScreenHeight() - 20, 10, BLACK);
+            RLDrawText("(c) Raymarching shader by Iñigo Quilez. MIT License.", RLGetScreenWidth() - 280, RLGetScreenHeight() - 20, 10, BLACK);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shader);           // Unload shader
+    RLUnloadShader(shader);           // Unload shader
 
-    CloseWindow();                  // Close window and OpenGL context
+    RLCloseWindow();                  // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -37,22 +37,22 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - animation gpu skinning");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - animation gpu skinning");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 5.0f, 5.0f, 5.0f }; // Camera position
-    camera.target = (Vector3){ 0.0f, 2.0f, 0.0f };  // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };      // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 5.0f, 5.0f, 5.0f }; // Camera position
+    camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };  // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };      // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                            // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;         // Camera projection type
 
     // Load gltf model
-    Model characterModel = LoadModel("resources/models/gltf/greenman.glb"); // Load character model
+    RLModel characterModel = RLLoadModel("resources/models/gltf/greenman.glb"); // Load character model
 
     // Load skinning shader
-    Shader skinningShader = LoadShader(TextFormat("resources/shaders/glsl%i/skinning.vs", GLSL_VERSION),
-                                       TextFormat("resources/shaders/glsl%i/skinning.fs", GLSL_VERSION));
+    RLShader skinningShader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/skinning.vs", GLSL_VERSION),
+                                       RLTextFormat("resources/shaders/glsl%i/skinning.fs", GLSL_VERSION));
 
     characterModel.materials[1].shader = skinningShader;
 
@@ -60,61 +60,61 @@ int main(void)
     int animsCount = 0;
     unsigned int animIndex = 0;
     unsigned int animCurrentFrame = 0;
-    ModelAnimation *modelAnimations = LoadModelAnimations("resources/models/gltf/greenman.glb", &animsCount);
+    RLModelAnimation *modelAnimations = RLLoadModelAnimations("resources/models/gltf/greenman.glb", &animsCount);
 
-    Vector3 position = { 0.0f, 0.0f, 0.0f }; // Set model position
+    RLVector3 position = { 0.0f, 0.0f, 0.0f }; // Set model position
 
-    DisableCursor();                    // Limit cursor to relative movement inside the window
+    RLDisableCursor();                    // Limit cursor to relative movement inside the window
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_THIRD_PERSON);
+        RLUpdateCamera(&camera, CAMERA_THIRD_PERSON);
 
         // Select current animation
-        if (IsKeyPressed(KEY_T)) animIndex = (animIndex + 1)%animsCount;
-        else if (IsKeyPressed(KEY_G)) animIndex = (animIndex + animsCount - 1)%animsCount;
+        if (RLIsKeyPressed(KEY_T)) animIndex = (animIndex + 1)%animsCount;
+        else if (RLIsKeyPressed(KEY_G)) animIndex = (animIndex + animsCount - 1)%animsCount;
 
         // Update model animation
-        ModelAnimation anim = modelAnimations[animIndex];
+        RLModelAnimation anim = modelAnimations[animIndex];
         animCurrentFrame = (animCurrentFrame + 1)%anim.frameCount;
         characterModel.transform = MatrixTranslate(position.x, position.y, position.z);
-        UpdateModelAnimationBones(characterModel, anim, animCurrentFrame);
+        RLUpdateModelAnimationBones(characterModel, anim, animCurrentFrame);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
                 // Draw character mesh, pose calculation is done in shader (GPU skinning)
-                DrawMesh(characterModel.meshes[0], characterModel.materials[1], characterModel.transform);
+                RLDrawMesh(characterModel.meshes[0], characterModel.materials[1], characterModel.transform);
 
-                DrawGrid(10, 1.0f);
+                RLDrawGrid(10, 1.0f);
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawText("Use the T/G to switch animation", 10, 10, 20, GRAY);
+            RLDrawText("Use the T/G to switch animation", 10, 10, 20, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadModelAnimations(modelAnimations, animsCount); // Unload model animation
-    UnloadModel(characterModel);    // Unload model and meshes/material
-    UnloadShader(skinningShader);   // Unload GPU skinning shader
+    RLUnloadModelAnimations(modelAnimations, animsCount); // Unload model animation
+    RLUnloadModel(characterModel);    // Unload model and meshes/material
+    RLUnloadShader(skinningShader);   // Unload GPU skinning shader
 
-    CloseWindow();                  // Close window and OpenGL context
+    RLCloseWindow();                  // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -75,60 +75,60 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - postprocessing");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - postprocessing");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 2.0f, 3.0f, 2.0f };    // Camera position
-    camera.target = (Vector3){ 0.0f, 1.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 2.0f, 3.0f, 2.0f };    // Camera position
+    camera.target = (RLVector3){ 0.0f, 1.0f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
-    Model model = LoadModel("resources/models/church.obj");                 // Load OBJ model
-    Texture2D texture = LoadTexture("resources/models/church_diffuse.png"); // Load model texture (diffuse map)
+    RLModel model = RLLoadModel("resources/models/church.obj");                 // Load OBJ model
+    RLTexture2D texture = RLLoadTexture("resources/models/church_diffuse.png"); // Load model texture (diffuse map)
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;        // Set model diffuse texture
 
-    Vector3 position = { 0.0f, 0.0f, 0.0f };            // Set model position
+    RLVector3 position = { 0.0f, 0.0f, 0.0f };            // Set model position
 
     // Load all postpro shaders
     // NOTE 1: All postpro shader use the base vertex shader (DEFAULT_VERTEX_SHADER)
     // NOTE 2: We load the correct shader depending on GLSL version
-    Shader shaders[MAX_POSTPRO_SHADERS] = { 0 };
+    RLShader shaders[MAX_POSTPRO_SHADERS] = { 0 };
 
     // NOTE: Defining 0 (NULL) for vertex shader forces usage of internal default vertex shader
-    shaders[FX_GRAYSCALE] = LoadShader(0, TextFormat("resources/shaders/glsl%i/grayscale.fs", GLSL_VERSION));
-    shaders[FX_POSTERIZATION] = LoadShader(0, TextFormat("resources/shaders/glsl%i/posterization.fs", GLSL_VERSION));
-    shaders[FX_DREAM_VISION] = LoadShader(0, TextFormat("resources/shaders/glsl%i/dream_vision.fs", GLSL_VERSION));
-    shaders[FX_PIXELIZER] = LoadShader(0, TextFormat("resources/shaders/glsl%i/pixelizer.fs", GLSL_VERSION));
-    shaders[FX_CROSS_HATCHING] = LoadShader(0, TextFormat("resources/shaders/glsl%i/cross_hatching.fs", GLSL_VERSION));
-    shaders[FX_CROSS_STITCHING] = LoadShader(0, TextFormat("resources/shaders/glsl%i/cross_stitching.fs", GLSL_VERSION));
-    shaders[FX_PREDATOR_VIEW] = LoadShader(0, TextFormat("resources/shaders/glsl%i/predator.fs", GLSL_VERSION));
-    shaders[FX_SCANLINES] = LoadShader(0, TextFormat("resources/shaders/glsl%i/scanlines.fs", GLSL_VERSION));
-    shaders[FX_FISHEYE] = LoadShader(0, TextFormat("resources/shaders/glsl%i/fisheye.fs", GLSL_VERSION));
-    shaders[FX_SOBEL] = LoadShader(0, TextFormat("resources/shaders/glsl%i/sobel.fs", GLSL_VERSION));
-    shaders[FX_BLOOM] = LoadShader(0, TextFormat("resources/shaders/glsl%i/bloom.fs", GLSL_VERSION));
-    shaders[FX_BLUR] = LoadShader(0, TextFormat("resources/shaders/glsl%i/blur.fs", GLSL_VERSION));
+    shaders[FX_GRAYSCALE] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/grayscale.fs", GLSL_VERSION));
+    shaders[FX_POSTERIZATION] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/posterization.fs", GLSL_VERSION));
+    shaders[FX_DREAM_VISION] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/dream_vision.fs", GLSL_VERSION));
+    shaders[FX_PIXELIZER] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/pixelizer.fs", GLSL_VERSION));
+    shaders[FX_CROSS_HATCHING] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/cross_hatching.fs", GLSL_VERSION));
+    shaders[FX_CROSS_STITCHING] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/cross_stitching.fs", GLSL_VERSION));
+    shaders[FX_PREDATOR_VIEW] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/predator.fs", GLSL_VERSION));
+    shaders[FX_SCANLINES] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/scanlines.fs", GLSL_VERSION));
+    shaders[FX_FISHEYE] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/fisheye.fs", GLSL_VERSION));
+    shaders[FX_SOBEL] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/sobel.fs", GLSL_VERSION));
+    shaders[FX_BLOOM] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/bloom.fs", GLSL_VERSION));
+    shaders[FX_BLUR] = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/blur.fs", GLSL_VERSION));
 
     int currentShader = FX_GRAYSCALE;
 
     // Create a RenderTexture2D to be used for render to texture
-    RenderTexture2D target = LoadRenderTexture(screenWidth, screenHeight);
+    RLRenderTexture2D target = RLLoadRenderTexture(screenWidth, screenHeight);
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
 
-        if (IsKeyPressed(KEY_RIGHT)) currentShader++;
-        else if (IsKeyPressed(KEY_LEFT)) currentShader--;
+        if (RLIsKeyPressed(KEY_RIGHT)) currentShader++;
+        else if (RLIsKeyPressed(KEY_LEFT)) currentShader--;
 
         if (currentShader >= MAX_POSTPRO_SHADERS) currentShader = 0;
         else if (currentShader < 0) currentShader = MAX_POSTPRO_SHADERS - 1;
@@ -136,46 +136,46 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginTextureMode(target);       // Enable drawing to texture
-            ClearBackground(RAYWHITE);  // Clear texture background
+        RLBeginTextureMode(target);       // Enable drawing to texture
+            RLClearBackground(RAYWHITE);  // Clear texture background
 
-            BeginMode3D(camera);        // Begin 3d mode drawing
-                DrawModel(model, position, 0.1f, WHITE);   // Draw 3d model with texture
-                DrawGrid(10, 1.0f);     // Draw a grid
-            EndMode3D();                // End 3d mode drawing, returns to orthographic 2d mode
-        EndTextureMode();               // End drawing to texture (now we have a texture available for next passes)
+            RLBeginMode3D(camera);        // Begin 3d mode drawing
+                RLDrawModel(model, position, 0.1f, WHITE);   // Draw 3d model with texture
+                RLDrawGrid(10, 1.0f);     // Draw a grid
+            RLEndMode3D();                // End 3d mode drawing, returns to orthographic 2d mode
+        RLEndTextureMode();               // End drawing to texture (now we have a texture available for next passes)
 
-        BeginDrawing();
-            ClearBackground(RAYWHITE);  // Clear screen background
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);  // Clear screen background
 
             // Render generated texture using selected postprocessing shader
-            BeginShaderMode(shaders[currentShader]);
+            RLBeginShaderMode(shaders[currentShader]);
                 // NOTE: Render texture must be y-flipped due to default OpenGL coordinates (left-bottom)
-                DrawTextureRec(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height }, (Vector2){ 0, 0 }, WHITE);
-            EndShaderMode();
+                RLDrawTextureRec(target.texture, (RLRectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height }, (RLVector2){ 0, 0 }, WHITE);
+            RLEndShaderMode();
 
             // Draw 2d shapes and text over drawn texture
-            DrawRectangle(0, 9, 580, 30, Fade(LIGHTGRAY, 0.7f));
+            RLDrawRectangle(0, 9, 580, 30, RLFade(LIGHTGRAY, 0.7f));
 
-            DrawText("(c) Church 3D model by Alberto Cano", screenWidth - 200, screenHeight - 20, 10, GRAY);
-            DrawText("CURRENT POSTPRO SHADER:", 10, 15, 20, BLACK);
-            DrawText(postproShaderText[currentShader], 330, 15, 20, RED);
-            DrawText("< >", 540, 10, 30, DARKBLUE);
-            DrawFPS(700, 15);
-        EndDrawing();
+            RLDrawText("(c) Church 3D model by Alberto Cano", screenWidth - 200, screenHeight - 20, 10, GRAY);
+            RLDrawText("CURRENT POSTPRO SHADER:", 10, 15, 20, BLACK);
+            RLDrawText(postproShaderText[currentShader], 330, 15, 20, RED);
+            RLDrawText("< >", 540, 10, 30, DARKBLUE);
+            RLDrawFPS(700, 15);
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
     // Unload all postpro shaders
-    for (int i = 0; i < MAX_POSTPRO_SHADERS; i++) UnloadShader(shaders[i]);
+    for (int i = 0; i < MAX_POSTPRO_SHADERS; i++) RLUnloadShader(shaders[i]);
 
-    UnloadTexture(texture);         // Unload texture
-    UnloadModel(model);             // Unload model
-    UnloadRenderTexture(target);    // Unload render texture
+    RLUnloadTexture(texture);         // Unload texture
+    RLUnloadModel(model);             // Unload model
+    RLUnloadRenderTexture(target);    // Unload render texture
 
-    CloseWindow();                  // Close window and OpenGL context
+    RLCloseWindow();                  // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

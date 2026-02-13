@@ -1,4 +1,4 @@
-/*******************************************************************************************
+﻿/*******************************************************************************************
 *
 *   raylib [text] example - codepoints loading
 *
@@ -21,7 +21,11 @@
 // Text to be displayed, must be UTF-8 (save this code file as UTF-8)
 // NOTE: It can contain all the required text for the game,
 // this text will be scanned to get all the required codepoints
-static char *text = "いろはにほへと　ちりぬるを\nわかよたれそ　つねならむ\nうゐのおくやま　けふこえて\nあさきゆめみし　ゑひもせす";
+static const char* text =
+u8"いろはにほへと　ちりぬるを\n"
+u8"わかよたれそ　つねならむ\n"
+u8"うゐのおくやま　けふこえて\n"
+u8"あさきゆめみし　ゑひもせす";
 
 //------------------------------------------------------------------------------------
 // Module Functions Declaration
@@ -39,26 +43,26 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [text] example - codepoints loading");
+    RLInitWindow(screenWidth, screenHeight, "raylib [text] example - codepoints loading");
 
     // Convert each utf-8 character into its
     // corresponding codepoint in the font file
     int codepointCount = 0;
-    int *codepoints = LoadCodepoints(text, &codepointCount);
+    int *codepoints = RLLoadCodepoints(text, &codepointCount);
 
     // Removed duplicate codepoints to generate smaller font atlas
     int codepointsNoDupsCount = 0;
     int *codepointsNoDups = CodepointRemoveDuplicates(codepoints, codepointCount, &codepointsNoDupsCount);
-    UnloadCodepoints(codepoints);
+    RLUnloadCodepoints(codepoints);
 
     // Load font containing all the provided codepoint glyphs
     // A texture font atlas is automatically generated
-    Font font = LoadFontEx("resources/DotGothic16-Regular.ttf", 36, codepointsNoDups, codepointsNoDupsCount);
+    RLFont font = RLLoadFontEx("resources/DotGothic16-Regular.ttf", 36, codepointsNoDups, codepointsNoDupsCount);
 
     // Set bilinear scale filter for better font scaling
-    SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+    RLSetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
 
-    SetTextLineSpacing(20);         // Set line spacing for multiline text (when line breaks are included '\n')
+    RLSetTextLineSpacing(20);         // Set line spacing for multiline text (when line breaks are included '\n')
 
     // Free codepoints, atlas has already been generated
     free(codepointsNoDups);
@@ -66,66 +70,66 @@ int main(void)
     bool showFontAtlas = false;
 
     int codepointSize = 0;
-    char *ptr = text;
+    const char *ptr = text;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_SPACE)) showFontAtlas = !showFontAtlas;
+        if (RLIsKeyPressed(KEY_SPACE)) showFontAtlas = !showFontAtlas;
 
         // Testing code: getting next and previous codepoints on provided text
-        if (IsKeyPressed(KEY_RIGHT))
+        if (RLIsKeyPressed(KEY_RIGHT))
         {
             // Get next codepoint in string and move pointer
-            GetCodepointNext(ptr, &codepointSize);
+            RLGetCodepointNext(ptr, &codepointSize);
             ptr += codepointSize;
         }
-        else if (IsKeyPressed(KEY_LEFT))
+        else if (RLIsKeyPressed(KEY_LEFT))
         {
             // Get previous codepoint in string and move pointer
-            GetCodepointPrevious(ptr, &codepointSize);
+            RLGetCodepointPrevious(ptr, &codepointSize);
             ptr -= codepointSize;
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawRectangle(0, 0, GetScreenWidth(), 70, BLACK);
-            DrawText(TextFormat("Total codepoints contained in provided text: %i", codepointCount), 10, 10, 20, GREEN);
-            DrawText(TextFormat("Total codepoints required for font atlas (duplicates excluded): %i", codepointsNoDupsCount), 10, 40, 20, GREEN);
+            RLDrawRectangle(0, 0, RLGetScreenWidth(), 70, BLACK);
+            RLDrawText(RLTextFormat("Total codepoints contained in provided text: %i", codepointCount), 10, 10, 20, GREEN);
+            RLDrawText(RLTextFormat("Total codepoints required for font atlas (duplicates excluded): %i", codepointsNoDupsCount), 10, 40, 20, GREEN);
 
             if (showFontAtlas)
             {
                 // Draw generated font texture atlas containing provided codepoints
-                DrawTexture(font.texture, 150, 100, BLACK);
-                DrawRectangleLines(150, 100, font.texture.width, font.texture.height, BLACK);
+                RLDrawTexture(font.texture, 150, 100, BLACK);
+                RLDrawRectangleLines(150, 100, font.texture.width, font.texture.height, BLACK);
             }
             else
             {
                 // Draw provided text with loaded font, containing all required codepoint glyphs
-                DrawTextEx(font, text, (Vector2) { 160, 110 }, 48, 5, BLACK);
+                RLDrawTextEx(font, text, (RLVector2) { 160, 110 }, 48, 5, BLACK);
             }
 
-            DrawText("Press SPACE to toggle font atlas view!", 10, GetScreenHeight() - 30, 20, GRAY);
+            RLDrawText("Press SPACE to toggle font atlas view!", 10, RLGetScreenHeight() - 30, 20, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadFont(font);     // Unload font
+    RLUnloadFont(font);     // Unload font
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

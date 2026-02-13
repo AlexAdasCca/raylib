@@ -1,4 +1,4 @@
-/**********************************************************************************************
+﻿/**********************************************************************************************
 *
 *   rlgl v5.0 - A multi-OpenGL abstraction layer with an immediate-mode style API
 *
@@ -369,12 +369,12 @@ typedef enum bool { false = 0, true = !false } bool;
 
 #if !defined(RL_MATRIX_TYPE)
 // Matrix, 4x4 components, column major, OpenGL style, right handed
-typedef struct Matrix {
+typedef struct RLMatrix {
     float m0, m4, m8, m12;      // Matrix first row (4 components)
     float m1, m5, m9, m13;      // Matrix second row (4 components)
     float m2, m6, m10, m14;     // Matrix third row (4 components)
     float m3, m7, m11, m15;     // Matrix fourth row (4 components)
-} Matrix;
+} RLMatrix;
 #define RL_MATRIX_TYPE
 #endif
 
@@ -779,8 +779,8 @@ RLAPI void rlUnloadShaderProgram(unsigned int id);                              
 RLAPI int rlGetLocationUniform(unsigned int shaderId, const char *uniformName); // Get shader location uniform, requires shader program id
 RLAPI int rlGetLocationAttrib(unsigned int shaderId, const char *attribName);   // Get shader location attribute, requires shader program id
 RLAPI void rlSetUniform(int locIndex, const void *value, int uniformType, int count); // Set shader value uniform
-RLAPI void rlSetUniformMatrix(int locIndex, Matrix mat);                        // Set shader value matrix
-RLAPI void rlSetUniformMatrices(int locIndex, const Matrix *mat, int count);    // Set shader value matrices
+RLAPI void rlSetUniformMatrix(int locIndex, RLMatrix mat);                        // Set shader value matrix
+RLAPI void rlSetUniformMatrices(int locIndex, const RLMatrix *mat, int count);    // Set shader value matrices
 RLAPI void rlSetUniformSampler(int locIndex, unsigned int textureId);           // Set shader value sampler
 RLAPI void rlSetShader(unsigned int id, int *locs);                             // Set shader currently active (id and locations)
 
@@ -801,15 +801,15 @@ RLAPI unsigned int rlGetShaderBufferSize(unsigned int id);                      
 RLAPI void rlBindImageTexture(unsigned int id, unsigned int index, int format, bool readonly);  // Bind image texture
 
 // Matrix state management
-RLAPI Matrix rlGetMatrixModelview(void);                                  // Get internal modelview matrix
-RLAPI Matrix rlGetMatrixProjection(void);                                 // Get internal projection matrix
-RLAPI Matrix rlGetMatrixTransform(void);                                  // Get internal accumulated transform matrix
-RLAPI Matrix rlGetMatrixProjectionStereo(int eye);                        // Get internal projection matrix for stereo render (selected eye)
-RLAPI Matrix rlGetMatrixViewOffsetStereo(int eye);                        // Get internal view offset matrix for stereo render (selected eye)
-RLAPI void rlSetMatrixProjection(Matrix proj);                            // Set a custom projection matrix (replaces internal projection matrix)
-RLAPI void rlSetMatrixModelview(Matrix view);                             // Set a custom modelview matrix (replaces internal modelview matrix)
-RLAPI void rlSetMatrixProjectionStereo(Matrix right, Matrix left);        // Set eyes projection matrices for stereo rendering
-RLAPI void rlSetMatrixViewOffsetStereo(Matrix right, Matrix left);        // Set eyes view offsets matrices for stereo rendering
+RLAPI RLMatrix rlGetMatrixModelview(void);                                  // Get internal modelview matrix
+RLAPI RLMatrix rlGetMatrixProjection(void);                                 // Get internal projection matrix
+RLAPI RLMatrix rlGetMatrixTransform(void);                                  // Get internal accumulated transform matrix
+RLAPI RLMatrix rlGetMatrixProjectionStereo(int eye);                        // Get internal projection matrix for stereo render (selected eye)
+RLAPI RLMatrix rlGetMatrixViewOffsetStereo(int eye);                        // Get internal view offset matrix for stereo render (selected eye)
+RLAPI void rlSetMatrixProjection(RLMatrix proj);                            // Set a custom projection matrix (replaces internal projection matrix)
+RLAPI void rlSetMatrixModelview(RLMatrix view);                             // Set a custom modelview matrix (replaces internal modelview matrix)
+RLAPI void rlSetMatrixProjectionStereo(RLMatrix right, RLMatrix left);        // Set eyes projection matrices for stereo rendering
+RLAPI void rlSetMatrixViewOffsetStereo(RLMatrix right, RLMatrix left);        // Set eyes view offsets matrices for stereo rendering
 
 // Quick and dirty cube/quad buffers load->draw->unload
 RLAPI void rlLoadDrawCube(void);     // Load and draw a cube
@@ -1070,12 +1070,12 @@ typedef struct rlglData {
         unsigned char colorr, colorg, colorb, colora;   // Current active color (added on glVertex*())
 
         int currentMatrixMode;              // Current matrix mode
-        Matrix *currentMatrix;              // Current matrix pointer
-        Matrix modelview;                   // Default modelview matrix
-        Matrix projection;                  // Default projection matrix
-        Matrix transform;                   // Transform matrix to be used with rlTranslate, rlRotate, rlScale
+        RLMatrix *currentMatrix;              // Current matrix pointer
+        RLMatrix modelview;                   // Default modelview matrix
+        RLMatrix projection;                  // Default projection matrix
+        RLMatrix transform;                   // Transform matrix to be used with rlTranslate, rlRotate, rlScale
         bool transformRequired;             // Require transform matrix application to current draw-call vertex (if required)
-        Matrix stack[RL_MAX_MATRIX_STACK_SIZE];// Matrix stack for push/pop
+        RLMatrix stack[RL_MAX_MATRIX_STACK_SIZE];// Matrix stack for push/pop
         int stackCounter;                   // Matrix stack counter
 
         unsigned int currentTextureId;      // Current texture id to be used on glBegin
@@ -1089,8 +1089,8 @@ typedef struct rlglData {
         int *currentShaderLocs;             // Current shader locations pointer to be used on rendering (by default, defaultShaderLocs)
 
         bool stereoRender;                  // Stereo rendering flag
-        Matrix projectionStereo[2];         // VR stereo rendering eyes projection matrices
-        Matrix viewOffsetStereo[2];         // VR stereo rendering eyes view offset matrices
+        RLMatrix projectionStereo[2];         // VR stereo rendering eyes projection matrices
+        RLMatrix viewOffsetStereo[2];         // VR stereo rendering eyes view offset matrices
 
         // Blending variables
         int currentBlendMode;               // Blending mode active
@@ -1138,13 +1138,15 @@ typedef struct rlglData {
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-static double rlCullDistanceNear = RL_CULL_DISTANCE_NEAR;
-static double rlCullDistanceFar = RL_CULL_DISTANCE_FAR;
+// Route2 Stage-A: move legacy rlgl globals into current RLContext
+// (rcore.c includes rl_context.h before defining RLGL_IMPLEMENTATION)
+#define rlCullDistanceNear (RLGetCurrentContext()->lfRlCullDistanceNear)
+#define rlCullDistanceFar  (RLGetCurrentContext()->lfRlCullDistanceFar)
 
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
-static rlglData RLGL = { 0 };
+#define RLGL (*((rlglData *)RLGetCurrentContext()->rlgl))
 #endif  // GRAPHICS_API_OPENGL_33 || GRAPHICS_API_OPENGL_ES2
-static bool isGpuReady = false;
+#define isGpuReady (RLGetCurrentContext()->bIsGpuReady)
 
 #if defined(GRAPHICS_API_OPENGL_ES2) && !defined(GRAPHICS_API_OPENGL_ES3)
 // NOTE: VAO functionality is exposed through extensions (OES)
@@ -1171,15 +1173,15 @@ static const char *rlGetCompressedFormatName(int format); // Get compressed form
 
 static int rlGetPixelDataSize(int width, int height, int format);   // Get pixel data size in bytes (image or texture)
 
-static Matrix rlMatrixIdentity(void);                       // Get identity matrix
+static RLMatrix rlMatrixIdentity(void);                       // Get identity matrix
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
 // Auxiliar matrix math functions
 typedef struct rl_float16 { float v[16]; } rl_float16;
-static rl_float16 rlMatrixToFloatV(Matrix mat);             // Get float array of matrix data
+static rl_float16 rlMatrixToFloatV(RLMatrix mat);             // Get float array of matrix data
 #define rlMatrixToFloat(mat) (rlMatrixToFloatV(mat).v)      // Get float vector for Matrix
-static Matrix rlMatrixMultiply(Matrix left, Matrix right);  // Multiply two matrices
-static Matrix rlMatrixTranspose(Matrix mat);                // Transposes provided matrix
-static Matrix rlMatrixInvert(Matrix mat);                   // Invert provided matrix
+static RLMatrix rlMatrixMultiply(RLMatrix left, RLMatrix right);  // Multiply two matrices
+static RLMatrix rlMatrixTranspose(RLMatrix mat);                // Transposes provided matrix
+static RLMatrix rlMatrixInvert(RLMatrix mat);                   // Invert provided matrix
 #endif
 
 //----------------------------------------------------------------------------------
@@ -1249,7 +1251,7 @@ void rlPopMatrix(void)
 {
     if (RLGL.State.stackCounter > 0)
     {
-        Matrix mat = RLGL.State.stack[RLGL.State.stackCounter - 1];
+        RLMatrix mat = RLGL.State.stack[RLGL.State.stackCounter - 1];
         *RLGL.State.currentMatrix = mat;
         RLGL.State.stackCounter--;
     }
@@ -1270,7 +1272,7 @@ void rlLoadIdentity(void)
 // Multiply the current matrix by a translation matrix
 void rlTranslatef(float x, float y, float z)
 {
-    Matrix matTranslation = rlMatrixIdentity();
+    RLMatrix matTranslation = rlMatrixIdentity();
 
     // Set translation component of matrix
     matTranslation.m12 = x;
@@ -1285,7 +1287,7 @@ void rlTranslatef(float x, float y, float z)
 // NOTE: The provided angle must be in degrees
 void rlRotatef(float angle, float x, float y, float z)
 {
-    Matrix matRotation = rlMatrixIdentity();
+    RLMatrix matRotation = rlMatrixIdentity();
 
     // Axis vector (x, y, z) normalization
     float lengthSquared = x*x + y*y + z*z;
@@ -1329,7 +1331,7 @@ void rlRotatef(float angle, float x, float y, float z)
 // Multiply the current matrix by a scaling matrix
 void rlScalef(float x, float y, float z)
 {
-    Matrix matScale = rlMatrixIdentity();
+    RLMatrix matScale = rlMatrixIdentity();
 
     // Set scale component of matrix
     matScale.m0 = x;
@@ -1345,7 +1347,7 @@ void rlMultMatrixf(const float *matf)
 {
     // Matrix creation from array
     // Conversion from column-major to row-major memory order
-    Matrix mat = { matf[0], matf[4], matf[8], matf[12],
+    RLMatrix mat = { matf[0], matf[4], matf[8], matf[12],
                    matf[1], matf[5], matf[9], matf[13],
                    matf[2], matf[6], matf[10], matf[14],
                    matf[3], matf[7], matf[11], matf[15] };
@@ -1356,7 +1358,7 @@ void rlMultMatrixf(const float *matf)
 // Multiply the current matrix by a perspective matrix generated by parameters
 void rlFrustum(double left, double right, double bottom, double top, double znear, double zfar)
 {
-    Matrix matFrustum = { 0 };
+    RLMatrix matFrustum = { 0 };
 
     float rl = (float)(right - left);
     float tb = (float)(top - bottom);
@@ -1390,7 +1392,7 @@ void rlOrtho(double left, double right, double bottom, double top, double znear,
 {
     // NOTE: If left-right and top-botton values are equal it could create a division by zero,
     // response to it is platform/compiler dependant
-    Matrix matOrtho = { 0 };
+    RLMatrix matOrtho = { 0 };
 
     float rl = (float)(right - left);
     float tb = (float)(top - bottom);
@@ -3025,8 +3027,8 @@ void rlDrawRenderBatch(rlRenderBatch *batch)
 
     // Draw batch vertex buffers (considering VR stereo if required)
     //------------------------------------------------------------------------------------------------------------
-    Matrix matProjection = RLGL.State.projection;
-    Matrix matModelView = RLGL.State.modelview;
+    RLMatrix matProjection = RLGL.State.projection;
+    RLMatrix matModelView = RLGL.State.modelview;
 
     int eyeCount = 1;
     if (RLGL.State.stereoRender) eyeCount = 2;
@@ -3051,7 +3053,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)
             glUseProgram(RLGL.State.currentShaderId);
 
             // Create modelview-projection matrix and upload to shader
-            Matrix matMVP = rlMatrixMultiply(RLGL.State.modelview, RLGL.State.projection);
+            RLMatrix matMVP = rlMatrixMultiply(RLGL.State.modelview, RLGL.State.projection);
             glUniformMatrix4fv(RLGL.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MVP], 1, false, rlMatrixToFloat(matMVP));
 
             if (RLGL.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_PROJECTION] != -1)
@@ -4460,7 +4462,7 @@ void rlSetVertexAttributeDefault(int locIndex, const void *value, int attribType
 }
 
 // Set shader value uniform matrix
-void rlSetUniformMatrix(int locIndex, Matrix mat)
+void rlSetUniformMatrix(int locIndex, RLMatrix mat)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     glUniformMatrix4fv(locIndex, 1, false, rlMatrixToFloat(mat));
@@ -4468,7 +4470,7 @@ void rlSetUniformMatrix(int locIndex, Matrix mat)
 }
 
 // Set shader value uniform matrix
-void rlSetUniformMatrices(int locIndex, const Matrix *matrices, int count)
+void rlSetUniformMatrices(int locIndex, const RLMatrix *matrices, int count)
 {
 #if defined(GRAPHICS_API_OPENGL_33)
     glUniformMatrix4fv(locIndex, count, true, (const float *)matrices);
@@ -4673,9 +4675,9 @@ void rlBindImageTexture(unsigned int id, unsigned int index, int format, bool re
 // Matrix state management
 //-----------------------------------------------------------------------------------------
 // Get internal modelview matrix
-Matrix rlGetMatrixModelview(void)
+RLMatrix rlGetMatrixModelview(void)
 {
-    Matrix matrix = rlMatrixIdentity();
+    RLMatrix matrix = rlMatrixIdentity();
 #if defined(GRAPHICS_API_OPENGL_11)
     float mat[16];
     glGetFloatv(GL_MODELVIEW_MATRIX, mat);
@@ -4702,12 +4704,12 @@ Matrix rlGetMatrixModelview(void)
 }
 
 // Get internal projection matrix
-Matrix rlGetMatrixProjection(void)
+RLMatrix rlGetMatrixProjection(void)
 {
 #if defined(GRAPHICS_API_OPENGL_11)
     float mat[16];
     glGetFloatv(GL_PROJECTION_MATRIX,mat);
-    Matrix m;
+    RLMatrix m;
     m.m0 = mat[0];
     m.m1 = mat[1];
     m.m2 = mat[2];
@@ -4731,9 +4733,9 @@ Matrix rlGetMatrixProjection(void)
 }
 
 // Get internal accumulated transform matrix
-Matrix rlGetMatrixTransform(void)
+RLMatrix rlGetMatrixTransform(void)
 {
-    Matrix mat = rlMatrixIdentity();
+    RLMatrix mat = rlMatrixIdentity();
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     // TODO: Consider possible transform matrices in the RLGL.State.stack
     //Matrix matStackTransform = rlMatrixIdentity();
@@ -4745,9 +4747,9 @@ Matrix rlGetMatrixTransform(void)
 }
 
 // Get internal projection matrix for stereo render (selected eye)
-Matrix rlGetMatrixProjectionStereo(int eye)
+RLMatrix rlGetMatrixProjectionStereo(int eye)
 {
-    Matrix mat = rlMatrixIdentity();
+    RLMatrix mat = rlMatrixIdentity();
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     mat = RLGL.State.projectionStereo[eye];
 #endif
@@ -4755,9 +4757,9 @@ Matrix rlGetMatrixProjectionStereo(int eye)
 }
 
 // Get internal view offset matrix for stereo render (selected eye)
-Matrix rlGetMatrixViewOffsetStereo(int eye)
+RLMatrix rlGetMatrixViewOffsetStereo(int eye)
 {
-    Matrix mat = rlMatrixIdentity();
+    RLMatrix mat = rlMatrixIdentity();
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     mat = RLGL.State.viewOffsetStereo[eye];
 #endif
@@ -4765,7 +4767,7 @@ Matrix rlGetMatrixViewOffsetStereo(int eye)
 }
 
 // Set a custom modelview matrix (replaces internal modelview matrix)
-void rlSetMatrixModelview(Matrix view)
+void rlSetMatrixModelview(RLMatrix view)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     RLGL.State.modelview = view;
@@ -4773,7 +4775,7 @@ void rlSetMatrixModelview(Matrix view)
 }
 
 // Set a custom projection matrix (replaces internal projection matrix)
-void rlSetMatrixProjection(Matrix projection)
+void rlSetMatrixProjection(RLMatrix projection)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     RLGL.State.projection = projection;
@@ -4781,7 +4783,7 @@ void rlSetMatrixProjection(Matrix projection)
 }
 
 // Set eyes projection matrices for stereo rendering
-void rlSetMatrixProjectionStereo(Matrix right, Matrix left)
+void rlSetMatrixProjectionStereo(RLMatrix right, RLMatrix left)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     RLGL.State.projectionStereo[0] = right;
@@ -4790,7 +4792,7 @@ void rlSetMatrixProjectionStereo(Matrix right, Matrix left)
 }
 
 // Set eyes view offsets matrices for stereo rendering
-void rlSetMatrixViewOffsetStereo(Matrix right, Matrix left)
+void rlSetMatrixViewOffsetStereo(RLMatrix right, RLMatrix left)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     RLGL.State.viewOffsetStereo[0] = right;
@@ -5247,9 +5249,9 @@ static int rlGetPixelDataSize(int width, int height, int format)
 // Auxiliar math functions
 //-------------------------------------------------------------------------------
 // Get identity matrix
-static Matrix rlMatrixIdentity(void)
+static RLMatrix rlMatrixIdentity(void)
 {
-    Matrix matIdentity = { 0 };
+    RLMatrix matIdentity = { 0 };
     matIdentity.m0 = 1.0f;
     matIdentity.m5 = 1.0f;
     matIdentity.m10 = 1.0f;
@@ -5260,7 +5262,7 @@ static Matrix rlMatrixIdentity(void)
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
 // Get float array of matrix data
 // Explicit conversion to column-major memory layout
-static rl_float16 rlMatrixToFloatV(Matrix mat)
+static rl_float16 rlMatrixToFloatV(RLMatrix mat)
 {
     rl_float16 result = { 0 };
 
@@ -5286,9 +5288,9 @@ static rl_float16 rlMatrixToFloatV(Matrix mat)
 
 // Get two matrix multiplication
 // NOTE: When multiplying matrices... the order matters!
-static Matrix rlMatrixMultiply(Matrix left, Matrix right)
+static RLMatrix rlMatrixMultiply(RLMatrix left, RLMatrix right)
 {
-    Matrix result = { 0 };
+    RLMatrix result = { 0 };
 
     result.m0 = left.m0*right.m0 + left.m1*right.m4 + left.m2*right.m8 + left.m3*right.m12;
     result.m1 = left.m0*right.m1 + left.m1*right.m5 + left.m2*right.m9 + left.m3*right.m13;
@@ -5311,9 +5313,9 @@ static Matrix rlMatrixMultiply(Matrix left, Matrix right)
 }
 
 // Transposes provided matrix
-static Matrix rlMatrixTranspose(Matrix mat)
+static RLMatrix rlMatrixTranspose(RLMatrix mat)
 {
-    Matrix result = { 0 };
+    RLMatrix result = { 0 };
 
     result.m0 = mat.m0;
     result.m1 = mat.m4;
@@ -5336,9 +5338,9 @@ static Matrix rlMatrixTranspose(Matrix mat)
 }
 
 // Invert provided matrix
-static Matrix rlMatrixInvert(Matrix mat)
+static RLMatrix rlMatrixInvert(RLMatrix mat)
 {
-    Matrix result = { 0 };
+    RLMatrix result = { 0 };
 
     // Cache the matrix values (speed optimization)
     float a00 = mat.m0, a01 = mat.m1, a02 = mat.m2, a03 = mat.m3;

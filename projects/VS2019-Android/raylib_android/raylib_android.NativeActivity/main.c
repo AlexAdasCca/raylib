@@ -23,15 +23,15 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - basic window");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - basic window");
 
     // TODO: Load resources / Initialize variables at this point
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -40,15 +40,15 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-        ClearBackground(RAYWHITE);
+        RLClearBackground(RAYWHITE);
 
         // TODO: Draw everything that requires to be drawn at this point:
 
-        DrawText("Congrats! You created your first window!", 190, 200, 20, LIGHTGRAY);  // Example
+        RLDrawText("Congrats! You created your first window!", 190, 200, 20, LIGHTGRAY);  // Example
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -57,7 +57,7 @@ int main(void)
 
     // TODO: Unload all loaded resources at this point
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

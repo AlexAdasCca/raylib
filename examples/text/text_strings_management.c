@@ -28,14 +28,14 @@
 //----------------------------------------------------------------------------------
 typedef struct TextParticle {
     char text[MAX_TEXT_LENGTH];
-    Rectangle rect;    // Boundary
-    Vector2 vel;       // Velocity
-    Vector2 ppos;      // Previous position
+    RLRectangle rect;    // Boundary
+    RLVector2 vel;       // Velocity
+    RLVector2 ppos;      // Previous position
     float padding;
     float borderWidth;
     float friction;   
     float elasticity;
-    Color color;
+    RLColor color;
     bool grabbed;
 } TextParticle;
 
@@ -43,7 +43,7 @@ typedef struct TextParticle {
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
 void PrepareFirstTextParticle(const char* text, TextParticle *tps, int *particleCount);
-TextParticle CreateTextParticle(const char *text, float x, float y, Color color);
+TextParticle CreateTextParticle(const char *text, float x, float y, RLColor color);
 void SliceTextParticle(TextParticle *tp, int particlePos, int sliceLength, TextParticle *tps, int *particleCount);
 void SliceTextParticleByChar(TextParticle *tp, char charToSlice, TextParticle *tps, int *particleCount);
 void ShatterTextParticle(TextParticle *tp, int particlePos, TextParticle *tps, int *particleCount);
@@ -60,35 +60,35 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [text] example - strings management");
+    RLInitWindow(screenWidth, screenHeight, "raylib [text] example - strings management");
 
     TextParticle textParticles[MAX_TEXT_PARTICLES] = { 0 };
     int particleCount = 0;
     TextParticle *grabbedTextParticle = NULL;
-    Vector2 pressOffset = { 0 };
+    RLVector2 pressOffset = { 0 };
 
     PrepareFirstTextParticle("raylib => fun videogames programming!", textParticles, &particleCount);
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //---------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        float delta = GetFrameTime();
-        Vector2 mousePos = GetMousePosition();
+        float delta = RLGetFrameTime();
+        RLVector2 mousePos = RLGetMousePosition();
 
         // Checks if a text particle was grabbed
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
         {
             for (int i = particleCount - 1; i >= 0; i--)
             {
                 TextParticle *tp = &textParticles[i];
                 pressOffset.x = mousePos.x - tp->rect.x;
                 pressOffset.y = mousePos.y - tp->rect.y;
-                if (CheckCollisionPointRec(mousePos, tp->rect))
+                if (RLCheckCollisionPointRec(mousePos, tp->rect))
                 {
                     tp->grabbed = true;
                     grabbedTextParticle = tp;
@@ -98,7 +98,7 @@ int main(void)
         }
 
         // Releases any text particle the was grabbed
-        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT))
         {
             if (grabbedTextParticle != NULL)
             {
@@ -108,20 +108,20 @@ int main(void)
         }
 
         // Slice os shatter a text particle
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
         {
             for (int i = particleCount - 1; i >= 0; i--)
             {
                 TextParticle *tp = &textParticles[i];
-                if (CheckCollisionPointRec(mousePos, tp->rect))
+                if (RLCheckCollisionPointRec(mousePos, tp->rect))
                 {
-                    if (IsKeyDown(KEY_LEFT_SHIFT))
+                    if (RLIsKeyDown(KEY_LEFT_SHIFT))
                     {
                         ShatterTextParticle(tp, i, textParticles, &particleCount);
                     } 
                     else
                     {
-                        SliceTextParticle(tp, i, TextLength(tp->text)/2, textParticles, &particleCount);
+                        SliceTextParticle(tp, i, RLTextLength(tp->text)/2, textParticles, &particleCount);
                     }
                     break;
                 }
@@ -129,24 +129,24 @@ int main(void)
         }
 
         // Shake text particles
-        if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE))
+        if (RLIsMouseButtonPressed(MOUSE_BUTTON_MIDDLE))
         {
             for (int i = 0; i < particleCount; i++)
             {
-                if (!textParticles[i].grabbed) textParticles[i].vel = (Vector2){ (float)GetRandomValue(-2000, 2000), (float)GetRandomValue(-2000, 2000) };
+                if (!textParticles[i].grabbed) textParticles[i].vel = (RLVector2){ (float)RLGetRandomValue(-2000, 2000), (float)RLGetRandomValue(-2000, 2000) };
             }
         }
 
         // Reset using TextTo* functions
-        if (IsKeyPressed(KEY_ONE)) PrepareFirstTextParticle("raylib => fun videogames programming!", textParticles, &particleCount);
-        if (IsKeyPressed(KEY_TWO)) PrepareFirstTextParticle(TextToUpper("raylib => fun videogames programming!"), textParticles, &particleCount);
-        if (IsKeyPressed(KEY_THREE)) PrepareFirstTextParticle(TextToLower("raylib => fun videogames programming!"), textParticles, &particleCount);
-        if (IsKeyPressed(KEY_FOUR)) PrepareFirstTextParticle(TextToPascal("raylib_fun_videogames_programming"), textParticles, &particleCount);
-        if (IsKeyPressed(KEY_FIVE)) PrepareFirstTextParticle(TextToSnake("RaylibFunVideogamesProgramming"), textParticles, &particleCount);
-        if (IsKeyPressed(KEY_SIX)) PrepareFirstTextParticle(TextToCamel("raylib_fun_videogames_programming"), textParticles, &particleCount);
+        if (RLIsKeyPressed(KEY_ONE)) PrepareFirstTextParticle("raylib => fun videogames programming!", textParticles, &particleCount);
+        if (RLIsKeyPressed(KEY_TWO)) PrepareFirstTextParticle(RLTextToUpper("raylib => fun videogames programming!"), textParticles, &particleCount);
+        if (RLIsKeyPressed(KEY_THREE)) PrepareFirstTextParticle(RLTextToLower("raylib => fun videogames programming!"), textParticles, &particleCount);
+        if (RLIsKeyPressed(KEY_FOUR)) PrepareFirstTextParticle(RLTextToPascal("raylib_fun_videogames_programming"), textParticles, &particleCount);
+        if (RLIsKeyPressed(KEY_FIVE)) PrepareFirstTextParticle(RLTextToSnake("RaylibFunVideogamesProgramming"), textParticles, &particleCount);
+        if (RLIsKeyPressed(KEY_SIX)) PrepareFirstTextParticle(RLTextToCamel("raylib_fun_videogames_programming"), textParticles, &particleCount);
 
         // Slice by char pressed only when we have one text particle
-        char charPressed = GetCharPressed();
+        char charPressed = RLGetCharPressed();
         if ((charPressed >= 'A') && (charPressed <= 'z') && (particleCount == 1))
         {
             SliceTextParticleByChar(&textParticles[0], charPressed, textParticles, &particleCount);
@@ -206,13 +206,13 @@ int main(void)
                 tp->ppos.y = tp->rect.y;
 
                 // Glue text particles when dragging and pressing left ctrl
-                if (IsKeyDown(KEY_LEFT_CONTROL))
+                if (RLIsKeyDown(KEY_LEFT_CONTROL))
                 {
                     for (int i = 0; i < particleCount; i++)
                     {
                         if (&textParticles[i] != grabbedTextParticle && grabbedTextParticle->grabbed)
                         {
-                            if (CheckCollisionRecs(grabbedTextParticle->rect, textParticles[i].rect))
+                            if (RLCheckCollisionRecs(grabbedTextParticle->rect, textParticles[i].rect))
                             {
                                 GlueTextParticles(grabbedTextParticle, &textParticles[i], textParticles, &particleCount);
                                 grabbedTextParticle = &textParticles[particleCount-1];
@@ -226,33 +226,33 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             for (int i = 0; i < particleCount; i++)
             {
                 TextParticle *tp = &textParticles[i];
-                DrawRectangleRec((Rectangle) { tp->rect.x - tp->borderWidth, tp->rect.y - tp->borderWidth, tp->rect.width + tp->borderWidth * 2, tp->rect.height + tp->borderWidth * 2 }, BLACK);
-                DrawRectangleRec(tp->rect, tp->color);
-                DrawText(tp->text, (int)(tp->rect.x+tp->padding), (int)(tp->rect.y+tp->padding), FONT_SIZE, BLACK);
+                RLDrawRectangleRec((RLRectangle) { tp->rect.x - tp->borderWidth, tp->rect.y - tp->borderWidth, tp->rect.width + tp->borderWidth * 2, tp->rect.height + tp->borderWidth * 2 }, BLACK);
+                RLDrawRectangleRec(tp->rect, tp->color);
+                RLDrawText(tp->text, (int)(tp->rect.x+tp->padding), (int)(tp->rect.y+tp->padding), FONT_SIZE, BLACK);
             }
 
-            DrawText("grab a text particle by pressing with the mouse and throw it by releasing", 10, 10, 10, DARKGRAY);
-            DrawText("slice a text particle by pressing it with the mouse right button", 10, 30, 10, DARKGRAY);
-            DrawText("shatter a text particle keeping left shift pressed and pressing it with the mouse right button", 10, 50, 10, DARKGRAY);
-            DrawText("glue text particles by grabbing than and keeping left control pressed", 10, 70, 10, DARKGRAY);
-            DrawText("1 to 6 to reset", 10, 90, 10, DARKGRAY);
-            DrawText("when you have only one text particle, you can slice it by pressing a char", 10, 110, 10, DARKGRAY);
-            DrawText(TextFormat("TEXT PARTICLE COUNT: %d", particleCount), 10, GetScreenHeight() - 30, 20, BLACK);
+            RLDrawText("grab a text particle by pressing with the mouse and throw it by releasing", 10, 10, 10, DARKGRAY);
+            RLDrawText("slice a text particle by pressing it with the mouse right button", 10, 30, 10, DARKGRAY);
+            RLDrawText("shatter a text particle keeping left shift pressed and pressing it with the mouse right button", 10, 50, 10, DARKGRAY);
+            RLDrawText("glue text particles by grabbing than and keeping left control pressed", 10, 70, 10, DARKGRAY);
+            RLDrawText("1 to 6 to reset", 10, 90, 10, DARKGRAY);
+            RLDrawText("when you have only one text particle, you can slice it by pressing a char", 10, 110, 10, DARKGRAY);
+            RLDrawText(RLTextFormat("TEXT PARTICLE COUNT: %d", particleCount), 10, RLGetScreenHeight() - 30, 20, BLACK);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -265,19 +265,19 @@ void PrepareFirstTextParticle(const char* text, TextParticle *tps, int *particle
 {
     tps[0] = CreateTextParticle(
         text, 
-        GetScreenWidth()/2.0f, 
-        GetScreenHeight()/2.0f, 
+        RLGetScreenWidth()/2.0f, 
+        RLGetScreenHeight()/2.0f, 
         RAYWHITE
     );
     *particleCount = 1;
 }
 
-TextParticle CreateTextParticle(const char *text, float x, float y, Color color)
+TextParticle CreateTextParticle(const char *text, float x, float y, RLColor color)
 {
     TextParticle tp = {
         .text = "",
         .rect = { x, y, 30, 30 },
-        .vel = { (float)GetRandomValue(-200, 200), (float)GetRandomValue(-200, 200) },
+        .vel = { (float)RLGetRandomValue(-200, 200), (float)RLGetRandomValue(-200, 200) },
         .ppos = { 0 },
         .padding = 5.0f,
         .borderWidth = 5.0f,
@@ -287,26 +287,26 @@ TextParticle CreateTextParticle(const char *text, float x, float y, Color color)
         .grabbed = false
     };
 
-    TextCopy(tp.text, text);
-    tp.rect.width = MeasureText(tp.text, FONT_SIZE)+tp.padding*2;
+    RLTextCopy(tp.text, text);
+    tp.rect.width = RLMeasureText(tp.text, FONT_SIZE)+tp.padding*2;
     tp.rect.height = FONT_SIZE+tp.padding*2;
     return tp;
 }
 
 void SliceTextParticle(TextParticle *tp, int particlePos, int sliceLength, TextParticle *tps, int *particleCount)
 {
-    int length = TextLength(tp->text);
+    int length = RLTextLength(tp->text);
 
     if((length > 1) && ((*particleCount+length) < MAX_TEXT_PARTICLES))
     {
         for (int i = 0; i < length; i += sliceLength)
         {
-            const char *text = sliceLength == 1 ? TextFormat("%c", tp->text[i]) : TextSubtext(tp->text, i, sliceLength);
+            const char *text = sliceLength == 1 ? RLTextFormat("%c", tp->text[i]) : RLTextSubtext(tp->text, i, sliceLength);
             tps[(*particleCount)++] = CreateTextParticle(
                 text,
                 tp->rect.x + i * tp->rect.width/length,
                 tp->rect.y,
-                (Color) { GetRandomValue(0, 255), GetRandomValue(0, 255), GetRandomValue(0, 255), 255 }
+                (RLColor) { RLGetRandomValue(0, 255), RLGetRandomValue(0, 255), RLGetRandomValue(0, 255), 255 }
             );
         }
         RealocateTextParticles(tps, particlePos, particleCount);
@@ -316,31 +316,31 @@ void SliceTextParticle(TextParticle *tp, int particlePos, int sliceLength, TextP
 void SliceTextParticleByChar(TextParticle *tp, char charToSlice, TextParticle *tps, int *particleCount)
 {
     int tokenCount = 0;
-    char **tokens = TextSplit(tp->text, charToSlice, &tokenCount);
+    char **tokens = RLTextSplit(tp->text, charToSlice, &tokenCount);
     
     if (tokenCount > 1)
     {
-        int textLength = TextLength(tp->text);
+        int textLength = RLTextLength(tp->text);
         for (int i = 0; i < textLength; i++)
         {
             if (tp->text[i] == charToSlice)
             {
                 tps[(*particleCount)++] = CreateTextParticle(
-                    TextFormat("%c", charToSlice),
+                    RLTextFormat("%c", charToSlice),
                     tp->rect.x,
                     tp->rect.y,
-                    (Color) { GetRandomValue(0, 255), GetRandomValue(0, 255), GetRandomValue(0, 255), 255 }
+                    (RLColor) { RLGetRandomValue(0, 255), RLGetRandomValue(0, 255), RLGetRandomValue(0, 255), 255 }
                 );
             }
         }
         for (int i = 0; i < tokenCount; i++)
         {
-            int tokenLength = TextLength(tokens[i]);
+            int tokenLength = RLTextLength(tokens[i]);
             tps[(*particleCount)++] = CreateTextParticle(
-                TextFormat("%s", tokens[i]),
+                RLTextFormat("%s", tokens[i]),
                 tp->rect.x + i * tp->rect.width/tokenLength,
                 tp->rect.y,
-                (Color) { GetRandomValue(0, 255), GetRandomValue(0, 255), GetRandomValue(0, 255), 255 }
+                (RLColor) { RLGetRandomValue(0, 255), RLGetRandomValue(0, 255), RLGetRandomValue(0, 255), 255 }
             );
         }
         if (tokenCount)
@@ -369,7 +369,7 @@ void GlueTextParticles(TextParticle *grabbed, TextParticle *target, TextParticle
     if ((p1 != -1) && (p2 != -1))
     {
         TextParticle tp = CreateTextParticle(
-            TextFormat( "%s%s", grabbed->text, target->text),
+            RLTextFormat( "%s%s", grabbed->text, target->text),
             grabbed->rect.x,
             grabbed->rect.y,
             RAYWHITE

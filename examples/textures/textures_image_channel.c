@@ -29,51 +29,51 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - image channel");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - image channel");
 
-    Image fudesumiImage = LoadImage("resources/fudesumi.png");
+    RLImage fudesumiImage = RLLoadImage("resources/fudesumi.png");
 
-    Image imageAlpha = ImageFromChannel(fudesumiImage, 3);
-    ImageAlphaMask(&imageAlpha, imageAlpha);
+    RLImage imageAlpha = RLImageFromChannel(fudesumiImage, 3);
+    RLImageAlphaMask(&imageAlpha, imageAlpha);
 
-    Image imageRed = ImageFromChannel(fudesumiImage, 0);
-    ImageAlphaMask(&imageRed, imageAlpha);
+    RLImage imageRed = RLImageFromChannel(fudesumiImage, 0);
+    RLImageAlphaMask(&imageRed, imageAlpha);
 
-    Image imageGreen = ImageFromChannel(fudesumiImage, 1);
-    ImageAlphaMask(&imageGreen, imageAlpha);
+    RLImage imageGreen = RLImageFromChannel(fudesumiImage, 1);
+    RLImageAlphaMask(&imageGreen, imageAlpha);
 
-    Image imageBlue = ImageFromChannel(fudesumiImage, 2);
-    ImageAlphaMask(&imageBlue, imageAlpha);
+    RLImage imageBlue = RLImageFromChannel(fudesumiImage, 2);
+    RLImageAlphaMask(&imageBlue, imageAlpha);
 
-    Image backgroundImage = GenImageChecked(screenWidth, screenHeight, screenWidth/20, screenHeight/20, ORANGE, YELLOW);
+    RLImage backgroundImage = RLGenImageChecked(screenWidth, screenHeight, screenWidth/20, screenHeight/20, ORANGE, YELLOW);
 
-    Texture2D fudesumiTexture = LoadTextureFromImage(fudesumiImage);
-    Texture2D textureAlpha = LoadTextureFromImage(imageAlpha);
-    Texture2D textureRed = LoadTextureFromImage(imageRed);
-    Texture2D textureGreen = LoadTextureFromImage(imageGreen);
-    Texture2D textureBlue = LoadTextureFromImage(imageBlue);
-    Texture2D backgroundTexture = LoadTextureFromImage(backgroundImage);
+    RLTexture2D fudesumiTexture = RLLoadTextureFromImage(fudesumiImage);
+    RLTexture2D textureAlpha = RLLoadTextureFromImage(imageAlpha);
+    RLTexture2D textureRed = RLLoadTextureFromImage(imageRed);
+    RLTexture2D textureGreen = RLLoadTextureFromImage(imageGreen);
+    RLTexture2D textureBlue = RLLoadTextureFromImage(imageBlue);
+    RLTexture2D backgroundTexture = RLLoadTextureFromImage(backgroundImage);
 
-    UnloadImage(fudesumiImage);
-    UnloadImage(imageAlpha);
-    UnloadImage(imageRed);
-    UnloadImage(imageGreen);
-    UnloadImage(imageBlue);
-    UnloadImage(backgroundImage);
+    RLUnloadImage(fudesumiImage);
+    RLUnloadImage(imageAlpha);
+    RLUnloadImage(imageRed);
+    RLUnloadImage(imageGreen);
+    RLUnloadImage(imageBlue);
+    RLUnloadImage(backgroundImage);
 
-    Rectangle fudesumiRec = {0, 0, (float)fudesumiImage.width, (float)fudesumiImage.height};
+    RLRectangle fudesumiRec = {0, 0, (float)fudesumiImage.width, (float)fudesumiImage.height};
 
-    Rectangle fudesumiPos = {50, 10, fudesumiImage.width*0.8f, fudesumiImage.height*0.8f};
-    Rectangle redPos = { 410, 10, fudesumiPos.width/2.0f, fudesumiPos.height/2.0f };
-    Rectangle greenPos = { 600, 10, fudesumiPos.width/2.0f, fudesumiPos.height/2.0f };
-    Rectangle bluePos = { 410, 230, fudesumiPos.width/2.0f, fudesumiPos.height/2.0f };
-    Rectangle alphaPos = { 600, 230, fudesumiPos.width/2.0f, fudesumiPos.height/2.0f };
+    RLRectangle fudesumiPos = {50, 10, fudesumiImage.width*0.8f, fudesumiImage.height*0.8f};
+    RLRectangle redPos = { 410, 10, fudesumiPos.width/2.0f, fudesumiPos.height/2.0f };
+    RLRectangle greenPos = { 600, 10, fudesumiPos.width/2.0f, fudesumiPos.height/2.0f };
+    RLRectangle bluePos = { 410, 230, fudesumiPos.width/2.0f, fudesumiPos.height/2.0f };
+    RLRectangle alphaPos = { 600, 230, fudesumiPos.width/2.0f, fudesumiPos.height/2.0f };
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -82,30 +82,30 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            DrawTexture(backgroundTexture, 0, 0, WHITE);
-            DrawTexturePro(fudesumiTexture, fudesumiRec, fudesumiPos, (Vector2) {0, 0}, 0, WHITE);
+            RLDrawTexture(backgroundTexture, 0, 0, WHITE);
+            RLDrawTexturePro(fudesumiTexture, fudesumiRec, fudesumiPos, (RLVector2) {0, 0}, 0, WHITE);
 
-            DrawTexturePro(textureRed, fudesumiRec, redPos, (Vector2) {0, 0}, 0, RED);
-            DrawTexturePro(textureGreen, fudesumiRec, greenPos, (Vector2) {0, 0}, 0, GREEN);
-            DrawTexturePro(textureBlue, fudesumiRec, bluePos, (Vector2) {0, 0}, 0, BLUE);
-            DrawTexturePro(textureAlpha, fudesumiRec, alphaPos, (Vector2) {0, 0}, 0, WHITE);
+            RLDrawTexturePro(textureRed, fudesumiRec, redPos, (RLVector2) {0, 0}, 0, RED);
+            RLDrawTexturePro(textureGreen, fudesumiRec, greenPos, (RLVector2) {0, 0}, 0, GREEN);
+            RLDrawTexturePro(textureBlue, fudesumiRec, bluePos, (RLVector2) {0, 0}, 0, BLUE);
+            RLDrawTexturePro(textureAlpha, fudesumiRec, alphaPos, (RLVector2) {0, 0}, 0, WHITE);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(backgroundTexture);
-    UnloadTexture(fudesumiTexture);
-    UnloadTexture(textureRed);
-    UnloadTexture(textureGreen);
-    UnloadTexture(textureBlue);
-    UnloadTexture(textureAlpha);
+    RLUnloadTexture(backgroundTexture);
+    RLUnloadTexture(fudesumiTexture);
+    RLUnloadTexture(textureRed);
+    RLUnloadTexture(textureGreen);
+    RLUnloadTexture(textureBlue);
+    RLUnloadTexture(textureAlpha);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

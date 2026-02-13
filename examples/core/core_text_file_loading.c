@@ -31,10 +31,10 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - text file loading");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - text file loading");
 
     // Setting up the camera
-    Camera2D cam = {
+    RLCamera2D cam = {
         .offset = {0, 0},
         .target = {0, 0},
         .rotation = 0,
@@ -43,11 +43,11 @@ int main(void)
 
     // Loading text file from resources/text_file.txt
     const char *fileName = "resources/text_file.txt";
-    char *text = LoadFileText(fileName);
+    char *text = RLLoadFileText(fileName);
 
     // Loading all the text lines
     int lineCount = 0;
-    char **lines = LoadTextLines(text, &lineCount);
+    char **lines = RLLoadTextLines(text, &lineCount);
 
     // Stylistic choises
     int fontSize = 20;
@@ -70,7 +70,7 @@ int main(void)
                 lines[i][j] = '\0';
 
                 // Checking if the text has crossed the wrapWidth, then going back and inserting a newline
-                if (MeasureText(lines[i] + lastWrapStart, fontSize) > wrapWidth)
+                if (RLMeasureText(lines[i] + lastWrapStart, fontSize) > wrapWidth)
                 {
                     lines[i][lastSpace] = '\n';
 
@@ -91,27 +91,27 @@ int main(void)
 
     for (int i = 0; i < lineCount; i++)
     {
-        Vector2 size = MeasureTextEx(GetFontDefault(), lines[i], (float)fontSize, 2);
+        RLVector2 size = RLMeasureTextEx(RLGetFontDefault(), lines[i], (float)fontSize, 2);
         textHeight += (int)size.y + 10;
     }
 
     // A simple scrollbar on the side to show how far we have read into the file
-    Rectangle scrollBar = {
+    RLRectangle scrollBar = {
         .x = (float)screenWidth - 5,
         .y = 0,
         .width = 5,
         .height = screenHeight*100.0f/(textHeight - screenHeight) // Scrollbar height is just a percentage
     };
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        float scroll = GetMouseWheelMove();
+        float scroll = RLGetMouseWheelMove();
         cam.target.y -= scroll*fontSize*1.5f;   // Choosing an arbitrary speed for scroll
 
         if (cam.target.y < 0) cam.target.y = 0;  // Snapping to 0 if we go too far back
@@ -126,47 +126,47 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode2D(cam);
+            RLBeginMode2D(cam);
                 // Going through all the read lines
                 for (int i = 0, t = textTop; i < lineCount; i++)
                 {
                     // Each time we go through and calculate the height of the text to move the cursor appropriately
-                    Vector2 size;
+                    RLVector2 size;
                     if(strcmp(lines[i], "")){
                         // Fix for empty line in the text file
-                        size = MeasureTextEx( GetFontDefault(), lines[i], (float)fontSize, 2);
+                        size = RLMeasureTextEx( RLGetFontDefault(), lines[i], (float)fontSize, 2);
                     }else{
-                        size = MeasureTextEx( GetFontDefault(), " ", (float)fontSize, 2);
+                        size = RLMeasureTextEx( RLGetFontDefault(), " ", (float)fontSize, 2);
                     }
 
-                    DrawText(lines[i], 10, t, fontSize, RED);
+                    RLDrawText(lines[i], 10, t, fontSize, RED);
 
                     // Inserting extra space for real newlines,
                     // wrapped lines are rendered closer together
                     t += (int)size.y + 10;
                 }
-            EndMode2D();
+            RLEndMode2D();
 
             // Header displaying which file is being read currently
-            DrawRectangle(0, 0, screenWidth, textTop - 10, BEIGE);
-            DrawText(TextFormat("File: %s", fileName), 10, 10, fontSize, MAROON);
+            RLDrawRectangle(0, 0, screenWidth, textTop - 10, BEIGE);
+            RLDrawText(RLTextFormat("File: %s", fileName), 10, 10, fontSize, MAROON);
 
-            DrawRectangleRec(scrollBar, MAROON);
+            RLDrawRectangleRec(scrollBar, MAROON);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTextLines(lines, lineCount);
-    UnloadFileText(text);
+    RLUnloadTextLines(lines, lineCount);
+    RLUnloadFileText(text);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

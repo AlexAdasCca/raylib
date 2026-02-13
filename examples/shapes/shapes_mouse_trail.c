@@ -32,20 +32,20 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - mouse trail");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - mouse trail");
 
     // Array to store the history of mouse positions (our fixed-size queue)
-    Vector2 trailPositions[MAX_TRAIL_LENGTH] = { 0 };
+    RLVector2 trailPositions[MAX_TRAIL_LENGTH] = { 0 };
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        Vector2 mousePosition = GetMousePosition();
+        RLVector2 mousePosition = RLGetMousePosition();
 
         // Shift all existing positions backward by one slot in the array
         // The last element (the oldest position) is dropped
@@ -60,9 +60,9 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(BLACK);
+            RLClearBackground(BLACK);
 
             // Draw the trail by looping through the history array
             for (int i = 0; i < MAX_TRAIL_LENGTH; i++)
@@ -75,27 +75,27 @@ int main(void)
 
                     // Fade effect: oldest positions are more transparent
                     // Fade (color, alpha) - alpha is 0.5 to 1.0 based on ratio
-                    Color trailColor = Fade(SKYBLUE, ratio*0.5f + 0.5f);
+                    RLColor trailColor = RLFade(SKYBLUE, ratio*0.5f + 0.5f);
 
                     // Size effect: oldest positions are smaller
                     float trailRadius = 15.0f*ratio;
 
-                    DrawCircleV(trailPositions[i], trailRadius, trailColor);
+                    RLDrawCircleV(trailPositions[i], trailRadius, trailColor);
                 }
             }
 
             // Draw a distinct white circle for the current mouse position (Index 0)
-            DrawCircleV(mousePosition, 15.0f, WHITE);
+            RLDrawCircleV(mousePosition, 15.0f, WHITE);
 
-            DrawText("Move the mouse to see the trail effect!", 10, screenHeight - 30, 20, LIGHTGRAY);
+            RLDrawText("Move the mouse to see the trail effect!", 10, screenHeight - 30, 20, LIGHTGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();         // Close window and OpenGL context
+    RLCloseWindow();         // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

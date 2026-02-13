@@ -29,110 +29,110 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [text] example - font filters");
+    RLInitWindow(screenWidth, screenHeight, "raylib [text] example - font filters");
 
     const char msg[50] = "Loaded Font";
 
     // NOTE: Textures/Fonts MUST be loaded after Window initialization (OpenGL context is required)
 
     // TTF Font loading with custom generation parameters
-    Font font = LoadFontEx("resources/KAISG.ttf", 96, 0, 0);
+    RLFont font = RLLoadFontEx("resources/KAISG.ttf", 96, 0, 0);
 
     // Generate mipmap levels to use trilinear filtering
     // NOTE: On 2D drawing it won't be noticeable, it looks like FILTER_BILINEAR
-    GenTextureMipmaps(&font.texture);
+    RLGenTextureMipmaps(&font.texture);
 
     float fontSize = (float)font.baseSize;
-    Vector2 fontPosition = { 40.0f, screenHeight/2.0f - 80.0f };
-    Vector2 textSize = { 0.0f, 0.0f };
+    RLVector2 fontPosition = { 40.0f, screenHeight/2.0f - 80.0f };
+    RLVector2 textSize = { 0.0f, 0.0f };
 
     // Setup texture scaling filter
-    SetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
+    RLSetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
     int currentFontFilter = 0;      // TEXTURE_FILTER_POINT
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        fontSize += GetMouseWheelMove()*4.0f;
+        fontSize += RLGetMouseWheelMove()*4.0f;
 
         // Choose font texture filter method
-        if (IsKeyPressed(KEY_ONE))
+        if (RLIsKeyPressed(KEY_ONE))
         {
-            SetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
+            RLSetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
             currentFontFilter = 0;
         }
-        else if (IsKeyPressed(KEY_TWO))
+        else if (RLIsKeyPressed(KEY_TWO))
         {
-            SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+            RLSetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
             currentFontFilter = 1;
         }
-        else if (IsKeyPressed(KEY_THREE))
+        else if (RLIsKeyPressed(KEY_THREE))
         {
             // NOTE: Trilinear filter won't be noticed on 2D drawing
-            SetTextureFilter(font.texture, TEXTURE_FILTER_TRILINEAR);
+            RLSetTextureFilter(font.texture, TEXTURE_FILTER_TRILINEAR);
             currentFontFilter = 2;
         }
 
-        textSize = MeasureTextEx(font, msg, fontSize, 0);
+        textSize = RLMeasureTextEx(font, msg, fontSize, 0);
 
-        if (IsKeyDown(KEY_LEFT)) fontPosition.x -= 10;
-        else if (IsKeyDown(KEY_RIGHT)) fontPosition.x += 10;
+        if (RLIsKeyDown(KEY_LEFT)) fontPosition.x -= 10;
+        else if (RLIsKeyDown(KEY_RIGHT)) fontPosition.x += 10;
 
         // Load a dropped TTF file dynamically (at current fontSize)
-        if (IsFileDropped())
+        if (RLIsFileDropped())
         {
-            FilePathList droppedFiles = LoadDroppedFiles();
+            RLFilePathList droppedFiles = RLLoadDroppedFiles();
 
             // NOTE: We only support first ttf file dropped
-            if (IsFileExtension(droppedFiles.paths[0], ".ttf"))
+            if (RLIsFileExtension(droppedFiles.paths[0], ".ttf"))
             {
-                UnloadFont(font);
-                font = LoadFontEx(droppedFiles.paths[0], (int)fontSize, 0, 0);
+                RLUnloadFont(font);
+                font = RLLoadFontEx(droppedFiles.paths[0], (int)fontSize, 0, 0);
             }
 
-            UnloadDroppedFiles(droppedFiles);    // Unload filepaths from memory
+            RLUnloadDroppedFiles(droppedFiles);    // Unload filepaths from memory
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawText("Use mouse wheel to change font size", 20, 20, 10, GRAY);
-            DrawText("Use KEY_RIGHT and KEY_LEFT to move text", 20, 40, 10, GRAY);
-            DrawText("Use 1, 2, 3 to change texture filter", 20, 60, 10, GRAY);
-            DrawText("Drop a new TTF font for dynamic loading", 20, 80, 10, DARKGRAY);
+            RLDrawText("Use mouse wheel to change font size", 20, 20, 10, GRAY);
+            RLDrawText("Use KEY_RIGHT and KEY_LEFT to move text", 20, 40, 10, GRAY);
+            RLDrawText("Use 1, 2, 3 to change texture filter", 20, 60, 10, GRAY);
+            RLDrawText("Drop a new TTF font for dynamic loading", 20, 80, 10, DARKGRAY);
 
-            DrawTextEx(font, msg, fontPosition, fontSize, 0, BLACK);
+            RLDrawTextEx(font, msg, fontPosition, fontSize, 0, BLACK);
 
             // TODO: It seems texSize measurement is not accurate due to chars offsets...
             //DrawRectangleLines(fontPosition.x, fontPosition.y, textSize.x, textSize.y, RED);
 
-            DrawRectangle(0, screenHeight - 80, screenWidth, 80, LIGHTGRAY);
-            DrawText(TextFormat("Font size: %02.02f", fontSize), 20, screenHeight - 50, 10, DARKGRAY);
-            DrawText(TextFormat("Text size: [%02.02f, %02.02f]", textSize.x, textSize.y), 20, screenHeight - 30, 10, DARKGRAY);
-            DrawText("CURRENT TEXTURE FILTER:", 250, 400, 20, GRAY);
+            RLDrawRectangle(0, screenHeight - 80, screenWidth, 80, LIGHTGRAY);
+            RLDrawText(RLTextFormat("Font size: %02.02f", fontSize), 20, screenHeight - 50, 10, DARKGRAY);
+            RLDrawText(RLTextFormat("Text size: [%02.02f, %02.02f]", textSize.x, textSize.y), 20, screenHeight - 30, 10, DARKGRAY);
+            RLDrawText("CURRENT TEXTURE FILTER:", 250, 400, 20, GRAY);
 
-            if (currentFontFilter == 0) DrawText("POINT", 570, 400, 20, BLACK);
-            else if (currentFontFilter == 1) DrawText("BILINEAR", 570, 400, 20, BLACK);
-            else if (currentFontFilter == 2) DrawText("TRILINEAR", 570, 400, 20, BLACK);
+            if (currentFontFilter == 0) RLDrawText("POINT", 570, 400, 20, BLACK);
+            else if (currentFontFilter == 1) RLDrawText("BILINEAR", 570, 400, 20, BLACK);
+            else if (currentFontFilter == 2) RLDrawText("TRILINEAR", 570, 400, 20, BLACK);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadFont(font);           // Font unloading
+    RLUnloadFont(font);           // Font unloading
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -27,33 +27,33 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - rotating cube");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - rotating cube");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 0.0f, 3.0f, 3.0f };
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 0.0f, 3.0f, 3.0f };
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
     // Load image to create texture for the cube
-    Model model = LoadModelFromMesh(GenMeshCube(1.0f, 1.0f, 1.0f));
-    Image img = LoadImage("resources/cubicmap_atlas.png");
-    Image crop = ImageFromImage(img, (Rectangle){0, img.height/2.0f, img.width/2.0f, img.height/2.0f});
-    Texture2D texture = LoadTextureFromImage(crop);
-    UnloadImage(img);
-    UnloadImage(crop);
+    RLModel model = RLLoadModelFromMesh(RLGenMeshCube(1.0f, 1.0f, 1.0f));
+    RLImage img = RLLoadImage("resources/cubicmap_atlas.png");
+    RLImage crop = RLImageFromImage(img, (RLRectangle){0, img.height/2.0f, img.width/2.0f, img.height/2.0f});
+    RLTexture2D texture = RLLoadTextureFromImage(crop);
+    RLUnloadImage(img);
+    RLUnloadImage(crop);
 
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
 
     float rotation = 0.0f;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -62,32 +62,32 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
                 // Draw model defining: position, size, rotation-axis, rotation (degrees), size, and tint-color
-                DrawModelEx(model, (Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ 0.5f, 1.0f, 0.0f },
-                    rotation, (Vector3){ 1.0f, 1.0f, 1.0f }, WHITE);
+                RLDrawModelEx(model, (RLVector3){ 0.0f, 0.0f, 0.0f }, (RLVector3){ 0.5f, 1.0f, 0.0f },
+                    rotation, (RLVector3){ 1.0f, 1.0f, 1.0f }, WHITE);
 
-                DrawGrid(10, 1.0f);
+                RLDrawGrid(10, 1.0f);
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(texture); // Unload texture
-    UnloadModel(model);     // Unload model
+    RLUnloadTexture(texture); // Unload texture
+    RLUnloadModel(model);     // Unload model
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -65,7 +65,7 @@ typedef struct FFTData {
 } FFTData;
 
 static void CaptureFrame(FFTData *fftData, const float *audioSamples);
-static void RenderFrame(const FFTData *fftData, Image *fftImage);
+static void RenderFrame(const FFTData *fftData, RLImage *fftImage);
 static void CooleyTukeyFFTSlow(FFTComplex *spectrum, int n);
 
 //------------------------------------------------------------------------------------
@@ -78,29 +78,29 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [audio] example - spectrum visualizer");
+    RLInitWindow(screenWidth, screenHeight, "raylib [audio] example - spectrum visualizer");
 
-    Image fftImage = GenImageColor(BUFFER_SIZE, TEXTURE_HEIGHT, WHITE);
-    Texture2D fftTexture = LoadTextureFromImage(fftImage);
-    RenderTexture2D bufferA = LoadRenderTexture(screenWidth, screenHeight);
-    Vector2 iResolution = { (float)screenWidth, (float)screenHeight };
+    RLImage fftImage = RLGenImageColor(BUFFER_SIZE, TEXTURE_HEIGHT, WHITE);
+    RLTexture2D fftTexture = RLLoadTextureFromImage(fftImage);
+    RLRenderTexture2D bufferA = RLLoadRenderTexture(screenWidth, screenHeight);
+    RLVector2 iResolution = { (float)screenWidth, (float)screenHeight };
 
-    Shader shader = LoadShader(0, TextFormat("resources/shaders/glsl%i/fft.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/fft.fs", GLSL_VERSION));
 
-    int iResolutionLocation = GetShaderLocation(shader, "iResolution");
-    int iChannel0Location = GetShaderLocation(shader, "iChannel0");
-    SetShaderValue(shader, iResolutionLocation, &iResolution, SHADER_UNIFORM_VEC2);
-    SetShaderValueTexture(shader, iChannel0Location, fftTexture);
+    int iResolutionLocation = RLGetShaderLocation(shader, "iResolution");
+    int iChannel0Location = RLGetShaderLocation(shader, "iChannel0");
+    RLSetShaderValue(shader, iResolutionLocation, &iResolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValueTexture(shader, iChannel0Location, fftTexture);
 
-    InitAudioDevice();
-    SetAudioStreamBufferSizeDefault(AUDIO_STREAM_RING_BUFFER_SIZE);
+    RLInitAudioDevice();
+    RLSetAudioStreamBufferSizeDefault(AUDIO_STREAM_RING_BUFFER_SIZE);
 
     // WARNING: Memory out-of-bounds on PLATFORM_WEB
-    Wave wav = LoadWave("resources/country.mp3");
-    WaveFormat(&wav, SAMPLE_RATE, PER_SAMPLE_BIT_DEPTH, MONO);
+    RLWave wav = RLLoadWave("resources/country.mp3");
+    RLWaveFormat(&wav, SAMPLE_RATE, PER_SAMPLE_BIT_DEPTH, MONO);
 
-    AudioStream audioStream = LoadAudioStream(SAMPLE_RATE, PER_SAMPLE_BIT_DEPTH, MONO);
-    PlayAudioStream(audioStream);
+    RLAudioStream audioStream = RLLoadAudioStream(SAMPLE_RATE, PER_SAMPLE_BIT_DEPTH, MONO);
+    RLPlayAudioStream(audioStream);
 
     int fftHistoryLen = (int)ceilf(FFT_HISTORICAL_SMOOTHING_DUR/WINDOW_TIME) + 1;
 
@@ -121,15 +121,15 @@ int main(void)
     short chunkSamples[AUDIO_STREAM_RING_BUFFER_SIZE] = { 0 };
     float audioSamples[FFT_WINDOW_SIZE] = { 0 };
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //----------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        while (IsAudioStreamProcessed(audioStream))
+        while (RLIsAudioStreamProcessed(audioStream))
         {
             for (int i = 0; i < AUDIO_STREAM_RING_BUFFER_SIZE; i++)
             {
@@ -140,49 +140,49 @@ int main(void)
                 if (++wavCursor >= wav.frameCount) wavCursor = 0;
             }
 
-            UpdateAudioStream(audioStream, chunkSamples, AUDIO_STREAM_RING_BUFFER_SIZE);
+            RLUpdateAudioStream(audioStream, chunkSamples, AUDIO_STREAM_RING_BUFFER_SIZE);
 
             for (int i = 0; i < FFT_WINDOW_SIZE; i++) audioSamples[i] = (chunkSamples[i*2] + chunkSamples[i*2 + 1])*0.5f/32767.0f;
         }
 
         CaptureFrame(&fft, audioSamples);
         RenderFrame(&fft, &fftImage);
-        UpdateTexture(fftTexture, fftImage.data);
+        RLUpdateTexture(fftTexture, fftImage.data);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginShaderMode(shader);
-                SetShaderValueTexture(shader, iChannel0Location, fftTexture);
-                DrawTextureRec(bufferA.texture,
-                    (Rectangle){ 0, 0, (float)screenWidth, (float)-screenHeight },
-                    (Vector2){ 0, 0 }, WHITE);
-            EndShaderMode();
+            RLBeginShaderMode(shader);
+                RLSetShaderValueTexture(shader, iChannel0Location, fftTexture);
+                RLDrawTextureRec(bufferA.texture,
+                    (RLRectangle){ 0, 0, (float)screenWidth, (float)-screenHeight },
+                    (RLVector2){ 0, 0 }, WHITE);
+            RLEndShaderMode();
 
-        EndDrawing();
+        RLEndDrawing();
         //------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shader);
-    UnloadRenderTexture(bufferA);
-    UnloadTexture(fftTexture);
-    UnloadImage(fftImage);
-    UnloadAudioStream(audioStream);
-    UnloadWave(wav);
-    CloseAudioDevice();
+    RLUnloadShader(shader);
+    RLUnloadRenderTexture(bufferA);
+    RLUnloadTexture(fftTexture);
+    RLUnloadImage(fftImage);
+    RLUnloadAudioStream(audioStream);
+    RLUnloadWave(wav);
+    RLCloseAudioDevice();
 
     RL_FREE(fft.spectrum);
     RL_FREE(fft.workBuffer);
     RL_FREE(fft.prevMagnitudes);
     RL_FREE(fft.fftHistory);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //----------------------------------------------------------------------------------
 
     return 0;
@@ -267,12 +267,12 @@ static void CaptureFrame(FFTData *fftData, const float *audioSamples)
         smoothedSpectrum[bin] = Clamp(normalized, 0.0f, 1.0f);
     }
 
-    fftData->lastFftTime = GetTime();
+    fftData->lastFftTime = RLGetTime();
     memcpy(fftData->fftHistory[fftData->historyPos], smoothedSpectrum, sizeof(smoothedSpectrum));
     fftData->historyPos = (fftData->historyPos + 1)%fftData->fftHistoryLen;
 }
 
-static void RenderFrame(const FFTData *fftData, Image *fftImage)
+static void RenderFrame(const FFTData *fftData, RLImage *fftImage)
 {
     double framesSinceTapback = floor(fftData->tapbackPos/WINDOW_TIME);
     framesSinceTapback = Clamp(framesSinceTapback, 0.0, fftData->fftHistoryLen - 1);
@@ -281,5 +281,5 @@ static void RenderFrame(const FFTData *fftData, Image *fftImage)
     if (historyPosition < 0) historyPosition += fftData->fftHistoryLen;
 
     const float *amplitude = fftData->fftHistory[historyPosition];
-    for (int bin = 0; bin < BUFFER_SIZE; bin++) ImageDrawPixel(fftImage, bin, FFT_ROW, ColorFromNormalized((Vector4){ amplitude[bin], UNUSED_CHANNEL, UNUSED_CHANNEL, UNUSED_CHANNEL }));
+    for (int bin = 0; bin < BUFFER_SIZE; bin++) RLImageDrawPixel(fftImage, bin, FFT_ROW, RLColorFromNormalized((RLVector4){ amplitude[bin], UNUSED_CHANNEL, UNUSED_CHANNEL, UNUSED_CHANNEL }));
 }

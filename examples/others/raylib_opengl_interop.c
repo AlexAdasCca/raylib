@@ -75,25 +75,25 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [others] example - OpenGL interoperatibility");
+    RLInitWindow(screenWidth, screenHeight, "raylib [others] example - OpenGL interoperatibility");
 
-    Shader shader = LoadShader(TextFormat("resources/shaders/glsl%i/point_particle.vs", GLSL_VERSION),
-                               TextFormat("resources/shaders/glsl%i/point_particle.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/point_particle.vs", GLSL_VERSION),
+                               RLTextFormat("resources/shaders/glsl%i/point_particle.fs", GLSL_VERSION));
 
-    int currentTimeLoc = GetShaderLocation(shader, "currentTime");
-    int colorLoc = GetShaderLocation(shader, "color");
+    int currentTimeLoc = RLGetShaderLocation(shader, "currentTime");
+    int colorLoc = RLGetShaderLocation(shader, "color");
 
     // Initialize the vertex buffer for the particles and assign each particle random values
     Particle particles[MAX_PARTICLES] = { 0 };
 
     for (int i = 0; i < MAX_PARTICLES; i++)
     {
-        particles[i].x = (float)GetRandomValue(20, screenWidth - 20);
-        particles[i].y = (float)GetRandomValue(50, screenHeight - 20);
+        particles[i].x = (float)RLGetRandomValue(20, screenWidth - 20);
+        particles[i].y = (float)RLGetRandomValue(50, screenHeight - 20);
 
         // Give each particle a slightly different period. But don't spread it to much
         // This way the particles line up every so often and you get a glimps of what is going on
-        particles[i].period = (float)GetRandomValue(10, 30)/10.0f;
+        particles[i].period = (float)RLGetRandomValue(10, 30)/10.0f;
     }
 
     // Create a plain OpenGL vertex buffer with the data and an vertex array object
@@ -116,19 +116,19 @@ int main(void)
     glEnable(GL_PROGRAM_POINT_SIZE);
     #endif
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
-            ClearBackground(WHITE);
+        RLBeginDrawing();
+            RLClearBackground(WHITE);
 
-            DrawRectangle(10, 10, 210, 30, MAROON);
-            DrawText(TextFormat("%zu particles in one vertex buffer", MAX_PARTICLES), 20, 20, 10, RAYWHITE);
+            RLDrawRectangle(10, 10, 210, 30, MAROON);
+            RLDrawText(RLTextFormat("%zu particles in one vertex buffer", MAX_PARTICLES), 20, 20, 10, RAYWHITE);
 
             rlDrawRenderBatchActive();      // Draw iternal buffers data (previous draw calls)
 
@@ -136,13 +136,13 @@ int main(void)
             //------------------------------------------------------------------------------
             glUseProgram(shader.id);
 
-                glUniform1f(currentTimeLoc, GetTime());
+                glUniform1f(currentTimeLoc, RLGetTime());
 
-                Vector4 color = ColorNormalize((Color){ 255, 0, 0, 128 });
+                RLVector4 color = RLColorNormalize((RLColor){ 255, 0, 0, 128 });
                 glUniform4fv(colorLoc, 1, (float *)&color);
 
                 // Get the current modelview and projection matrix so the particle system is displayed and transformed
-                Matrix modelViewProjection = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+                RLMatrix modelViewProjection = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
 
                 glUniformMatrix4fv(shader.locs[SHADER_LOC_MATRIX_MVP], 1, false, MatrixToFloat(modelViewProjection));
 
@@ -153,9 +153,9 @@ int main(void)
             glUseProgram(0);
             //------------------------------------------------------------------------------
 
-            DrawFPS(screenWidth - 100, 10);
+            RLDrawFPS(screenWidth - 100, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -164,9 +164,9 @@ int main(void)
     glDeleteBuffers(1, &vbo);
     glDeleteVertexArrays(1, &vao);
 
-    UnloadShader(shader);   // Unload shader
+    RLUnloadShader(shader);   // Unload shader
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

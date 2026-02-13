@@ -67,31 +67,31 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - deferred rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - deferred rendering");
 
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 5.0f, 4.0f, 5.0f };    // Camera position
-    camera.target = (Vector3){ 0.0f, 1.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 5.0f, 4.0f, 5.0f };    // Camera position
+    camera.target = (RLVector3){ 0.0f, 1.0f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 60.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load plane model from a generated mesh
-    Model model = LoadModelFromMesh(GenMeshPlane(10.0f, 10.0f, 3, 3));
-    Model cube = LoadModelFromMesh(GenMeshCube(2.0f, 2.0f, 2.0f));
+    RLModel model = RLLoadModelFromMesh(RLGenMeshPlane(10.0f, 10.0f, 3, 3));
+    RLModel cube = RLLoadModelFromMesh(RLGenMeshCube(2.0f, 2.0f, 2.0f));
 
     // Load geometry buffer (G-buffer) shader and deferred shader
-    Shader gbufferShader = LoadShader(TextFormat("resources/shaders/glsl%i/gbuffer.vs", GLSL_VERSION),
-                               TextFormat("resources/shaders/glsl%i/gbuffer.fs", GLSL_VERSION));
+    RLShader gbufferShader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/gbuffer.vs", GLSL_VERSION),
+                               RLTextFormat("resources/shaders/glsl%i/gbuffer.fs", GLSL_VERSION));
 
-    Shader deferredShader = LoadShader(TextFormat("resources/shaders/glsl%i/deferred_shading.vs", GLSL_VERSION),
-                               TextFormat("resources/shaders/glsl%i/deferred_shading.fs", GLSL_VERSION));
-    deferredShader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(deferredShader, "viewPosition");
+    RLShader deferredShader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/deferred_shading.vs", GLSL_VERSION),
+                               RLTextFormat("resources/shaders/glsl%i/deferred_shading.fs", GLSL_VERSION));
+    deferredShader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(deferredShader, "viewPosition");
 
     // Initialize the G-buffer
     GBuffer gBuffer = { 0 };
     gBuffer.framebufferId = rlLoadFramebuffer();
-    if (gBuffer.framebufferId == 0) TraceLog(LOG_WARNING, "Failed to create framebufferId");
+    if (gBuffer.framebufferId == 0) RLTraceLog(LOG_WARNING, "Failed to create framebufferId");
 
     rlEnableFramebuffer(gBuffer.framebufferId);
 
@@ -126,7 +126,7 @@ int main(void)
 
     // Make sure our framebufferId is complete
     // NOTE: rlFramebufferComplete() automatically unbinds the framebufferId, so we don't have to rlDisableFramebuffer() here
-    if (!rlFramebufferComplete(gBuffer.framebufferId)) TraceLog(LOG_WARNING, "Framebuffer is not complete");
+    if (!rlFramebufferComplete(gBuffer.framebufferId)) RLTraceLog(LOG_WARNING, "Framebuffer is not complete");
 
     // Now we initialize the sampler2D uniform's in the deferred shader
     // We do this by setting the uniform's values to the texture units that
@@ -135,9 +135,9 @@ int main(void)
     int texUnitPosition = 0;
     int texUnitNormal = 1;
     int texUnitAlbedoSpec = 2;
-    SetShaderValue(deferredShader, rlGetLocationUniform(deferredShader.id, "gPosition"), &texUnitPosition, RL_SHADER_UNIFORM_SAMPLER2D);
-    SetShaderValue(deferredShader, rlGetLocationUniform(deferredShader.id, "gNormal"), &texUnitNormal, RL_SHADER_UNIFORM_SAMPLER2D);
-    SetShaderValue(deferredShader, rlGetLocationUniform(deferredShader.id, "gAlbedoSpec"), &texUnitAlbedoSpec, RL_SHADER_UNIFORM_SAMPLER2D);
+    RLSetShaderValue(deferredShader, rlGetLocationUniform(deferredShader.id, "gPosition"), &texUnitPosition, RL_SHADER_UNIFORM_SAMPLER2D);
+    RLSetShaderValue(deferredShader, rlGetLocationUniform(deferredShader.id, "gNormal"), &texUnitNormal, RL_SHADER_UNIFORM_SAMPLER2D);
+    RLSetShaderValue(deferredShader, rlGetLocationUniform(deferredShader.id, "gAlbedoSpec"), &texUnitAlbedoSpec, RL_SHADER_UNIFORM_SAMPLER2D);
     rlDisableShader();
 
     // Assign out lighting shader to model
@@ -147,18 +147,18 @@ int main(void)
     // Create lights
     //--------------------------------------------------------------------------------------
     Light lights[MAX_LIGHTS] = { 0 };
-    lights[0] = CreateLight(LIGHT_POINT, (Vector3){ -2, 1, -2 }, Vector3Zero(), YELLOW, deferredShader);
-    lights[1] = CreateLight(LIGHT_POINT, (Vector3){ 2, 1, 2 }, Vector3Zero(), RED, deferredShader);
-    lights[2] = CreateLight(LIGHT_POINT, (Vector3){ -2, 1, 2 }, Vector3Zero(), GREEN, deferredShader);
-    lights[3] = CreateLight(LIGHT_POINT, (Vector3){ 2, 1, -2 }, Vector3Zero(), BLUE, deferredShader);
+    lights[0] = CreateLight(LIGHT_POINT, (RLVector3){ -2, 1, -2 }, Vector3Zero(), YELLOW, deferredShader);
+    lights[1] = CreateLight(LIGHT_POINT, (RLVector3){ 2, 1, 2 }, Vector3Zero(), RED, deferredShader);
+    lights[2] = CreateLight(LIGHT_POINT, (RLVector3){ -2, 1, 2 }, Vector3Zero(), GREEN, deferredShader);
+    lights[3] = CreateLight(LIGHT_POINT, (RLVector3){ 2, 1, -2 }, Vector3Zero(), BLUE, deferredShader);
 
     const float CUBE_SCALE = 0.25;
-    Vector3 cubePositions[MAX_CUBES] = { 0 };
+    RLVector3 cubePositions[MAX_CUBES] = { 0 };
     float cubeRotations[MAX_CUBES] = { 0 };
 
     for (int i = 0; i < MAX_CUBES; i++)
     {
-        cubePositions[i] = (Vector3){
+        cubePositions[i] = (RLVector3){
             .x = (float)(rand()%10) - 5,
             .y = (float)(rand()%5),
             .z = (float)(rand()%10) - 5,
@@ -171,31 +171,31 @@ int main(void)
 
     rlEnableDepthTest();
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //---------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())
+    while (!RLWindowShouldClose())
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
 
         // Update the shader with the camera view vector (points towards { 0.0f, 0.0f, 0.0f })
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
-        SetShaderValue(deferredShader, deferredShader.locs[SHADER_LOC_VECTOR_VIEW], cameraPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(deferredShader, deferredShader.locs[SHADER_LOC_VECTOR_VIEW], cameraPos, SHADER_UNIFORM_VEC3);
 
         // Check key inputs to enable/disable lights
-        if (IsKeyPressed(KEY_Y)) { lights[0].enabled = !lights[0].enabled; }
-        if (IsKeyPressed(KEY_R)) { lights[1].enabled = !lights[1].enabled; }
-        if (IsKeyPressed(KEY_G)) { lights[2].enabled = !lights[2].enabled; }
-        if (IsKeyPressed(KEY_B)) { lights[3].enabled = !lights[3].enabled; }
+        if (RLIsKeyPressed(KEY_Y)) { lights[0].enabled = !lights[0].enabled; }
+        if (RLIsKeyPressed(KEY_R)) { lights[1].enabled = !lights[1].enabled; }
+        if (RLIsKeyPressed(KEY_G)) { lights[2].enabled = !lights[2].enabled; }
+        if (RLIsKeyPressed(KEY_B)) { lights[3].enabled = !lights[3].enabled; }
 
         // Check key inputs to switch between G-buffer textures
-        if (IsKeyPressed(KEY_ONE)) mode = DEFERRED_POSITION;
-        if (IsKeyPressed(KEY_TWO)) mode = DEFERRED_NORMAL;
-        if (IsKeyPressed(KEY_THREE)) mode = DEFERRED_ALBEDO;
-        if (IsKeyPressed(KEY_FOUR)) mode = DEFERRED_SHADING;
+        if (RLIsKeyPressed(KEY_ONE)) mode = DEFERRED_POSITION;
+        if (RLIsKeyPressed(KEY_TWO)) mode = DEFERRED_NORMAL;
+        if (RLIsKeyPressed(KEY_THREE)) mode = DEFERRED_ALBEDO;
+        if (RLIsKeyPressed(KEY_FOUR)) mode = DEFERRED_SHADING;
 
         // Update light values (actually, only enable/disable them)
         for (int i = 0; i < MAX_LIGHTS; i++) UpdateLightValues(deferredShader, lights[i]);
@@ -203,7 +203,7 @@ int main(void)
 
         // Draw
         // ---------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
             // Draw to the geometry buffer by first activating it
             rlEnableFramebuffer(gBuffer.framebufferId);
@@ -211,21 +211,21 @@ int main(void)
             rlClearScreenBuffers();  // Clear color and depth buffer
             rlDisableColorBlend();
             
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
                 // NOTE: We have to use rlEnableShader here. `BeginShaderMode` or thus `rlSetShader`
                 // will not work, as they won't immediately load the shader program
                 rlEnableShader(gbufferShader.id);
                     // When drawing a model here, make sure that the material's shaders are set to the gbuffer shader!
-                    DrawModel(model, Vector3Zero(), 1.0f, WHITE);
-                    DrawModel(cube, (Vector3) { 0.0, 1.0f, 0.0 }, 1.0f, WHITE);
+                    RLDrawModel(model, Vector3Zero(), 1.0f, WHITE);
+                    RLDrawModel(cube, (RLVector3) { 0.0, 1.0f, 0.0 }, 1.0f, WHITE);
 
                     for (int i = 0; i < MAX_CUBES; i++)
                     {
-                        Vector3 position = cubePositions[i];
-                        DrawModelEx(cube, position, (Vector3) { 1, 1, 1 }, cubeRotations[i], (Vector3) { CUBE_SCALE, CUBE_SCALE, CUBE_SCALE }, WHITE);
+                        RLVector3 position = cubePositions[i];
+                        RLDrawModelEx(cube, position, (RLVector3) { 1, 1, 1 }, cubeRotations[i], (RLVector3) { CUBE_SCALE, CUBE_SCALE, CUBE_SCALE }, WHITE);
                     }
                 rlDisableShader();
-            EndMode3D();
+            RLEndMode3D();
             
             rlEnableColorBlend();
 
@@ -237,7 +237,7 @@ int main(void)
             {
                 case DEFERRED_SHADING:
                 {
-                    BeginMode3D(camera);
+                    RLBeginMode3D(camera);
                         rlDisableColorBlend();
                         rlEnableShader(deferredShader.id);
                             // Bind our g-buffer textures
@@ -255,7 +255,7 @@ int main(void)
                             rlLoadDrawQuad();
                         rlDisableShader();
                         rlEnableColorBlend();
-                    EndMode3D();
+                    RLEndMode3D();
 
                     // As a last step, we now copy over the depth buffer from our g-buffer to the default framebufferId
                     rlBindFramebuffer(RL_READ_FRAMEBUFFER, gBuffer.framebufferId);
@@ -265,69 +265,69 @@ int main(void)
 
                     // Since our shader is now done and disabled, we can draw spheres
                     // that represent light positions in default forward rendering
-                    BeginMode3D(camera);
+                    RLBeginMode3D(camera);
                         rlEnableShader(rlGetShaderIdDefault());
                             for (int i = 0; i < MAX_LIGHTS; i++)
                             {
-                                if (lights[i].enabled) DrawSphereEx(lights[i].position, 0.2f, 8, 8, lights[i].color);
-                                else DrawSphereWires(lights[i].position, 0.2f, 8, 8, ColorAlpha(lights[i].color, 0.3f));
+                                if (lights[i].enabled) RLDrawSphereEx(lights[i].position, 0.2f, 8, 8, lights[i].color);
+                                else RLDrawSphereWires(lights[i].position, 0.2f, 8, 8, RLColorAlpha(lights[i].color, 0.3f));
                             }
                         rlDisableShader();
-                    EndMode3D();
+                    RLEndMode3D();
 
-                    DrawText("FINAL RESULT", 10, screenHeight - 30, 20, DARKGREEN);
+                    RLDrawText("FINAL RESULT", 10, screenHeight - 30, 20, DARKGREEN);
                 } break;
                 case DEFERRED_POSITION:
                 {
-                    DrawTextureRec((Texture2D){
+                    RLDrawTextureRec((RLTexture2D){
                         .id = gBuffer.positionTextureId,
                         .width = screenWidth,
                         .height = screenHeight,
-                    }, (Rectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, Vector2Zero(), RAYWHITE);
+                    }, (RLRectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, Vector2Zero(), RAYWHITE);
 
-                    DrawText("POSITION TEXTURE", 10, screenHeight - 30, 20, DARKGREEN);
+                    RLDrawText("POSITION TEXTURE", 10, screenHeight - 30, 20, DARKGREEN);
                 } break;
                 case DEFERRED_NORMAL:
                 {
-                    DrawTextureRec((Texture2D){
+                    RLDrawTextureRec((RLTexture2D){
                         .id = gBuffer.normalTextureId,
                         .width = screenWidth,
                         .height = screenHeight,
-                    }, (Rectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, Vector2Zero(), RAYWHITE);
+                    }, (RLRectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, Vector2Zero(), RAYWHITE);
 
-                    DrawText("NORMAL TEXTURE", 10, screenHeight - 30, 20, DARKGREEN);
+                    RLDrawText("NORMAL TEXTURE", 10, screenHeight - 30, 20, DARKGREEN);
                 } break;
                 case DEFERRED_ALBEDO:
                 {
-                    DrawTextureRec((Texture2D){
+                    RLDrawTextureRec((RLTexture2D){
                         .id = gBuffer.albedoSpecTextureId,
                         .width = screenWidth,
                         .height = screenHeight,
-                    }, (Rectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, Vector2Zero(), RAYWHITE);
+                    }, (RLRectangle) { 0, 0, (float)screenWidth, (float)-screenHeight }, Vector2Zero(), RAYWHITE);
 
-                    DrawText("ALBEDO TEXTURE", 10, screenHeight - 30, 20, DARKGREEN);
+                    RLDrawText("ALBEDO TEXTURE", 10, screenHeight - 30, 20, DARKGREEN);
                 } break;
                 default: break;
             }
 
-            DrawText("Toggle lights keys: [Y][R][G][B]", 10, 40, 20, DARKGRAY);
-            DrawText("Switch G-buffer textures: [1][2][3][4]", 10, 70, 20, DARKGRAY);
+            RLDrawText("Toggle lights keys: [Y][R][G][B]", 10, 40, 20, DARKGRAY);
+            RLDrawText("Switch G-buffer textures: [1][2][3][4]", 10, 70, 20, DARKGRAY);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         // -----------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
     // Unload the models
-    UnloadModel(model);
-    UnloadModel(cube);
+    RLUnloadModel(model);
+    RLUnloadModel(cube);
 
     // Unload shaders
-    UnloadShader(deferredShader);
-    UnloadShader(gbufferShader);
+    RLUnloadShader(deferredShader);
+    RLUnloadShader(gbufferShader);
 
     // Unload geometry buffer and all attached textures
     rlUnloadFramebuffer(gBuffer.framebufferId);
@@ -336,7 +336,7 @@ int main(void)
     rlUnloadTexture(gBuffer.albedoSpecTextureId);
     rlUnloadTexture(gBuffer.depthRenderbufferId);
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

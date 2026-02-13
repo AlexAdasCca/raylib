@@ -30,25 +30,25 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - clock of clocks");
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - clock of clocks");
 
-    const Color bgColor = ColorLerp(DARKBLUE, BLACK, 0.75f);
-    const Color handsColor = ColorLerp(YELLOW, RAYWHITE, .25f);
+    const RLColor bgColor = RLColorLerp(DARKBLUE, BLACK, 0.75f);
+    const RLColor handsColor = RLColorLerp(YELLOW, RAYWHITE, .25f);
 
     const float clockFaceSize = 24;
     const float clockFaceSpacing = 8.0f;
     const float sectionSpacing = 16.0f;
 
-    const Vector2 TL = (Vector2){   0.0f,  90.0f }; // Top-left corner
-    const Vector2 TR = (Vector2){  90.0f, 180.0f }; // Top-right corner
-    const Vector2 BR = (Vector2){ 180.0f, 270.0f }; // Bottom-right corner
-    const Vector2 BL = (Vector2){   0.0f, 270.0f }; // Bottom-left corner
-    const Vector2 HH = (Vector2){   0.0f, 180.0f }; // Horizontal line
-    const Vector2 VV = (Vector2){  90.0f, 270.0f }; // Vertical line
-    const Vector2 ZZ = (Vector2){ 135.0f, 135.0f }; // Not relevant
+    const RLVector2 TL = (RLVector2){   0.0f,  90.0f }; // Top-left corner
+    const RLVector2 TR = (RLVector2){  90.0f, 180.0f }; // Top-right corner
+    const RLVector2 BR = (RLVector2){ 180.0f, 270.0f }; // Bottom-right corner
+    const RLVector2 BL = (RLVector2){   0.0f, 270.0f }; // Bottom-left corner
+    const RLVector2 HH = (RLVector2){   0.0f, 180.0f }; // Horizontal line
+    const RLVector2 VV = (RLVector2){  90.0f, 270.0f }; // Vertical line
+    const RLVector2 ZZ = (RLVector2){ 135.0f, 135.0f }; // Not relevant
 
-    const Vector2 digitAngles[10][24] = {
+    const RLVector2 digitAngles[10][24] = {
         /* 0 */ { TL,HH,HH,TR, /* */ VV,TL,TR,VV,/* */ VV,VV,VV,VV,/* */ VV,VV,VV,VV,/* */ VV,BL,BR,VV,/* */ BL,HH,HH,BR },
         /* 1 */ { TL,HH,TR,ZZ, /* */ BL,TR,VV,ZZ,/* */ ZZ,VV,VV,ZZ,/* */ ZZ,VV,VV,ZZ,/* */ TL,BR,BL,TR,/* */ BL,HH,HH,BR },
         /* 2 */ { TL,HH,HH,TR, /* */ BL,HH,TR,VV,/* */ TL,HH,BR,VV,/* */ VV,TL,HH,BR,/* */ VV,BL,HH,TR,/* */ BL,HH,HH,BR },
@@ -65,18 +65,18 @@ int main(void)
     const float handsMoveDuration = 0.5f;
 
     int prevSeconds = -1;
-    Vector2 currentAngles[6][24] = { 0 };
-    Vector2 srcAngles[6][24] = { 0 };
-    Vector2 dstAngles[6][24] = { 0 };
+    RLVector2 currentAngles[6][24] = { 0 };
+    RLVector2 srcAngles[6][24] = { 0 };
+    RLVector2 dstAngles[6][24] = { 0 };
 
     float handsMoveTimer = 0.0f;
     int hourMode = 24;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -93,7 +93,7 @@ int main(void)
             prevSeconds = timeinfo->tm_sec;
 
             // Format the current time so we can access the individual digits
-            const char *clockDigits = TextFormat("%02d%02d%02d", timeinfo->tm_hour%hourMode, timeinfo->tm_min, timeinfo->tm_sec);
+            const char *clockDigits = RLTextFormat("%02d%02d%02d", timeinfo->tm_hour%hourMode, timeinfo->tm_min, timeinfo->tm_sec);
 
             // Fetch where we want all the hands to be
             for (int digit = 0; digit < 6; digit++)
@@ -111,14 +111,14 @@ int main(void)
             }
 
             // Reset the timer
-            handsMoveTimer = -GetFrameTime();
+            handsMoveTimer = -RLGetFrameTime();
         }
 
         // Now let's animate all the hands if we need to
         if (handsMoveTimer < handsMoveDuration)
         {
             // Increase the timer but don't go above the maximum
-            handsMoveTimer = Clamp(handsMoveTimer + GetFrameTime(), 0, handsMoveDuration);
+            handsMoveTimer = Clamp(handsMoveTimer + RLGetFrameTime(), 0, handsMoveDuration);
 
             // Calculate the%completion of the animation
             float t = handsMoveTimer/handsMoveDuration;
@@ -137,16 +137,16 @@ int main(void)
         }
 
         // Handle input
-        if (IsKeyPressed(KEY_SPACE)) hourMode = 36 - hourMode; // Toggle between 12 and 24 hour mode with space
+        if (RLIsKeyPressed(KEY_SPACE)) hourMode = 36 - hourMode; // Toggle between 12 and 24 hour mode with space
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(bgColor);
+            RLClearBackground(bgColor);
 
-            DrawText(TextFormat("%d-h mode, space to change", hourMode), 10, 30, 20, RAYWHITE);
+            RLDrawText(RLTextFormat("%d-h mode, space to change", hourMode), 10, 30, 20, RAYWHITE);
 
             float xOffset = 4.0f;
 
@@ -156,25 +156,25 @@ int main(void)
                 {
                     for (int col = 0; col < 4; col++)
                     {
-                        Vector2 centre = (Vector2){
+                        RLVector2 centre = (RLVector2){
                             xOffset + col*(clockFaceSize+clockFaceSpacing) + clockFaceSize*0.5f,
                             100 + row*(clockFaceSize+clockFaceSpacing) + clockFaceSize*0.5f
                         };
 
-                        DrawRing(centre, clockFaceSize*0.5f - 2.0f, clockFaceSize*0.5f, 0, 360, 24, DARKGRAY);
+                        RLDrawRing(centre, clockFaceSize*0.5f - 2.0f, clockFaceSize*0.5f, 0, 360, 24, DARKGRAY);
 
                         // Big hand
-                        DrawRectanglePro(
-                            (Rectangle){centre.x, centre.y, clockFaceSize*0.5f+4.0f, 4.0f},
-                            (Vector2){ 2.0f, 2.0f },
+                        RLDrawRectanglePro(
+                            (RLRectangle){centre.x, centre.y, clockFaceSize*0.5f+4.0f, 4.0f},
+                            (RLVector2){ 2.0f, 2.0f },
                             currentAngles[digit][row*4+col].x,
                             handsColor
                         );
 
                         // Little hand
-                        DrawRectanglePro(
-                            (Rectangle){centre.x, centre.y, clockFaceSize*0.5f+2.0f, 4.0f},
-                            (Vector2){ 2.0f, 2.0f },
+                        RLDrawRectanglePro(
+                            (RLRectangle){centre.x, centre.y, clockFaceSize*0.5f+2.0f, 4.0f},
+                            (RLVector2){ 2.0f, 2.0f },
                             currentAngles[digit][row*4+col].y,
                             handsColor
                         );
@@ -184,21 +184,21 @@ int main(void)
                 xOffset += (clockFaceSize+clockFaceSpacing)*4;
                 if (digit%2 == 1)
                 {
-                    DrawRing((Vector2){xOffset + 4.0f, 160.0f}, 6.0f, 8.0f, 0.0f, 360.0f, 24, handsColor);
-                    DrawRing((Vector2){xOffset + 4.0f, 225.0f}, 6.0f, 8.0f, 0.0f, 360.0f, 24, handsColor);
+                    RLDrawRing((RLVector2){xOffset + 4.0f, 160.0f}, 6.0f, 8.0f, 0.0f, 360.0f, 24, handsColor);
+                    RLDrawRing((RLVector2){xOffset + 4.0f, 225.0f}, 6.0f, 8.0f, 0.0f, 360.0f, 24, handsColor);
                     xOffset += sectionSpacing;
                 }
             }
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

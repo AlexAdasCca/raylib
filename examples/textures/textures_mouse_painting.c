@@ -29,16 +29,16 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - mouse painting");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - mouse painting");
 
     // Colors to choose from
-    Color colors[MAX_COLORS_COUNT] = {
+    RLColor colors[MAX_COLORS_COUNT] = {
         RAYWHITE, YELLOW, GOLD, ORANGE, PINK, RED, MAROON, GREEN, LIME, DARKGREEN,
         SKYBLUE, BLUE, DARKBLUE, PURPLE, VIOLET, DARKPURPLE, BEIGE, BROWN, DARKBROWN,
         LIGHTGRAY, GRAY, DARKGRAY, BLACK };
 
     // Define colorsRecs data (for every rectangle)
-    Rectangle colorsRecs[MAX_COLORS_COUNT] = { 0 };
+    RLRectangle colorsRecs[MAX_COLORS_COUNT] = { 0 };
 
     for (int i = 0; i < MAX_COLORS_COUNT; i++)
     {
@@ -54,32 +54,32 @@ int main(void)
     float brushSize = 20.0f;
     bool mouseWasPressed = false;
 
-    Rectangle btnSaveRec = { 750, 10, 40, 30 };
+    RLRectangle btnSaveRec = { 750, 10, 40, 30 };
     bool btnSaveMouseHover = false;
     bool showSaveMessage = false;
     int saveMessageCounter = 0;
 
     // Create a RenderTexture2D to use as a canvas
-    RenderTexture2D target = LoadRenderTexture(screenWidth, screenHeight);
+    RLRenderTexture2D target = RLLoadRenderTexture(screenWidth, screenHeight);
 
     // Clear render texture before entering the game loop
-    BeginTextureMode(target);
-    ClearBackground(colors[0]);
-    EndTextureMode();
+    RLBeginTextureMode(target);
+    RLClearBackground(colors[0]);
+    RLEndTextureMode();
 
-    SetTargetFPS(120);              // Set our game to run at 120 frames-per-second
+    RLSetTargetFPS(120);              // Set our game to run at 120 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        Vector2 mousePos = GetMousePosition();
+        RLVector2 mousePos = RLGetMousePosition();
 
         // Move between colors with keys
-        if (IsKeyPressed(KEY_RIGHT)) colorSelected++;
-        else if (IsKeyPressed(KEY_LEFT)) colorSelected--;
+        if (RLIsKeyPressed(KEY_RIGHT)) colorSelected++;
+        else if (RLIsKeyPressed(KEY_LEFT)) colorSelected--;
 
         if (colorSelected >= MAX_COLORS_COUNT) colorSelected = MAX_COLORS_COUNT - 1;
         else if (colorSelected < 0) colorSelected = 0;
@@ -87,7 +87,7 @@ int main(void)
         // Choose color with mouse
         for (int i = 0; i < MAX_COLORS_COUNT; i++)
         {
-            if (CheckCollisionPointRec(mousePos, colorsRecs[i]))
+            if (RLCheckCollisionPointRec(mousePos, colorsRecs[i]))
             {
                 colorMouseHover = i;
                 break;
@@ -95,36 +95,36 @@ int main(void)
             else colorMouseHover = -1;
         }
 
-        if ((colorMouseHover >= 0) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if ((colorMouseHover >= 0) && RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
         {
             colorSelected = colorMouseHover;
             colorSelectedPrev = colorSelected;
         }
 
         // Change brush size
-        brushSize += GetMouseWheelMove()*5;
+        brushSize += RLGetMouseWheelMove()*5;
         if (brushSize < 2) brushSize = 2;
         if (brushSize > 50) brushSize = 50;
 
-        if (IsKeyPressed(KEY_C))
+        if (RLIsKeyPressed(KEY_C))
         {
             // Clear render texture to clear color
-            BeginTextureMode(target);
-            ClearBackground(colors[0]);
-            EndTextureMode();
+            RLBeginTextureMode(target);
+            RLClearBackground(colors[0]);
+            RLEndTextureMode();
         }
 
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || (GetGestureDetected() == GESTURE_DRAG))
+        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) || (RLGetGestureDetected() == GESTURE_DRAG))
         {
             // Paint circle into render texture
             // NOTE: To avoid discontinuous circles, we could store
             // previous-next mouse points and just draw a line using brush size
-            BeginTextureMode(target);
-            if (mousePos.y > 50) DrawCircle((int)mousePos.x, (int)mousePos.y, brushSize, colors[colorSelected]);
-            EndTextureMode();
+            RLBeginTextureMode(target);
+            if (mousePos.y > 50) RLDrawCircle((int)mousePos.x, (int)mousePos.y, brushSize, colors[colorSelected]);
+            RLEndTextureMode();
         }
 
-        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT))
         {
             if (!mouseWasPressed)
             {
@@ -135,28 +135,28 @@ int main(void)
             mouseWasPressed = true;
 
             // Erase circle from render texture
-            BeginTextureMode(target);
-            if (mousePos.y > 50) DrawCircle((int)mousePos.x, (int)mousePos.y, brushSize, colors[0]);
-            EndTextureMode();
+            RLBeginTextureMode(target);
+            if (mousePos.y > 50) RLDrawCircle((int)mousePos.x, (int)mousePos.y, brushSize, colors[0]);
+            RLEndTextureMode();
         }
-        else if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT) && mouseWasPressed)
+        else if (RLIsMouseButtonReleased(MOUSE_BUTTON_RIGHT) && mouseWasPressed)
         {
             colorSelected = colorSelectedPrev;
             mouseWasPressed = false;
         }
 
         // Check mouse hover save button
-        if (CheckCollisionPointRec(mousePos, btnSaveRec)) btnSaveMouseHover = true;
+        if (RLCheckCollisionPointRec(mousePos, btnSaveRec)) btnSaveMouseHover = true;
         else btnSaveMouseHover = false;
 
         // Image saving logic
         // NOTE: Saving painted texture to a default named image
-        if ((btnSaveMouseHover && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) || IsKeyPressed(KEY_S))
+        if ((btnSaveMouseHover && RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) || RLIsKeyPressed(KEY_S))
         {
-            Image image = LoadImageFromTexture(target.texture);
-            ImageFlipVertical(&image);
-            ExportImage(image, "my_amazing_texture_painting.png");
-            UnloadImage(image);
+            RLImage image = RLLoadImageFromTexture(target.texture);
+            RLImageFlipVertical(&image);
+            RLExportImage(image, "my_amazing_texture_painting.png");
+            RLUnloadImage(image);
             showSaveMessage = true;
         }
 
@@ -174,54 +174,54 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-        ClearBackground(RAYWHITE);
+        RLClearBackground(RAYWHITE);
 
         // NOTE: Render texture must be y-flipped due to default OpenGL coordinates (left-bottom)
-        DrawTextureRec(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height }, (Vector2) { 0, 0 }, WHITE);
+        RLDrawTextureRec(target.texture, (RLRectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height }, (RLVector2) { 0, 0 }, WHITE);
 
         // Draw drawing circle for reference
         if (mousePos.y > 50)
         {
-            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) DrawCircleLines((int)mousePos.x, (int)mousePos.y, brushSize, GRAY);
-            else DrawCircle(GetMouseX(), GetMouseY(), brushSize, colors[colorSelected]);
+            if (RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT)) RLDrawCircleLines((int)mousePos.x, (int)mousePos.y, brushSize, GRAY);
+            else RLDrawCircle(RLGetMouseX(), RLGetMouseY(), brushSize, colors[colorSelected]);
         }
 
         // Draw top panel
-        DrawRectangle(0, 0, GetScreenWidth(), 50, RAYWHITE);
-        DrawLine(0, 50, GetScreenWidth(), 50, LIGHTGRAY);
+        RLDrawRectangle(0, 0, RLGetScreenWidth(), 50, RAYWHITE);
+        RLDrawLine(0, 50, RLGetScreenWidth(), 50, LIGHTGRAY);
 
         // Draw color selection rectangles
-        for (int i = 0; i < MAX_COLORS_COUNT; i++) DrawRectangleRec(colorsRecs[i], colors[i]);
-        DrawRectangleLines(10, 10, 30, 30, LIGHTGRAY);
+        for (int i = 0; i < MAX_COLORS_COUNT; i++) RLDrawRectangleRec(colorsRecs[i], colors[i]);
+        RLDrawRectangleLines(10, 10, 30, 30, LIGHTGRAY);
 
-        if (colorMouseHover >= 0) DrawRectangleRec(colorsRecs[colorMouseHover], Fade(WHITE, 0.6f));
+        if (colorMouseHover >= 0) RLDrawRectangleRec(colorsRecs[colorMouseHover], RLFade(WHITE, 0.6f));
 
-        DrawRectangleLinesEx((Rectangle){ colorsRecs[colorSelected].x - 2, colorsRecs[colorSelected].y - 2,
+        RLDrawRectangleLinesEx((RLRectangle){ colorsRecs[colorSelected].x - 2, colorsRecs[colorSelected].y - 2,
                              colorsRecs[colorSelected].width + 4, colorsRecs[colorSelected].height + 4 }, 2, BLACK);
 
         // Draw save image button
-        DrawRectangleLinesEx(btnSaveRec, 2, btnSaveMouseHover ? RED : BLACK);
-        DrawText("SAVE!", 755, 20, 10, btnSaveMouseHover ? RED : BLACK);
+        RLDrawRectangleLinesEx(btnSaveRec, 2, btnSaveMouseHover ? RED : BLACK);
+        RLDrawText("SAVE!", 755, 20, 10, btnSaveMouseHover ? RED : BLACK);
 
         // Draw save image message
         if (showSaveMessage)
         {
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(RAYWHITE, 0.8f));
-            DrawRectangle(0, 150, GetScreenWidth(), 80, BLACK);
-            DrawText("IMAGE SAVED!", 150, 180, 20, RAYWHITE);
+            RLDrawRectangle(0, 0, RLGetScreenWidth(), RLGetScreenHeight(), RLFade(RAYWHITE, 0.8f));
+            RLDrawRectangle(0, 150, RLGetScreenWidth(), 80, BLACK);
+            RLDrawText("IMAGE SAVED!", 150, 180, 20, RAYWHITE);
         }
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadRenderTexture(target);    // Unload render texture
+    RLUnloadRenderTexture(target);    // Unload render texture
 
-    CloseWindow();                  // Close window and OpenGL context
+    RLCloseWindow();                  // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

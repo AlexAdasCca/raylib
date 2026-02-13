@@ -771,6 +771,7 @@ struct _GLFWlibrary
     _GLFWerror*         errorListHead;
     _GLFWcursor*        cursorListHead;
     _GLFWwindow*        windowListHead;
+    _GLFWmutex          windowListLock;
 
     _GLFWmonitor**      monitors;
     int                 monitorCount;

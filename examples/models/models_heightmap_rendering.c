@@ -25,67 +25,67 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - heightmap rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - heightmap rendering");
 
     // Define our custom camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 18.0f, 21.0f, 18.0f };     // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };          // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };              // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 18.0f, 21.0f, 18.0f };     // Camera position
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };          // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };              // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                    // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;                 // Camera projection type
 
-    Image image = LoadImage("resources/heightmap.png");     // Load heightmap image (RAM)
-    Texture2D texture = LoadTextureFromImage(image);        // Convert image to texture (VRAM)
+    RLImage image = RLLoadImage("resources/heightmap.png");     // Load heightmap image (RAM)
+    RLTexture2D texture = RLLoadTextureFromImage(image);        // Convert image to texture (VRAM)
 
-    Mesh mesh = GenMeshHeightmap(image, (Vector3){ 16, 8, 16 }); // Generate heightmap mesh (RAM and VRAM)
-    Model model = LoadModelFromMesh(mesh);                  // Load model from generated mesh
+    RLMesh mesh = RLGenMeshHeightmap(image, (RLVector3){ 16, 8, 16 }); // Generate heightmap mesh (RAM and VRAM)
+    RLModel model = RLLoadModelFromMesh(mesh);                  // Load model from generated mesh
 
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture; // Set map diffuse texture
-    Vector3 mapPosition = { -8.0f, 0.0f, -8.0f };           // Define model position
+    RLVector3 mapPosition = { -8.0f, 0.0f, -8.0f };           // Define model position
 
-    UnloadImage(image);             // Unload heightmap image from RAM, already uploaded to VRAM
+    RLUnloadImage(image);             // Unload heightmap image from RAM, already uploaded to VRAM
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
-                DrawModel(model, mapPosition, 1.0f, RED);
+                RLDrawModel(model, mapPosition, 1.0f, RED);
 
-                DrawGrid(20, 1.0f);
+                RLDrawGrid(20, 1.0f);
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawTexture(texture, screenWidth - texture.width - 20, 20, WHITE);
-            DrawRectangleLines(screenWidth - texture.width - 20, 20, texture.width, texture.height, GREEN);
+            RLDrawTexture(texture, screenWidth - texture.width - 20, 20, WHITE);
+            RLDrawRectangleLines(screenWidth - texture.width - 20, 20, texture.width, texture.height, GREEN);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(texture);     // Unload texture
-    UnloadModel(model);         // Unload model
+    RLUnloadTexture(texture);     // Unload texture
+    RLUnloadModel(model);         // Unload model
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -66,21 +66,21 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - input actions");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - input actions");
 
     // Set default actions
     char actionSet = 0;
     SetActionsDefault();
     bool releaseAction = false;
 
-    Vector2 position = (Vector2){ 400.0f, 200.0f };
-    Vector2 size = (Vector2){ 40.0f, 40.0f };
+    RLVector2 position = (RLVector2){ 400.0f, 200.0f };
+    RLVector2 size = (RLVector2){ 40.0f, 40.0f };
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose()) // Detect window close button or ESC key
+    while (!RLWindowShouldClose()) // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ int main(void)
         if (IsActionReleased(ACTION_FIRE)) releaseAction = true;
 
         // Switch control scheme by pressing TAB
-        if (IsKeyPressed(KEY_TAB))
+        if (RLIsKeyPressed(KEY_TAB))
         {
             actionSet = !actionSet;
             if (actionSet == 0) SetActionsDefault();
@@ -111,22 +111,22 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(GRAY);
+            RLClearBackground(GRAY);
 
-            DrawRectangleV(position, size, releaseAction? BLUE : RED);
+            RLDrawRectangleV(position, size, releaseAction? BLUE : RED);
 
-            DrawText((actionSet == 0)? "Current input set: WASD (default)" : "Current input set: Cursor", 10, 10, 20, WHITE);
-            DrawText("Use TAB key to toggles Actions keyset", 10, 50, 20, GREEN);
+            RLDrawText((actionSet == 0)? "Current input set: WASD (default)" : "Current input set: Cursor", 10, 10, 20, WHITE);
+            RLDrawText("Use TAB key to toggles Actions keyset", 10, 50, 20, GREEN);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -141,7 +141,7 @@ static bool IsActionPressed(int action)
 {
     bool result = false;
 
-    if (action < MAX_ACTION) result = (IsKeyPressed(actionInputs[action].key) || IsGamepadButtonPressed(gamepadIndex, actionInputs[action].button));
+    if (action < MAX_ACTION) result = (RLIsKeyPressed(actionInputs[action].key) || RLIsGamepadButtonPressed(gamepadIndex, actionInputs[action].button));
 
     return result;
 }
@@ -152,7 +152,7 @@ static bool IsActionReleased(int action)
 {
     bool result = false;
 
-    if (action < MAX_ACTION) result = (IsKeyReleased(actionInputs[action].key) || IsGamepadButtonReleased(gamepadIndex, actionInputs[action].button));
+    if (action < MAX_ACTION) result = (RLIsKeyReleased(actionInputs[action].key) || RLIsGamepadButtonReleased(gamepadIndex, actionInputs[action].button));
 
     return result;
 }
@@ -163,7 +163,7 @@ static bool IsActionDown(int action)
 {
     bool result = false;
 
-    if (action < MAX_ACTION) result = (IsKeyDown(actionInputs[action].key) || IsGamepadButtonDown(gamepadIndex, actionInputs[action].button));
+    if (action < MAX_ACTION) result = (RLIsKeyDown(actionInputs[action].key) || RLIsGamepadButtonDown(gamepadIndex, actionInputs[action].button));
 
     return result;
 }

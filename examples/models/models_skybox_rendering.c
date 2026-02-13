@@ -28,7 +28,7 @@
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
 // Generate cubemap (6 faces) from equirectangular (panorama) texture
-static TextureCubemap GenTextureCubemap(Shader shader, Texture2D panorama, int size, int format);
+static RLTextureCubemap GenTextureCubemap(RLShader shader, RLTexture2D panorama, int size, int format);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -40,19 +40,19 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - skybox rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - skybox rendering");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 1.0f, 1.0f, 1.0f };    // Camera position
-    camera.target = (Vector3){ 4.0f, 1.0f, 4.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 1.0f, 1.0f, 1.0f };    // Camera position
+    camera.target = (RLVector3){ 4.0f, 1.0f, 4.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load skybox model
-    Mesh cube = GenMeshCube(1.0f, 1.0f, 1.0f);
-    Model skybox = LoadModelFromMesh(cube);
+    RLMesh cube = RLGenMeshCube(1.0f, 1.0f, 1.0f);
+    RLModel skybox = RLLoadModelFromMesh(cube);
 
     // Set this to true to use an HDR Texture
     // NOTE: raylib must be built with HDR Support for this to work: SUPPORT_FILEFORMAT_HDR
@@ -60,27 +60,27 @@ int main(void)
 
     // Load skybox shader and set required locations
     // NOTE: Some locations are automatically set at shader loading
-    skybox.materials[0].shader = LoadShader(TextFormat("resources/shaders/glsl%i/skybox.vs", GLSL_VERSION),
-                                            TextFormat("resources/shaders/glsl%i/skybox.fs", GLSL_VERSION));
+    skybox.materials[0].shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/skybox.vs", GLSL_VERSION),
+                                            RLTextFormat("resources/shaders/glsl%i/skybox.fs", GLSL_VERSION));
 
-    SetShaderValue(skybox.materials[0].shader, GetShaderLocation(skybox.materials[0].shader, "environmentMap"), (int[1]){ MATERIAL_MAP_CUBEMAP }, SHADER_UNIFORM_INT);
-    SetShaderValue(skybox.materials[0].shader, GetShaderLocation(skybox.materials[0].shader, "doGamma"), (int[1]){ useHDR? 1 : 0 }, SHADER_UNIFORM_INT);
-    SetShaderValue(skybox.materials[0].shader, GetShaderLocation(skybox.materials[0].shader, "vflipped"), (int[1]){ useHDR? 1 : 0 }, SHADER_UNIFORM_INT);
+    RLSetShaderValue(skybox.materials[0].shader, RLGetShaderLocation(skybox.materials[0].shader, "environmentMap"), (int[1]){ MATERIAL_MAP_CUBEMAP }, SHADER_UNIFORM_INT);
+    RLSetShaderValue(skybox.materials[0].shader, RLGetShaderLocation(skybox.materials[0].shader, "doGamma"), (int[1]){ useHDR? 1 : 0 }, SHADER_UNIFORM_INT);
+    RLSetShaderValue(skybox.materials[0].shader, RLGetShaderLocation(skybox.materials[0].shader, "vflipped"), (int[1]){ useHDR? 1 : 0 }, SHADER_UNIFORM_INT);
 
     // Load cubemap shader and setup required shader locations
-    Shader shdrCubemap = LoadShader(TextFormat("resources/shaders/glsl%i/cubemap.vs", GLSL_VERSION),
-                                    TextFormat("resources/shaders/glsl%i/cubemap.fs", GLSL_VERSION));
+    RLShader shdrCubemap = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/cubemap.vs", GLSL_VERSION),
+                                    RLTextFormat("resources/shaders/glsl%i/cubemap.fs", GLSL_VERSION));
 
-    SetShaderValue(shdrCubemap, GetShaderLocation(shdrCubemap, "equirectangularMap"), (int[1]){ 0 }, SHADER_UNIFORM_INT);
+    RLSetShaderValue(shdrCubemap, RLGetShaderLocation(shdrCubemap, "equirectangularMap"), (int[1]){ 0 }, SHADER_UNIFORM_INT);
 
     char skyboxFileName[256] = { 0 };
 
     if (useHDR)
     {
-        TextCopy(skyboxFileName, "resources/dresden_square_2k.hdr");
+        RLTextCopy(skyboxFileName, "resources/dresden_square_2k.hdr");
 
         // Load HDR panorama (sphere) texture
-        Texture2D panorama = LoadTexture(skyboxFileName);
+        RLTexture2D panorama = RLLoadTexture(skyboxFileName);
 
         // Generate cubemap (texture with 6 quads-cube-mapping) from panorama HDR texture
         // NOTE 1: New texture is generated rendering to texture, shader calculates the sphere->cube coordinates mapping
@@ -88,102 +88,102 @@ int main(void)
         // despite texture can be successfully created.. so using PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 instead of PIXELFORMAT_UNCOMPRESSED_R32G32B32A32
         skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture = GenTextureCubemap(shdrCubemap, panorama, 1024, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
 
-        UnloadTexture(panorama);        // Texture not required anymore, cubemap already generated
+        RLUnloadTexture(panorama);        // Texture not required anymore, cubemap already generated
     }
     else
     {
         // TODO: WARNING: On PLATFORM_WEB it requires a big amount of memory to process input image 
         // and generate the required cubemap image to be passed to rlLoadTextureCubemap()
-        Image image = LoadImage("resources/skybox.png");
-        skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture = LoadTextureCubemap(image, CUBEMAP_LAYOUT_AUTO_DETECT);
-        UnloadImage(image);
+        RLImage image = RLLoadImage("resources/skybox.png");
+        skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture = RLLoadTextureCubemap(image, CUBEMAP_LAYOUT_AUTO_DETECT);
+        RLUnloadImage(image);
     }
 
-    DisableCursor();                    // Limit cursor to relative movement inside the window
+    RLDisableCursor();                    // Limit cursor to relative movement inside the window
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
 
         // Load new cubemap texture on drag&drop
-        if (IsFileDropped())
+        if (RLIsFileDropped())
         {
-            FilePathList droppedFiles = LoadDroppedFiles();
+            RLFilePathList droppedFiles = RLLoadDroppedFiles();
 
             if (droppedFiles.count == 1)         // Only support one file dropped
             {
-                if (IsFileExtension(droppedFiles.paths[0], ".png;.jpg;.hdr;.bmp;.tga"))
+                if (RLIsFileExtension(droppedFiles.paths[0], ".png;.jpg;.hdr;.bmp;.tga"))
                 {
                     // Unload current cubemap texture to load new one
-                    UnloadTexture(skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture);
+                    RLUnloadTexture(skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture);
 
                     if (useHDR)
                     {
                         // Load HDR panorama (sphere) texture
-                        Texture2D panorama = LoadTexture(droppedFiles.paths[0]);
+                        RLTexture2D panorama = RLLoadTexture(droppedFiles.paths[0]);
 
                         // Generate cubemap from panorama texture
                         skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture = GenTextureCubemap(shdrCubemap, panorama, 1024, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
 
-                        UnloadTexture(panorama);    // Texture not required anymore, cubemap already generated
+                        RLUnloadTexture(panorama);    // Texture not required anymore, cubemap already generated
                     }
                     else
                     {
-                        Image image = LoadImage(droppedFiles.paths[0]);
-                        skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture = LoadTextureCubemap(image, CUBEMAP_LAYOUT_AUTO_DETECT);
-                        UnloadImage(image);
+                        RLImage image = RLLoadImage(droppedFiles.paths[0]);
+                        skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture = RLLoadTextureCubemap(image, CUBEMAP_LAYOUT_AUTO_DETECT);
+                        RLUnloadImage(image);
                     }
 
-                    TextCopy(skyboxFileName, droppedFiles.paths[0]);
+                    RLTextCopy(skyboxFileName, droppedFiles.paths[0]);
                 }
             }
 
-            UnloadDroppedFiles(droppedFiles);    // Unload filepaths from memory
+            RLUnloadDroppedFiles(droppedFiles);    // Unload filepaths from memory
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
                 // We are inside the cube, we need to disable backface culling!
                 rlDisableBackfaceCulling();
                 rlDisableDepthMask();
-                    DrawModel(skybox, (Vector3){0, 0, 0}, 1.0f, WHITE);
+                    RLDrawModel(skybox, (RLVector3){0, 0, 0}, 1.0f, WHITE);
                 rlEnableBackfaceCulling();
                 rlEnableDepthMask();
 
-                DrawGrid(10, 1.0f);
+                RLDrawGrid(10, 1.0f);
 
-            EndMode3D();
+            RLEndMode3D();
 
-            if (useHDR) DrawText(TextFormat("Panorama image from hdrihaven.com: %s", GetFileName(skyboxFileName)), 10, GetScreenHeight() - 20, 10, BLACK);
-            else DrawText(TextFormat(": %s", GetFileName(skyboxFileName)), 10, GetScreenHeight() - 20, 10, BLACK);
+            if (useHDR) RLDrawText(RLTextFormat("Panorama image from hdrihaven.com: %s", RLGetFileName(skyboxFileName)), 10, RLGetScreenHeight() - 20, 10, BLACK);
+            else RLDrawText(RLTextFormat(": %s", RLGetFileName(skyboxFileName)), 10, RLGetScreenHeight() - 20, 10, BLACK);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(skybox.materials[0].shader);
-    UnloadTexture(skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture);
+    RLUnloadShader(skybox.materials[0].shader);
+    RLUnloadTexture(skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture);
 
-    UnloadModel(skybox);        // Unload skybox model
+    RLUnloadModel(skybox);        // Unload skybox model
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -193,9 +193,9 @@ int main(void)
 // Module Functions Definition
 //------------------------------------------------------------------------------------
 // Generate cubemap texture from HDR texture
-static TextureCubemap GenTextureCubemap(Shader shader, Texture2D panorama, int size, int format)
+static RLTextureCubemap GenTextureCubemap(RLShader shader, RLTexture2D panorama, int size, int format)
 {
-    TextureCubemap cubemap = { 0 };
+    RLTextureCubemap cubemap = { 0 };
 
     rlDisableBackfaceCulling();     // Disable backface culling to render inside the cube
 
@@ -209,7 +209,7 @@ static TextureCubemap GenTextureCubemap(Shader shader, Texture2D panorama, int s
     rlFramebufferAttach(fbo, cubemap.id, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_CUBEMAP_POSITIVE_X, 0);
 
     // Check if framebuffer is complete with attachments (valid)
-    if (rlFramebufferComplete(fbo)) TraceLog(LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", fbo);
+    if (rlFramebufferComplete(fbo)) RLTraceLog(LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", fbo);
     //------------------------------------------------------------------------------------------
 
     // STEP 2: Draw to framebuffer
@@ -218,17 +218,17 @@ static TextureCubemap GenTextureCubemap(Shader shader, Texture2D panorama, int s
     rlEnableShader(shader.id);
 
     // Define projection matrix and send it to shader
-    Matrix matFboProjection = MatrixPerspective(90.0*DEG2RAD, 1.0, rlGetCullDistanceNear(), rlGetCullDistanceFar());
+    RLMatrix matFboProjection = MatrixPerspective(90.0*DEG2RAD, 1.0, rlGetCullDistanceNear(), rlGetCullDistanceFar());
     rlSetUniformMatrix(shader.locs[SHADER_LOC_MATRIX_PROJECTION], matFboProjection);
 
     // Define view matrix for every side of the cubemap
-    Matrix fboViews[6] = {
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){  1.0f,  0.0f,  0.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){ -1.0f,  0.0f,  0.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){  0.0f,  1.0f,  0.0f }, (Vector3){ 0.0f,  0.0f,  1.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){  0.0f, -1.0f,  0.0f }, (Vector3){ 0.0f,  0.0f, -1.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){  0.0f,  0.0f,  1.0f }, (Vector3){ 0.0f, -1.0f,  0.0f }),
-        MatrixLookAt((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector3){  0.0f,  0.0f, -1.0f }, (Vector3){ 0.0f, -1.0f,  0.0f })
+    RLMatrix fboViews[6] = {
+        MatrixLookAt((RLVector3){ 0.0f, 0.0f, 0.0f }, (RLVector3){  1.0f,  0.0f,  0.0f }, (RLVector3){ 0.0f, -1.0f,  0.0f }),
+        MatrixLookAt((RLVector3){ 0.0f, 0.0f, 0.0f }, (RLVector3){ -1.0f,  0.0f,  0.0f }, (RLVector3){ 0.0f, -1.0f,  0.0f }),
+        MatrixLookAt((RLVector3){ 0.0f, 0.0f, 0.0f }, (RLVector3){  0.0f,  1.0f,  0.0f }, (RLVector3){ 0.0f,  0.0f,  1.0f }),
+        MatrixLookAt((RLVector3){ 0.0f, 0.0f, 0.0f }, (RLVector3){  0.0f, -1.0f,  0.0f }, (RLVector3){ 0.0f,  0.0f, -1.0f }),
+        MatrixLookAt((RLVector3){ 0.0f, 0.0f, 0.0f }, (RLVector3){  0.0f,  0.0f,  1.0f }, (RLVector3){ 0.0f, -1.0f,  0.0f }),
+        MatrixLookAt((RLVector3){ 0.0f, 0.0f, 0.0f }, (RLVector3){  0.0f,  0.0f, -1.0f }, (RLVector3){ 0.0f, -1.0f,  0.0f })
     };
 
     rlViewport(0, 0, size, size);   // Set viewport to current fbo dimensions

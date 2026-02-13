@@ -57,26 +57,26 @@ int main(void)
     const int screenWidth = GOL_WIDTH;
     const int screenHeight = GOL_WIDTH;
 
-    InitWindow(screenWidth, screenHeight, "raylib [others] example - compute shader");
+    RLInitWindow(screenWidth, screenHeight, "raylib [others] example - compute shader");
 
-    const Vector2 resolution = { (float)screenWidth, (float)screenHeight };
+    const RLVector2 resolution = { (float)screenWidth, (float)screenHeight };
     unsigned int brushSize = 8;
 
     // Game of Life logic compute shader
-    char *golLogicCode = LoadFileText("resources/shaders/glsl430/gol.glsl");
+    char *golLogicCode = RLLoadFileText("resources/shaders/glsl430/gol.glsl");
     unsigned int golLogicShader = rlCompileShader(golLogicCode, RL_COMPUTE_SHADER);
     unsigned int golLogicProgram = rlLoadComputeShaderProgram(golLogicShader);
-    UnloadFileText(golLogicCode);
+    RLUnloadFileText(golLogicCode);
 
     // Game of Life logic render shader
-    Shader golRenderShader = LoadShader(NULL, "resources/shaders/glsl430/gol_render.glsl");
-    int resUniformLoc = GetShaderLocation(golRenderShader, "resolution");
+    RLShader golRenderShader = RLLoadShader(NULL, "resources/shaders/glsl430/gol_render.glsl");
+    int resUniformLoc = RLGetShaderLocation(golRenderShader, "resolution");
 
     // Game of Life transfert shader (CPU<->GPU download and upload)
-    char *golTransfertCode = LoadFileText("resources/shaders/glsl430/gol_transfert.glsl");
+    char *golTransfertCode = RLLoadFileText("resources/shaders/glsl430/gol_transfert.glsl");
     unsigned int golTransfertShader = rlCompileShader(golTransfertCode, RL_COMPUTE_SHADER);
     unsigned int golTransfertProgram = rlLoadComputeShaderProgram(golTransfertShader);
-    UnloadFileText(golTransfertCode);
+    RLUnloadFileText(golTransfertCode);
 
     // Load shader storage buffer object (SSBO), id returned
     unsigned int ssboA = rlLoadShaderBuffer(GOL_WIDTH*GOL_WIDTH*sizeof(unsigned int), NULL, RL_DYNAMIC_COPY);
@@ -87,26 +87,26 @@ int main(void)
 
     // Create a white texture of the size of the window to update
     // each pixel of the window using the fragment shader: golRenderShader
-    Image whiteImage = GenImageColor(GOL_WIDTH, GOL_WIDTH, WHITE);
-    Texture whiteTex = LoadTextureFromImage(whiteImage);
-    UnloadImage(whiteImage);
+    RLImage whiteImage = RLGenImageColor(GOL_WIDTH, GOL_WIDTH, WHITE);
+    RLTexture whiteTex = RLLoadTextureFromImage(whiteImage);
+    RLUnloadImage(whiteImage);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())
+    while (!RLWindowShouldClose())
     {
         // Update
         //----------------------------------------------------------------------------------
-        brushSize += (int)GetMouseWheelMove();
+        brushSize += (int)RLGetMouseWheelMove();
 
-        if ((IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if ((RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) || RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT))
             && (transfertBuffer.count < MAX_BUFFERED_TRANSFERTS))
         {
             // Buffer a new command
-            transfertBuffer.commands[transfertBuffer.count].x = GetMouseX() - brushSize/2;
-            transfertBuffer.commands[transfertBuffer.count].y = GetMouseY() - brushSize/2;
+            transfertBuffer.commands[transfertBuffer.count].x = RLGetMouseX() - brushSize/2;
+            transfertBuffer.commands[transfertBuffer.count].y = RLGetMouseY() - brushSize/2;
             transfertBuffer.commands[transfertBuffer.count].w = brushSize;
-            transfertBuffer.commands[transfertBuffer.count].enabled = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+            transfertBuffer.commands[transfertBuffer.count].enabled = RLIsMouseButtonDown(MOUSE_BUTTON_LEFT);
             transfertBuffer.count++;
         }
         else if (transfertBuffer.count > 0)  // Process transfert buffer
@@ -139,25 +139,25 @@ int main(void)
         }
 
         rlBindShaderBuffer(ssboA, 1);
-        SetShaderValue(golRenderShader, resUniformLoc, &resolution, SHADER_UNIFORM_VEC2);
+        RLSetShaderValue(golRenderShader, resUniformLoc, &resolution, SHADER_UNIFORM_VEC2);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(BLANK);
+            RLClearBackground(BLANK);
 
-            BeginShaderMode(golRenderShader);
-                DrawTexture(whiteTex, 0, 0, WHITE);
-            EndShaderMode();
+            RLBeginShaderMode(golRenderShader);
+                RLDrawTexture(whiteTex, 0, 0, WHITE);
+            RLEndShaderMode();
 
-            DrawRectangleLines(GetMouseX() - brushSize/2, GetMouseY() - brushSize/2, brushSize, brushSize, RED);
+            RLDrawRectangleLines(RLGetMouseX() - brushSize/2, RLGetMouseY() - brushSize/2, brushSize, brushSize, RED);
 
-            DrawText("Use Mouse wheel to increase/decrease brush size", 10, 10, 20, WHITE);
-            DrawFPS(GetScreenWidth() - 100, 10);
+            RLDrawText("Use Mouse wheel to increase/decrease brush size", 10, 10, 20, WHITE);
+            RLDrawFPS(RLGetScreenWidth() - 100, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -172,10 +172,10 @@ int main(void)
     rlUnloadShaderProgram(golTransfertProgram);
     rlUnloadShaderProgram(golLogicProgram);
 
-    UnloadTexture(whiteTex);            // Unload white texture
-    UnloadShader(golRenderShader);      // Unload rendering fragment shader
+    RLUnloadTexture(whiteTex);            // Unload white texture
+    RLUnloadShader(golRenderShader);      // Unload rendering fragment shader
 
-    CloseWindow();                      // Close window and OpenGL context
+    RLCloseWindow();                      // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

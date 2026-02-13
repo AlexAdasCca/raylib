@@ -36,68 +36,68 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - texture outline");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - texture outline");
 
-    Texture2D texture = LoadTexture("resources/fudesumi.png");
+    RLTexture2D texture = RLLoadTexture("resources/fudesumi.png");
 
-    Shader shdrOutline = LoadShader(0, TextFormat("resources/shaders/glsl%i/outline.fs", GLSL_VERSION));
+    RLShader shdrOutline = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/outline.fs", GLSL_VERSION));
 
     float outlineSize = 2.0f;
     float outlineColor[4] = { 1.0f, 0.0f, 0.0f, 1.0f };     // Normalized RED color
     float textureSize[2] = { (float)texture.width, (float)texture.height };
 
     // Get shader locations
-    int outlineSizeLoc = GetShaderLocation(shdrOutline, "outlineSize");
-    int outlineColorLoc = GetShaderLocation(shdrOutline, "outlineColor");
-    int textureSizeLoc = GetShaderLocation(shdrOutline, "textureSize");
+    int outlineSizeLoc = RLGetShaderLocation(shdrOutline, "outlineSize");
+    int outlineColorLoc = RLGetShaderLocation(shdrOutline, "outlineColor");
+    int textureSizeLoc = RLGetShaderLocation(shdrOutline, "textureSize");
 
     // Set shader values (they can be changed later)
-    SetShaderValue(shdrOutline, outlineSizeLoc, &outlineSize, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shdrOutline, outlineColorLoc, outlineColor, SHADER_UNIFORM_VEC4);
-    SetShaderValue(shdrOutline, textureSizeLoc, textureSize, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shdrOutline, outlineSizeLoc, &outlineSize, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shdrOutline, outlineColorLoc, outlineColor, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shdrOutline, textureSizeLoc, textureSize, SHADER_UNIFORM_VEC2);
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        outlineSize += GetMouseWheelMove();
+        outlineSize += RLGetMouseWheelMove();
         if (outlineSize < 1.0f) outlineSize = 1.0f;
 
-        SetShaderValue(shdrOutline, outlineSizeLoc, &outlineSize, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shdrOutline, outlineSizeLoc, &outlineSize, SHADER_UNIFORM_FLOAT);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginShaderMode(shdrOutline);
+            RLBeginShaderMode(shdrOutline);
 
-                DrawTexture(texture, GetScreenWidth()/2 - texture.width/2, -30, WHITE);
+                RLDrawTexture(texture, RLGetScreenWidth()/2 - texture.width/2, -30, WHITE);
 
-            EndShaderMode();
+            RLEndShaderMode();
 
-            DrawText("Shader-based\ntexture\noutline", 10, 10, 20, GRAY);
-            DrawText("Scroll mouse wheel to\nchange outline size", 10, 72, 20, GRAY);
-            DrawText(TextFormat("Outline size: %i px", (int)outlineSize), 10, 120, 20, MAROON);
+            RLDrawText("Shader-based\ntexture\noutline", 10, 10, 20, GRAY);
+            RLDrawText("Scroll mouse wheel to\nchange outline size", 10, 72, 20, GRAY);
+            RLDrawText(RLTextFormat("Outline size: %i px", (int)outlineSize), 10, 120, 20, MAROON);
 
-            DrawFPS(710, 10);
+            RLDrawFPS(710, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(texture);
-    UnloadShader(shdrOutline);
+    RLUnloadTexture(texture);
+    RLUnloadShader(shdrOutline);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -25,41 +25,41 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - input keys");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - input keys");
 
-    Vector2 ballPosition = { (float)screenWidth/2, (float)screenHeight/2 };
+    RLVector2 ballPosition = { (float)screenWidth/2, (float)screenHeight/2 };
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyDown(KEY_RIGHT)) ballPosition.x += 2.0f;
-        if (IsKeyDown(KEY_LEFT)) ballPosition.x -= 2.0f;
-        if (IsKeyDown(KEY_UP)) ballPosition.y -= 2.0f;
-        if (IsKeyDown(KEY_DOWN)) ballPosition.y += 2.0f;
+        if (RLIsKeyDown(KEY_RIGHT)) ballPosition.x += 2.0f;
+        if (RLIsKeyDown(KEY_LEFT)) ballPosition.x -= 2.0f;
+        if (RLIsKeyDown(KEY_UP)) ballPosition.y -= 2.0f;
+        if (RLIsKeyDown(KEY_DOWN)) ballPosition.y += 2.0f;
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawText("move the ball with arrow keys", 10, 10, 20, DARKGRAY);
+            RLDrawText("move the ball with arrow keys", 10, 10, 20, DARKGRAY);
 
-            DrawCircleV(ballPosition, 50, MAROON);
+            RLDrawCircleV(ballPosition, 50, MAROON);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

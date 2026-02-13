@@ -33,20 +33,20 @@
 typedef struct MeshBuilder {
     int vertexCount;
     int vertexCapacity;
-    Vector3 *vertices;
-    Vector2 *uvs;
+    RLVector3 *vertices;
+    RLVector2 *uvs;
 } MeshBuilder;
 
 //------------------------------------------------------------------------------------
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
-static void AddTriangleToMeshBuilder(MeshBuilder *mb, Vector3 vertices[3]);
+static void AddTriangleToMeshBuilder(MeshBuilder *mb, RLVector3 vertices[3]);
 static void FreeMeshBuilder(MeshBuilder *mb);
-static Mesh BuildMesh(MeshBuilder *mb);
-static Mesh GenMeshDecal(Model inputModel, Matrix projection, float decalSize, float decalOffset);
-static Vector3 ClipSegment(Vector3 v0, Vector3 v1, Vector3 p, float s);
-static void FreeDecalMeshData(void) { GenMeshDecal((Model){ .meshCount = -1 }, (Matrix){ 0 }, 0.0f, 0.0f); }
-static bool GuiButton(Rectangle rec, const char *label);
+static RLMesh BuildMesh(MeshBuilder *mb);
+static RLMesh GenMeshDecal(RLModel inputModel, RLMatrix projection, float decalSize, float decalOffset);
+static RLVector3 ClipSegment(RLVector3 v0, RLVector3 v1, RLVector3 p, float s);
+static void FreeDecalMeshData(void) { GenMeshDecal((RLModel){ .meshCount = -1 }, (RLMatrix){ 0 }, 0.0f, 0.0f); }
+static bool GuiButton(RLRectangle rec, const char *label);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -58,26 +58,26 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - decals");
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLInitWindow(screenWidth, screenHeight, "raylib [models] example - decals");
 
     // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 5.0f, 5.0f, 5.0f }; // Camera position
-    camera.target = (Vector3){ 0.0f, 1.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.6f, 0.0f };          // Camera up vector (rotation towards target)
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 5.0f, 5.0f, 5.0f }; // Camera position
+    camera.target = (RLVector3){ 0.0f, 1.0f, 0.0f };      // Camera looking at point
+    camera.up = (RLVector3){ 0.0f, 1.6f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load character model
-    Model model = LoadModel("resources/models/obj/character.obj");
+    RLModel model = RLLoadModel("resources/models/obj/character.obj");
 
     // Apply character skin
-    Texture2D modelTexture = LoadTexture("resources/models/obj/character_diffuse.png");
-    SetTextureFilter(modelTexture, TEXTURE_FILTER_BILINEAR);
+    RLTexture2D modelTexture = RLLoadTexture("resources/models/obj/character_diffuse.png");
+    RLSetTextureFilter(modelTexture, TEXTURE_FILTER_BILINEAR);
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = modelTexture;
 
-    BoundingBox modelBBox = GetMeshBoundingBox(model.meshes[0]);    // Get mesh bounding box
+    RLBoundingBox modelBBox = RLGetMeshBoundingBox(model.meshes[0]);    // Get mesh bounding box
 
     camera.target  = Vector3Lerp(modelBBox.min, modelBBox.max, 0.5f);
     camera.position = Vector3Scale(modelBBox.max, 1.0f);
@@ -87,61 +87,61 @@ int main(void)
         fminf(fabsf(modelBBox.max.x - modelBBox.min.x), fabsf(modelBBox.max.y - modelBBox.min.y)),
         fabsf(modelBBox.max.z - modelBBox.min.z));
 
-    camera.position = (Vector3){ 0.0f, modelBBox.max.y*1.2f, modelSize*3.0f };
+    camera.position = (RLVector3){ 0.0f, modelBBox.max.y*1.2f, modelSize*3.0f };
 
     float decalSize = modelSize*0.25f;
     float decalOffset = 0.01f;
 
-    Model placementCube = LoadModelFromMesh(GenMeshCube(decalSize, decalSize, decalSize));
+    RLModel placementCube = RLLoadModelFromMesh(RLGenMeshCube(decalSize, decalSize, decalSize));
     placementCube.materials[0].maps[0].color = LIME;
 
-    Material decalMaterial = LoadMaterialDefault();
+    RLMaterial decalMaterial = RLLoadMaterialDefault();
     decalMaterial.maps[0].color = YELLOW;
 
-    Image decalImage = LoadImage("resources/raylib_logo.png");
-    ImageResizeNN(&decalImage, decalImage.width/4, decalImage.height/4);
-    Texture decalTexture = LoadTextureFromImage(decalImage);
-    UnloadImage(decalImage);
+    RLImage decalImage = RLLoadImage("resources/raylib_logo.png");
+    RLImageResizeNN(&decalImage, decalImage.width/4, decalImage.height/4);
+    RLTexture decalTexture = RLLoadTextureFromImage(decalImage);
+    RLUnloadImage(decalImage);
 
-    SetTextureFilter(decalTexture, TEXTURE_FILTER_BILINEAR);
+    RLSetTextureFilter(decalTexture, TEXTURE_FILTER_BILINEAR);
     decalMaterial.maps[MATERIAL_MAP_DIFFUSE].texture = decalTexture;
     decalMaterial.maps[MATERIAL_MAP_DIFFUSE].color = RAYWHITE;
 
     bool showModel = true;
-    Model decalModels[MAX_DECALS] = { 0 };
+    RLModel decalModels[MAX_DECALS] = { 0 };
     int decalCount = 0;
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) UpdateCamera(&camera, CAMERA_THIRD_PERSON);
+        if (RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT)) RLUpdateCamera(&camera, CAMERA_THIRD_PERSON);
 
         // Display information about closest hit
-        RayCollision collision = { 0 };
+        RLRayCollision collision = { 0 };
         collision.distance = FLT_MAX;
         collision.hit = false;
 
         // Get mouse ray
-        Ray ray = GetScreenToWorldRay(GetMousePosition(), camera);
+        RLRay ray = RLGetScreenToWorldRay(RLGetMousePosition(), camera);
 
         // Check ray collision against bounding box first, before trying the full ray-mesh test
-        RayCollision boxHitInfo = GetRayCollisionBox(ray, modelBBox);
+        RLRayCollision boxHitInfo = RLGetRayCollisionBox(ray, modelBBox);
 
         if ((boxHitInfo.hit) && (decalCount < MAX_DECALS))
         {
             // Check ray collision against model meshes
-            RayCollision meshHitInfo = { 0 };
+            RLRayCollision meshHitInfo = { 0 };
             for (int m = 0; m < model.meshCount; m++)
             {
                 // NOTE: We consider the model.transform for the collision check but
                 // it can be checked against any transform Matrix, used when checking against same
                 // model drawn multiple times with multiple transforms
-                meshHitInfo = GetRayCollisionMesh(ray, model.meshes[m], model.transform);
+                meshHitInfo = RLGetRayCollisionMesh(ray, model.meshes[m], model.transform);
                 if (meshHitInfo.hit)
                 {
                     // Save the closest hit mesh
@@ -153,21 +153,21 @@ int main(void)
         }
 
         // Add decal to mesh on hit point
-        if (collision.hit && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && (decalCount < MAX_DECALS))
+        if (collision.hit && RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) && (decalCount < MAX_DECALS))
         {
             // Create the transformation to project the decal
-            Vector3 origin = Vector3Add(collision.point, Vector3Scale(collision.normal, 1.0f));
-            Matrix splat = MatrixLookAt(collision.point, origin, (Vector3){ 0.0f, 1.0f, 0.0f });
+            RLVector3 origin = Vector3Add(collision.point, Vector3Scale(collision.normal, 1.0f));
+            RLMatrix splat = MatrixLookAt(collision.point, origin, (RLVector3){ 0.0f, 1.0f, 0.0f });
 
             // Spin the placement around a bit
-            splat = MatrixMultiply(splat, MatrixRotateZ(DEG2RAD*((float)GetRandomValue(-180, 180))));
+            splat = MatrixMultiply(splat, MatrixRotateZ(DEG2RAD*((float)RLGetRandomValue(-180, 180))));
 
-            Mesh decalMesh = GenMeshDecal(model, splat, decalSize, decalOffset);
+            RLMesh decalMesh = GenMeshDecal(model, splat, decalSize, decalOffset);
 
             if (decalMesh.vertexCount > 0)
             {
                 int decalIndex = decalCount++;
-                decalModels[decalIndex] = LoadModelFromMesh(decalMesh);
+                decalModels[decalIndex] = RLLoadModelFromMesh(decalMesh);
                 decalModels[decalIndex].materials[0].maps[0] = decalMaterial.maps[0];
             }
         }
@@ -175,35 +175,35 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
                 // Draw the model at the origin and default scale
-                if (showModel) DrawModel(model, (Vector3){0.0f, 0.0f, 0.0f}, 1.0f, WHITE);
+                if (showModel) RLDrawModel(model, (RLVector3){0.0f, 0.0f, 0.0f}, 1.0f, WHITE);
 
                 // Draw the decal models
-                for (int i = 0; i < decalCount; i++) DrawModel(decalModels[i], (Vector3){ 0 }, 1.0f, WHITE);
+                for (int i = 0; i < decalCount; i++) RLDrawModel(decalModels[i], (RLVector3){ 0 }, 1.0f, WHITE);
 
                 // If we hit the mesh, draw the box for the decal
                 if (collision.hit)
                 {
-                    Vector3 origin = Vector3Add(collision.point, Vector3Scale(collision.normal, 1.0f));
-                    Matrix splat = MatrixLookAt(collision.point, origin, (Vector3){0,1,0});
+                    RLVector3 origin = Vector3Add(collision.point, Vector3Scale(collision.normal, 1.0f));
+                    RLMatrix splat = MatrixLookAt(collision.point, origin, (RLVector3){0,1,0});
                     placementCube.transform = MatrixInvert(splat);
-                    DrawModel(placementCube, (Vector3){ 0 }, 1.0f, Fade(WHITE, 0.5f));
+                    RLDrawModel(placementCube, (RLVector3){ 0 }, 1.0f, RLFade(WHITE, 0.5f));
                 }
 
-                DrawGrid(10, 10.0f);
-            EndMode3D();
+                RLDrawGrid(10, 10.0f);
+            RLEndMode3D();
 
             float yPos = 10;
-            float x0 = GetScreenWidth() - 300.0f;
+            float x0 = RLGetScreenWidth() - 300.0f;
             float x1 = x0 + 100;
             float x2 = x1 + 100;
 
-            DrawText("Vertices", (int)x1, (int)yPos, 10, LIME);
-            DrawText("Triangles", (int)x2, (int)yPos, 10, LIME);
+            RLDrawText("Vertices", (int)x1, (int)yPos, 10, LIME);
+            RLDrawText("Triangles", (int)x2, (int)yPos, 10, LIME);
             yPos += 15;
 
             int vertexCount = 0;
@@ -215,24 +215,24 @@ int main(void)
                 triangleCount += model.meshes[i].triangleCount;
             }
 
-            DrawText("Main model", (int)x0, (int)yPos, 10, LIME);
-            DrawText(TextFormat("%d", vertexCount), (int)x1, (int)yPos, 10, LIME);
-            DrawText(TextFormat("%d", triangleCount), (int)x2, (int)yPos, 10, LIME);
+            RLDrawText("Main model", (int)x0, (int)yPos, 10, LIME);
+            RLDrawText(RLTextFormat("%d", vertexCount), (int)x1, (int)yPos, 10, LIME);
+            RLDrawText(RLTextFormat("%d", triangleCount), (int)x2, (int)yPos, 10, LIME);
             yPos += 15;
 
             for (int i = 0; i < decalCount; i++)
             {
                 if (i == 20)
                 {
-                    DrawText("...", (int)x0, (int)yPos, 10, LIME);
+                    RLDrawText("...", (int)x0, (int)yPos, 10, LIME);
                     yPos += 15;
                 }
 
                 if (i < 20)
                 {
-                    DrawText(TextFormat("Decal #%d", i+1), (int)x0, (int)yPos, 10, LIME);
-                    DrawText(TextFormat("%d", decalModels[i].meshes[0].vertexCount), (int)x1, (int)yPos, 10, LIME);
-                    DrawText(TextFormat("%d", decalModels[i].meshes[0].triangleCount), (int)x2, (int)yPos, 10, LIME);
+                    RLDrawText(RLTextFormat("Decal #%d", i+1), (int)x0, (int)yPos, 10, LIME);
+                    RLDrawText(RLTextFormat("%d", decalModels[i].meshes[0].vertexCount), (int)x1, (int)yPos, 10, LIME);
+                    RLDrawText(RLTextFormat("%d", decalModels[i].meshes[0].triangleCount), (int)x2, (int)yPos, 10, LIME);
                     yPos += 15;
                 }
 
@@ -240,43 +240,43 @@ int main(void)
                 triangleCount += decalModels[i].meshes[0].triangleCount;
             }
 
-            DrawText("TOTAL", (int)x0, (int)yPos, 10, LIME);
-            DrawText(TextFormat("%d", vertexCount), (int)x1, (int)yPos, 10, LIME);
-            DrawText(TextFormat("%d", triangleCount), (int)x2, (int)yPos, 10, LIME);
+            RLDrawText("TOTAL", (int)x0, (int)yPos, 10, LIME);
+            RLDrawText(RLTextFormat("%d", vertexCount), (int)x1, (int)yPos, 10, LIME);
+            RLDrawText(RLTextFormat("%d", triangleCount), (int)x2, (int)yPos, 10, LIME);
             yPos += 15;
 
-            DrawText("Hold RMB to move camera", 10, 430, 10, GRAY);
-            DrawText("(c) Character model and texture from kenney.nl", screenWidth - 260, screenHeight - 20, 10, GRAY);
+            RLDrawText("Hold RMB to move camera", 10, 430, 10, GRAY);
+            RLDrawText("(c) Character model and texture from kenney.nl", screenWidth - 260, screenHeight - 20, 10, GRAY);
 
             // UI elements
-            if (GuiButton((Rectangle){ 10, screenHeight - 1000.f, 100, 60 }, showModel ? "Hide Model" : "Show Model")) showModel = !showModel;
+            if (GuiButton((RLRectangle){ 10, screenHeight - 1000.f, 100, 60 }, showModel ? "Hide Model" : "Show Model")) showModel = !showModel;
 
-            if (GuiButton((Rectangle){ 10 + 110, screenHeight - 100.0f, 100, 60 }, "Clear Decals"))
+            if (GuiButton((RLRectangle){ 10 + 110, screenHeight - 100.0f, 100, 60 }, "Clear Decals"))
             {
                 // Clear decals, unload all decal models
-                for (int i = 0; i < decalCount; i++) UnloadModel(decalModels[i]);
+                for (int i = 0; i < decalCount; i++) RLUnloadModel(decalModels[i]);
                 decalCount = 0;
             }
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadModel(model);
-    UnloadTexture(modelTexture);
+    RLUnloadModel(model);
+    RLUnloadTexture(modelTexture);
 
     // Unload decal models
-    for (int i = 0; i < decalCount; i++) UnloadModel(decalModels[i]);
+    for (int i = 0; i < decalCount; i++) RLUnloadModel(decalModels[i]);
 
-    UnloadTexture(decalTexture);
+    RLUnloadTexture(decalTexture);
 
     FreeDecalMeshData();        // Free the data for decal generation
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -286,18 +286,18 @@ int main(void)
 // Module Functions Definition
 //----------------------------------------------------------------------------------
 // Add triangles to mesh builder (dynamic array manager)
-static void AddTriangleToMeshBuilder(MeshBuilder *mb, Vector3 vertices[3])
+static void AddTriangleToMeshBuilder(MeshBuilder *mb, RLVector3 vertices[3])
 {
     // Reallocate and copy if we need to
     if (mb->vertexCapacity <= (mb->vertexCount + 3))
     {
         int newVertexCapacity = (1 + (mb->vertexCapacity/256))*256;
-        Vector3 *newVertices = (Vector3 *)MemAlloc(newVertexCapacity*sizeof(Vector3));
+        RLVector3 *newVertices = (RLVector3 *)RLMemAlloc(newVertexCapacity*sizeof(RLVector3));
 
         if (mb->vertexCapacity > 0)
         {
-            memcpy(newVertices, mb->vertices, mb->vertexCount*sizeof(Vector3));
-            MemFree(mb->vertices);
+            memcpy(newVertices, mb->vertices, mb->vertexCount*sizeof(RLVector3));
+            RLMemFree(mb->vertices);
         }
 
         mb->vertices = newVertices;
@@ -314,20 +314,20 @@ static void AddTriangleToMeshBuilder(MeshBuilder *mb, Vector3 vertices[3])
 // Free mesh builder
 static void FreeMeshBuilder(MeshBuilder *mb)
 {
-    MemFree(mb->vertices);
-    if (mb->uvs) MemFree(mb->uvs);
+    RLMemFree(mb->vertices);
+    if (mb->uvs) RLMemFree(mb->uvs);
     *mb = (MeshBuilder){ 0 };
 }
 
 // Build a Mesh from MeshBuilder data
-static Mesh BuildMesh(MeshBuilder *mb)
+static RLMesh BuildMesh(MeshBuilder *mb)
 {
-    Mesh outMesh = { 0 };
+    RLMesh outMesh = { 0 };
 
     outMesh.vertexCount = mb->vertexCount;
     outMesh.triangleCount = mb->vertexCount/3;
-    outMesh.vertices = MemAlloc(outMesh.vertexCount*3*sizeof(float));
-    if (mb->uvs) outMesh.texcoords = MemAlloc(outMesh.vertexCount*2*sizeof(float));
+    outMesh.vertices = RLMemAlloc(outMesh.vertexCount*3*sizeof(float));
+    if (mb->uvs) outMesh.texcoords = RLMemAlloc(outMesh.vertexCount*2*sizeof(float));
 
     for (int i = 0; i < mb->vertexCount; i++)
     {
@@ -342,25 +342,25 @@ static Mesh BuildMesh(MeshBuilder *mb)
         }
     }
 
-    UploadMesh(&outMesh, false);
+    RLUploadMesh(&outMesh, false);
 
     return outMesh;
 }
 
 // Clip segment
-static Vector3 ClipSegment(Vector3 v0, Vector3 v1, Vector3 p, float s)
+static RLVector3 ClipSegment(RLVector3 v0, RLVector3 v1, RLVector3 p, float s)
 {
     float d0 = Vector3DotProduct(v0, p) - s;
     float d1 = Vector3DotProduct(v1, p) - s;
     float s0 = d0/(d0 - d1);
 
-    Vector3 position = Vector3Lerp(v0, v1, s0);
+    RLVector3 position = Vector3Lerp(v0, v1, s0);
 
     return position;
 }
 
 // Generate mesh decals for provided model
-static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float decalOffset)
+static RLMesh GenMeshDecal(RLModel target, RLMatrix projection, float decalSize, float decalOffset)
 {
     // We're going to use these to build up our decal meshes
     // They'll resize automatically as we go, we'll free them at the end
@@ -371,11 +371,11 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
     {
         FreeMeshBuilder(&meshBuilders[0]);
         FreeMeshBuilder(&meshBuilders[1]);
-        return (Mesh){ 0 };
+        return (RLMesh){ 0 };
     }
 
     // We're going to need the inverse matrix
-    Matrix invProj = MatrixInvert(projection);
+    RLMatrix invProj = MatrixInvert(projection);
 
     // Reset the mesh builders
     meshBuilders[0].vertexCount = 0;
@@ -388,10 +388,10 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
     // First pass, just get any triangle inside the bounding box (for each mesh of the model)
     for (int meshIndex = 0; meshIndex < target.meshCount; meshIndex++)
     {
-        Mesh mesh = target.meshes[meshIndex];
+        RLMesh mesh = target.meshes[meshIndex];
         for (int tri = 0; tri < mesh.triangleCount; tri++)
         {
-            Vector3 vertices[3] = { 0 };
+            RLVector3 vertices[3] = { 0 };
 
             // The way we calculate the vertices of the mesh triangle
             // depend on whether the mesh vertices are indexed or not
@@ -399,7 +399,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
             {
                 for (int v = 0; v < 3; v++)
                 {
-                    vertices[v] = (Vector3){
+                    vertices[v] = (RLVector3){
                         mesh.vertices[3*3*tri + 3*v + 0],
                         mesh.vertices[3*3*tri + 3*v + 1],
                         mesh.vertices[3*3*tri + 3*v + 2]
@@ -410,7 +410,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
             {
                 for (int v = 0; v < 3; v++)
                 {
-                    vertices[v] = (Vector3){
+                    vertices[v] = (RLVector3){
                         mesh.vertices[ 3*mesh.indices[3*tri+0] + v],
                         mesh.vertices[ 3*mesh.indices[3*tri+1] + v],
                         mesh.vertices[ 3*mesh.indices[3*tri+2] + v]
@@ -424,7 +424,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
             for (int i = 0; i < 3; i++)
             {
                 // To projection space
-                Vector3 v = Vector3Transform(vertices[i], projection);
+                RLVector3 v = Vector3Transform(vertices[i], projection);
 
                 if ((fabsf(v.x) < decalSize) || (fabsf(v.y) <= decalSize) || (fabsf(v.z) <= decalSize)) insideCount++;
 
@@ -438,7 +438,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
     }
 
     // Clipping time! We need to clip against all 6 directions
-    Vector3 planes[6] = {
+    RLVector3 planes[6] = {
        {  1,  0,  0 },
        { -1,  0,  0 },
        {  0,  1,  0 },
@@ -462,7 +462,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
 
         for (int i = 0; i < inMesh->vertexCount; i += 3)
         {
-            Vector3 nV1, nV2, nV3, nV4;
+            RLVector3 nV1, nV2, nV3, nV4;
 
             float d1 = Vector3DotProduct(inMesh->vertices[ i + 0 ], planes[face] ) - s;
             float d2 = Vector3DotProduct(inMesh->vertices[ i + 1 ], planes[face] ) - s;
@@ -480,7 +480,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
                 case 0:
                 {
                     // The entire face lies inside of the plane, no clipping needed
-                    AddTriangleToMeshBuilder(outMesh, (Vector3[3]){inMesh->vertices[i], inMesh->vertices[i+1], inMesh->vertices[i+2]});
+                    AddTriangleToMeshBuilder(outMesh, (RLVector3[3]){inMesh->vertices[i], inMesh->vertices[i+1], inMesh->vertices[i+2]});
                 } break;
                 case 1:
                 {
@@ -500,8 +500,8 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
                         nV3 = ClipSegment(inMesh->vertices[i + 1], nV1, planes[face], s);
                         nV4 = ClipSegment(inMesh->vertices[i + 1], nV2, planes[face], s);
 
-                        AddTriangleToMeshBuilder(outMesh, (Vector3[3]){nV3, nV2, nV1});
-                        AddTriangleToMeshBuilder(outMesh, (Vector3[3]){nV2, nV3, nV4});
+                        AddTriangleToMeshBuilder(outMesh, (RLVector3[3]){nV3, nV2, nV1});
+                        AddTriangleToMeshBuilder(outMesh, (RLVector3[3]){nV2, nV3, nV4});
                         break;
                     }
 
@@ -513,8 +513,8 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
                         nV4 = ClipSegment(inMesh->vertices[i + 2], nV2, planes[face], s);
                     }
 
-                    AddTriangleToMeshBuilder(outMesh, (Vector3[3]){nV1, nV2, nV3});
-                    AddTriangleToMeshBuilder(outMesh, (Vector3[3]){nV4, nV3, nV2});
+                    AddTriangleToMeshBuilder(outMesh, (RLVector3[3]){nV1, nV2, nV3});
+                    AddTriangleToMeshBuilder(outMesh, (RLVector3[3]){nV4, nV3, nV2});
                 } break;
                 case 2:
                 {
@@ -524,7 +524,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
                         nV1 = inMesh->vertices[i];
                         nV2 = ClipSegment(nV1, inMesh->vertices[i + 1], planes[face], s);
                         nV3 = ClipSegment(nV1, inMesh->vertices[i + 2], planes[face], s);
-                        AddTriangleToMeshBuilder(outMesh, (Vector3[3]){nV1, nV2, nV3});
+                        AddTriangleToMeshBuilder(outMesh, (RLVector3[3]){nV1, nV2, nV3});
                     }
 
                     if (!v2Out)
@@ -532,7 +532,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
                         nV1 = inMesh->vertices[i + 1];
                         nV2 = ClipSegment(nV1, inMesh->vertices[i + 2], planes[face], s);
                         nV3 = ClipSegment(nV1, inMesh->vertices[i], planes[face], s);
-                        AddTriangleToMeshBuilder(outMesh, (Vector3[3]){nV1, nV2, nV3});
+                        AddTriangleToMeshBuilder(outMesh, (RLVector3[3]){nV1, nV2, nV3});
                     }
 
                     if (!v3Out)
@@ -540,7 +540,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
                         nV1 = inMesh->vertices[i + 2];
                         nV2 = ClipSegment(nV1, inMesh->vertices[i], planes[face], s);
                         nV3 = ClipSegment(nV1, inMesh->vertices[i + 1], planes[face], s);
-                        AddTriangleToMeshBuilder(outMesh, (Vector3[3]){nV1, nV2, nV3});
+                        AddTriangleToMeshBuilder(outMesh, (RLVector3[3]){nV1, nV2, nV3});
                     }
                 } break;
                 case 3: // The entire face lies outside of the plane, so let's discard the corresponding vertices
@@ -555,7 +555,7 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
     // Allocate room for UVs
     if (theMesh->vertexCount > 0)
     {
-        theMesh->uvs = (Vector2 *)MemAlloc(sizeof(Vector2)*theMesh->vertexCount);
+        theMesh->uvs = (RLVector2 *)RLMemAlloc(sizeof(RLVector2)*theMesh->vertexCount);
 
         for (int i = 0; i < theMesh->vertexCount; i++)
         {
@@ -577,29 +577,29 @@ static Mesh GenMeshDecal(Model target, Matrix projection, float decalSize, float
     else
     {
         // Return a blank mesh as there's nothing to add
-        return (Mesh){ 0 };
+        return (RLMesh){ 0 };
     }
 }
 
 // Button UI element
-static bool GuiButton(Rectangle rec, const char *label)
+static bool GuiButton(RLRectangle rec, const char *label)
 {
-    Color bgColor = GRAY;
+    RLColor bgColor = GRAY;
     bool pressed = false;
 
-    if (CheckCollisionPointRec(GetMousePosition(), rec))
+    if (RLCheckCollisionPointRec(RLGetMousePosition(), rec))
     {
         bgColor = LIGHTGRAY;
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) pressed = true;
+        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) pressed = true;
     }
 
-    DrawRectangleRec(rec, bgColor);
-    DrawRectangleLinesEx(rec, 2.0f, DARKGRAY);
+    RLDrawRectangleRec(rec, bgColor);
+    RLDrawRectangleLinesEx(rec, 2.0f, DARKGRAY);
 
     int fontSize = 10;
-    int textWidth = MeasureText(label, fontSize);
+    int textWidth = RLMeasureText(label, fontSize);
 
-    DrawText(label, (int)(rec.x + rec.width*0.5f - textWidth*0.5f), (int)(rec.y + rec.height*0.5f - fontSize*0.5f), fontSize, DARKGRAY);
+    RLDrawText(label, (int)(rec.x + rec.width*0.5f - textWidth*0.5f), (int)(rec.y + rec.height*0.5f - fontSize*0.5f), fontSize, DARKGRAY);
 
     return pressed;
 }

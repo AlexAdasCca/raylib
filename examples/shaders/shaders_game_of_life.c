@@ -42,13 +42,13 @@ typedef enum {
 // Struct to store example preset patterns
 typedef struct {
     char *name;
-    Vector2 position;
+    RLVector2 position;
 } PresetPattern;
 
 //----------------------------------------------------------------------------------
 // Functions declaration
 //----------------------------------------------------------------------------------
-void FreeImageToDraw(Image **imageToDraw);
+void FreeImageToDraw(RLImage **imageToDraw);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -60,7 +60,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
     
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - game of life");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - game of life");
 
     const int menuWidth = 100;
     const int windowWidth = screenWidth - menuWidth;
@@ -71,9 +71,9 @@ int main(void)
 
     const int randomTiles = 8;      // Random preset: divide the world to compute random points in each tile
 
-    const Rectangle worldRectSource = { 0, 0, (float)worldWidth, (float)-worldHeight };
-    const Rectangle worldRectDest = { 0, 0, (float)worldWidth, (float)worldHeight };
-    const Rectangle textureOnScreen = { 0, 0, (float)windowWidth, (float)windowHeight };
+    const RLRectangle worldRectSource = { 0, 0, (float)worldWidth, (float)-worldHeight };
+    const RLRectangle worldRectDest = { 0, 0, (float)worldWidth, (float)worldHeight };
+    const RLRectangle textureOnScreen = { 0, 0, (float)windowWidth, (float)windowHeight };
 
     const PresetPattern presetPatterns[] = {
         { "Glider", { 0.5f, 0.5f } }, { "R-pentomino", { 0.5f, 0.5f } }, { "Acorn", { 0.5f,0.5f } },
@@ -98,43 +98,43 @@ int main(void)
     bool buttonSlower = false;
 
     // Load shader
-    Shader shdrGameOfLife = LoadShader(0, TextFormat("resources/shaders/glsl%i/game_of_life.fs", GLSL_VERSION));
+    RLShader shdrGameOfLife = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/game_of_life.fs", GLSL_VERSION));
 
     // Set shader uniform size of the world
-    int resolutionLoc = GetShaderLocation(shdrGameOfLife, "resolution");
+    int resolutionLoc = RLGetShaderLocation(shdrGameOfLife, "resolution");
     const float resolution[2] = { (float)worldWidth, (float)worldHeight };
-    SetShaderValue(shdrGameOfLife, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shdrGameOfLife, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
 
     // Define two textures: the current world and the previous world
-    RenderTexture2D world1 = LoadRenderTexture(worldWidth, worldHeight);
-    RenderTexture2D world2 = LoadRenderTexture(worldWidth, worldHeight);
-    BeginTextureMode(world2);
-        ClearBackground(RAYWHITE);
-    EndTextureMode();
+    RLRenderTexture2D world1 = RLLoadRenderTexture(worldWidth, worldHeight);
+    RLRenderTexture2D world2 = RLLoadRenderTexture(worldWidth, worldHeight);
+    RLBeginTextureMode(world2);
+        RLClearBackground(RAYWHITE);
+    RLEndTextureMode();
 
-    Image startPattern = LoadImage("resources/game_of_life/r_pentomino.png");
-    UpdateTextureRec(world2.texture, (Rectangle){ worldWidth/2.0f, worldHeight/2.0f, (float)(startPattern.width), (float)(startPattern.height) }, startPattern.data);
-    UnloadImage(startPattern);
+    RLImage startPattern = RLLoadImage("resources/game_of_life/r_pentomino.png");
+    RLUpdateTextureRec(world2.texture, (RLRectangle){ worldWidth/2.0f, worldHeight/2.0f, (float)(startPattern.width), (float)(startPattern.height) }, startPattern.data);
+    RLUnloadImage(startPattern);
 
     // Pointers to the two textures, to be swapped
-    RenderTexture2D *currentWorld = &world2;
-    RenderTexture2D *previousWorld = &world1;
+    RLRenderTexture2D *currentWorld = &world2;
+    RLRenderTexture2D *previousWorld = &world1;
 
     // Image to be used in DRAW mode, to be changed with mouse input
-    Image *imageToDraw = NULL;
+    RLImage *imageToDraw = NULL;
 
-    SetTargetFPS(60);               // Set at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         frame++;
 
         // Change zoom: both by buttons or by mouse wheel
-        float mouseWheelMove = GetMouseWheelMove();
+        float mouseWheelMove = RLGetMouseWheelMove();
         if (buttonZoomIn || (buttonZomOut && (zoom > 1)) || (mouseWheelMove != 0.0f))
         {
             FreeImageToDraw(&imageToDraw);  // Zoom change: free the image to draw to be recreated again
@@ -157,9 +157,9 @@ int main(void)
             FreeImageToDraw(&imageToDraw);  // Free the image to draw: no longer needed in these modes
 
             // Pan with mouse left button
-            static Vector2 previousMousePosition = { 0.0f, 0.0f };
-            const Vector2 mousePosition = GetMousePosition();
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && (mousePosition.x < windowWidth))
+            static RLVector2 previousMousePosition = { 0.0f, 0.0f };
+            const RLVector2 mousePosition = RLGetMousePosition();
+            if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) && (mousePosition.x < windowWidth))
             {
                 offsetX -= (mousePosition.x - previousMousePosition.x)/zoom;
                 offsetY -= (mousePosition.y - previousMousePosition.y)/zoom;
@@ -178,31 +178,31 @@ int main(void)
             // Create image to draw if not created yet
             if (imageToDraw == NULL)
             {
-                RenderTexture2D worldOnScreen = LoadRenderTexture(sizeInWorldX, sizeInWorldY);
-                BeginTextureMode(worldOnScreen);
-                    DrawTexturePro(currentWorld->texture, (Rectangle) { floorf(offsetX), floorf(offsetY), (float)(sizeInWorldX), -(float)(sizeInWorldY) },
-                            (Rectangle) { 0, 0, (float)(sizeInWorldX), (float)(sizeInWorldY) }, (Vector2) { 0, 0 }, 0.0f, WHITE);
-                EndTextureMode();
-                imageToDraw = (Image*)RL_MALLOC(sizeof(Image));
-                *imageToDraw = LoadImageFromTexture(worldOnScreen.texture);
+                RLRenderTexture2D worldOnScreen = RLLoadRenderTexture(sizeInWorldX, sizeInWorldY);
+                RLBeginTextureMode(worldOnScreen);
+                    RLDrawTexturePro(currentWorld->texture, (RLRectangle) { floorf(offsetX), floorf(offsetY), (float)(sizeInWorldX), -(float)(sizeInWorldY) },
+                            (RLRectangle) { 0, 0, (float)(sizeInWorldX), (float)(sizeInWorldY) }, (RLVector2) { 0, 0 }, 0.0f, WHITE);
+                RLEndTextureMode();
+                imageToDraw = (RLImage*)RL_MALLOC(sizeof(RLImage));
+                *imageToDraw = RLLoadImageFromTexture(worldOnScreen.texture);
                 
-                UnloadRenderTexture(worldOnScreen);
+                RLUnloadRenderTexture(worldOnScreen);
             }
 
-            const Vector2 mousePosition = GetMousePosition();
+            const RLVector2 mousePosition = RLGetMousePosition();
             static int firstColor = -1;
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && (mousePosition.x < windowWidth))
+            if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) && (mousePosition.x < windowWidth))
             {
                 int mouseX = (int)(mousePosition.x + offsetDecimalX*zoom)/zoom;
                 int mouseY = (int)(mousePosition.y + offsetDecimalY*zoom)/zoom;
                 if (mouseX >= sizeInWorldX) mouseX = sizeInWorldX - 1;
                 if (mouseY >= sizeInWorldY) mouseY = sizeInWorldY - 1;
-                if (firstColor == -1) firstColor = (GetImageColor(*imageToDraw, mouseX, mouseY).r < 5)? 0 : 1;
-                const int prevColor = (GetImageColor(*imageToDraw, mouseX, mouseY).r < 5)? 0 : 1;
+                if (firstColor == -1) firstColor = (RLGetImageColor(*imageToDraw, mouseX, mouseY).r < 5)? 0 : 1;
+                const int prevColor = (RLGetImageColor(*imageToDraw, mouseX, mouseY).r < 5)? 0 : 1;
                 
-                ImageDrawPixel(imageToDraw, mouseX, mouseY, (firstColor) ? BLACK : RAYWHITE);
+                RLImageDrawPixel(imageToDraw, mouseX, mouseY, (firstColor) ? BLACK : RAYWHITE);
                 
-                if (prevColor != firstColor) UpdateTextureRec(currentWorld->texture, (Rectangle){ floorf(offsetX), floorf(offsetY), (float)(sizeInWorldX), (float)(sizeInWorldY) }, imageToDraw->data);
+                if (prevColor != firstColor) RLUpdateTextureRec(currentWorld->texture, (RLRectangle){ floorf(offsetX), floorf(offsetY), (float)(sizeInWorldX), (float)(sizeInWorldY) }, imageToDraw->data);
             }
             else firstColor = -1;
         }
@@ -210,52 +210,52 @@ int main(void)
         // Load selected preset
         if (preset >= 0)
         {
-            Image pattern;
+            RLImage pattern;
             if (preset < numberOfPresets - 1)   // Preset with pattern image lo load
             {
                 switch (preset)
                 {
-                    case 0: pattern = LoadImage("resources/game_of_life/glider.png"); break;
-                    case 1: pattern = LoadImage("resources/game_of_life/r_pentomino.png"); break;
-                    case 2: pattern = LoadImage("resources/game_of_life/acorn.png"); break;
-                    case 3: pattern = LoadImage("resources/game_of_life/spaceships.png"); break;
-                    case 4: pattern = LoadImage("resources/game_of_life/still_lifes.png"); break;
-                    case 5: pattern = LoadImage("resources/game_of_life/oscillators.png"); break;
-                    case 6: pattern = LoadImage("resources/game_of_life/puffer_train.png"); break;
-                    case 7: pattern = LoadImage("resources/game_of_life/glider_gun.png"); break;
-                    case 8: pattern = LoadImage("resources/game_of_life/breeder.png"); break;
+                    case 0: pattern = RLLoadImage("resources/game_of_life/glider.png"); break;
+                    case 1: pattern = RLLoadImage("resources/game_of_life/r_pentomino.png"); break;
+                    case 2: pattern = RLLoadImage("resources/game_of_life/acorn.png"); break;
+                    case 3: pattern = RLLoadImage("resources/game_of_life/spaceships.png"); break;
+                    case 4: pattern = RLLoadImage("resources/game_of_life/still_lifes.png"); break;
+                    case 5: pattern = RLLoadImage("resources/game_of_life/oscillators.png"); break;
+                    case 6: pattern = RLLoadImage("resources/game_of_life/puffer_train.png"); break;
+                    case 7: pattern = RLLoadImage("resources/game_of_life/glider_gun.png"); break;
+                    case 8: pattern = RLLoadImage("resources/game_of_life/breeder.png"); break;
                 }
-                BeginTextureMode(*currentWorld);
-                    ClearBackground(RAYWHITE);
-                EndTextureMode();
+                RLBeginTextureMode(*currentWorld);
+                    RLClearBackground(RAYWHITE);
+                RLEndTextureMode();
                 
-                UpdateTextureRec(currentWorld->texture, (Rectangle){ worldWidth*presetPatterns[preset].position.x - pattern.width/2.0f,
+                RLUpdateTextureRec(currentWorld->texture, (RLRectangle){ worldWidth*presetPatterns[preset].position.x - pattern.width/2.0f,
                                                                      worldHeight*presetPatterns[preset].position.y - pattern.height/2.0f,
                                                                      (float)(pattern.width), (float)(pattern.height) }, pattern.data);
             }
             else    // Last preset: Random values
             {
-                pattern = GenImageColor(worldWidth/randomTiles, worldHeight/randomTiles, RAYWHITE);
+                pattern = RLGenImageColor(worldWidth/randomTiles, worldHeight/randomTiles, RAYWHITE);
                 for (int i = 0; i < randomTiles; i++)
                 {
                     for (int j = 0; j < randomTiles; j++)
                     {
-                        ImageClearBackground(&pattern, RAYWHITE);
+                        RLImageClearBackground(&pattern, RAYWHITE);
                         for (int x = 0; x < pattern.width; x++)
                         {
                             for (int y = 0; y < pattern.height; y++)
                             {
-                                if (GetRandomValue(0, 100) < 15) ImageDrawPixel(&pattern, x, y, BLACK);
+                                if (RLGetRandomValue(0, 100) < 15) RLImageDrawPixel(&pattern, x, y, BLACK);
                             }
                         }
-                        UpdateTextureRec(currentWorld->texture,
-                                         (Rectangle){ (float)(pattern.width*i), (float)(pattern.height*j),
+                        RLUpdateTextureRec(currentWorld->texture,
+                                         (RLRectangle){ (float)(pattern.width*i), (float)(pattern.height*j),
                                                       (float)(pattern.width), (float)(pattern.height) }, pattern.data);
                     }
                 }
             }
 
-            UnloadImage(pattern);
+            RLUnloadImage(pattern);
             
             mode = MODE_PAUSE;
             offsetX = worldWidth*presetPatterns[preset].position.x - (float)windowWidth/zoom/2.0f;
@@ -269,7 +269,7 @@ int main(void)
         if (offsetY > worldHeight - (float)(windowHeight)/zoom) offsetY = worldHeight - (float)(windowHeight)/zoom;
 
         // Rectangles for drawing texture portion to screen
-        const Rectangle textureSourceToScreen = { offsetX, offsetY, (float)windowWidth/zoom, (float)windowHeight/zoom };
+        const RLRectangle textureSourceToScreen = { offsetX, offsetY, (float)windowWidth/zoom, (float)windowHeight/zoom };
         //----------------------------------------------------------------------------------
 
         // Draw to texture
@@ -277,63 +277,63 @@ int main(void)
         if ((mode == MODE_RUN) && ((frame%framesPerStep) == 0))
         {
             // Swap worlds
-            RenderTexture2D *tempWorld = currentWorld;
+            RLRenderTexture2D *tempWorld = currentWorld;
             currentWorld = previousWorld;
             previousWorld = tempWorld;
 
             // Draw to texture
-            BeginTextureMode(*currentWorld);
-                BeginShaderMode(shdrGameOfLife);
-                    DrawTexturePro(previousWorld->texture, worldRectSource, worldRectDest, (Vector2){ 0, 0 }, 0.0f, RAYWHITE);
-                EndShaderMode();
-            EndTextureMode();
+            RLBeginTextureMode(*currentWorld);
+                RLBeginShaderMode(shdrGameOfLife);
+                    RLDrawTexturePro(previousWorld->texture, worldRectSource, worldRectDest, (RLVector2){ 0, 0 }, 0.0f, RAYWHITE);
+                RLEndShaderMode();
+            RLEndTextureMode();
         }
         //----------------------------------------------------------------------------------
 
         // Draw to screen
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
         
-            DrawTexturePro(currentWorld->texture, textureSourceToScreen, textureOnScreen, (Vector2){ 0, 0 }, 0.0f, WHITE);
+            RLDrawTexturePro(currentWorld->texture, textureSourceToScreen, textureOnScreen, (RLVector2){ 0, 0 }, 0.0f, WHITE);
 
-            DrawLine(windowWidth, 0, windowWidth, screenHeight, (Color){ 218, 218, 218, 255 });
-            DrawRectangle(windowWidth, 0, screenWidth - windowWidth, screenHeight, (Color){ 232, 232, 232, 255 });
+            RLDrawLine(windowWidth, 0, windowWidth, screenHeight, (RLColor){ 218, 218, 218, 255 });
+            RLDrawRectangle(windowWidth, 0, screenWidth - windowWidth, screenHeight, (RLColor){ 232, 232, 232, 255 });
 
-            DrawText("Conway's", 704, 4, 20, DARKBLUE);
-            DrawText(" game of", 704, 19, 20, DARKBLUE);
-            DrawText("  life", 708, 34, 20, DARKBLUE);
-            DrawText("in raylib", 757, 42, 6, BLACK);
+            RLDrawText("Conway's", 704, 4, 20, DARKBLUE);
+            RLDrawText(" game of", 704, 19, 20, DARKBLUE);
+            RLDrawText("  life", 708, 34, 20, DARKBLUE);
+            RLDrawText("in raylib", 757, 42, 6, BLACK);
 
-            DrawText("Presets", 710, 58, 8, GRAY);
+            RLDrawText("Presets", 710, 58, 8, GRAY);
             preset = -1;
             for (int i = 0; i < numberOfPresets; i++)
-                if (GuiButton((Rectangle){ 710.0f, 70.0f + 18*i, 80.0f, 16.0f }, presetPatterns[i].name)) preset = i;
+                if (GuiButton((RLRectangle){ 710.0f, 70.0f + 18*i, 80.0f, 16.0f }, presetPatterns[i].name)) preset = i;
 
-            GuiToggleGroup((Rectangle){ 710, 258, 80, 16 }, "Run\nPause\nDraw", &mode);
+            GuiToggleGroup((RLRectangle){ 710, 258, 80, 16 }, "Run\nPause\nDraw", &mode);
 
-            DrawText(TextFormat("Zoom: %ix", zoom), 710, 316, 8, GRAY);
-            buttonZoomIn = GuiButton((Rectangle){ 710, 328, 80, 16 }, "Zoom in");
-            buttonZomOut = GuiButton((Rectangle){ 710, 346, 80, 16 }, "Zoom out");
+            RLDrawText(RLTextFormat("Zoom: %ix", zoom), 710, 316, 8, GRAY);
+            buttonZoomIn = GuiButton((RLRectangle){ 710, 328, 80, 16 }, "Zoom in");
+            buttonZomOut = GuiButton((RLRectangle){ 710, 346, 80, 16 }, "Zoom out");
 
-            DrawText(TextFormat("Speed: %i frame%s", framesPerStep, (framesPerStep > 1)? "s" : ""), 710, 370, 8, GRAY);
-            buttonFaster = GuiButton((Rectangle){ 710, 382, 80, 16 }, "Faster");
-            buttonSlower = GuiButton((Rectangle){ 710, 400, 80, 16 }, "Slower");
+            RLDrawText(RLTextFormat("Speed: %i frame%s", framesPerStep, (framesPerStep > 1)? "s" : ""), 710, 370, 8, GRAY);
+            buttonFaster = GuiButton((RLRectangle){ 710, 382, 80, 16 }, "Faster");
+            buttonSlower = GuiButton((RLRectangle){ 710, 400, 80, 16 }, "Slower");
 
-            DrawFPS(712, 426);
+            RLDrawFPS(712, 426);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shdrGameOfLife);
-    UnloadRenderTexture(world1);
-    UnloadRenderTexture(world2);
+    RLUnloadShader(shdrGameOfLife);
+    RLUnloadRenderTexture(world1);
+    RLUnloadRenderTexture(world2);
 
     FreeImageToDraw(&imageToDraw);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -342,11 +342,11 @@ int main(void)
 //----------------------------------------------------------------------------------
 // Functions definition
 //----------------------------------------------------------------------------------
-void FreeImageToDraw(Image **imageToDraw)
+void FreeImageToDraw(RLImage **imageToDraw)
 {
     if (*imageToDraw != NULL)
     {
-        UnloadImage(**imageToDraw);
+        RLUnloadImage(**imageToDraw);
         RL_FREE(*imageToDraw);
         *imageToDraw = NULL;
     }

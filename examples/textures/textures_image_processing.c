@@ -55,29 +55,29 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - image processing");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - image processing");
 
     // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
 
-    Image imOrigin = LoadImage("resources/parrots.png");   // Loaded in CPU memory (RAM)
-    ImageFormat(&imOrigin, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);         // Format image to RGBA 32bit (required for texture update) <-- ISSUE
-    Texture2D texture = LoadTextureFromImage(imOrigin);    // Image converted to texture, GPU memory (VRAM)
+    RLImage imOrigin = RLLoadImage("resources/parrots.png");   // Loaded in CPU memory (RAM)
+    RLImageFormat(&imOrigin, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);         // Format image to RGBA 32bit (required for texture update) <-- ISSUE
+    RLTexture2D texture = RLLoadTextureFromImage(imOrigin);    // Image converted to texture, GPU memory (VRAM)
 
-    Image imCopy = ImageCopy(imOrigin);
+    RLImage imCopy = RLImageCopy(imOrigin);
 
     int currentProcess = NONE;
     bool textureReload = false;
 
-    Rectangle toggleRecs[NUM_PROCESSES] = { 0 };
+    RLRectangle toggleRecs[NUM_PROCESSES] = { 0 };
     int mouseHoverRec = -1;
 
-    for (int i = 0; i < NUM_PROCESSES; i++) toggleRecs[i] = (Rectangle){ 40.0f, (float)(50 + 32*i), 150.0f, 30.0f };
+    for (int i = 0; i < NUM_PROCESSES; i++) toggleRecs[i] = (RLRectangle){ 40.0f, (float)(50 + 32*i), 150.0f, 30.0f };
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //---------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -85,11 +85,11 @@ int main(void)
         // Mouse toggle group logic
         for (int i = 0; i < NUM_PROCESSES; i++)
         {
-            if (CheckCollisionPointRec(GetMousePosition(), toggleRecs[i]))
+            if (RLCheckCollisionPointRec(RLGetMousePosition(), toggleRecs[i]))
             {
                 mouseHoverRec = i;
 
-                if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+                if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT))
                 {
                     currentProcess = i;
                     textureReload = true;
@@ -100,13 +100,13 @@ int main(void)
         }
 
         // Keyboard toggle group logic
-        if (IsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(KEY_DOWN))
         {
             currentProcess++;
             if (currentProcess > (NUM_PROCESSES - 1)) currentProcess = 0;
             textureReload = true;
         }
-        else if (IsKeyPressed(KEY_UP))
+        else if (RLIsKeyPressed(KEY_UP))
         {
             currentProcess--;
             if (currentProcess < 0) currentProcess = 7;
@@ -116,28 +116,28 @@ int main(void)
         // Reload texture when required
         if (textureReload)
         {
-            UnloadImage(imCopy);                // Unload image-copy data
-            imCopy = ImageCopy(imOrigin);     // Restore image-copy from image-origin
+            RLUnloadImage(imCopy);                // Unload image-copy data
+            imCopy = RLImageCopy(imOrigin);     // Restore image-copy from image-origin
 
             // NOTE: Image processing is a costly CPU process to be done every frame,
             // If image processing is required in a frame-basis, it should be done
             // with a texture and by shaders
             switch (currentProcess)
             {
-                case COLOR_GRAYSCALE: ImageColorGrayscale(&imCopy); break;
-                case COLOR_TINT: ImageColorTint(&imCopy, GREEN); break;
-                case COLOR_INVERT: ImageColorInvert(&imCopy); break;
-                case COLOR_CONTRAST: ImageColorContrast(&imCopy, -40); break;
-                case COLOR_BRIGHTNESS: ImageColorBrightness(&imCopy, -80); break;
-                case GAUSSIAN_BLUR: ImageBlurGaussian(&imCopy, 10); break;
-                case FLIP_VERTICAL: ImageFlipVertical(&imCopy); break;
-                case FLIP_HORIZONTAL: ImageFlipHorizontal(&imCopy); break;
+                case COLOR_GRAYSCALE: RLImageColorGrayscale(&imCopy); break;
+                case COLOR_TINT: RLImageColorTint(&imCopy, GREEN); break;
+                case COLOR_INVERT: RLImageColorInvert(&imCopy); break;
+                case COLOR_CONTRAST: RLImageColorContrast(&imCopy, -40); break;
+                case COLOR_BRIGHTNESS: RLImageColorBrightness(&imCopy, -80); break;
+                case GAUSSIAN_BLUR: RLImageBlurGaussian(&imCopy, 10); break;
+                case FLIP_VERTICAL: RLImageFlipVertical(&imCopy); break;
+                case FLIP_HORIZONTAL: RLImageFlipHorizontal(&imCopy); break;
                 default: break;
             }
 
-            Color *pixels = LoadImageColors(imCopy);    // Load pixel data from image (RGBA 32bit)
-            UpdateTexture(texture, pixels);             // Update texture with new image data
-            UnloadImageColors(pixels);                  // Unload pixels data from RAM
+            RLColor *pixels = RLLoadImageColors(imCopy);    // Load pixel data from image (RGBA 32bit)
+            RLUpdateTexture(texture, pixels);             // Update texture with new image data
+            RLUnloadImageColors(pixels);                  // Unload pixels data from RAM
 
             textureReload = false;
         }
@@ -145,34 +145,34 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawText("IMAGE PROCESSING:", 40, 30, 10, DARKGRAY);
+            RLDrawText("IMAGE PROCESSING:", 40, 30, 10, DARKGRAY);
 
             // Draw rectangles
             for (int i = 0; i < NUM_PROCESSES; i++)
             {
-                DrawRectangleRec(toggleRecs[i], ((i == currentProcess) || (i == mouseHoverRec)) ? SKYBLUE : LIGHTGRAY);
-                DrawRectangleLines((int)toggleRecs[i].x, (int) toggleRecs[i].y, (int) toggleRecs[i].width, (int) toggleRecs[i].height, ((i == currentProcess) || (i == mouseHoverRec)) ? BLUE : GRAY);
-                DrawText( processText[i], (int)( toggleRecs[i].x + toggleRecs[i].width/2 - (float)MeasureText(processText[i], 10)/2), (int) toggleRecs[i].y + 11, 10, ((i == currentProcess) || (i == mouseHoverRec)) ? DARKBLUE : DARKGRAY);
+                RLDrawRectangleRec(toggleRecs[i], ((i == currentProcess) || (i == mouseHoverRec)) ? SKYBLUE : LIGHTGRAY);
+                RLDrawRectangleLines((int)toggleRecs[i].x, (int) toggleRecs[i].y, (int) toggleRecs[i].width, (int) toggleRecs[i].height, ((i == currentProcess) || (i == mouseHoverRec)) ? BLUE : GRAY);
+                RLDrawText( processText[i], (int)( toggleRecs[i].x + toggleRecs[i].width/2 - (float)RLMeasureText(processText[i], 10)/2), (int) toggleRecs[i].y + 11, 10, ((i == currentProcess) || (i == mouseHoverRec)) ? DARKBLUE : DARKGRAY);
             }
 
-            DrawTexture(texture, screenWidth - texture.width - 60, screenHeight/2 - texture.height/2, WHITE);
-            DrawRectangleLines(screenWidth - texture.width - 60, screenHeight/2 - texture.height/2, texture.width, texture.height, BLACK);
+            RLDrawTexture(texture, screenWidth - texture.width - 60, screenHeight/2 - texture.height/2, WHITE);
+            RLDrawRectangleLines(screenWidth - texture.width - 60, screenHeight/2 - texture.height/2, texture.width, texture.height, BLACK);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(texture);       // Unload texture from VRAM
-    UnloadImage(imOrigin);        // Unload image-origin from RAM
-    UnloadImage(imCopy);          // Unload image-copy from RAM
+    RLUnloadTexture(texture);       // Unload texture from VRAM
+    RLUnloadImage(imOrigin);        // Unload image-origin from RAM
+    RLUnloadImage(imCopy);          // Unload image-copy from RAM
 
-    CloseWindow();                // Close window and OpenGL context
+    RLCloseWindow();                // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

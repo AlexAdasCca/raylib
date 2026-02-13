@@ -22,8 +22,8 @@
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
-static void DrawTextStyled(Font font, const char *text, Vector2 position, float fontSize, float spacing, Color color);
-static Vector2 MeasureTextStyled(Font font, const char *text, float fontSize, float spacing);
+static void DrawTextStyled(RLFont font, const char *text, RLVector2 position, float fontSize, float spacing, RLColor color);
+static RLVector2 MeasureTextStyled(RLFont font, const char *text, float fontSize, float spacing);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -35,17 +35,17 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [text] example - inline styling");
+    RLInitWindow(screenWidth, screenHeight, "raylib [text] example - inline styling");
 
-    Vector2 textSize = { 0 };   // Measure text box for provided font and text
-    Color colRandom = RED;      // Random color used on text
+    RLVector2 textSize = { 0 };   // Measure text box for provided font and text
+    RLColor colRandom = RED;      // Random color used on text
     int frameCounter = 0;       // Used to generate a new random color every certain frames
 
-    SetTargetFPS(60);           // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);           // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -53,18 +53,18 @@ int main(void)
 
         if ((frameCounter%20) == 0)
         {
-            colRandom.r = (unsigned char)GetRandomValue(0, 255);
-            colRandom.g = (unsigned char)GetRandomValue(0, 255);
-            colRandom.b = (unsigned char)GetRandomValue(0, 255);
+            colRandom.r = (unsigned char)RLGetRandomValue(0, 255);
+            colRandom.g = (unsigned char)RLGetRandomValue(0, 255);
+            colRandom.b = (unsigned char)RLGetRandomValue(0, 255);
             colRandom.a = 255;
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             // Text inline styling strategy used: [ ] delimiters for format
             // - Define foreground color:      [cRRGGBBAA]
@@ -74,32 +74,32 @@ int main(void)
             // This allows global transparency control while keeping per-section styling (ex. text fade effects)
             // Example: [bAA00AAFF][cFF0000FF]red text on gray background[r] normal text
 
-            DrawTextStyled(GetFontDefault(), "This changes the [cFF0000FF]foreground color[r] of provided text!!!",
-                (Vector2){ 100, 80 }, 20.0f, 2.0f, BLACK);
+            DrawTextStyled(RLGetFontDefault(), "This changes the [cFF0000FF]foreground color[r] of provided text!!!",
+                (RLVector2){ 100, 80 }, 20.0f, 2.0f, BLACK);
 
-            DrawTextStyled(GetFontDefault(), "This changes the [bFF00FFFF]background color[r] of provided text!!!",
-                (Vector2){ 100, 120 }, 20.0f, 2.0f, BLACK);
+            DrawTextStyled(RLGetFontDefault(), "This changes the [bFF00FFFF]background color[r] of provided text!!!",
+                (RLVector2){ 100, 120 }, 20.0f, 2.0f, BLACK);
 
-            DrawTextStyled(GetFontDefault(), "This changes the [c00ff00ff][bff0000ff]foreground and background colors[r]!!!",
-                (Vector2){ 100, 160 }, 20.0f, 2.0f, BLACK);
+            DrawTextStyled(RLGetFontDefault(), "This changes the [c00ff00ff][bff0000ff]foreground and background colors[r]!!!",
+                (RLVector2){ 100, 160 }, 20.0f, 2.0f, BLACK);
 
-            DrawTextStyled(GetFontDefault(), "This changes the [c00ff00ff]alpha[r] relative [cffffffff][b000000ff]from source[r] [cff000088]color[r]!!!",
-                (Vector2){ 100, 200 }, 20.0f, 2.0f, (Color){ 0, 0, 0, 100 });
+            DrawTextStyled(RLGetFontDefault(), "This changes the [c00ff00ff]alpha[r] relative [cffffffff][b000000ff]from source[r] [cff000088]color[r]!!!",
+                (RLVector2){ 100, 200 }, 20.0f, 2.0f, (RLColor){ 0, 0, 0, 100 });
 
             // Get pointer to formated text
-            const char *text = TextFormat("Let's be [c%02x%02x%02xFF]CREATIVE[r] !!!", colRandom.r, colRandom.g, colRandom.b);
-            DrawTextStyled(GetFontDefault(), text, (Vector2){ 100, 240 }, 40.0f, 2.0f, BLACK);
+            const char *text = RLTextFormat("Let's be [c%02x%02x%02xFF]CREATIVE[r] !!!", colRandom.r, colRandom.g, colRandom.b);
+            DrawTextStyled(RLGetFontDefault(), text, (RLVector2){ 100, 240 }, 40.0f, 2.0f, BLACK);
 
-            textSize = MeasureTextStyled(GetFontDefault(), text, 40.0f, 2.0f);
-            DrawRectangleLines(100, 240, (int)textSize.x, (int)textSize.y, GREEN);
+            textSize = MeasureTextStyled(RLGetFontDefault(), text, 40.0f, 2.0f);
+            RLDrawRectangleLines(100, 240, (int)textSize.x, (int)textSize.y, GREEN);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -111,7 +111,7 @@ int main(void)
 // Draw text using inline styling
 // PARAM: color is the default text color, background color is BLANK by default
 // NOTE: Using input color as the base alpha multiplied to inline styles
-static void DrawTextStyled(Font font, const char *text, Vector2 position, float fontSize, float spacing, Color color)
+static void DrawTextStyled(RLFont font, const char *text, RLVector2 position, float fontSize, float spacing, RLColor color)
 {
     // Text inline styling strategy used: [ ] delimiters for format
     // - Define foreground color:      [cRRGGBBAA]
@@ -119,12 +119,12 @@ static void DrawTextStyled(Font font, const char *text, Vector2 position, float 
     // - Reset formating:              [r]
     // Example: [bAA00AAFF][cFF0000FF]red text on gray background[r] normal text
 
-    if (font.texture.id == 0) font = GetFontDefault();
+    if (font.texture.id == 0) font = RLGetFontDefault();
 
-    int textLen = TextLength(text);
+    int textLen = RLTextLength(text);
 
-    Color colFront = color;
-    Color colBack = BLANK;
+    RLColor colFront = color;
+    RLColor colBack = BLANK;
     int backRecPadding = 4; // Background rectangle padding
 
     float textOffsetY = 0.0f;
@@ -135,7 +135,7 @@ static void DrawTextStyled(Font font, const char *text, Vector2 position, float 
     for (int i = 0; i < textLen;)
     {
         int codepointByteCount = 0;
-        int codepoint = GetCodepointNext(&text[i], &codepointByteCount);
+        int codepoint = RLGetCodepointNext(&text[i], &codepointByteCount);
 
         if (codepoint == '\n')
         {
@@ -179,12 +179,12 @@ static void DrawTextStyled(Font font, const char *text, Vector2 position, float 
                     unsigned int colHexValue = strtoul(colHexText, NULL, 16);
                     if (text[i - 1] == 'c')
                     {
-						colFront = GetColor(colHexValue);
+						colFront = RLGetColor(colHexValue);
 						//colFront.a *= (unsigned char)(colFront.a*(float)color.a/255.0f); // TODO: Review
 					}
                     else if (text[i - 1] == 'b')
 					{
-						colBack = GetColor(colHexValue);
+						colBack = RLGetColor(colHexValue);
 						//colBack.a *= (unsigned char)(colFront.a*(float)color.a/255.0f);
 					}
 
@@ -193,18 +193,18 @@ static void DrawTextStyled(Font font, const char *text, Vector2 position, float 
                 }
             }
 
-            int index = GetGlyphIndex(font, codepoint);
+            int index = RLGetGlyphIndex(font, codepoint);
             float increaseX = 0.0f;
 
             if (font.glyphs[index].advanceX == 0) increaseX = ((float)font.recs[index].width*scaleFactor + spacing);
             else increaseX += ((float)font.glyphs[index].advanceX*scaleFactor + spacing);
 
             // Draw background rectangle color (if required)
-            if (colBack.a > 0) DrawRectangleRec((Rectangle) { position.x + textOffsetX, position.y + textOffsetY - backRecPadding, increaseX, fontSize + 2*backRecPadding }, colBack);
+            if (colBack.a > 0) RLDrawRectangleRec((RLRectangle) { position.x + textOffsetX, position.y + textOffsetY - backRecPadding, increaseX, fontSize + 2*backRecPadding }, colBack);
 
             if ((codepoint != ' ') && (codepoint != '\t'))
             {
-                DrawTextCodepoint(font, codepoint, (Vector2){ position.x + textOffsetX, position.y + textOffsetY }, fontSize, colFront);
+                RLDrawTextCodepoint(font, codepoint, (RLVector2){ position.x + textOffsetX, position.y + textOffsetY }, fontSize, colFront);
             }
 
             textOffsetX += increaseX;
@@ -217,13 +217,13 @@ static void DrawTextStyled(Font font, const char *text, Vector2 position, float 
 // Measure inline styled text
 // NOTE: Measuring styled text requires skipping styling data
 // WARNING: Not considering line breaks
-static Vector2 MeasureTextStyled(Font font, const char *text, float fontSize, float spacing)
+static RLVector2 MeasureTextStyled(RLFont font, const char *text, float fontSize, float spacing)
 {
-    Vector2 textSize = { 0 };
+    RLVector2 textSize = { 0 };
 
     if ((font.texture.id == 0) || (text == NULL) || (text[0] == '\0')) return textSize; // Security check
 
-    int textLen = TextLength(text); // Get size in bytes of text
+    int textLen = RLTextLength(text); // Get size in bytes of text
     //float textLineSpacing = fontSize*1.5f; // Not used...
 
     float textWidth = 0.0f;
@@ -237,7 +237,7 @@ static Vector2 MeasureTextStyled(Font font, const char *text, float fontSize, fl
     for (int i = 0; i < textLen;)
     {
         int codepointByteCount = 0;
-        codepoint = GetCodepointNext(&text[i], &codepointByteCount);
+        codepoint = RLGetCodepointNext(&text[i], &codepointByteCount);
 
         if (codepoint == '[') // Ignore pipe inline styling
         {
@@ -270,7 +270,7 @@ static Vector2 MeasureTextStyled(Font font, const char *text, float fontSize, fl
         }
         else if (codepoint != '\n')
         {
-            index = GetGlyphIndex(font, codepoint);
+            index = RLGetGlyphIndex(font, codepoint);
 
             if (font.glyphs[index].advanceX > 0) textWidth += font.glyphs[index].advanceX;
             else textWidth += (font.recs[index].width + font.glyphs[index].offsetX);

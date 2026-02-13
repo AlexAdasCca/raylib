@@ -35,48 +35,48 @@ int main(void)
 
     const float virtualRatio = (float)screenWidth/(float)virtualScreenWidth;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - smooth pixelperfect");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - smooth pixelperfect");
 
-    Camera2D worldSpaceCamera = { 0 };  // Game world camera
+    RLCamera2D worldSpaceCamera = { 0 };  // Game world camera
     worldSpaceCamera.zoom = 1.0f;
 
-    Camera2D screenSpaceCamera = { 0 }; // Smoothing camera
+    RLCamera2D screenSpaceCamera = { 0 }; // Smoothing camera
     screenSpaceCamera.zoom = 1.0f;
 
     // Load render texture to draw all our objects
-    RenderTexture2D target = LoadRenderTexture(virtualScreenWidth, virtualScreenHeight);
+    RLRenderTexture2D target = RLLoadRenderTexture(virtualScreenWidth, virtualScreenHeight);
 
-    Rectangle rec01 = { 70.0f, 35.0f, 20.0f, 20.0f };
-    Rectangle rec02 = { 90.0f, 55.0f, 30.0f, 10.0f };
-    Rectangle rec03 = { 80.0f, 65.0f, 15.0f, 25.0f };
+    RLRectangle rec01 = { 70.0f, 35.0f, 20.0f, 20.0f };
+    RLRectangle rec02 = { 90.0f, 55.0f, 30.0f, 10.0f };
+    RLRectangle rec03 = { 80.0f, 65.0f, 15.0f, 25.0f };
 
     // The target's height is flipped (in the source Rectangle), due to OpenGL reasons
-    Rectangle sourceRec = { 0.0f, 0.0f, (float)target.texture.width, -(float)target.texture.height };
-    Rectangle destRec = { -virtualRatio, -virtualRatio, screenWidth + (virtualRatio*2), screenHeight + (virtualRatio*2) };
+    RLRectangle sourceRec = { 0.0f, 0.0f, (float)target.texture.width, -(float)target.texture.height };
+    RLRectangle destRec = { -virtualRatio, -virtualRatio, screenWidth + (virtualRatio*2), screenHeight + (virtualRatio*2) };
 
-    Vector2 origin = { 0.0f, 0.0f };
+    RLVector2 origin = { 0.0f, 0.0f };
 
     float rotation = 0.0f;
 
     float cameraX = 0.0f;
     float cameraY = 0.0f;
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        rotation += 60.0f*GetFrameTime();   // Rotate the rectangles, 60 degrees per second
+        rotation += 60.0f*RLGetFrameTime();   // Rotate the rectangles, 60 degrees per second
 
         // Make the camera move to demonstrate the effect
-        cameraX = (sinf((float)GetTime())*50.0f) - 10.0f;
-        cameraY = cosf((float)GetTime())*30.0f;
+        cameraX = (sinf((float)RLGetTime())*50.0f) - 10.0f;
+        cameraY = cosf((float)RLGetTime())*30.0f;
 
         // Set the camera's target to the values computed above
-        screenSpaceCamera.target = (Vector2){ cameraX, cameraY };
+        screenSpaceCamera.target = (RLVector2){ cameraX, cameraY };
 
         // Round worldSpace coordinates, keep decimals into screenSpace coordinates
         worldSpaceCamera.target.x = truncf(screenSpaceCamera.target.x);
@@ -90,35 +90,35 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginTextureMode(target);
-            ClearBackground(RAYWHITE);
+        RLBeginTextureMode(target);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode2D(worldSpaceCamera);
-                DrawRectanglePro(rec01, origin, rotation, BLACK);
-                DrawRectanglePro(rec02, origin, -rotation, RED);
-                DrawRectanglePro(rec03, origin, rotation + 45.0f, BLUE);
-            EndMode2D();
-        EndTextureMode();
+            RLBeginMode2D(worldSpaceCamera);
+                RLDrawRectanglePro(rec01, origin, rotation, BLACK);
+                RLDrawRectanglePro(rec02, origin, -rotation, RED);
+                RLDrawRectanglePro(rec03, origin, rotation + 45.0f, BLUE);
+            RLEndMode2D();
+        RLEndTextureMode();
 
-        BeginDrawing();
-            ClearBackground(RED);
+        RLBeginDrawing();
+            RLClearBackground(RED);
 
-            BeginMode2D(screenSpaceCamera);
-                DrawTexturePro(target.texture, sourceRec, destRec, origin, 0.0f, WHITE);
-            EndMode2D();
+            RLBeginMode2D(screenSpaceCamera);
+                RLDrawTexturePro(target.texture, sourceRec, destRec, origin, 0.0f, WHITE);
+            RLEndMode2D();
 
-            DrawText(TextFormat("Screen resolution: %ix%i", screenWidth, screenHeight), 10, 10, 20, DARKBLUE);
-            DrawText(TextFormat("World resolution: %ix%i", virtualScreenWidth, virtualScreenHeight), 10, 40, 20, DARKGREEN);
-            DrawFPS(GetScreenWidth() - 95, 10);
-        EndDrawing();
+            RLDrawText(RLTextFormat("Screen resolution: %ix%i", screenWidth, screenHeight), 10, 10, 20, DARKBLUE);
+            RLDrawText(RLTextFormat("World resolution: %ix%i", virtualScreenWidth, virtualScreenHeight), 10, 40, 20, DARKGREEN);
+            RLDrawFPS(RLGetScreenWidth() - 95, 10);
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadRenderTexture(target);    // Unload render texture
+    RLUnloadRenderTexture(target);    // Unload render texture
 
-    CloseWindow();                  // Close window and OpenGL context
+    RLCloseWindow();                  // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

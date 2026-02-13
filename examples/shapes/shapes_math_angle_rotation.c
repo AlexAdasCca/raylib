@@ -28,10 +28,10 @@ int main(void)
     const int screenWidth = 720;
     const int screenHeight = 400;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - math angle rotation");
-    SetTargetFPS(60);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - math angle rotation");
+    RLSetTargetFPS(60);
 
-    Vector2 center = { screenWidth/2.0f, screenHeight/2.0f };
+    RLVector2 center = { screenWidth/2.0f, screenHeight/2.0f };
     const float lineLength = 150.0f;
 
     // Predefined angles for fixed lines
@@ -42,7 +42,7 @@ int main(void)
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())
+    while (!RLWindowShouldClose())
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -52,20 +52,20 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
-            ClearBackground(WHITE);
+        RLBeginDrawing();
+            RLClearBackground(WHITE);
 
-            DrawText("Fixed angles + rotating line", 10, 10, 20, LIGHTGRAY);
+            RLDrawText("Fixed angles + rotating line", 10, 10, 20, LIGHTGRAY);
 
             // Draw fixed-angle lines with colorful gradient
             for (int i = 0; i < numAngles; i++)
             {
                 float rad = angles[i]*DEG2RAD;
-                Vector2 end = { center.x + cosf(rad)*lineLength,
+                RLVector2 end = { center.x + cosf(rad)*lineLength,
                                 center.y + sinf(rad)*lineLength };
 
                 // Gradient color from green → cyan → blue → magenta
-                Color col;
+                RLColor col;
                 switch(i)
                 {
                     case 0: col = GREEN; break;
@@ -75,30 +75,30 @@ int main(void)
                     default: col = WHITE; break;
                 }
 
-                DrawLineEx(center, end, 5.0f, col);
+                RLDrawLineEx(center, end, 5.0f, col);
 
                 // Draw angle label slightly offset along the line
-                Vector2 textPos = { center.x + cosf(rad)*(lineLength + 20),
+                RLVector2 textPos = { center.x + cosf(rad)*(lineLength + 20),
                                     center.y + sinf(rad)*(lineLength + 20) };
-                DrawText(TextFormat("%d°", angles[i]), (int)textPos.x, (int)textPos.y, 20, col);
+                RLDrawText(RLTextFormat("%d°", angles[i]), (int)textPos.x, (int)textPos.y, 20, col);
             }
 
             // Draw animated rotating line with changing color
             float animRad = totalAngle*DEG2RAD;
-            Vector2 animEnd = { center.x + cosf(animRad)*lineLength,
+            RLVector2 animEnd = { center.x + cosf(animRad)*lineLength,
                                 center.y + sinf(animRad)*lineLength };
 
             // Cycle through HSV colors for animated line
-            Color animCol = ColorFromHSV(fmodf(totalAngle, 360.0f), 0.8f, 0.9f);
-            DrawLineEx(center, animEnd, 5.0f, animCol);
+            RLColor animCol = RLColorFromHSV(fmodf(totalAngle, 360.0f), 0.8f, 0.9f);
+            RLDrawLineEx(center, animEnd, 5.0f, animCol);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();
+    RLCloseWindow();
     //--------------------------------------------------------------------------------------
 
     return 0;

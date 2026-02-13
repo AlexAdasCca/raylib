@@ -38,83 +38,83 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - vertex displacement");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - vertex displacement");
 
     // set up camera
-    Camera camera = { 0 };
-    camera.position = (Vector3) {20.0f, 5.0f, -20.0f};
-    camera.target = (Vector3) {0.0f, 0.0f, 0.0f};
-    camera.up = (Vector3) {0.0f, 1.0f, 0.0f};
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3) {20.0f, 5.0f, -20.0f};
+    camera.target = (RLVector3) {0.0f, 0.0f, 0.0f};
+    camera.up = (RLVector3) {0.0f, 1.0f, 0.0f};
     camera.fovy = 60.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
     // Load vertex and fragment shaders
-    Shader shader = LoadShader(
-        TextFormat("resources/shaders/glsl%i/vertex_displacement.vs", GLSL_VERSION),
-        TextFormat("resources/shaders/glsl%i/vertex_displacement.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(
+        RLTextFormat("resources/shaders/glsl%i/vertex_displacement.vs", GLSL_VERSION),
+        RLTextFormat("resources/shaders/glsl%i/vertex_displacement.fs", GLSL_VERSION));
 
     // Load perlin noise texture
-    Image perlinNoiseImage = GenImagePerlinNoise(512, 512, 0, 0, 1.0f);
-    Texture perlinNoiseMap = LoadTextureFromImage(perlinNoiseImage);
-    UnloadImage(perlinNoiseImage);
+    RLImage perlinNoiseImage = RLGenImagePerlinNoise(512, 512, 0, 0, 1.0f);
+    RLTexture perlinNoiseMap = RLLoadTextureFromImage(perlinNoiseImage);
+    RLUnloadImage(perlinNoiseImage);
 
     // Set shader uniform location
-    int perlinNoiseMapLoc = GetShaderLocation(shader, "perlinNoiseMap");
+    int perlinNoiseMapLoc = RLGetShaderLocation(shader, "perlinNoiseMap");
     rlEnableShader(shader.id);
     rlActiveTextureSlot(1);
     rlEnableTexture(perlinNoiseMap.id);
     rlSetUniformSampler(perlinNoiseMapLoc, 1);
 
     // Create a plane mesh and model
-    Mesh planeMesh = GenMeshPlane(50, 50, 50, 50);
-    Model planeModel = LoadModelFromMesh(planeMesh);
+    RLMesh planeMesh = RLGenMeshPlane(50, 50, 50, 50);
+    RLModel planeModel = RLLoadModelFromMesh(planeMesh);
     // Set plane model material
     planeModel.materials[0].shader = shader;
 
     float time = 0.0f;
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        UpdateCamera(&camera, CAMERA_FREE); // Update camera
+        RLUpdateCamera(&camera, CAMERA_FREE); // Update camera
 
-        time += GetFrameTime(); // Update time variable
-        SetShaderValue(shader, GetShaderLocation(shader, "time"), &time, SHADER_UNIFORM_FLOAT); // Send time value to shader
+        time += RLGetFrameTime(); // Update time variable
+        RLSetShaderValue(shader, RLGetShaderLocation(shader, "time"), &time, SHADER_UNIFORM_FLOAT); // Send time value to shader
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
-                BeginShaderMode(shader);
+                RLBeginShaderMode(shader);
                     // Draw plane model
-                    DrawModel(planeModel, (Vector3){ 0.0f, 0.0f, 0.0f }, 1.0f, (Color) {255, 255, 255, 255});
-                EndShaderMode();
+                    RLDrawModel(planeModel, (RLVector3){ 0.0f, 0.0f, 0.0f }, 1.0f, (RLColor) {255, 255, 255, 255});
+                RLEndShaderMode();
 
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawText("Vertex displacement", 10, 10, 20, DARKGRAY);
-            DrawFPS(10, 40);
+            RLDrawText("Vertex displacement", 10, 10, 20, DARKGRAY);
+            RLDrawFPS(10, 40);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shader);
-    UnloadModel(planeModel);
-    UnloadTexture(perlinNoiseMap);
+    RLUnloadShader(shader);
+    RLUnloadModel(planeModel);
+    RLUnloadTexture(perlinNoiseMap);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

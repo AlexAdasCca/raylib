@@ -1,5 +1,5 @@
 # Setup the project and settings
-project(raylib C)
+project(raylib LANGUAGES C CXX)
 set(PROJECT_VERSION 5.5.0)
 set(API_VERSION 550)
 
@@ -36,6 +36,8 @@ set(raylib_sources
     rshapes.c
     rtext.c
     rtextures.c
+    rl_context.cpp
+    rglfwglobal.cpp
     )
 
 # <root>/cmake/GlfwImport.cmake handles the details around the inclusion of glfw
@@ -55,6 +57,13 @@ else ()
 endif ()
 
 add_library(raylib ${raylib_sources} ${raylib_public_headers})
+
+# Enable C++17 for internal multi-context support (Route2)
+set_target_properties(raylib PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
 
 if (NOT BUILD_SHARED_LIBS)
     MESSAGE(STATUS "Building raylib static library")

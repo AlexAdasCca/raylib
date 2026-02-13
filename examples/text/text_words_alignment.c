@@ -38,10 +38,10 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [text] example - words alignment");
+    RLInitWindow(screenWidth, screenHeight, "raylib [text] example - words alignment");
 
     // Define the rectangle we will draw the text in
-    Rectangle textContainerRect = (Rectangle){ (float)screenWidth/2-(float)screenWidth/4, (float)screenHeight/2-(float)screenHeight/3, (float)screenWidth/2, (float)screenHeight*2/3 };
+    RLRectangle textContainerRect = (RLRectangle){ (float)screenWidth/2-(float)screenWidth/4, (float)screenHeight/2-(float)screenHeight/3, (float)screenWidth/2, (float)screenHeight*2/3 };
 
     // Some text to display the current alignment
     const char *textAlignNameH[] = { "Left", "Centre", "Right" };
@@ -50,84 +50,84 @@ int main(void)
     // Define the text we're going to draw in the rectangle
     int wordIndex = 0;
     int wordCount = 0;
-    char **words = TextSplit("raylib is a simple and easy-to-use library to enjoy videogames programming", ' ', &wordCount);
+    char **words = RLTextSplit("raylib is a simple and easy-to-use library to enjoy videogames programming", ' ', &wordCount);
 
     // Initialize the font size we're going to use
     int fontSize = 40;
 
     // And of course the font...
-    Font font = GetFontDefault();
+    RLFont font = RLGetFontDefault();
 
     // Initialize the alignment variables
     TextAlignment hAlign = TEXT_ALIGN_CENTRE;
     TextAlignment vAlign = TEXT_ALIGN_MIDDLE;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_LEFT))
+        if (RLIsKeyPressed(KEY_LEFT))
         {
             if (hAlign > 0) hAlign = hAlign - 1;
         }
 
-        if (IsKeyPressed(KEY_RIGHT))
+        if (RLIsKeyPressed(KEY_RIGHT))
         {
             hAlign = hAlign + 1;
             if (hAlign > 2) hAlign = 2;
         }
 
-        if (IsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(KEY_UP))
         {
             if (vAlign > 0) vAlign = vAlign - 1;
         }
 
-        if (IsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(KEY_DOWN))
         {
             vAlign = vAlign + 1;
             if (vAlign > 2) vAlign = 2;
         }
 
         // One word per second
-        if (wordCount > 0)  wordIndex = (int)GetTime()%wordCount;
+        if (wordCount > 0)  wordIndex = (int)RLGetTime()%wordCount;
         else  wordIndex = 0;
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(DARKBLUE);
+            RLClearBackground(DARKBLUE);
 
-            DrawText("Use Arrow Keys to change the text alignment", 20, 20, 20, LIGHTGRAY);
-            DrawText(TextFormat("Alignment: Horizontal = %s, Vertical = %s", textAlignNameH[hAlign], textAlignNameV[vAlign]), 20, 40, 20, LIGHTGRAY);
+            RLDrawText("Use Arrow Keys to change the text alignment", 20, 20, 20, LIGHTGRAY);
+            RLDrawText(RLTextFormat("Alignment: Horizontal = %s, Vertical = %s", textAlignNameH[hAlign], textAlignNameV[vAlign]), 20, 40, 20, LIGHTGRAY);
 
-            DrawRectangleRec(textContainerRect, BLUE);
+            RLDrawRectangleRec(textContainerRect, BLUE);
 
             // Get the size of the text to draw
-            Vector2 textSize = MeasureTextEx(font, words[wordIndex], fontSize, fontSize*.1f);
+            RLVector2 textSize = RLMeasureTextEx(font, words[wordIndex], fontSize, fontSize*.1f);
 
             // Calculate the top-left text position based on the rectangle and alignment
-            Vector2 textPos = (Vector2){
+            RLVector2 textPos = (RLVector2){
                 textContainerRect.x + Lerp(0.0f, textContainerRect.width  - textSize.x, ((float)hAlign)*0.5f),
                 textContainerRect.y + Lerp(0.0f, textContainerRect.height - textSize.y, ((float)vAlign)*0.5f)
             };
 
             // Draw the text
-            DrawTextEx(font, words[wordIndex], textPos, fontSize, fontSize*.1f, RAYWHITE);
+            RLDrawTextEx(font, words[wordIndex], textPos, fontSize, fontSize*.1f, RAYWHITE);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
 
-    CloseWindow();          // Close window and OpenGL context
+    RLCloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

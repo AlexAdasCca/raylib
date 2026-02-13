@@ -23,7 +23,7 @@
 // Module Functions Declaration
 //--------------------------------------------------------------------------------------
 // Add codepoint range to existing font
-static void AddCodepointRange(Font *font, const char *fontPath, int start, int stop);
+static void AddCodepointRange(RLFont *font, const char *fontPath, int start, int stop);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -35,29 +35,29 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [text] example - unicode ranges");
+    RLInitWindow(screenWidth, screenHeight, "raylib [text] example - unicode ranges");
 
     // Load font with default Unicode range: Basic ASCII [32-127]
-    Font font = LoadFont("resources/NotoSansTC-Regular.ttf");
-    SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+    RLFont font = RLLoadFont("resources/NotoSansTC-Regular.ttf");
+    RLSetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
 
     int unicodeRange = 0;           // Track the ranges of codepoints added to font
     int prevUnicodeRange = 0;       // Previous Unicode range to avoid reloading every frame
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         if (unicodeRange != prevUnicodeRange)
         {
-            UnloadFont(font);
+            RLUnloadFont(font);
 
             // Load font with default Unicode range: Basic ASCII [32-127]
-            font = LoadFont("resources/NotoSansTC-Regular.ttf");
+            font = RLLoadFont("resources/NotoSansTC-Regular.ttf");
 
             // Add required ranges to loaded font
             switch (unicodeRange)
@@ -114,63 +114,63 @@ int main(void)
             }
 
             prevUnicodeRange = unicodeRange;
-            SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR); // Set font atlas scale filter
+            RLSetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR); // Set font atlas scale filter
         }
 
-        if (IsKeyPressed(KEY_ZERO)) unicodeRange = 0;
-        else if (IsKeyPressed(KEY_ONE)) unicodeRange = 1;
-        else if (IsKeyPressed(KEY_TWO)) unicodeRange = 2;
-        else if (IsKeyPressed(KEY_THREE)) unicodeRange = 3;
-        else if (IsKeyPressed(KEY_FOUR)) unicodeRange = 4;
+        if (RLIsKeyPressed(KEY_ZERO)) unicodeRange = 0;
+        else if (RLIsKeyPressed(KEY_ONE)) unicodeRange = 1;
+        else if (RLIsKeyPressed(KEY_TWO)) unicodeRange = 2;
+        else if (RLIsKeyPressed(KEY_THREE)) unicodeRange = 3;
+        else if (RLIsKeyPressed(KEY_FOUR)) unicodeRange = 4;
         //else if (IsKeyPressed(KEY_FIVE)) unicodeRange = 5;
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawText("ADD CODEPOINTS: [1][2][3][4]", 20, 20, 20, MAROON);
+            RLDrawText("ADD CODEPOINTS: [1][2][3][4]", 20, 20, 20, MAROON);
 
             // Render test strings in different languages
-            DrawTextEx(font, "> English: Hello World!", (Vector2){ 50, 70 }, 32, 1, DARKGRAY); // English
-            DrawTextEx(font, "> Español: Hola mundo!", (Vector2){ 50, 120 }, 32, 1, DARKGRAY); // Spanish
-            DrawTextEx(font, "> Ελληνικά: Γειά σου κόσμε!", (Vector2){ 50, 170 }, 32, 1, DARKGRAY); // Greek
-            DrawTextEx(font, "> Русский: Привет мир!", (Vector2){ 50, 220 }, 32, 0, DARKGRAY); // Russian
-            DrawTextEx(font, "> 中文: 你好世界!", (Vector2){ 50, 270 }, 32, 1, DARKGRAY);        // Chinese
-            DrawTextEx(font, "> 日本語: こんにちは世界!", (Vector2){ 50, 320 }, 32, 1, DARKGRAY); // Japanese
+            RLDrawTextEx(font, "> English: Hello World!", (RLVector2){ 50, 70 }, 32, 1, DARKGRAY); // English
+            RLDrawTextEx(font, "> Español: Hola mundo!", (RLVector2){ 50, 120 }, 32, 1, DARKGRAY); // Spanish
+            RLDrawTextEx(font, "> Ελληνικά: Γειά σου κόσμε!", (RLVector2){ 50, 170 }, 32, 1, DARKGRAY); // Greek
+            RLDrawTextEx(font, "> Русский: Привет мир!", (RLVector2){ 50, 220 }, 32, 0, DARKGRAY); // Russian
+            RLDrawTextEx(font, "> 中文: 你好世界!", (RLVector2){ 50, 270 }, 32, 1, DARKGRAY);        // Chinese
+            RLDrawTextEx(font, "> 日本語: こんにちは世界!", (RLVector2){ 50, 320 }, 32, 1, DARKGRAY); // Japanese
             //DrawTextEx(font, "देवनागरी: होला मुंडो!", (Vector2){ 50, 350 }, 32, 1, DARKGRAY);     // Devanagari (glyphs not available in font)
 
             // Draw font texture scaled to screen
             float atlasScale = 380.0f/font.texture.width;
-            DrawRectangleRec((Rectangle) { 400.0f, 16.0f, font.texture.width* atlasScale, font.texture.height* atlasScale }, BLACK);
-            DrawTexturePro(font.texture, (Rectangle){ 0, 0, (float)font.texture.width, (float)font.texture.height },
-                (Rectangle){ 400.0f, 16.0f, font.texture.width*atlasScale, font.texture.height*atlasScale }, (Vector2){ 0, 0 }, 0.0f, WHITE);
-            DrawRectangleLines(400, 16, 380, 380, RED);
+            RLDrawRectangleRec((RLRectangle) { 400.0f, 16.0f, font.texture.width* atlasScale, font.texture.height* atlasScale }, BLACK);
+            RLDrawTexturePro(font.texture, (RLRectangle){ 0, 0, (float)font.texture.width, (float)font.texture.height },
+                (RLRectangle){ 400.0f, 16.0f, font.texture.width*atlasScale, font.texture.height*atlasScale }, (RLVector2){ 0, 0 }, 0.0f, WHITE);
+            RLDrawRectangleLines(400, 16, 380, 380, RED);
 
-            DrawText(TextFormat("ATLAS SIZE: %ix%i px (x%02.2f)", font.texture.width, font.texture.height, atlasScale), 20, 380, 20, BLUE);
-            DrawText(TextFormat("CODEPOINTS GLYPHS LOADED: %i", font.glyphCount), 20, 410, 20, LIME);
+            RLDrawText(RLTextFormat("ATLAS SIZE: %ix%i px (x%02.2f)", font.texture.width, font.texture.height, atlasScale), 20, 380, 20, BLUE);
+            RLDrawText(RLTextFormat("CODEPOINTS GLYPHS LOADED: %i", font.glyphCount), 20, 410, 20, LIME);
 
             // Display font attribution
-            DrawText("Font: Noto Sans TC. License: SIL Open Font License 1.1", screenWidth - 300, screenHeight - 20, 10, GRAY);
+            RLDrawText("Font: Noto Sans TC. License: SIL Open Font License 1.1", screenWidth - 300, screenHeight - 20, 10, GRAY);
 
             if (prevUnicodeRange != unicodeRange)
             {
-                DrawRectangle(0, 0, screenWidth, screenHeight, Fade(WHITE, 0.8f));
-                DrawRectangle(0, 125, screenWidth, 200, GRAY);
-                DrawText("GENERATING FONT ATLAS...", 120, 210, 40, BLACK);
+                RLDrawRectangle(0, 0, screenWidth, screenHeight, RLFade(WHITE, 0.8f));
+                RLDrawRectangle(0, 125, screenWidth, 200, GRAY);
+                RLDrawText("GENERATING FONT ATLAS...", 120, 210, 40, BLACK);
             }
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadFont(font);        // Unload font resource
+    RLUnloadFont(font);        // Unload font resource
 
-    CloseWindow();              // Close window and OpenGL context
+    RLCloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -180,7 +180,7 @@ int main(void)
 // Module Functions Definition
 //--------------------------------------------------------------------------------------
 // Add codepoint range to existing font
-static void AddCodepointRange(Font *font, const char *fontPath, int start, int stop)
+static void AddCodepointRange(RLFont *font, const char *fontPath, int start, int stop)
 {
     int rangeSize = stop - start + 1;
     int currentRangeSize = font->glyphCount;
@@ -198,8 +198,8 @@ static void AddCodepointRange(Font *font, const char *fontPath, int start, int s
     for (int i = currentRangeSize; i < updatedCodepointCount; i++)
         updatedCodepoints[i] = start + (i - currentRangeSize);
 
-    UnloadFont(*font);
-    *font = LoadFontEx(fontPath, 32, updatedCodepoints, updatedCodepointCount);
+    RLUnloadFont(*font);
+    *font = RLLoadFontEx(fontPath, 32, updatedCodepoints, updatedCodepointCount);
     RL_FREE(updatedCodepoints);
 }
 

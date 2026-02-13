@@ -32,7 +32,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - clipboard text");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - clipboard text");
 
     // Define some sample texts
     const char *sampleTexts[MAX_TEXT_SAMPLES] = {
@@ -59,34 +59,34 @@ int main(void)
     GuiSetStyle(DEFAULT, TEXT_SIZE, 20);
     GuiSetIconScale(2);
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         // Handle button interactions
         if (btnCutPressed)
         {
-            SetClipboardText(inputBuffer);
-            clipboardText = GetClipboardText();
+            RLSetClipboardText(inputBuffer);
+            clipboardText = RLGetClipboardText();
             inputBuffer[0] = '\0'; // Quick solution to clear text
             //memset(inputBuffer, 0, 256); // Clear full buffer properly
         }
 
         if (btnCopyPressed)
         {
-            SetClipboardText(inputBuffer); // Copy text to clipboard
-            clipboardText = GetClipboardText(); // Get text from clipboard
+            RLSetClipboardText(inputBuffer); // Copy text to clipboard
+            clipboardText = RLGetClipboardText(); // Get text from clipboard
         }
 
         if (btnPastePressed)
         {
             // Paste text from clipboard
-            clipboardText = GetClipboardText();
-            if (clipboardText != NULL) TextCopy(inputBuffer, clipboardText);
+            clipboardText = RLGetClipboardText();
+            if (clipboardText != NULL) RLTextCopy(inputBuffer, clipboardText);
         }
 
         if (btnClearPressed)
@@ -98,66 +98,66 @@ int main(void)
         if (btnRandomPressed)
         {
             // Get random text from sample list
-            TextCopy(inputBuffer, sampleTexts[GetRandomValue(0, MAX_TEXT_SAMPLES - 1)]);
+            RLTextCopy(inputBuffer, sampleTexts[RLGetRandomValue(0, MAX_TEXT_SAMPLES - 1)]);
         }
 
         // Quick cut/copy/paste with keyboard shortcuts
-        if (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL))
+        if (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_RIGHT_CONTROL))
         {
-            if (IsKeyPressed(KEY_X))
+            if (RLIsKeyPressed(KEY_X))
             {
-                SetClipboardText(inputBuffer);
+                RLSetClipboardText(inputBuffer);
                 inputBuffer[0] = '\0'; // Quick solution to clear text
             }
 
-            if (IsKeyPressed(KEY_C)) SetClipboardText(inputBuffer);
+            if (RLIsKeyPressed(KEY_C)) RLSetClipboardText(inputBuffer);
 
-            if (IsKeyPressed(KEY_V))
+            if (RLIsKeyPressed(KEY_V))
             {
-                clipboardText = GetClipboardText();
-                if (clipboardText != NULL) TextCopy(inputBuffer, clipboardText);
+                clipboardText = RLGetClipboardText();
+                if (clipboardText != NULL) RLTextCopy(inputBuffer, clipboardText);
             }
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-        ClearBackground(RAYWHITE);
+        RLClearBackground(RAYWHITE);
 
         // Draw instructions
-        GuiLabel((Rectangle){ 50, 20, 700, 36 }, "Use the BUTTONS or KEY SHORTCUTS:");
-        DrawText("[CTRL+X] - CUT | [CTRL+C] COPY | [CTRL+V] | PASTE", 50, 60, 20, MAROON);
+        GuiLabel((RLRectangle){ 50, 20, 700, 36 }, "Use the BUTTONS or KEY SHORTCUTS:");
+        RLDrawText("[CTRL+X] - CUT | [CTRL+C] COPY | [CTRL+V] | PASTE", 50, 60, 20, MAROON);
 
         // Draw text box
-        if (GuiTextBox((Rectangle){ 50, 120, 652, 40 }, inputBuffer, 256, textBoxEditMode)) textBoxEditMode = !textBoxEditMode;
+        if (GuiTextBox((RLRectangle){ 50, 120, 652, 40 }, inputBuffer, 256, textBoxEditMode)) textBoxEditMode = !textBoxEditMode;
 
         // Random text button
-        btnRandomPressed = GuiButton((Rectangle){ 50 + 652 + 8, 120, 40, 40 }, "#77#");
+        btnRandomPressed = GuiButton((RLRectangle){ 50 + 652 + 8, 120, 40, 40 }, "#77#");
 
         // Draw buttons
-        btnCutPressed = GuiButton((Rectangle){ 50, 180, 158, 40 }, "#17#CUT");
-        btnCopyPressed = GuiButton((Rectangle){ 50 + 165, 180, 158, 40 }, "#16#COPY");
-        btnPastePressed = GuiButton((Rectangle){ 50 + 165*2, 180, 158, 40 }, "#18#PASTE");
-        btnClearPressed = GuiButton((Rectangle){ 50 + 165*3, 180, 158, 40 }, "#143#CLEAR");
+        btnCutPressed = GuiButton((RLRectangle){ 50, 180, 158, 40 }, "#17#CUT");
+        btnCopyPressed = GuiButton((RLRectangle){ 50 + 165, 180, 158, 40 }, "#16#COPY");
+        btnPastePressed = GuiButton((RLRectangle){ 50 + 165*2, 180, 158, 40 }, "#18#PASTE");
+        btnClearPressed = GuiButton((RLRectangle){ 50 + 165*3, 180, 158, 40 }, "#143#CLEAR");
 
         // Draw clipboard status
         GuiSetState(STATE_DISABLED);
-        GuiLabel((Rectangle){ 50, 260, 700, 40 }, "Clipboard current text data:");
+        GuiLabel((RLRectangle){ 50, 260, 700, 40 }, "Clipboard current text data:");
         GuiSetStyle(TEXTBOX, TEXT_READONLY, 1);
-        GuiTextBox((Rectangle){ 50, 300, 700, 40 }, (char *)clipboardText, 256, false);
+        GuiTextBox((RLRectangle){ 50, 300, 700, 40 }, (char *)clipboardText, 256, false);
         GuiSetStyle(TEXTBOX, TEXT_READONLY, 0);
-        GuiLabel((Rectangle){ 50, 360, 700, 40 }, "Try copying text from other applications and pasting here!");
+        GuiLabel((RLRectangle){ 50, 360, 700, 40 }, "Try copying text from other applications and pasting here!");
         GuiSetState(STATE_NORMAL);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

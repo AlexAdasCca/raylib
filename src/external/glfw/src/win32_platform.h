@@ -219,6 +219,18 @@ typedef enum
  #define DIDFT_OPTIONAL 0x80000000
 #endif
 
+// Forward alias for thread context used by internal Win32 helpers.
+// GLFWthread is forward-declared in the public header (glfw3.h) as an opaque type.
+// This alias must appear before any prototypes that use _GLFWwin32ThreadContext.
+typedef GLFWthread _GLFWwin32ThreadContext;
+
+// Thread-aware dispatch window / tasks (Win32)
+_GLFWwin32ThreadContext* _glfwGetThreadContextWin32(void);
+GLFWbool _glfwEnsureDispatchWindowWin32(_GLFWwin32ThreadContext* ctx);
+void _glfwDrainThreadTasksWin32(_GLFWwin32ThreadContext* ctx);
+void _glfwPostTaskWin32(_GLFWwin32ThreadContext* ctx, void (*fn)(void* user), void* user);
+void _glfwWakeThreadWin32(_GLFWwin32ThreadContext* ctx);
+
 #define WGL_NUMBER_PIXEL_FORMATS_ARB 0x2000
 #define WGL_SUPPORT_OPENGL_ARB 0x2010
 #define WGL_DRAW_TO_WINDOW_ARB 0x2001
@@ -408,6 +420,28 @@ typedef struct _GLFWlibraryWGL
     GLFWbool                            ARB_context_flush_control;
 } _GLFWlibraryWGL;
 
+// Win32-specific per-thread event-wakeup and task-dispatch context
+//
+typedef struct _GLFWwin32ThreadTask
+{
+    void (*fn)(void* user);
+    void*                       user;
+    struct _GLFWwin32ThreadTask* next;
+} _GLFWwin32ThreadTask;
+
+struct GLFWthread
+{
+    DWORD                 tid;
+    HANDLE                wakeEvent;
+    HWND                  dispatchWindow;
+    CRITICAL_SECTION       tasksLock;
+    _GLFWwin32ThreadTask*  tasksHead;
+    _GLFWwin32ThreadTask*  tasksTail;
+    struct GLFWthread*     next;
+};
+
+// _GLFWwin32ThreadContext is an alias of GLFWthread (declared above).
+
 // Win32-specific per-window data
 //
 typedef struct _GLFWwindowWin32
@@ -431,6 +465,9 @@ typedef struct _GLFWwindowWin32
 
     // The last received cursor position, regardless of source
     int                 lastCursorPosX, lastCursorPosY;
+    // Timer used to generate refresh callbacks while in modal move/size loops
+    UINT_PTR            refreshTimerId;
+
     // The last received high surrogate when decoding pairs of UTF-16 messages
     WCHAR               highSurrogate;
 } _GLFWwindowWin32;
@@ -443,6 +480,12 @@ typedef struct _GLFWlibraryWin32
     HWND                helperWindowHandle;
     ATOM                helperWindowClass;
     ATOM                mainWindowClass;
+    ATOM                dispatchWindowClass;
+
+    // Thread-aware event wait/wake registry (Win32)
+    DWORD               mainThreadId;
+    _GLFWmutex*          threadLock;
+    _GLFWwin32ThreadContext* threadContexts;
     HDEVNOTIFY          deviceNotificationHandle;
     int                 acquiredMonitorCount;
     char*               clipboardString;

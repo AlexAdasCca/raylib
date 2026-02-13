@@ -33,19 +33,19 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - ascii rendering");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - ascii rendering");
 
     // Texture to test static drawing
-    Texture2D fudesumi = LoadTexture("resources/fudesumi.png");
+    RLTexture2D fudesumi = RLLoadTexture("resources/fudesumi.png");
     // Texture to test moving drawing
-    Texture2D raysan = LoadTexture("resources/raysan.png");
+    RLTexture2D raysan = RLLoadTexture("resources/raysan.png");
 
     // Load shader to be used on postprocessing
-    Shader shader = LoadShader(0, TextFormat("resources/shaders/glsl%i/ascii.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/ascii.fs", GLSL_VERSION));
 
     // These locations are used to send data to the GPU
-    int resolutionLoc = GetShaderLocation(shader, "resolution");
-    int fontSizeLoc = GetShaderLocation(shader, "fontSize");
+    int resolutionLoc = RLGetShaderLocation(shader, "resolution");
+    int fontSizeLoc = RLGetShaderLocation(shader, "fontSize");
 
     // Set the character size for the ASCII effect
     // Fontsize should be 9 or more
@@ -53,68 +53,68 @@ int main(void)
 
     // Send the updated values to the shader
     float resolution[2] = { (float)screenWidth, (float)screenHeight };
-    SetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
 
-    Vector2 circlePos = (Vector2){40.0f, (float)screenHeight*0.5f};
+    RLVector2 circlePos = (RLVector2){40.0f, (float)screenHeight*0.5f};
     float circleSpeed = 1.0f;
 
     // RenderTexture to apply the postprocessing later
-    RenderTexture2D target = LoadRenderTexture(screenWidth, screenHeight);
+    RLRenderTexture2D target = RLLoadRenderTexture(screenWidth, screenHeight);
 
-    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         circlePos.x += circleSpeed;
         if ((circlePos.x > 200.0f) || (circlePos.x < 40.0f)) circleSpeed *= -1; // Revert speed
 
-        if (IsKeyPressed(KEY_LEFT) && (fontSize > 9.0)) fontSize -= 1;  // Reduce fontSize
-        if (IsKeyPressed(KEY_RIGHT) && (fontSize < 15.0)) fontSize += 1;  // Increase fontSize
+        if (RLIsKeyPressed(KEY_LEFT) && (fontSize > 9.0)) fontSize -= 1;  // Reduce fontSize
+        if (RLIsKeyPressed(KEY_RIGHT) && (fontSize < 15.0)) fontSize += 1;  // Increase fontSize
 
         // Set fontsize for the shader
-        SetShaderValue(shader, fontSizeLoc, &fontSize, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, fontSizeLoc, &fontSize, SHADER_UNIFORM_FLOAT);
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginTextureMode(target);
-            ClearBackground(WHITE);
+        RLBeginTextureMode(target);
+            RLClearBackground(WHITE);
 
             // Draw scene in our render texture
-            DrawTexture(fudesumi, 500, -30, WHITE);
-            DrawTextureV(raysan, circlePos, WHITE);
-        EndTextureMode();
+            RLDrawTexture(fudesumi, 500, -30, WHITE);
+            RLDrawTextureV(raysan, circlePos, WHITE);
+        RLEndTextureMode();
 
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
-            BeginShaderMode(shader);
+            RLBeginShaderMode(shader);
                 // Draw the scene texture (that we rendered earlier) to the screen
                 // The shader will process every pixel of this texture
-                DrawTextureRec(target.texture,
-                    (Rectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height },
-                    (Vector2){ 0, 0 }, WHITE);
-            EndShaderMode();
+                RLDrawTextureRec(target.texture,
+                    (RLRectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height },
+                    (RLVector2){ 0, 0 }, WHITE);
+            RLEndShaderMode();
 
-            DrawRectangle(0, 0, screenWidth, 40, BLACK);
-            DrawText(TextFormat("Ascii effect - FontSize:%2.0f - [Left] -1 [Right] +1 ", fontSize), 120, 10, 20, LIGHTGRAY);
-            DrawFPS(10, 10);
-        EndDrawing();
+            RLDrawRectangle(0, 0, screenWidth, 40, BLACK);
+            RLDrawText(RLTextFormat("Ascii effect - FontSize:%2.0f - [Left] -1 [Right] +1 ", fontSize), 120, 10, 20, LIGHTGRAY);
+            RLDrawFPS(10, 10);
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadRenderTexture(target);    // Unload render texture
+    RLUnloadRenderTexture(target);    // Unload render texture
 
-    UnloadShader(shader);           // Unload shader
-    UnloadTexture(fudesumi);        // Unload texture
-    UnloadTexture(raysan);          // Unload texture
+    RLUnloadShader(shader);           // Unload shader
+    RLUnloadTexture(fudesumi);        // Unload texture
+    RLUnloadTexture(raysan);          // Unload texture
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

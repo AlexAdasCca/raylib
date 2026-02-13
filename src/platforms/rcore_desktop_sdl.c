@@ -110,7 +110,7 @@ extern CoreData CORE;                   // Global CORE state context
 
 static PlatformData platform = { 0 };   // Platform specific data
 
-static const KeyboardKey mapScancodeToKey[SCANCODE_MAPPED_NUM] = {
+static const RLKeyboardKey mapScancodeToKey[SCANCODE_MAPPED_NUM] = {
     KEY_NULL,           // SDL_SCANCODE_UNKNOWN
     0,
     0,
@@ -432,7 +432,7 @@ void *SDL_GetClipboardData(const char *mime_type, size_t *size)
 int InitPlatform(void);                                      // Initialize platform (graphics, inputs and more)
 void ClosePlatform(void);                                    // Close platform
 
-static KeyboardKey ConvertScancodeToKey(SDL_Scancode sdlScancode);  // Help convert SDL scancodes to raylib key
+static RLKeyboardKey ConvertScancodeToKey(SDL_Scancode sdlScancode);  // Help convert SDL scancodes to raylib key
 static int GetCodepointNextSDL(const char *text, int *codepointSize); // Get next codepoint in a byte sequence and bytes processed
 static void UpdateTouchPointsSDL(SDL_TouchFingerEvent event); // Update CORE input touch point info from SDL touch data
 
@@ -446,14 +446,14 @@ static void UpdateTouchPointsSDL(SDL_TouchFingerEvent event); // Update CORE inp
 //----------------------------------------------------------------------------------
 
 // Check if application should close
-bool WindowShouldClose(void)
+bool RLWindowShouldClose(void)
 {
     if (CORE.Window.ready) return CORE.Window.shouldClose;
     else return true;
 }
 
 // Toggle fullscreen mode
-void ToggleFullscreen(void)
+void RLToggleFullscreen(void)
 {
     const int monitor = SDL_GetWindowDisplayIndex(platform.window);
     const int monitorCount = SDL_GetNumVideoDisplays();
@@ -479,7 +479,7 @@ void ToggleFullscreen(void)
 }
 
 // Toggle borderless windowed mode
-void ToggleBorderlessWindowed(void)
+void RLToggleBorderlessWindowed(void)
 {
     const int monitor = SDL_GetWindowDisplayIndex(platform.window);
     const int monitorCount = SDL_GetNumVideoDisplays();
@@ -505,28 +505,28 @@ void ToggleBorderlessWindowed(void)
 }
 
 // Set window state: maximized, if resizable
-void MaximizeWindow(void)
+void RLMaximizeWindow(void)
 {
     SDL_MaximizeWindow(platform.window);
     if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
 }
 
 // Set window state: minimized
-void MinimizeWindow(void)
+void RLMinimizeWindow(void)
 {
     SDL_MinimizeWindow(platform.window);
     if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
 }
 
 // Restore window from being minimized/maximized
-void RestoreWindow(void)
+void RLRestoreWindow(void)
 {
     SDL_RestoreWindow(platform.window);
     // CORE.Window.flags will be removed on PollInputEvents()
 }
 
 // Set window configuration state using flags
-void SetWindowState(unsigned int flags)
+void RLSetWindowState(unsigned int flags)
 {
     if (!CORE.Window.ready) TRACELOG(LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
 
@@ -627,7 +627,7 @@ void SetWindowState(unsigned int flags)
 }
 
 // Clear window configuration state flags
-void ClearWindowState(unsigned int flags)
+void RLClearWindowState(unsigned int flags)
 {
     FLAG_CLEAR(CORE.Window.flags, flags);
 
@@ -698,7 +698,7 @@ void ClearWindowState(unsigned int flags)
 }
 
 // Set icon for window
-void SetWindowIcon(Image image)
+void RLSetWindowIcon(RLImage image)
 {
     SDL_Surface *iconSurface = NULL;
 
@@ -800,13 +800,13 @@ void SetWindowIcon(Image image)
 }
 
 // Set icon for window
-void SetWindowIcons(Image *images, int count)
+void RLSetWindowIcons(RLImage *images, int count)
 {
     TRACELOG(LOG_WARNING, "SetWindowIcons() not available on target platform");
 }
 
 // Set title for window
-void SetWindowTitle(const char *title)
+void RLSetWindowTitle(const char *title)
 {
     SDL_SetWindowTitle(platform.window, title);
 
@@ -814,7 +814,7 @@ void SetWindowTitle(const char *title)
 }
 
 // Set window position on screen (windowed mode)
-void SetWindowPosition(int x, int y)
+void RLSetWindowPosition(int x, int y)
 {
     SDL_SetWindowPosition(platform.window, x, y);
 
@@ -823,7 +823,7 @@ void SetWindowPosition(int x, int y)
 }
 
 // Set monitor for the current window
-void SetWindowMonitor(int monitor)
+void RLSetWindowMonitor(int monitor)
 {
     const int monitorCount = SDL_GetNumVideoDisplays();
 #if defined(USING_VERSION_SDL3) // SDL3 Migration: Monitor is an id instead of index now, returns 0 on failure
@@ -847,7 +847,7 @@ void SetWindowMonitor(int monitor)
         if (SDL_GetDisplayUsableBounds(monitor, &usableBounds) == 0)
     #endif
         {
-            if (wasFullscreen == 1) ToggleFullscreen(); // Leave fullscreen
+            if (wasFullscreen == 1) RLToggleFullscreen(); // Leave fullscreen
 
             // If the screen size is larger than the monitor usable area, anchor it on the top left corner, otherwise, center it
             if ((screenWidth >= usableBounds.w) || (screenHeight >= usableBounds.h))
@@ -872,7 +872,7 @@ void SetWindowMonitor(int monitor)
                 CORE.Window.position.y = y;
             }
 
-            if (wasFullscreen == 1) ToggleFullscreen(); // Re-enter fullscreen
+            if (wasFullscreen == 1) RLToggleFullscreen(); // Re-enter fullscreen
         }
         else TRACELOG(LOG_WARNING, "SDL: Failed to get selected display usable bounds");
     }
@@ -880,7 +880,7 @@ void SetWindowMonitor(int monitor)
 }
 
 // Set window minimum dimensions (FLAG_WINDOW_RESIZABLE)
-void SetWindowMinSize(int width, int height)
+void RLSetWindowMinSize(int width, int height)
 {
     SDL_SetWindowMinimumSize(platform.window, width, height);
 
@@ -889,7 +889,7 @@ void SetWindowMinSize(int width, int height)
 }
 
 // Set window maximum dimensions (FLAG_WINDOW_RESIZABLE)
-void SetWindowMaxSize(int width, int height)
+void RLSetWindowMaxSize(int width, int height)
 {
     SDL_SetWindowMaximumSize(platform.window, width, height);
 
@@ -898,7 +898,7 @@ void SetWindowMaxSize(int width, int height)
 }
 
 // Set window dimensions
-void SetWindowSize(int width, int height)
+void RLSetWindowSize(int width, int height)
 {
     SDL_SetWindowSize(platform.window, width, height);
 
@@ -907,7 +907,7 @@ void SetWindowSize(int width, int height)
 }
 
 // Set window opacity, value opacity is between 0.0 and 1.0
-void SetWindowOpacity(float opacity)
+void RLSetWindowOpacity(float opacity)
 {
     if (opacity >= 1.0f) opacity = 1.0f;
     else if (opacity <= 0.0f) opacity = 0.0f;
@@ -916,19 +916,19 @@ void SetWindowOpacity(float opacity)
 }
 
 // Set window focused
-void SetWindowFocused(void)
+void RLSetWindowFocused(void)
 {
     SDL_RaiseWindow(platform.window);
 }
 
 // Get native window handle
-void *GetWindowHandle(void)
+void *RLGetWindowHandle(void)
 {
     return (void *)platform.window;
 }
 
 // Get number of monitors
-int GetMonitorCount(void)
+int RLGetMonitorCount(void)
 {
     int monitorCount = 0;
 
@@ -938,7 +938,7 @@ int GetMonitorCount(void)
 }
 
 // Get current monitor where window is placed
-int GetCurrentMonitor(void)
+int RLGetCurrentMonitor(void)
 {
     int currentMonitor = 0;
 
@@ -949,7 +949,7 @@ int GetCurrentMonitor(void)
 }
 
 // Get selected monitor position
-Vector2 GetMonitorPosition(int monitor)
+RLVector2 RLGetMonitorPosition(int monitor)
 {
     const int monitorCount = SDL_GetNumVideoDisplays();
 #if defined(USING_VERSION_SDL3) // SDL3 Migration: Monitor is an id instead of index now, returns 0 on failure
@@ -966,16 +966,16 @@ Vector2 GetMonitorPosition(int monitor)
         if (SDL_GetDisplayUsableBounds(monitor, &displayBounds) == 0)
     #endif
         {
-            return (Vector2){ (float)displayBounds.x, (float)displayBounds.y };
+            return (RLVector2){ (float)displayBounds.x, (float)displayBounds.y };
         }
         else TRACELOG(LOG_WARNING, "SDL: Failed to get selected display usable bounds");
     }
     else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
-    return (Vector2){ 0.0f, 0.0f };
+    return (RLVector2){ 0.0f, 0.0f };
 }
 
 // Get selected monitor width (currently used by monitor)
-int GetMonitorWidth(int monitor)
+int RLGetMonitorWidth(int monitor)
 {
     int width = 0;
 
@@ -996,7 +996,7 @@ int GetMonitorWidth(int monitor)
 }
 
 // Get selected monitor height (currently used by monitor)
-int GetMonitorHeight(int monitor)
+int RLGetMonitorHeight(int monitor)
 {
     int height = 0;
 
@@ -1017,7 +1017,7 @@ int GetMonitorHeight(int monitor)
 }
 
 // Get selected monitor physical width in millimetres
-int GetMonitorPhysicalWidth(int monitor)
+int RLGetMonitorPhysicalWidth(int monitor)
 {
     int width = 0;
 
@@ -1041,7 +1041,7 @@ int GetMonitorPhysicalWidth(int monitor)
 }
 
 // Get selected monitor physical height in millimetres
-int GetMonitorPhysicalHeight(int monitor)
+int RLGetMonitorPhysicalHeight(int monitor)
 {
     int height = 0;
 
@@ -1065,7 +1065,7 @@ int GetMonitorPhysicalHeight(int monitor)
 }
 
 // Get selected monitor refresh rate
-int GetMonitorRefreshRate(int monitor)
+int RLGetMonitorRefreshRate(int monitor)
 {
     int refresh = 0;
 
@@ -1086,7 +1086,7 @@ int GetMonitorRefreshRate(int monitor)
 }
 
 // Get the human-readable, UTF-8 encoded name of the selected monitor
-const char *GetMonitorName(int monitor)
+const char *RLGetMonitorName(int monitor)
 {
     const int monitorCount = SDL_GetNumVideoDisplays();
 
@@ -1104,20 +1104,20 @@ const char *GetMonitorName(int monitor)
 }
 
 // Get window position XY on monitor
-Vector2 GetWindowPosition(void)
+RLVector2 RLGetWindowPosition(void)
 {
     int x = 0;
     int y = 0;
 
     SDL_GetWindowPosition(platform.window, &x, &y);
 
-    return (Vector2){ (float)x, (float)y };
+    return (RLVector2){ (float)x, (float)y };
 }
 
 // Get window scale DPI factor for current monitor
-Vector2 GetWindowScaleDPI(void)
+RLVector2 RLGetWindowScaleDPI(void)
 {
-    Vector2 scale = { 1.0f, 1.0f };
+    RLVector2 scale = { 1.0f, 1.0f };
 
 #if defined(USING_VERSION_SDL3)
     // NOTE: SDL_GetWindowDisplayScale added on SDL3
@@ -1134,13 +1134,13 @@ Vector2 GetWindowScaleDPI(void)
 }
 
 // Set clipboard text content
-void SetClipboardText(const char *text)
+void RLSetClipboardText(const char *text)
 {
     SDL_SetClipboardText(text);
 }
 
 // Get clipboard text content
-const char *GetClipboardText(void)
+const char *RLGetClipboardText(void)
 {
     static char buffer[MAX_CLIPBOARD_BUFFER_LENGTH] = { 0 };
 
@@ -1159,9 +1159,9 @@ const char *GetClipboardText(void)
 }
 
 // Get clipboard image
-Image GetClipboardImage(void)
+RLImage RLGetClipboardImage(void)
 {
-    Image image = { 0 };
+    RLImage image = { 0 };
 
 #if defined(SUPPORT_CLIPBOARD_IMAGE)
     // Let's hope compiler put these arrays in static memory
@@ -1188,8 +1188,8 @@ Image GetClipboardImage(void)
 
         if (fileData)
         {
-            image = LoadImageFromMemory(imageExtensions[i], fileData, (int)dataSize);
-            if (IsImageValid(image))
+            image = RLLoadImageFromMemory(imageExtensions[i], fileData, (int)dataSize);
+            if (RLIsImageValid(image))
             {
                 TRACELOG(LOG_INFO, "Clipboard: Got image from clipboard successfully: %s", imageExtensions[i]);
                 return image;
@@ -1197,14 +1197,14 @@ Image GetClipboardImage(void)
         }
     }
 
-    if (!IsImageValid(image)) TRACELOG(LOG_WARNING, "Clipboard: Couldn't get clipboard data. ERROR: %s", SDL_GetError());
+    if (!RLIsImageValid(image)) TRACELOG(LOG_WARNING, "Clipboard: Couldn't get clipboard data. ERROR: %s", SDL_GetError());
 #endif
 
     return image;
 }
 
 // Show mouse cursor
-void ShowCursor(void)
+void RLShowCursor(void)
 {
 #if defined(USING_VERSION_SDL3)
     SDL_ShowCursor();
@@ -1215,7 +1215,7 @@ void ShowCursor(void)
 }
 
 // Hides mouse cursor
-void HideCursor(void)
+void RLHideCursor(void)
 {
 #if defined(USING_VERSION_SDL3)
     SDL_HideCursor();
@@ -1226,25 +1226,25 @@ void HideCursor(void)
 }
 
 // Enables cursor (unlock cursor)
-void EnableCursor(void)
+void RLEnableCursor(void)
 {
     SDL_SetRelativeMouseMode(SDL_FALSE);
 
-    ShowCursor();
+    RLShowCursor();
     CORE.Input.Mouse.cursorLocked = false;
 }
 
 // Disables cursor (lock cursor)
-void DisableCursor(void)
+void RLDisableCursor(void)
 {
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    HideCursor();
+    RLHideCursor();
     CORE.Input.Mouse.cursorLocked = true;
 }
 
 // Swap back buffer with front buffer (screen drawing)
-void SwapScreenBuffer(void)
+void RLSwapScreenBuffer(void)
 {
 #if defined(GRAPHICS_API_OPENGL_11_SOFTWARE)
     // NOTE: We use a preprocessor condition here because rlCopyFramebuffer() is only declared for software rendering
@@ -1261,7 +1261,7 @@ void SwapScreenBuffer(void)
 //----------------------------------------------------------------------------------
 
 // Get elapsed time measure in seconds
-double GetTime(void)
+double RLGetTime(void)
 {
     unsigned int ms = SDL_GetTicks();    // Elapsed time in milliseconds since SDL_Init()
     double time = (double)ms/1000;
@@ -1273,7 +1273,7 @@ double GetTime(void)
 // A user could craft a malicious string performing another action
 // Only call this function yourself not with user input or make sure to check the string yourself
 // REF: https://github.com/raysan5/raylib/issues/686
-void OpenURL(const char *url)
+void RLOpenURL(const char *url)
 {
     // Security check to (partially) avoid malicious code
     if (strchr(url, '\'') != NULL) TRACELOG(LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
@@ -1285,13 +1285,13 @@ void OpenURL(const char *url)
 //----------------------------------------------------------------------------------
 
 // Set internal gamepad mappings
-int SetGamepadMappings(const char *mappings)
+int RLSetGamepadMappings(const char *mappings)
 {
     return SDL_GameControllerAddMapping(mappings);
 }
 
 // Set gamepad vibration
-void SetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float duration)
+void RLSetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float duration)
 {
     if ((gamepad < MAX_GAMEPADS) && CORE.Input.Gamepad.ready[gamepad] && (duration > 0.0f))
     {
@@ -1306,16 +1306,16 @@ void SetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float d
 }
 
 // Set mouse position XY
-void SetMousePosition(int x, int y)
+void RLSetMousePosition(int x, int y)
 {
     SDL_WarpMouseInWindow(platform.window, x, y);
 
-    CORE.Input.Mouse.currentPosition = (Vector2){ (float)x, (float)y };
+    CORE.Input.Mouse.currentPosition = (RLVector2){ (float)x, (float)y };
     CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
 }
 
 // Set mouse cursor
-void SetMouseCursor(int cursor)
+void RLSetMouseCursor(int cursor)
 {
     platform.cursor = SDL_CreateSystemCursor(CursorsLUT[cursor]);
     SDL_SetCursor(platform.cursor);
@@ -1324,13 +1324,13 @@ void SetMouseCursor(int cursor)
 }
 
 // Get physical key name
-const char *GetKeyName(int key)
+const char *RLGetKeyName(int key)
 {
     return SDL_GetKeyName(key);
 }
 
 // Register all input events
-void PollInputEvents(void)
+void RLPollInputEvents(void)
 {
 #if defined(SUPPORT_GESTURES_SYSTEM)
     // NOTE: Gestures update must be called every frame to reset gestures correctly
@@ -1347,7 +1347,7 @@ void PollInputEvents(void)
     CORE.Input.Mouse.currentWheelMove.y = 0;
 
     // Register previous mouse position
-    if (CORE.Input.Mouse.cursorLocked) CORE.Input.Mouse.currentPosition = (Vector2){ 0.0f, 0.0f };
+    if (CORE.Input.Mouse.cursorLocked) CORE.Input.Mouse.currentPosition = (RLVector2){ 0.0f, 0.0f };
     else CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
 
     // Reset last gamepad button/axis registered state
@@ -1395,7 +1395,7 @@ void PollInputEvents(void)
     if ((CORE.Window.eventWaiting) || (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED) && !FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_ALWAYS_RUN)))
     {
         SDL_WaitEvent(NULL);
-        CORE.Time.previous = GetTime();
+        CORE.Time.previous = RLGetTime();
     }
 
     SDL_Event event = { 0 };
@@ -1468,8 +1468,8 @@ void PollInputEvents(void)
                         // if we are doing automatic DPI scaling, then the "screen" size is divided by the window scale
                         if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI))
                         {
-                            CORE.Window.screen.width = (int)(width/GetWindowScaleDPI().x);
-                            CORE.Window.screen.height = (int)(height/GetWindowScaleDPI().y);
+                            CORE.Window.screen.width = (int)(width/RLGetWindowScaleDPI().x);
+                            CORE.Window.screen.height = (int)(height/RLGetWindowScaleDPI().y);
                         }
                         else
                         {
@@ -1553,9 +1553,9 @@ void PollInputEvents(void)
             {
             #if defined(USING_VERSION_SDL3)
                 // SDL3 Migration: The following structures have been removed: SDL_Keysym
-                KeyboardKey key = ConvertScancodeToKey(event.key.scancode);
+                RLKeyboardKey key = ConvertScancodeToKey(event.key.scancode);
             #else
-                KeyboardKey key = ConvertScancodeToKey(event.key.keysym.scancode);
+                RLKeyboardKey key = ConvertScancodeToKey(event.key.keysym.scancode);
             #endif
 
                 if (key != KEY_NULL)
@@ -1581,9 +1581,9 @@ void PollInputEvents(void)
             {
 
             #if defined(USING_VERSION_SDL3)
-                KeyboardKey key = ConvertScancodeToKey(event.key.scancode);
+                RLKeyboardKey key = ConvertScancodeToKey(event.key.scancode);
             #else
-                KeyboardKey key = ConvertScancodeToKey(event.key.keysym.scancode);
+                RLKeyboardKey key = ConvertScancodeToKey(event.key.keysym.scancode);
             #endif
                 if (key != KEY_NULL) CORE.Input.Keyboard.currentKeyState[key] = 0;
             } break;
@@ -1648,7 +1648,7 @@ void PollInputEvents(void)
                 {
                     CORE.Input.Mouse.currentPosition.x = (float)event.motion.xrel;
                     CORE.Input.Mouse.currentPosition.y = (float)event.motion.yrel;
-                    CORE.Input.Mouse.previousPosition = (Vector2){ 0.0f, 0.0f };
+                    CORE.Input.Mouse.previousPosition = (RLVector2){ 0.0f, 0.0f };
                 }
                 else
                 {
@@ -1891,11 +1891,11 @@ void PollInputEvents(void)
 
             // Register touch points position, only one point registered
             if (touchAction == 2 || realTouch) gestureEvent.position[0] = CORE.Input.Touch.position[0];
-            else gestureEvent.position[0] = GetMousePosition();
+            else gestureEvent.position[0] = RLGetMousePosition();
 
             // Normalize gestureEvent.position[0] for CORE.Window.screen.width and CORE.Window.screen.height
-            gestureEvent.position[0].x /= (float)GetScreenWidth();
-            gestureEvent.position[0].y /= (float)GetScreenHeight();
+            gestureEvent.position[0].x /= (float)RLGetScreenWidth();
+            gestureEvent.position[0].y /= (float)RLGetScreenHeight();
 
             // Gesture data is sent to gestures-system for processing
             ProcessGestureEvent(gestureEvent);
@@ -2013,7 +2013,7 @@ int InitPlatform(void)
         CORE.Window.ready = true;
 
         SDL_DisplayMode displayMode = { 0 };
-        SDL_GetCurrentDisplayMode(GetCurrentMonitor(), &displayMode);
+        SDL_GetCurrentDisplayMode(RLGetCurrentMonitor(), &displayMode);
 
         CORE.Window.display.width = displayMode.w;
         CORE.Window.display.height = displayMode.h;
@@ -2084,7 +2084,7 @@ int InitPlatform(void)
     // Initialize timing system
     //----------------------------------------------------------------------------
     // NOTE: No need to call InitTimer(), let SDL manage it internally
-    CORE.Time.previous = GetTime();     // Get time as double
+    CORE.Time.previous = RLGetTime();     // Get time as double
 
     #if defined(_WIN32) && defined(SUPPORT_WINMM_HIGHRES_TIMER) && !defined(SUPPORT_BUSY_WAIT_LOOP)
     SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "1"); // SDL equivalent of timeBeginPeriod() and timeEndPeriod()
@@ -2116,7 +2116,7 @@ void ClosePlatform(void)
 }
 
 // Scancode to keycode mapping
-static KeyboardKey ConvertScancodeToKey(SDL_Scancode sdlScancode)
+static RLKeyboardKey ConvertScancodeToKey(SDL_Scancode sdlScancode)
 {
     if ((sdlScancode >= 0) && (sdlScancode < SCANCODE_MAPPED_NUM))
     {

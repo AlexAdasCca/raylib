@@ -38,135 +38,135 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - normalmap rendering");
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - normalmap rendering");
 
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 0.0f, 2.0f, -4.0f };
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    RLCamera camera = { 0 };
+    camera.position = (RLVector3){ 0.0f, 2.0f, -4.0f };
+    camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
     // Load basic normal map lighting shader
-    Shader shader = LoadShader(TextFormat("resources/shaders/glsl%i/normalmap.vs", GLSL_VERSION),
-                               TextFormat("resources/shaders/glsl%i/normalmap.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/normalmap.vs", GLSL_VERSION),
+                               RLTextFormat("resources/shaders/glsl%i/normalmap.fs", GLSL_VERSION));
 
     // Get some required shader locations
-    shader.locs[SHADER_LOC_MAP_NORMAL] = GetShaderLocation(shader, "normalMap");
-    shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(shader, "viewPos");
+    shader.locs[SHADER_LOC_MAP_NORMAL] = RLGetShaderLocation(shader, "normalMap");
+    shader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
 
     // NOTE: "matModel" location name is automatically assigned on shader loading,
     // no need to get the location again if using that uniform name
     // shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(shader, "matModel");
 
     // This example uses just 1 point light
-    Vector3 lightPosition = { 0.0f, 1.0f, 0.0f };
-    int lightPosLoc = GetShaderLocation(shader, "lightPos");
+    RLVector3 lightPosition = { 0.0f, 1.0f, 0.0f };
+    int lightPosLoc = RLGetShaderLocation(shader, "lightPos");
 
     // Load a plane model that has proper normals and tangents
-    Model plane = LoadModel("resources/models/plane.glb");
+    RLModel plane = RLLoadModel("resources/models/plane.glb");
 
     // Set the plane model's shader and texture maps
     plane.materials[0].shader = shader;
-    plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = LoadTexture("resources/tiles_diffuse.png");
-    plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture = LoadTexture("resources/tiles_normal.png");
+    plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = RLLoadTexture("resources/tiles_diffuse.png");
+    plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture = RLLoadTexture("resources/tiles_normal.png");
 
     // Generate Mipmaps and use TRILINEAR filtering to help with texture aliasing
-    GenTextureMipmaps(&plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture);
-    GenTextureMipmaps(&plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture);
+    RLGenTextureMipmaps(&plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture);
+    RLGenTextureMipmaps(&plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture);
 
-    SetTextureFilter(plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture, TEXTURE_FILTER_TRILINEAR);
-    SetTextureFilter(plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture, TEXTURE_FILTER_TRILINEAR);
+    RLSetTextureFilter(plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture, TEXTURE_FILTER_TRILINEAR);
+    RLSetTextureFilter(plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture, TEXTURE_FILTER_TRILINEAR);
 
     // Specular exponent AKA shininess of the material
     float specularExponent = 8.0f;
-    int specularExponentLoc = GetShaderLocation(shader, "specularExponent");
+    int specularExponentLoc = RLGetShaderLocation(shader, "specularExponent");
 
     // Allow toggling the normal map on and off for comparison purposes
     int useNormalMap = 1;
-    int useNormalMapLoc = GetShaderLocation(shader, "useNormalMap");
+    int useNormalMapLoc = RLGetShaderLocation(shader, "useNormalMap");
 
-    SetTargetFPS(60); // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60); // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose()) // Detect window close button or ESC key
+    while (!RLWindowShouldClose()) // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         // Move the light around on the X and Z axis using WASD keys
-        Vector3 direction = { 0 };
-        if (IsKeyDown(KEY_W)) direction = Vector3Add(direction, (Vector3){ 0.0f, 0.0f, 1.0f });
-        if (IsKeyDown(KEY_S)) direction = Vector3Add(direction, (Vector3){ 0.0f, 0.0f, -1.0f });
-        if (IsKeyDown(KEY_D)) direction = Vector3Add(direction, (Vector3){ -1.0f, 0.0f, 0.0f });
-        if (IsKeyDown(KEY_A)) direction = Vector3Add(direction, (Vector3){ 1.0f, 0.0f, 0.0f });
+        RLVector3 direction = { 0 };
+        if (RLIsKeyDown(KEY_W)) direction = Vector3Add(direction, (RLVector3){ 0.0f, 0.0f, 1.0f });
+        if (RLIsKeyDown(KEY_S)) direction = Vector3Add(direction, (RLVector3){ 0.0f, 0.0f, -1.0f });
+        if (RLIsKeyDown(KEY_D)) direction = Vector3Add(direction, (RLVector3){ -1.0f, 0.0f, 0.0f });
+        if (RLIsKeyDown(KEY_A)) direction = Vector3Add(direction, (RLVector3){ 1.0f, 0.0f, 0.0f });
 
         direction = Vector3Normalize(direction);
-        lightPosition = Vector3Add(lightPosition, Vector3Scale(direction, GetFrameTime()*3.0f));
+        lightPosition = Vector3Add(lightPosition, Vector3Scale(direction, RLGetFrameTime()*3.0f));
 
         // Increase/Decrease the specular exponent(shininess)
-        if (IsKeyDown(KEY_UP)) specularExponent = Clamp(specularExponent + 40.0f*GetFrameTime(), 2.0f, 128.0f);
-        if (IsKeyDown(KEY_DOWN)) specularExponent = Clamp(specularExponent - 40.0f*GetFrameTime(), 2.0f, 128.0f);
+        if (RLIsKeyDown(KEY_UP)) specularExponent = Clamp(specularExponent + 40.0f*RLGetFrameTime(), 2.0f, 128.0f);
+        if (RLIsKeyDown(KEY_DOWN)) specularExponent = Clamp(specularExponent - 40.0f*RLGetFrameTime(), 2.0f, 128.0f);
 
         // Toggle normal map on and off
-        if (IsKeyPressed(KEY_N)) useNormalMap = !useNormalMap;
+        if (RLIsKeyPressed(KEY_N)) useNormalMap = !useNormalMap;
 
         // Spin plane model at a constant rate
-        plane.transform = MatrixRotateY((float)GetTime()*0.5f);
+        plane.transform = MatrixRotateY((float)RLGetTime()*0.5f);
 
         // Update shader values
         float lightPos[3] = {lightPosition.x, lightPosition.y, lightPosition.z};
-        SetShaderValue(shader, lightPosLoc, lightPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, lightPosLoc, lightPos, SHADER_UNIFORM_VEC3);
 
         float camPos[3] = {camera.position.x, camera.position.y, camera.position.z};
-        SetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], camPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], camPos, SHADER_UNIFORM_VEC3);
 
-        SetShaderValue(shader, specularExponentLoc, &specularExponent, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, specularExponentLoc, &specularExponent, SHADER_UNIFORM_FLOAT);
 
-        SetShaderValue(shader, useNormalMapLoc, &useNormalMap, SHADER_UNIFORM_INT);
+        RLSetShaderValue(shader, useNormalMapLoc, &useNormalMap, SHADER_UNIFORM_INT);
         //--------------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
 
-                BeginShaderMode(shader);
+                RLBeginShaderMode(shader);
 
-                    DrawModel(plane, Vector3Zero(), 2.0f, WHITE);
+                    RLDrawModel(plane, Vector3Zero(), 2.0f, WHITE);
 
-                EndShaderMode();
+                RLEndShaderMode();
 
                 // Draw sphere to show light position
-                DrawSphereWires(lightPosition, 0.2f, 8, 8, ORANGE);
+                RLDrawSphereWires(lightPosition, 0.2f, 8, 8, ORANGE);
 
-            EndMode3D();
+            RLEndMode3D();
 
-            Color textColor = (useNormalMap) ? DARKGREEN : RED;
+            RLColor textColor = (useNormalMap) ? DARKGREEN : RED;
             const char *toggleStr = (useNormalMap) ? "On" : "Off";
-            DrawText(TextFormat("Use key [N] to toggle normal map: %s", toggleStr), 10, 10, 10, textColor);
+            RLDrawText(RLTextFormat("Use key [N] to toggle normal map: %s", toggleStr), 10, 10, 10, textColor);
 
             int yOffset = 24;
-            DrawText("Use keys [W][A][S][D] to move the light", 10, 10 + yOffset*1, 10, BLACK);
-            DrawText("Use keys [Up][Down] to change specular exponent", 10, 10 + yOffset*2, 10, BLACK);
-            DrawText(TextFormat("Specular Exponent: %.2f", specularExponent), 10, 10 + yOffset*3, 10, BLUE);
+            RLDrawText("Use keys [W][A][S][D] to move the light", 10, 10 + yOffset*1, 10, BLACK);
+            RLDrawText("Use keys [Up][Down] to change specular exponent", 10, 10 + yOffset*2, 10, BLACK);
+            RLDrawText(RLTextFormat("Specular Exponent: %.2f", specularExponent), 10, 10 + yOffset*3, 10, BLUE);
 
-            DrawFPS(screenWidth - 90, 10);
+            RLDrawFPS(screenWidth - 90, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //--------------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shader);
-    UnloadModel(plane);
+    RLUnloadShader(shader);
+    RLUnloadModel(plane);
 
-    CloseWindow(); // Close window and OpenGL context
+    RLCloseWindow(); // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

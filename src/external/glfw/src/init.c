@@ -95,10 +95,34 @@ static void terminate(void)
 {
     int i;
 
-    memset(&_glfw.callbacks, 0, sizeof(_glfw.callbacks));
+#if defined(GLFW_BUILD_WIN32_THREAD)
+#define GLFW_WINDOWLISTLOCK_CREATED (_glfw.windowListLock.win32.allocated)
+#elif defined(GLFW_BUILD_POSIX_THREAD)
+#define GLFW_WINDOWLISTLOCK_CREATED (_glfw.windowListLock.posix.allocated)
+#else
+#define GLFW_WINDOWLISTLOCK_CREATED GLFW_FALSE
+#endif
 
-    while (_glfw.windowListHead)
-        glfwDestroyWindow((GLFWwindow*) _glfw.windowListHead);
+    memset(&_glfw.callbacks, 0, sizeof(_glfw.callbacks));
+    for (;;)
+    {
+        _GLFWwindow* head;
+
+        if (GLFW_WINDOWLISTLOCK_CREATED)
+            _glfwPlatformLockMutex(&_glfw.windowListLock);
+
+        head = _glfw.windowListHead;
+
+        if (GLFW_WINDOWLISTLOCK_CREATED)
+            _glfwPlatformUnlockMutex(&_glfw.windowListLock);
+
+        if (!head)
+            break;
+
+        glfwDestroyWindow((GLFWwindow*) head);
+    }
+
+#undef GLFW_WINDOWLISTLOCK_CREATED
 
     while (_glfw.cursorListHead)
         glfwDestroyCursor((GLFWcursor*) _glfw.cursorListHead);
@@ -134,6 +158,7 @@ static void terminate(void)
 
     _glfwPlatformDestroyTls(&_glfw.contextSlot);
     _glfwPlatformDestroyTls(&_glfw.errorSlot);
+    _glfwPlatformDestroyMutex(&_glfw.windowListLock);
     _glfwPlatformDestroyMutex(&_glfw.errorLock);
 
     memset(&_glfw, 0, sizeof(_glfw));
@@ -409,6 +434,7 @@ GLFWAPI int glfwInit(void)
     }
 
     if (!_glfwPlatformCreateMutex(&_glfw.errorLock) ||
+        !_glfwPlatformCreateMutex(&_glfw.windowListLock) ||
         !_glfwPlatformCreateTls(&_glfw.errorSlot) ||
         !_glfwPlatformCreateTls(&_glfw.contextSlot))
     {

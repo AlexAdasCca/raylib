@@ -40,10 +40,10 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - custom frame control");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - custom frame control");
 
     // Custom timming variables
-    double previousTime = GetTime();    // Previous time measure
+    double previousTime = RLGetTime();    // Previous time measure
     double currentTime = 0.0;           // Current time measure
     double updateDrawTime = 0.0;        // Update + Draw time
     double waitTime = 0.0;              // Wait time (if target fps required)
@@ -57,63 +57,63 @@ int main(void)
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         #ifndef PLATFORM_WEB            // NOTE: On non web platforms the PollInputEvents just works before the inputs checks
-            PollInputEvents();          // Poll input events (SUPPORT_CUSTOM_FRAME_CONTROL)
+            RLPollInputEvents();          // Poll input events (SUPPORT_CUSTOM_FRAME_CONTROL)
         #endif
 
-        if (IsKeyPressed(KEY_SPACE)) pause = !pause;
+        if (RLIsKeyPressed(KEY_SPACE)) pause = !pause;
 
-        if (IsKeyPressed(KEY_UP)) targetFPS += 20;
-        else if (IsKeyPressed(KEY_DOWN)) targetFPS -= 20;
+        if (RLIsKeyPressed(KEY_UP)) targetFPS += 20;
+        else if (RLIsKeyPressed(KEY_DOWN)) targetFPS -= 20;
 
         if (targetFPS < 0) targetFPS = 0;
 
         if (!pause)
         {
             position += 200*deltaTime;  // We move at 200 pixels per second
-            if (position >= GetScreenWidth()) position = 0;
+            if (position >= RLGetScreenWidth()) position = 0;
             timeCounter += deltaTime;   // We count time (seconds)
         }
 
         #ifdef PLATFORM_WEB             // NOTE: On web platform for some reason the PollInputEvents only works after the inputs check, so just call it after check all your inputs (on web)
-            PollInputEvents();          // Poll input events (SUPPORT_CUSTOM_FRAME_CONTROL)
+            RLPollInputEvents();          // Poll input events (SUPPORT_CUSTOM_FRAME_CONTROL)
         #endif
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            for (int i = 0; i < GetScreenWidth()/200; i++) DrawRectangle(200*i, 0, 1, GetScreenHeight(), SKYBLUE);
+            for (int i = 0; i < RLGetScreenWidth()/200; i++) RLDrawRectangle(200*i, 0, 1, RLGetScreenHeight(), SKYBLUE);
 
-            DrawCircle((int)position, GetScreenHeight()/2 - 25, 50, RED);
+            RLDrawCircle((int)position, RLGetScreenHeight()/2 - 25, 50, RED);
 
-            DrawText(TextFormat("%03.0f ms", timeCounter*1000.0f), (int)position - 40, GetScreenHeight()/2 - 100, 20, MAROON);
-            DrawText(TextFormat("PosX: %03.0f", position), (int)position - 50, GetScreenHeight()/2 + 40, 20, BLACK);
+            RLDrawText(RLTextFormat("%03.0f ms", timeCounter*1000.0f), (int)position - 40, RLGetScreenHeight()/2 - 100, 20, MAROON);
+            RLDrawText(RLTextFormat("PosX: %03.0f", position), (int)position - 50, RLGetScreenHeight()/2 + 40, 20, BLACK);
 
-            DrawText("Circle is moving at a constant 200 pixels/sec,\nindependently of the frame rate.", 10, 10, 20, DARKGRAY);
-            DrawText("PRESS SPACE to PAUSE MOVEMENT", 10, GetScreenHeight() - 60, 20, GRAY);
-            DrawText("PRESS UP | DOWN to CHANGE TARGET FPS", 10, GetScreenHeight() - 30, 20, GRAY);
-            DrawText(TextFormat("TARGET FPS: %i", targetFPS), GetScreenWidth() - 220, 10, 20, LIME);
+            RLDrawText("Circle is moving at a constant 200 pixels/sec,\nindependently of the frame rate.", 10, 10, 20, DARKGRAY);
+            RLDrawText("PRESS SPACE to PAUSE MOVEMENT", 10, RLGetScreenHeight() - 60, 20, GRAY);
+            RLDrawText("PRESS UP | DOWN to CHANGE TARGET FPS", 10, RLGetScreenHeight() - 30, 20, GRAY);
+            RLDrawText(RLTextFormat("TARGET FPS: %i", targetFPS), RLGetScreenWidth() - 220, 10, 20, LIME);
             if (deltaTime != 0)
             {
-                DrawText(TextFormat("CURRENT FPS: %i", (int)(1.0f/deltaTime)), GetScreenWidth() - 220, 40, 20, GREEN);
+                RLDrawText(RLTextFormat("CURRENT FPS: %i", (int)(1.0f/deltaTime)), RLGetScreenWidth() - 220, 40, 20, GREEN);
             }
 
-        EndDrawing();
+        RLEndDrawing();
 
         // NOTE: In case raylib is configured to SUPPORT_CUSTOM_FRAME_CONTROL,
         // Events polling, screen buffer swap and frame time control must be managed by the user
 
-        SwapScreenBuffer();         // Flip the back buffer to screen (front buffer)
+        RLSwapScreenBuffer();         // Flip the back buffer to screen (front buffer)
 
-        currentTime = GetTime();
+        currentTime = RLGetTime();
         updateDrawTime = currentTime - previousTime;
 
         if (targetFPS > 0)          // We want a fixed frame rate
@@ -121,8 +121,8 @@ int main(void)
             waitTime = (1.0f/(float)targetFPS) - updateDrawTime;
             if (waitTime > 0.0)
             {
-                WaitTime((float)waitTime);
-                currentTime = GetTime();
+                RLWaitTime((float)waitTime);
+                currentTime = RLGetTime();
                 deltaTime = (float)(currentTime - previousTime);
             }
         }
@@ -134,7 +134,7 @@ int main(void)
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

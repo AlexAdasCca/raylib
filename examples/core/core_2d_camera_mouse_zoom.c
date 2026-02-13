@@ -30,28 +30,28 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - 2d camera mouse zoom");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - 2d camera mouse zoom");
 
-    Camera2D camera = { 0 };
+    RLCamera2D camera = { 0 };
     camera.zoom = 1.0f;
 
     int zoomMode = 0;       // 0-Mouse Wheel, 1-Mouse Move
 
-    SetTargetFPS(60);       // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);       // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())        // Detect window close button or ESC key
+    while (!RLWindowShouldClose())        // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_ONE)) zoomMode = 0;
-        else if (IsKeyPressed(KEY_TWO)) zoomMode = 1;
+        if (RLIsKeyPressed(KEY_ONE)) zoomMode = 0;
+        else if (RLIsKeyPressed(KEY_TWO)) zoomMode = 1;
 
         // Translate based on mouse right click
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT))
         {
-            Vector2 delta = GetMouseDelta();
+            RLVector2 delta = RLGetMouseDelta();
             delta = Vector2Scale(delta, -1.0f/camera.zoom);
             camera.target = Vector2Add(camera.target, delta);
         }
@@ -59,14 +59,14 @@ int main(void)
         if (zoomMode == 0)
         {
             // Zoom based on mouse wheel
-            float wheel = GetMouseWheelMove();
+            float wheel = RLGetMouseWheelMove();
             if (wheel != 0)
             {
                 // Get the world point that is under the mouse
-                Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), camera);
+                RLVector2 mouseWorldPos = RLGetScreenToWorld2D(RLGetMousePosition(), camera);
 
                 // Set the offset to where the mouse is
-                camera.offset = GetMousePosition();
+                camera.offset = RLGetMousePosition();
 
                 // Set the target to match, so that the camera maps the world space point
                 // under the cursor to the screen space point under the cursor at any zoom
@@ -81,24 +81,24 @@ int main(void)
         else
         {
             // Zoom based on mouse right click
-            if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+            if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
             {
                 // Get the world point that is under the mouse
-                Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), camera);
+                RLVector2 mouseWorldPos = RLGetScreenToWorld2D(RLGetMousePosition(), camera);
 
                 // Set the offset to where the mouse is
-                camera.offset = GetMousePosition();
+                camera.offset = RLGetMousePosition();
 
                 // Set the target to match, so that the camera maps the world space point
                 // under the cursor to the screen space point under the cursor at any zoom
                 camera.target = mouseWorldPos;
             }
 
-            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+            if (RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT))
             {
                 // Zoom increment
                 // Uses log scaling to provide consistent zoom speed
-                float deltaX = GetMouseDelta().x;
+                float deltaX = RLGetMouseDelta().x;
                 float scale = 0.005f*deltaX;
                 camera.zoom = Clamp(expf(logf(camera.zoom)+scale), 0.125f, 64.0f);
             }
@@ -107,39 +107,39 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
-            BeginMode2D(camera);
+            RLBeginMode2D(camera);
                 // Draw the 3d grid, rotated 90 degrees and centered around 0,0
                 // just so we have something in the XY plane
                 rlPushMatrix();
                     rlTranslatef(0, 25*50, 0);
                     rlRotatef(90, 1, 0, 0);
-                    DrawGrid(100, 50);
+                    RLDrawGrid(100, 50);
                 rlPopMatrix();
 
                 // Draw a reference circle
-                DrawCircle(GetScreenWidth()/2, GetScreenHeight()/2, 50, MAROON);
-            EndMode2D();
+                RLDrawCircle(RLGetScreenWidth()/2, RLGetScreenHeight()/2, 50, MAROON);
+            RLEndMode2D();
 
             // Draw mouse reference
             //Vector2 mousePos = GetWorldToScreen2D(GetMousePosition(), camera)
-            DrawCircleV(GetMousePosition(), 4, DARKGRAY);
-            DrawTextEx(GetFontDefault(), TextFormat("[%i, %i]", GetMouseX(), GetMouseY()),
-                Vector2Add(GetMousePosition(), (Vector2){ -44, -24 }), 20, 2, BLACK);
+            RLDrawCircleV(RLGetMousePosition(), 4, DARKGRAY);
+            RLDrawTextEx(RLGetFontDefault(), RLTextFormat("[%i, %i]", RLGetMouseX(), RLGetMouseY()),
+                Vector2Add(RLGetMousePosition(), (RLVector2){ -44, -24 }), 20, 2, BLACK);
 
-            DrawText("[1][2] Select mouse zoom mode (Wheel or Move)", 20, 20, 20, DARKGRAY);
-            if (zoomMode == 0) DrawText("Mouse left button drag to move, mouse wheel to zoom", 20, 50, 20, DARKGRAY);
-            else DrawText("Mouse left button drag to move, mouse press and move to zoom", 20, 50, 20, DARKGRAY);
+            RLDrawText("[1][2] Select mouse zoom mode (Wheel or Move)", 20, 20, 20, DARKGRAY);
+            if (zoomMode == 0) RLDrawText("Mouse left button drag to move, mouse wheel to zoom", 20, 50, 20, DARKGRAY);
+            else RLDrawText("Mouse left button drag to move, mouse press and move to zoom", 20, 50, 20, DARKGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

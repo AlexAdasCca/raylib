@@ -28,11 +28,11 @@
 //----------------------------------------------------------------------------------
 // Rounded rectangle data
 typedef struct {
-    Vector4 cornerRadius; // Individual corner radius (top-left, top-right, bottom-left, bottom-right)
+    RLVector4 cornerRadius; // Individual corner radius (top-left, top-right, bottom-left, bottom-right)
 
     // Shadow variables
     float shadowRadius;
-    Vector2 shadowOffset;
+    RLVector2 shadowOffset;
     float shadowScale;
 
     // Border variables
@@ -54,10 +54,10 @@ typedef struct {
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
 // Create a rounded rectangle and set uniform locations
-static RoundedRectangle CreateRoundedRectangle(Vector4 cornerRadius, float shadowRadius, Vector2 shadowOffset, float shadowScale, float borderThickness, Shader shader);
+static RoundedRectangle CreateRoundedRectangle(RLVector4 cornerRadius, float shadowRadius, RLVector2 shadowOffset, float shadowScale, float borderThickness, RLShader shader);
 
 // Update rounded rectangle uniforms
-static void UpdateRoundedRectangle(RoundedRectangle rec, Shader shader);
+static void UpdateRoundedRectangle(RoundedRectangle rec, RLShader shader);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -69,17 +69,17 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - rounded rectangle");
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - rounded rectangle");
 
     // Load the shader
-    Shader shader = LoadShader(TextFormat("resources/shaders/glsl%i/base.vs", GLSL_VERSION),
-                               TextFormat("resources/shaders/glsl%i/rounded_rectangle.fs", GLSL_VERSION));
+    RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/base.vs", GLSL_VERSION),
+                               RLTextFormat("resources/shaders/glsl%i/rounded_rectangle.fs", GLSL_VERSION));
 
     // Create a rounded rectangle
     RoundedRectangle roundedRectangle = CreateRoundedRectangle(
-        (Vector4){ 5.0f, 10.0f, 15.0f, 20.0f },     // Corner radius
+        (RLVector4){ 5.0f, 10.0f, 15.0f, 20.0f },     // Corner radius
         20.0f,                                      // Shadow radius
-        (Vector2){ 0.0f, -5.0f },                   // Shadow offset
+        (RLVector2){ 0.0f, -5.0f },                   // Shadow offset
         0.95f,                                      // Shadow scale
         5.0f,                                       // Border thickness
         shader                                      // Shader
@@ -88,102 +88,102 @@ int main(void)
     // Update shader uniforms
     UpdateRoundedRectangle(roundedRectangle, shader);
 
-    const Color rectangleColor = BLUE;
-    const Color shadowColor = DARKBLUE;
-    const Color borderColor = SKYBLUE;
+    const RLColor rectangleColor = BLUE;
+    const RLColor shadowColor = DARKBLUE;
+    const RLColor borderColor = SKYBLUE;
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             // Draw rectangle box with rounded corners using shader
-            Rectangle rec = { 50, 70, 110, 60 };
-            DrawRectangleLines((int)rec.x - 20, (int)rec.y - 20, (int)rec.width + 40, (int)rec.height + 40, DARKGRAY);
-            DrawText("Rounded rectangle", (int)rec.x - 20, (int)rec.y - 35, 10, DARKGRAY);
+            RLRectangle rec = { 50, 70, 110, 60 };
+            RLDrawRectangleLines((int)rec.x - 20, (int)rec.y - 20, (int)rec.width + 40, (int)rec.height + 40, DARKGRAY);
+            RLDrawText("Rounded rectangle", (int)rec.x - 20, (int)rec.y - 35, 10, DARKGRAY);
 
             // Flip Y axis to match shader coordinate system
             rec.y = screenHeight - rec.y - rec.height;
-            SetShaderValue(shader, roundedRectangle.rectangleLoc, (float[]){ rec.x, rec.y, rec.width, rec.height }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.rectangleLoc, (float[]){ rec.x, rec.y, rec.width, rec.height }, SHADER_UNIFORM_VEC4);
 
             // Only rectangle color
-            SetShaderValue(shader, roundedRectangle.colorLoc, (float[]) { rectangleColor.r/255.0f, rectangleColor.g/255.0f, rectangleColor.b/255.0f, rectangleColor.a/255.0f }, SHADER_UNIFORM_VEC4);
-            SetShaderValue(shader, roundedRectangle.shadowColorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
-            SetShaderValue(shader, roundedRectangle.borderColorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.colorLoc, (float[]) { rectangleColor.r/255.0f, rectangleColor.g/255.0f, rectangleColor.b/255.0f, rectangleColor.a/255.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.shadowColorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.borderColorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
 
-            BeginShaderMode(shader);
-                DrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
-            EndShaderMode();
+            RLBeginShaderMode(shader);
+                RLDrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
+            RLEndShaderMode();
 
             // Draw rectangle shadow using shader
-            rec = (Rectangle){ 50, 200, 110, 60 };
-            DrawRectangleLines((int)rec.x - 20, (int)rec.y - 20, (int)rec.width + 40, (int)rec.height + 40, DARKGRAY);
-            DrawText("Rounded rectangle shadow", (int)rec.x - 20, (int)rec.y - 35, 10, DARKGRAY);
+            rec = (RLRectangle){ 50, 200, 110, 60 };
+            RLDrawRectangleLines((int)rec.x - 20, (int)rec.y - 20, (int)rec.width + 40, (int)rec.height + 40, DARKGRAY);
+            RLDrawText("Rounded rectangle shadow", (int)rec.x - 20, (int)rec.y - 35, 10, DARKGRAY);
 
             rec.y = screenHeight - rec.y - rec.height;
-            SetShaderValue(shader, roundedRectangle.rectangleLoc, (float[]){ rec.x, rec.y, rec.width, rec.height }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.rectangleLoc, (float[]){ rec.x, rec.y, rec.width, rec.height }, SHADER_UNIFORM_VEC4);
 
             // Only shadow color
-            SetShaderValue(shader, roundedRectangle.colorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
-            SetShaderValue(shader, roundedRectangle.shadowColorLoc, (float[]) { shadowColor.r/255.0f, shadowColor.g/255.0f, shadowColor.b/255.0f, shadowColor.a/255.0f }, SHADER_UNIFORM_VEC4);
-            SetShaderValue(shader, roundedRectangle.borderColorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.colorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.shadowColorLoc, (float[]) { shadowColor.r/255.0f, shadowColor.g/255.0f, shadowColor.b/255.0f, shadowColor.a/255.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.borderColorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
 
-            BeginShaderMode(shader);
-                DrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
-            EndShaderMode();
+            RLBeginShaderMode(shader);
+                RLDrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
+            RLEndShaderMode();
 
             // Draw rectangle's border using shader
-            rec = (Rectangle){ 50, 330, 110, 60 };
-            DrawRectangleLines((int)rec.x - 20, (int)rec.y - 20, (int)rec.width + 40, (int)rec.height + 40, DARKGRAY);
-            DrawText("Rounded rectangle border", (int)rec.x - 20, (int)rec.y - 35, 10, DARKGRAY);
+            rec = (RLRectangle){ 50, 330, 110, 60 };
+            RLDrawRectangleLines((int)rec.x - 20, (int)rec.y - 20, (int)rec.width + 40, (int)rec.height + 40, DARKGRAY);
+            RLDrawText("Rounded rectangle border", (int)rec.x - 20, (int)rec.y - 35, 10, DARKGRAY);
 
             rec.y = screenHeight - rec.y - rec.height;
-            SetShaderValue(shader, roundedRectangle.rectangleLoc, (float[]){ rec.x, rec.y, rec.width, rec.height }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.rectangleLoc, (float[]){ rec.x, rec.y, rec.width, rec.height }, SHADER_UNIFORM_VEC4);
 
             // Only border color
-            SetShaderValue(shader, roundedRectangle.colorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
-            SetShaderValue(shader, roundedRectangle.shadowColorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
-            SetShaderValue(shader, roundedRectangle.borderColorLoc, (float[]) { borderColor.r/255.0f, borderColor.g/255.0f, borderColor.b/255.0f, borderColor.a/255.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.colorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.shadowColorLoc, (float[]) { 0.0f, 0.0f, 0.0f, 0.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.borderColorLoc, (float[]) { borderColor.r/255.0f, borderColor.g/255.0f, borderColor.b/255.0f, borderColor.a/255.0f }, SHADER_UNIFORM_VEC4);
 
-            BeginShaderMode(shader);
-                DrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
-            EndShaderMode();
+            RLBeginShaderMode(shader);
+                RLDrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
+            RLEndShaderMode();
 
             // Draw one more rectangle with all three colors
-            rec = (Rectangle){ 240, 80, 500, 300 };
-            DrawRectangleLines((int)rec.x - 30, (int)rec.y - 30, (int)rec.width + 60, (int)rec.height + 60, DARKGRAY);
-            DrawText("Rectangle with all three combined", (int)rec.x - 30, (int)rec.y - 45, 10, DARKGRAY);
+            rec = (RLRectangle){ 240, 80, 500, 300 };
+            RLDrawRectangleLines((int)rec.x - 30, (int)rec.y - 30, (int)rec.width + 60, (int)rec.height + 60, DARKGRAY);
+            RLDrawText("Rectangle with all three combined", (int)rec.x - 30, (int)rec.y - 45, 10, DARKGRAY);
 
             rec.y = screenHeight - rec.y - rec.height;
-            SetShaderValue(shader, roundedRectangle.rectangleLoc, (float[]){ rec.x, rec.y, rec.width, rec.height }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.rectangleLoc, (float[]){ rec.x, rec.y, rec.width, rec.height }, SHADER_UNIFORM_VEC4);
 
             // All three colors
-            SetShaderValue(shader, roundedRectangle.colorLoc, (float[]) { rectangleColor.r/255.0f, rectangleColor.g/255.0f, rectangleColor.b/255.0f, rectangleColor.a/255.0f }, SHADER_UNIFORM_VEC4);
-            SetShaderValue(shader, roundedRectangle.shadowColorLoc, (float[]) { shadowColor.r/255.0f, shadowColor.g/255.0f, shadowColor.b/255.0f, shadowColor.a/255.0f }, SHADER_UNIFORM_VEC4);
-            SetShaderValue(shader, roundedRectangle.borderColorLoc, (float[]) { borderColor.r/255.0f, borderColor.g/255.0f, borderColor.b/255.0f, borderColor.a/255.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.colorLoc, (float[]) { rectangleColor.r/255.0f, rectangleColor.g/255.0f, rectangleColor.b/255.0f, rectangleColor.a/255.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.shadowColorLoc, (float[]) { shadowColor.r/255.0f, shadowColor.g/255.0f, shadowColor.b/255.0f, shadowColor.a/255.0f }, SHADER_UNIFORM_VEC4);
+            RLSetShaderValue(shader, roundedRectangle.borderColorLoc, (float[]) { borderColor.r/255.0f, borderColor.g/255.0f, borderColor.b/255.0f, borderColor.a/255.0f }, SHADER_UNIFORM_VEC4);
 
-            BeginShaderMode(shader);
-                DrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
-            EndShaderMode();
+            RLBeginShaderMode(shader);
+                RLDrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
+            RLEndShaderMode();
 
-            DrawText("(c) Rounded rectangle SDF by Iñigo Quilez. MIT License.", screenWidth - 300, screenHeight - 20, 10, BLACK);
+            RLDrawText("(c) Rounded rectangle SDF by Iñigo Quilez. MIT License.", screenWidth - 300, screenHeight - 20, 10, BLACK);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shader); // Unload shader
+    RLUnloadShader(shader); // Unload shader
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -194,7 +194,7 @@ int main(void)
 //------------------------------------------------------------------------------------
 
 // Create a rounded rectangle and set uniform locations
-RoundedRectangle CreateRoundedRectangle(Vector4 cornerRadius, float shadowRadius, Vector2 shadowOffset, float shadowScale, float borderThickness, Shader shader)
+RoundedRectangle CreateRoundedRectangle(RLVector4 cornerRadius, float shadowRadius, RLVector2 shadowOffset, float shadowScale, float borderThickness, RLShader shader)
 {
     RoundedRectangle rec;
     rec.cornerRadius = cornerRadius;
@@ -204,15 +204,15 @@ RoundedRectangle CreateRoundedRectangle(Vector4 cornerRadius, float shadowRadius
     rec.borderThickness = borderThickness;
 
     // Get shader uniform locations
-    rec.rectangleLoc = GetShaderLocation(shader, "rectangle");
-    rec.radiusLoc = GetShaderLocation(shader, "radius");
-    rec.colorLoc = GetShaderLocation(shader, "color");
-    rec.shadowRadiusLoc = GetShaderLocation(shader, "shadowRadius");
-    rec.shadowOffsetLoc = GetShaderLocation(shader, "shadowOffset");
-    rec.shadowScaleLoc = GetShaderLocation(shader, "shadowScale");
-    rec.shadowColorLoc = GetShaderLocation(shader, "shadowColor");
-    rec.borderThicknessLoc = GetShaderLocation(shader, "borderThickness");
-    rec.borderColorLoc = GetShaderLocation(shader, "borderColor");
+    rec.rectangleLoc = RLGetShaderLocation(shader, "rectangle");
+    rec.radiusLoc = RLGetShaderLocation(shader, "radius");
+    rec.colorLoc = RLGetShaderLocation(shader, "color");
+    rec.shadowRadiusLoc = RLGetShaderLocation(shader, "shadowRadius");
+    rec.shadowOffsetLoc = RLGetShaderLocation(shader, "shadowOffset");
+    rec.shadowScaleLoc = RLGetShaderLocation(shader, "shadowScale");
+    rec.shadowColorLoc = RLGetShaderLocation(shader, "shadowColor");
+    rec.borderThicknessLoc = RLGetShaderLocation(shader, "borderThickness");
+    rec.borderColorLoc = RLGetShaderLocation(shader, "borderColor");
 
     UpdateRoundedRectangle(rec, shader);
 
@@ -220,11 +220,11 @@ RoundedRectangle CreateRoundedRectangle(Vector4 cornerRadius, float shadowRadius
 }
 
 // Update rounded rectangle uniforms
-void UpdateRoundedRectangle(RoundedRectangle rec, Shader shader)
+void UpdateRoundedRectangle(RoundedRectangle rec, RLShader shader)
 {
-    SetShaderValue(shader, rec.radiusLoc, (float[]){ rec.cornerRadius.x, rec.cornerRadius.y, rec.cornerRadius.z, rec.cornerRadius.w }, SHADER_UNIFORM_VEC4);
-    SetShaderValue(shader, rec.shadowRadiusLoc, &rec.shadowRadius, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, rec.shadowOffsetLoc, (float[]){ rec.shadowOffset.x, rec.shadowOffset.y }, SHADER_UNIFORM_VEC2);
-    SetShaderValue(shader, rec.shadowScaleLoc, &rec.shadowScale, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, rec.borderThicknessLoc, &rec.borderThickness, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, rec.radiusLoc, (float[]){ rec.cornerRadius.x, rec.cornerRadius.y, rec.cornerRadius.z, rec.cornerRadius.w }, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shader, rec.shadowRadiusLoc, &rec.shadowRadius, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, rec.shadowOffsetLoc, (float[]){ rec.shadowOffset.x, rec.shadowOffset.y }, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, rec.shadowScaleLoc, &rec.shadowScale, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, rec.borderThicknessLoc, &rec.borderThickness, SHADER_UNIFORM_FLOAT);
 }

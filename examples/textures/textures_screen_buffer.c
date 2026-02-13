@@ -32,18 +32,18 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - screen buffer");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - screen buffer");
 
     int imageWidth = screenWidth/SCALE_FACTOR;
     int imageHeight = screenHeight/SCALE_FACTOR;
     int flameWidth = screenWidth/SCALE_FACTOR;
 
-    Color palette[MAX_COLORS] = { 0 };
+    RLColor palette[MAX_COLORS] = { 0 };
     unsigned char *indexBuffer = RL_CALLOC(imageWidth*imageWidth, sizeof(unsigned char));
     unsigned char *flameRootBuffer = RL_CALLOC(flameWidth, sizeof(unsigned char));
 
-    Image screenImage = GenImageColor(imageWidth, imageHeight, BLACK);
-    Texture screenTexture = LoadTextureFromImage(screenImage);
+    RLImage screenImage = RLGenImageColor(imageWidth, imageHeight, BLACK);
+    RLTexture screenTexture = RLLoadTextureFromImage(screenImage);
 
     // Generate flame color palette
     for (int i = 0; i < MAX_COLORS; i++)
@@ -52,14 +52,14 @@ int main(void)
         float hue = t*t;
         float saturation = t;
         float value = t;
-        palette[i] = ColorFromHSV(250.0f + 150.0f*hue, saturation, value);
+        palette[i] = RLColorFromHSV(250.0f + 150.0f*hue, saturation, value);
     }
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ int main(void)
         {
             unsigned char flame = flameRootBuffer[x];
             if (flame == 255) continue;
-            flame += GetRandomValue(0, 2);
+            flame += RLGetRandomValue(0, 2);
             if (flame > 255) flame = 255;
             flameRootBuffer[x] = flame;
         }
@@ -98,12 +98,12 @@ int main(void)
 
                 // Move pixel a row above
                 indexBuffer[i] = 0;
-                int moveX = GetRandomValue(0, 2) - 1;
+                int moveX = RLGetRandomValue(0, 2) - 1;
                 int newX = x + moveX;
                 if (newX < 0 || newX >= imageWidth) continue;
 
                 unsigned int iabove = i - imageWidth + moveX;
-                int decay = GetRandomValue(0, 3);
+                int decay = RLGetRandomValue(0, 3);
                 colorIndex -= (decay < colorIndex)? decay : colorIndex;
                 indexBuffer[iabove] = colorIndex;
             }
@@ -116,23 +116,23 @@ int main(void)
             {
                 unsigned int i = x + y*imageWidth;
                 unsigned char colorIndex = indexBuffer[i];
-                Color col = palette[colorIndex];
-                ImageDrawPixel(&screenImage, x, y, col);
+                RLColor col = palette[colorIndex];
+                RLImageDrawPixel(&screenImage, x, y, col);
             }
         }
 
-        UpdateTexture(screenTexture, screenImage.data);
+        RLUpdateTexture(screenTexture, screenImage.data);
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
             
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawTextureEx(screenTexture, (Vector2){ 0, 0 }, 0.0f, 2.0f, WHITE);
+            RLDrawTextureEx(screenTexture, (RLVector2){ 0, 0 }, 0.0f, 2.0f, WHITE);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -140,10 +140,10 @@ int main(void)
     //--------------------------------------------------------------------------------------
     RL_FREE(indexBuffer);
     RL_FREE(flameRootBuffer);
-    UnloadTexture(screenTexture);
-    UnloadImage(screenImage);
+    RLUnloadTexture(screenTexture);
+    RLUnloadImage(screenImage);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

@@ -35,34 +35,34 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - screen recording");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - screen recording");
 
     bool gifRecording = false;           // GIF recording state
     unsigned int gifFrameCounter = 0;    // GIF frames counter
     MsfGifState gifState = { 0 };        // MSGIF context state
 
-    Vector2 circlePosition = { 0.0f, screenHeight/2.0f };
+    RLVector2 circlePosition = { 0.0f, screenHeight/2.0f };
     float timeCounter = 0.0f;
 
     // Get sine wave points for line drawing
-    Vector2 sinePoints[MAX_SINEWAVE_POINTS] = { 0 };
+    RLVector2 sinePoints[MAX_SINEWAVE_POINTS] = { 0 };
     for (int i = 0; i < MAX_SINEWAVE_POINTS; i++)
     {
-        sinePoints[i].x = i*GetScreenWidth()/180.0f;
+        sinePoints[i].x = i*RLGetScreenWidth()/180.0f;
         sinePoints[i].y = screenHeight/2.0f + 150*sinf((2*PI/1.5f)*(1.0f/60.0f)*(float)i); // Calculate for 60 fps
     }
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
         // Update circle sinusoidal movement
-        timeCounter += GetFrameTime();
-        circlePosition.x += GetScreenWidth()/180.0f;
+        timeCounter += RLGetFrameTime();
+        circlePosition.x += RLGetScreenWidth()/180.0f;
         circlePosition.y = screenHeight/2.0f + 150*sinf((2*PI/1.5f)*timeCounter);
         if (circlePosition.x > screenWidth)
         {
@@ -72,26 +72,26 @@ int main(void)
         }
 
         // Start-Stop GIF recording on CTRL+R
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_R))
+        if (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsKeyPressed(KEY_R))
         {
             if (gifRecording)
             {
                 // Stop current recording and save file
                 gifRecording = false;
                 MsfGifResult result = msf_gif_end(&gifState);
-                SaveFileData(TextFormat("%s/screenrecording.gif", GetApplicationDirectory()), result.data, (unsigned int)result.dataSize);
+                RLSaveFileData(RLTextFormat("%s/screenrecording.gif", RLGetApplicationDirectory()), result.data, (unsigned int)result.dataSize);
                 msf_gif_free(result);
 
-                TraceLog(LOG_INFO, "Finish animated GIF recording");
+                RLTraceLog(LOG_INFO, "Finish animated GIF recording");
             }
             else
             {
                 // Start a new recording
                 gifRecording = true;
                 gifFrameCounter = 0;
-                msf_gif_begin(&gifState, GetRenderWidth(), GetRenderHeight());
+                msf_gif_begin(&gifState, RLGetRenderWidth(), RLGetRenderHeight());
 
-                TraceLog(LOG_INFO, "Start animated GIF recording");
+                RLTraceLog(LOG_INFO, "Start animated GIF recording");
             }
         }
 
@@ -104,32 +104,32 @@ int main(void)
             {
                 // Get image data for the current frame (from backbuffer)
                 // WARNING: This process is quite slow, it can generate stuttering
-                Image imScreen = LoadImageFromScreen();
+                RLImage imScreen = RLLoadImageFromScreen();
 
                 // Add the frame to the gif recording, providing and "estimated" time for display in centiseconds
                 msf_gif_frame(&gifState, imScreen.data, (int)((1.0f/60.0f)*GIF_RECORD_FRAMERATE)/10, 16, imScreen.width*4);
                 gifFrameCounter = 0;
 
-                UnloadImage(imScreen);    // Free image data
+                RLUnloadImage(imScreen);    // Free image data
             }
         }
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             for (int i = 0; i < (MAX_SINEWAVE_POINTS - 1); i++)
             {
-                DrawLineV(sinePoints[i], sinePoints[i + 1], MAROON);
-                DrawCircleV(sinePoints[i], 3, MAROON);
+                RLDrawLineV(sinePoints[i], sinePoints[i + 1], MAROON);
+                RLDrawCircleV(sinePoints[i], 3, MAROON);
             }
 
-            DrawCircleV(circlePosition, 30, RED);
+            RLDrawCircleV(circlePosition, 30, RED);
 
-            DrawFPS(10, 10);
+            RLDrawFPS(10, 10);
 
             /*
             // Draw record indicator
@@ -145,7 +145,7 @@ int main(void)
                 }
             }
             */
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
@@ -159,7 +159,7 @@ int main(void)
         gifRecording = false;
     }
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

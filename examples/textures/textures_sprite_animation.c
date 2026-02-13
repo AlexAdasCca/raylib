@@ -28,23 +28,23 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [textures] example - sprite animation");
+    RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - sprite animation");
 
     // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
-    Texture2D scarfy = LoadTexture("resources/scarfy.png");        // Texture loading
+    RLTexture2D scarfy = RLLoadTexture("resources/scarfy.png");        // Texture loading
 
-    Vector2 position = { 350.0f, 280.0f };
-    Rectangle frameRec = { 0.0f, 0.0f, (float)scarfy.width/6, (float)scarfy.height };
+    RLVector2 position = { 350.0f, 280.0f };
+    RLRectangle frameRec = { 0.0f, 0.0f, (float)scarfy.width/6, (float)scarfy.height };
     int currentFrame = 0;
 
     int framesCounter = 0;
     int framesSpeed = 8;            // Number of spritesheet frames shown by second
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -61,8 +61,8 @@ int main(void)
         }
 
         // Control frames speed
-        if (IsKeyPressed(KEY_RIGHT)) framesSpeed++;
-        else if (IsKeyPressed(KEY_LEFT)) framesSpeed--;
+        if (RLIsKeyPressed(KEY_RIGHT)) framesSpeed++;
+        else if (RLIsKeyPressed(KEY_LEFT)) framesSpeed--;
 
         if (framesSpeed > MAX_FRAME_SPEED) framesSpeed = MAX_FRAME_SPEED;
         else if (framesSpeed < MIN_FRAME_SPEED) framesSpeed = MIN_FRAME_SPEED;
@@ -70,37 +70,37 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
-            DrawTexture(scarfy, 15, 40, WHITE);
-            DrawRectangleLines(15, 40, scarfy.width, scarfy.height, LIME);
-            DrawRectangleLines(15 + (int)frameRec.x, 40 + (int)frameRec.y, (int)frameRec.width, (int)frameRec.height, RED);
+            RLDrawTexture(scarfy, 15, 40, WHITE);
+            RLDrawRectangleLines(15, 40, scarfy.width, scarfy.height, LIME);
+            RLDrawRectangleLines(15 + (int)frameRec.x, 40 + (int)frameRec.y, (int)frameRec.width, (int)frameRec.height, RED);
 
-            DrawText("FRAME SPEED: ", 165, 210, 10, DARKGRAY);
-            DrawText(TextFormat("%02i FPS", framesSpeed), 575, 210, 10, DARKGRAY);
-            DrawText("PRESS RIGHT/LEFT KEYS to CHANGE SPEED!", 290, 240, 10, DARKGRAY);
+            RLDrawText("FRAME SPEED: ", 165, 210, 10, DARKGRAY);
+            RLDrawText(RLTextFormat("%02i FPS", framesSpeed), 575, 210, 10, DARKGRAY);
+            RLDrawText("PRESS RIGHT/LEFT KEYS to CHANGE SPEED!", 290, 240, 10, DARKGRAY);
 
             for (int i = 0; i < MAX_FRAME_SPEED; i++)
             {
-                if (i < framesSpeed) DrawRectangle(250 + 21*i, 205, 20, 20, RED);
-                DrawRectangleLines(250 + 21*i, 205, 20, 20, MAROON);
+                if (i < framesSpeed) RLDrawRectangle(250 + 21*i, 205, 20, 20, RED);
+                RLDrawRectangleLines(250 + 21*i, 205, 20, 20, MAROON);
             }
 
-            DrawTextureRec(scarfy, frameRec, position, WHITE);  // Draw part of the texture
+            RLDrawTextureRec(scarfy, frameRec, position, WHITE);  // Draw part of the texture
 
-            DrawText("(c) Scarfy sprite by Eiden Marsal", screenWidth - 200, screenHeight - 20, 10, GRAY);
+            RLDrawText("(c) Scarfy sprite by Eiden Marsal", screenWidth - 200, screenHeight - 20, 10, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(scarfy);       // Texture unloading
+    RLUnloadTexture(scarfy);       // Texture unloading
 
-    CloseWindow();                // Close window and OpenGL context
+    RLCloseWindow();                // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

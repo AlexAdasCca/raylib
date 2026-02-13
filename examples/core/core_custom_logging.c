@@ -54,15 +54,15 @@ int main(void)
     const int screenHeight = 450;
 
     // Set custom logger
-    SetTraceLogCallback(CustomTraceLog);
+    RLSetTraceLogCallback(CustomTraceLog);
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - custom logging");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - custom logging");
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -71,19 +71,19 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-        ClearBackground(RAYWHITE);
+        RLClearBackground(RAYWHITE);
 
-        DrawText("Check out the console output to see the custom logger in action!", 60, 200, 20, LIGHTGRAY);
+        RLDrawText("Check out the console output to see the custom logger in action!", 60, 200, 20, LIGHTGRAY);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;

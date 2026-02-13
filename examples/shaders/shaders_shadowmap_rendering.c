@@ -28,9 +28,9 @@
 
 #define SHADOWMAP_RESOLUTION 1024
 
-static RenderTexture2D LoadShadowmapRenderTexture(int width, int height);
-static void UnloadShadowmapRenderTexture(RenderTexture2D target);
-static void DrawScene(Model cube, Model robot);
+static RLRenderTexture2D LoadShadowmapRenderTexture(int width, int height);
+static void UnloadShadowmapRenderTexture(RLRenderTexture2D target);
+static void DrawScene(RLModel cube, RLModel robot);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -46,100 +46,100 @@ int main(void)
     // which is the industry standard for shadows. This algorithm can be extended in a ridiculous number of ways to improve
     // realism and also adapt it for different scenes. This is pretty much the simplest possible implementation
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - shadowmap rendering");
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - shadowmap rendering");
 
-    Camera3D camera = (Camera3D){ 0 };
-    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f };
+    RLCamera3D camera = (RLCamera3D){ 0 };
+    camera.position = (RLVector3){ 10.0f, 10.0f, 10.0f };
     camera.target = Vector3Zero();
     camera.projection = CAMERA_PERSPECTIVE;
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
 
-    Shader shadowShader = LoadShader(TextFormat("resources/shaders/glsl%i/shadowmap.vs", GLSL_VERSION),
-                                     TextFormat("resources/shaders/glsl%i/shadowmap.fs", GLSL_VERSION));
-    shadowShader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(shadowShader, "viewPos");
+    RLShader shadowShader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/shadowmap.vs", GLSL_VERSION),
+                                     RLTextFormat("resources/shaders/glsl%i/shadowmap.fs", GLSL_VERSION));
+    shadowShader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shadowShader, "viewPos");
 
-    Vector3 lightDir = Vector3Normalize((Vector3){ 0.35f, -1.0f, -0.35f });
-    Color lightColor = WHITE;
-    Vector4 lightColorNormalized = ColorNormalize(lightColor);
-    int lightDirLoc = GetShaderLocation(shadowShader, "lightDir");
-    int lightColLoc = GetShaderLocation(shadowShader, "lightColor");
-    SetShaderValue(shadowShader, lightDirLoc, &lightDir, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shadowShader, lightColLoc, &lightColorNormalized, SHADER_UNIFORM_VEC4);
-    int ambientLoc = GetShaderLocation(shadowShader, "ambient");
+    RLVector3 lightDir = Vector3Normalize((RLVector3){ 0.35f, -1.0f, -0.35f });
+    RLColor lightColor = WHITE;
+    RLVector4 lightColorNormalized = RLColorNormalize(lightColor);
+    int lightDirLoc = RLGetShaderLocation(shadowShader, "lightDir");
+    int lightColLoc = RLGetShaderLocation(shadowShader, "lightColor");
+    RLSetShaderValue(shadowShader, lightDirLoc, &lightDir, SHADER_UNIFORM_VEC3);
+    RLSetShaderValue(shadowShader, lightColLoc, &lightColorNormalized, SHADER_UNIFORM_VEC4);
+    int ambientLoc = RLGetShaderLocation(shadowShader, "ambient");
     float ambient[4] = {0.1f, 0.1f, 0.1f, 1.0f};
-    SetShaderValue(shadowShader, ambientLoc, ambient, SHADER_UNIFORM_VEC4);
-    int lightVPLoc = GetShaderLocation(shadowShader, "lightVP");
-    int shadowMapLoc = GetShaderLocation(shadowShader, "shadowMap");
+    RLSetShaderValue(shadowShader, ambientLoc, ambient, SHADER_UNIFORM_VEC4);
+    int lightVPLoc = RLGetShaderLocation(shadowShader, "lightVP");
+    int shadowMapLoc = RLGetShaderLocation(shadowShader, "shadowMap");
     int shadowMapResolution = SHADOWMAP_RESOLUTION;
-    SetShaderValue(shadowShader, GetShaderLocation(shadowShader, "shadowMapResolution"), &shadowMapResolution, SHADER_UNIFORM_INT);
+    RLSetShaderValue(shadowShader, RLGetShaderLocation(shadowShader, "shadowMapResolution"), &shadowMapResolution, SHADER_UNIFORM_INT);
 
-    Model cube = LoadModelFromMesh(GenMeshCube(1.0f, 1.0f, 1.0f));
+    RLModel cube = RLLoadModelFromMesh(RLGenMeshCube(1.0f, 1.0f, 1.0f));
     cube.materials[0].shader = shadowShader;
-    Model robot = LoadModel("resources/models/robot.glb");
+    RLModel robot = RLLoadModel("resources/models/robot.glb");
     for (int i = 0; i < robot.materialCount; i++) robot.materials[i].shader = shadowShader;
     int animCount = 0;
-    ModelAnimation *robotAnimations = LoadModelAnimations("resources/models/robot.glb", &animCount);
+    RLModelAnimation *robotAnimations = RLLoadModelAnimations("resources/models/robot.glb", &animCount);
 
-    RenderTexture2D shadowMap = LoadShadowmapRenderTexture(SHADOWMAP_RESOLUTION, SHADOWMAP_RESOLUTION);
+    RLRenderTexture2D shadowMap = LoadShadowmapRenderTexture(SHADOWMAP_RESOLUTION, SHADOWMAP_RESOLUTION);
 
     // For the shadowmapping algorithm, we will be rendering everything from the light's point of view
-    Camera3D lightCamera = { 0 };
+    RLCamera3D lightCamera = { 0 };
     lightCamera.position = Vector3Scale(lightDir, -15.0f);
     lightCamera.target = Vector3Zero();
     lightCamera.projection = CAMERA_ORTHOGRAPHIC; // Use an orthographic projection for directional lights
-    lightCamera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    lightCamera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     lightCamera.fovy = 20.0f;
 
     int frameCounter = 0;
 
     // Store the light matrices
-    Matrix lightView = { 0 };
-    Matrix lightProj = { 0 };
-    Matrix lightViewProj = { 0 };
+    RLMatrix lightView = { 0 };
+    RLMatrix lightProj = { 0 };
+    RLMatrix lightViewProj = { 0 };
     int textureActiveSlot = 10; // Can be anything 0 to 15, but 0 will probably be taken up
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!RLWindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        float deltaTime = GetFrameTime();
+        float deltaTime = RLGetFrameTime();
 
-        Vector3 cameraPos = camera.position;
-        SetShaderValue(shadowShader, shadowShader.locs[SHADER_LOC_VECTOR_VIEW], &cameraPos, SHADER_UNIFORM_VEC3);
-        UpdateCamera(&camera, CAMERA_ORBITAL);
+        RLVector3 cameraPos = camera.position;
+        RLSetShaderValue(shadowShader, shadowShader.locs[SHADER_LOC_VECTOR_VIEW], &cameraPos, SHADER_UNIFORM_VEC3);
+        RLUpdateCamera(&camera, CAMERA_ORBITAL);
 
         frameCounter++;
         frameCounter %= (robotAnimations[0].frameCount);
-        UpdateModelAnimation(robot, robotAnimations[0], frameCounter);
+        RLUpdateModelAnimation(robot, robotAnimations[0], frameCounter);
 
         // Move light with arrow keys
         const float cameraSpeed = 0.05f;
-        if (IsKeyDown(KEY_LEFT))
+        if (RLIsKeyDown(KEY_LEFT))
         {
             if (lightDir.x < 0.6f) lightDir.x += cameraSpeed*60.0f*deltaTime;
         }
-        if (IsKeyDown(KEY_RIGHT))
+        if (RLIsKeyDown(KEY_RIGHT))
         {
             if (lightDir.x > -0.6f) lightDir.x -= cameraSpeed*60.0f*deltaTime;
         }
-        if (IsKeyDown(KEY_UP))
+        if (RLIsKeyDown(KEY_UP))
         {
             if (lightDir.z < 0.6f) lightDir.z += cameraSpeed*60.0f*deltaTime;
         }
-        if (IsKeyDown(KEY_DOWN))
+        if (RLIsKeyDown(KEY_DOWN))
         {
             if (lightDir.z > -0.6f) lightDir.z -= cameraSpeed*60.0f*deltaTime;
         }
 
         lightDir = Vector3Normalize(lightDir);
         lightCamera.position = Vector3Scale(lightDir, -15.0f);
-        SetShaderValue(shadowShader, lightDirLoc, &lightDir, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shadowShader, lightDirLoc, &lightDir, SHADER_UNIFORM_VEC3);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -149,51 +149,51 @@ int main(void)
         // Anything that is "visible" to the light is in light, anything that isn't is in shadow
         // We can later use the depth buffer when rendering everything from the player's point of view
         // to determine whether a given point is "visible" to the light
-        BeginTextureMode(shadowMap);
-            ClearBackground(WHITE);
+        RLBeginTextureMode(shadowMap);
+            RLClearBackground(WHITE);
 
-            BeginMode3D(lightCamera);
+            RLBeginMode3D(lightCamera);
                 lightView = rlGetMatrixModelview();
                 lightProj = rlGetMatrixProjection();
                 DrawScene(cube, robot);
-            EndMode3D();
+            RLEndMode3D();
 
-        EndTextureMode();
+        RLEndTextureMode();
         lightViewProj = MatrixMultiply(lightView, lightProj);
 
         // PASS 02: Draw the scene into main framebuffer, using the generated shadowmap
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
+        RLBeginDrawing();
+            RLClearBackground(RAYWHITE);
 
-            SetShaderValueMatrix(shadowShader, lightVPLoc, lightViewProj);
+            RLSetShaderValueMatrix(shadowShader, lightVPLoc, lightViewProj);
             rlEnableShader(shadowShader.id);
 
             rlActiveTextureSlot(textureActiveSlot);
             rlEnableTexture(shadowMap.depth.id);
             rlSetUniform(shadowMapLoc, &textureActiveSlot, SHADER_UNIFORM_INT, 1);
 
-            BeginMode3D(camera);
+            RLBeginMode3D(camera);
                 DrawScene(cube, robot); // Draw the same exact things as we drew in the shadowmap!
-            EndMode3D();
+            RLEndMode3D();
 
-            DrawText("Use the arrow keys to rotate the light!", 10, 10, 30, RED);
-            DrawText("Shadows in raylib using the shadowmapping algorithm!", screenWidth - 280, screenHeight - 20, 10, GRAY);
+            RLDrawText("Use the arrow keys to rotate the light!", 10, 10, 30, RED);
+            RLDrawText("Shadows in raylib using the shadowmapping algorithm!", screenWidth - 280, screenHeight - 20, 10, GRAY);
 
-        EndDrawing();
+        RLEndDrawing();
 
-        if (IsKeyPressed(KEY_F)) TakeScreenshot("shaders_shadowmap.png");
+        if (RLIsKeyPressed(KEY_F)) RLTakeScreenshot("shaders_shadowmap.png");
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadShader(shadowShader);
-    UnloadModel(cube);
-    UnloadModel(robot);
-    UnloadModelAnimations(robotAnimations, animCount);
+    RLUnloadShader(shadowShader);
+    RLUnloadModel(cube);
+    RLUnloadModel(robot);
+    RLUnloadModelAnimations(robotAnimations, animCount);
     UnloadShadowmapRenderTexture(shadowMap);
 
-    CloseWindow();        // Close window and OpenGL context
+    RLCloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -202,9 +202,9 @@ int main(void)
 // Load render texture for shadowmap projection
 // NOTE: Load framebuffer with only a texture depth attachment,
 // no color attachment required for shadowmap
-static RenderTexture2D LoadShadowmapRenderTexture(int width, int height)
+static RLRenderTexture2D LoadShadowmapRenderTexture(int width, int height)
 {
-    RenderTexture2D target = { 0 };
+    RLRenderTexture2D target = { 0 };
 
     target.id = rlLoadFramebuffer(); // Load an empty framebuffer
     target.texture.width = width;
@@ -236,7 +236,7 @@ static RenderTexture2D LoadShadowmapRenderTexture(int width, int height)
 }
 
 // Unload shadowmap render texture from GPU memory (VRAM)
-static void UnloadShadowmapRenderTexture(RenderTexture2D target)
+static void UnloadShadowmapRenderTexture(RLRenderTexture2D target)
 {
     if (target.id > 0)
     {
@@ -248,9 +248,9 @@ static void UnloadShadowmapRenderTexture(RenderTexture2D target)
 
 // Draw full scene projecting shadows
 // NOTE: Required  to be called several time to generate shadowmap
-static void DrawScene(Model cube, Model robot)
+static void DrawScene(RLModel cube, RLModel robot)
 {
-    DrawModelEx(cube, Vector3Zero(), (Vector3) { 0.0f, 1.0f, 0.0f }, 0.0f, (Vector3) { 10.0f, 1.0f, 10.0f }, BLUE);
-    DrawModelEx(cube, (Vector3) { 1.5f, 1.0f, -1.5f }, (Vector3) { 0.0f, 1.0f, 0.0f }, 0.0f, Vector3One(), WHITE);
-    DrawModelEx(robot, (Vector3) { 0.0f, 0.5f, 0.0f }, (Vector3) { 0.0f, 1.0f, 0.0f }, 0.0f, (Vector3) { 1.0f, 1.0f, 1.0f }, RED);
+    RLDrawModelEx(cube, Vector3Zero(), (RLVector3) { 0.0f, 1.0f, 0.0f }, 0.0f, (RLVector3) { 10.0f, 1.0f, 10.0f }, BLUE);
+    RLDrawModelEx(cube, (RLVector3) { 1.5f, 1.0f, -1.5f }, (RLVector3) { 0.0f, 1.0f, 0.0f }, 0.0f, Vector3One(), WHITE);
+    RLDrawModelEx(robot, (RLVector3) { 0.0f, 0.5f, 0.0f }, (RLVector3) { 0.0f, 1.0f, 0.0f }, 0.0f, (RLVector3) { 1.0f, 1.0f, 1.0f }, RED);
 }

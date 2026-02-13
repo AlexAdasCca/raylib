@@ -25,14 +25,14 @@
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 typedef struct ColorRect {
-    Color color;
-    Rectangle rect;
+    RLColor color;
+    RLRectangle rect;
 } ColorRect;
 
 //------------------------------------------------------------------------------------
 // Module Functions Declaration
 //------------------------------------------------------------------------------------
-static Color GenerateRandomColor(void);
+static RLColor GenerateRandomColor(void);
 static ColorRect *GenerateRandomColorRectSequence(float rectCount, float rectWidth, float screenWidth, float screenHeight);
 static void ShuffleColorRectSequence(ColorRect *rectangles, int rectCount);
 
@@ -46,23 +46,23 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - random sequence");
+    RLInitWindow(screenWidth, screenHeight, "raylib [core] example - random sequence");
 
     int rectCount = 20;
     float rectSize = (float)screenWidth/rectCount;
     ColorRect *rectangles = GenerateRandomColorRectSequence((float)rectCount, rectSize, (float)screenWidth, 0.75f*screenHeight);
 
-    SetTargetFPS(60);
+    RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose()) // Detect window close button or ESC key
+    while (!RLWindowShouldClose()) // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_SPACE)) ShuffleColorRectSequence(rectangles, rectCount);
+        if (RLIsKeyPressed(KEY_SPACE)) ShuffleColorRectSequence(rectangles, rectCount);
 
-        if (IsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(KEY_UP))
         {
             rectCount++;
             rectSize = (float)screenWidth/rectCount;
@@ -72,7 +72,7 @@ int main(void)
             rectangles = GenerateRandomColorRectSequence((float)rectCount, rectSize, (float)screenWidth, 0.75f*screenHeight);
         }
 
-        if (IsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(KEY_DOWN))
         {
             if (rectCount >= 4)
             {
@@ -88,33 +88,33 @@ int main(void)
 
         // Draw
         //----------------------------------------------------------------------------------
-        BeginDrawing();
+        RLBeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            RLClearBackground(RAYWHITE);
 
             for (int i = 0; i < rectCount; i++)
             {
-                DrawRectangleRec(rectangles[i].rect, rectangles[i].color);
+                RLDrawRectangleRec(rectangles[i].rect, rectangles[i].color);
 
-                DrawText("Press SPACE to shuffle the sequence", 10, screenHeight - 96, 20, BLACK);
+                RLDrawText("Press SPACE to shuffle the sequence", 10, screenHeight - 96, 20, BLACK);
 
-                DrawText("Press SPACE to shuffle the current sequence", 10, screenHeight - 96, 20, BLACK);
-                DrawText("Press UP to add a rectangle and generate a new sequence", 10, screenHeight - 64, 20, BLACK);
-                DrawText("Press DOWN to remove a rectangle and generate a new sequence", 10, screenHeight - 32, 20, BLACK);
+                RLDrawText("Press SPACE to shuffle the current sequence", 10, screenHeight - 96, 20, BLACK);
+                RLDrawText("Press UP to add a rectangle and generate a new sequence", 10, screenHeight - 64, 20, BLACK);
+                RLDrawText("Press DOWN to remove a rectangle and generate a new sequence", 10, screenHeight - 32, 20, BLACK);
             }
 
-            DrawText(TextFormat("Count: %d rectangles", rectCount), 10, 10, 20, MAROON);
+            RLDrawText(RLTextFormat("Count: %d rectangles", rectCount), 10, 10, 20, MAROON);
 
-            DrawFPS(screenWidth - 80, 10);
+            RLDrawFPS(screenWidth - 80, 10);
 
-        EndDrawing();
+        RLEndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
     free(rectangles);
-    CloseWindow(); // Close window and OpenGL context
+    RLCloseWindow(); // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
@@ -123,12 +123,12 @@ int main(void)
 //------------------------------------------------------------------------------------
 // Module Functions Definition
 //------------------------------------------------------------------------------------
-static Color GenerateRandomColor(void)
+static RLColor GenerateRandomColor(void)
 {
-    Color color = {
-        GetRandomValue(0, 255),
-        GetRandomValue(0, 255),
-        GetRandomValue(0, 255),
+    RLColor color = {
+        RLGetRandomValue(0, 255),
+        RLGetRandomValue(0, 255),
+        RLGetRandomValue(0, 255),
         255
     };
 
@@ -139,7 +139,7 @@ static ColorRect *GenerateRandomColorRectSequence(float rectCount, float rectWid
 {
     ColorRect *rectangles = (ColorRect *)RL_CALLOC((int)rectCount, sizeof(ColorRect));
 
-    int *seq = LoadRandomSequence((unsigned int)rectCount, 0, (unsigned int)rectCount - 1);
+    int *seq = RLLoadRandomSequence((unsigned int)rectCount, 0, (unsigned int)rectCount - 1);
     float rectSeqWidth = rectCount*rectWidth;
     float startX = (screenWidth - rectSeqWidth)*0.5f;
 
@@ -148,17 +148,17 @@ static ColorRect *GenerateRandomColorRectSequence(float rectCount, float rectWid
         int rectHeight = (int)Remap((float)seq[i], 0, rectCount - 1, 0, screenHeight);
 
         rectangles[i].color = GenerateRandomColor();
-        rectangles[i].rect = CLITERAL(Rectangle){ startX + i*rectWidth, screenHeight - rectHeight, rectWidth, (float)rectHeight };
+        rectangles[i].rect = CLITERAL(RLRectangle){ startX + i*rectWidth, screenHeight - rectHeight, rectWidth, (float)rectHeight };
     }
 
-    UnloadRandomSequence(seq);
+    RLUnloadRandomSequence(seq);
 
     return rectangles;
 }
 
 static void ShuffleColorRectSequence(ColorRect *rectangles, int rectCount)
 {
-    int *seq = LoadRandomSequence(rectCount, 0, rectCount -  1);
+    int *seq = RLLoadRandomSequence(rectCount, 0, rectCount -  1);
 
     for (int i1 = 0; i1 < rectCount; i1++)
     {
@@ -175,5 +175,5 @@ static void ShuffleColorRectSequence(ColorRect *rectangles, int rectCount)
         r2->rect.y = tmp.rect.y;
     }
 
-    UnloadRandomSequence(seq);
+    RLUnloadRandomSequence(seq);
 }
