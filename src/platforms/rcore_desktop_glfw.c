@@ -1,4 +1,4 @@
-/**********************************************************************************************
+﻿/**********************************************************************************************
 *
 *   rcore_desktop_glfw - Functions to manage window, graphics device and inputs
 *
@@ -107,6 +107,17 @@
 #include <stddef.h>  // Required for: size_t
 #include <rl_context.h>
 #include "rglfwglobal.h"
+
+#if defined(_WIN32)
+    // Assertions for the Win32 Route2/event-thread backend.
+    // Enabled in Debug builds (when NDEBUG is not defined) or when RLGLFW_DIAGNOSTICS is defined.
+    #if !defined(NDEBUG) || defined(RLGLFW_DIAGNOSTICS)
+        #include <assert.h>
+        #define RLGLFW_ASSERT(x) assert(x)
+    #else
+        #define RLGLFW_ASSERT(x) ((void)0)
+    #endif
+#endif
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
@@ -371,6 +382,9 @@ typedef struct
     void *user;
 } RLGlfwRenderCall;
 
+// Forward declaration: avoid implicit int prototype in C (MSVC) before definition.
+static bool RLGlfwIsThread(GLFWthread* thr);
+
 static void RLGlfwThreadCallTrampoline(void *p)
 {
     RLGlfwThreadCall *call = (RLGlfwThreadCall *)p;
@@ -382,7 +396,21 @@ static void RLGlfwThreadCallTrampoline(void *p)
 static void RLGlfwRenderCallTrampoline(void *p)
 {
     RLGlfwRenderCall *call = (RLGlfwRenderCall *)p;
-    if (call && call->ctx) RLSetCurrentContext(call->ctx);
+    if (call && call->ctx)
+    {
+        PlatformData *pd = (PlatformData *)call->ctx->platformData;
+        if ((pd != NULL) && pd->useEventThread)
+        {
+            // Render-thread tasks must execute on the owning render thread.
+            RLGLFW_ASSERT(pd->renderThread != NULL);
+            RLGLFW_ASSERT(RLGlfwIsThread(pd->renderThread));
+
+            // If the GLFWwindow exists, its user pointer must match the target RLContext.
+            if (pd->handle != NULL) RLGLFW_ASSERT(glfwGetWindowUserPointer(pd->handle) == call->ctx);
+        }
+
+        RLSetCurrentContext(call->ctx);
+    }
     if (call && call->fn) call->fn(call->user);
     if (call) RL_FREE(call);
 }
@@ -484,6 +512,13 @@ static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void
         RLSetCurrentContext(ctx);
         if (fn) fn(user);
         return;
+    }
+
+    // In event-thread mode we expect a dedicated render thread.
+    // If it is missing (and we're not in shutdown), something is inconsistent.
+    if (platform.useEventThread && !platform.closing)
+    {
+        RLGLFW_ASSERT(platform.renderThread != NULL);
     }
 
     // If render thread handle is missing, fall back to direct execution.
@@ -3284,6 +3319,14 @@ static void RLGlfwInvokeUserWindowRefresh(bool postEmptyEvent)
         return;
     }
 
+    // The user refresh callback is only enabled when FLAG_WINDOW_REFRESH_CALLBACK is set.
+    // This gating must apply to both single-threaded and event-thread modes.
+    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_REFRESH_CALLBACK))
+    {
+        if (postEmptyEvent) glfwPostEmptyEvent();
+        return;
+    }
+
     if ((CORE.Window.refreshCallback != NULL) && !CORE.Window.refreshCallbackActive)
     {
         CORE.Window.refreshCallbackActive = true;
@@ -3848,6 +3891,12 @@ static void RLGlfwTask_WindowFocus(void *user)
 static void RLGlfwTask_WindowRefresh(void *user)
 {
     (void)user;
+    // In event-thread mode, this task must run on the render thread.
+    if (platform.useEventThread)
+    {
+        RLGLFW_ASSERT(platform.renderThread != NULL);
+        RLGLFW_ASSERT(RLGlfwIsThread(platform.renderThread));
+    }
     RLGlfwInvokeUserWindowRefresh(false);
 }
 
@@ -4359,7 +4408,11 @@ static void RLGlfwEventThreadMain(void *p)
         glfwSetFramebufferSizeCallback(platform.handle, FramebufferSizeCallback);
         glfwSetWindowPosCallback(platform.handle, WindowPosCallback);
         glfwSetWindowMaximizeCallback(platform.handle, WindowMaximizeCallback);
-        glfwSetWindowRefreshCallback(platform.handle, WindowRefreshCallback);
+        // In event-thread mode, the window refresh callback is optional and controlled by
+        // FLAG_WINDOW_REFRESH_CALLBACK. When disabled, we still keep the event-thread mode
+        // semantics (render thread runs normally) without injecting user refresh draws.
+        if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_REFRESH_CALLBACK))
+            glfwSetWindowRefreshCallback(platform.handle, WindowRefreshCallback);
         glfwSetWindowCloseCallback(platform.handle, WindowCloseCallback);
         glfwSetWindowIconifyCallback(platform.handle, WindowIconifyCallback);
         glfwSetWindowFocusCallback(platform.handle, WindowFocusCallback);

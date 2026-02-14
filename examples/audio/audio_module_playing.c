@@ -75,13 +75,13 @@ static unsigned __stdcall SecondaryWindowThread(void* arg)
     RLContext* ctx = RLCreateContext();
     RLSetCurrentContext(ctx);
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_EVENT_THREAD);
     RLInitWindow(680, 370, "raylib [thread] secondary window");
     //RLSetWindowMaxSize(1000, 800);
     RLSetTargetFPS(60);
 
     Win32PlatformData* platformData = (Win32PlatformData*)ctx->platformData;
-platformData->mainThread = (struct GLFWthread*)arg;
+    //_GLFWwindow* window = (_GLFWwindow*)platformData->handle;
 
     while (!QuitRequested() && !RLWindowShouldClose())
     {
@@ -102,6 +102,16 @@ platformData->mainThread = (struct GLFWthread*)arg;
 }
 #endif  // _WIN32
 
+static RLMusic gMusic;
+static void OnRefreshDraw(void)
+{
+    double t = RLGetTime();
+    int x = 20 + (int)(10.0 * sin(t * 6.283));
+    RLUpdateMusicStream(gMusic);
+
+    RLClearBackground(RAYWHITE);
+    RLDrawText("Refreshing during modal loop...", x, 20, 20, RED);
+}
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -113,12 +123,13 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);  // NOTE: Try to enable MSAA 4X
+    RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_REFRESH_CALLBACK);  // NOTE: Try to enable MSAA 4X
 
     RLInitWindow(screenWidth, screenHeight, "raylib [audio] example - module playing");
 
     RLInitAudioDevice();                  // Initialize audio device
 
+    RLSetWindowRefreshCallback(OnRefreshDraw);
 
 #if defined(_WIN32)
     HANDLE hThread = (HANDLE)_beginthreadex(NULL, 0, SecondaryWindowThread, NULL, 0, NULL);
@@ -139,11 +150,11 @@ int main(void)
         circles[i].color = colors[RLGetRandomValue(0, 13)];
     }
 
-    RLMusic music = RLLoadMusicStream("resources/mini1111.xm");
-    music.looping = false;
+    gMusic = RLLoadMusicStream("resources/mini1111.xm");
+    gMusic.looping = false;
     float pitch = 1.0f;
 
-    RLPlayMusicStream(music);
+    RLPlayMusicStream(gMusic);
 
     float timePlayed = 0.0f;
     bool pause = false;
@@ -160,13 +171,13 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateMusicStream(music);      // Update music buffer with new stream data
+        RLUpdateMusicStream(gMusic);      // Update music buffer with new stream data
 
         // Restart music playing (stop and play)
         if (RLIsKeyPressed(KEY_SPACE))
         {
-            RLStopMusicStream(music);
-            RLPlayMusicStream(music);
+            RLStopMusicStream(gMusic);
+            RLPlayMusicStream(gMusic);
             pause = false;
         }
 
@@ -175,17 +186,17 @@ int main(void)
         {
             pause = !pause;
 
-            if (pause) RLPauseMusicStream(music);
-            else RLResumeMusicStream(music);
+            if (pause) RLPauseMusicStream(gMusic);
+            else RLResumeMusicStream(gMusic);
         }
 
         if (RLIsKeyDown(KEY_DOWN)) pitch -= 0.01f;
         else if (RLIsKeyDown(KEY_UP)) pitch += 0.01f;
 
-        RLSetMusicPitch(music, pitch);
+        RLSetMusicPitch(gMusic, pitch);
 
         // Get timePlayed scaled to bar dimensions
-        timePlayed = RLGetMusicTimePlayed(music) / RLGetMusicTimeLength(music) * (screenWidth - 40);
+        timePlayed = RLGetMusicTimePlayed(gMusic) / RLGetMusicTimeLength(gMusic) * (screenWidth - 40);
 
         // Color circles animation
         for (int i = MAX_CIRCLES - 1; (i >= 0) && !pause; i--)
@@ -248,7 +259,7 @@ int main(void)
     }
 #endif
 
-    RLUnloadMusicStream(music);          // Unload music stream buffers from RAM
+    RLUnloadMusicStream(gMusic);          // Unload music stream buffers from RAM
 
     RLCloseAudioDevice();     // Close audio device (music streaming is automatically stopped)
 

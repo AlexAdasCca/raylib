@@ -1,6 +1,5 @@
 # Setup the project and settings
-project(examples)
-
+project(examples LANGUAGES C CXX)
 # Directories that contain examples
 set(example_dirs
     audio
@@ -49,9 +48,11 @@ endif ()
 set(example_sources)
 set(example_resources)
 foreach (example_dir ${example_dirs})
-    # Get the .c files
-    file(GLOB sources ${example_dir}/*.c)
-    list(APPEND example_sources ${sources})
+    # Get the .c/.cpp files
+    file(GLOB sources_c ${example_dir}/*.c)
+    file(GLOB sources_cpp ${example_dir}/*.cpp)
+    list(APPEND example_sources ${sources_c})
+    list(APPEND example_sources ${sources_cpp})
 
     # Any any resources
     file(GLOB resources ${example_dir}/resources/*)
@@ -147,11 +148,14 @@ endif ()
 # Do each example
 foreach (example_source ${example_sources})
     # Create the basename for the example
-    get_filename_component(example_name ${example_source} NAME)
-    string(REPLACE ".c" "" example_name ${example_name})
-
+    get_filename_component(example_name ${example_source} NAME_WE)
     # Setup the example
     add_executable(${example_name} ${example_source})
+    get_filename_component(example_ext ${example_source} EXT)
+    if (example_ext STREQUAL ".cpp")
+        target_compile_features(${example_name} PRIVATE cxx_std_17)
+    endif()
+
 
     target_link_libraries(${example_name} raylib)
     if (NOT WIN32)
