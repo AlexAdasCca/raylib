@@ -1245,9 +1245,9 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
             else if (window->cursorMode == GLFW_CURSOR_CAPTURED)
                 releaseCursor();
 
-            // Optional: While moving/resizing, generate periodic refresh so that
-            // applications can keep repainting.
-            if (uMsg == WM_ENTERSIZEMOVE && window->callbacks.refresh && !window->win32.refreshTimerId)
+            // Optional: While inside Win32 modal loops (interactive move/size or menu tracking),
+            // generate periodic refresh so that applications can keep repainting.
+            if (window->callbacks.refresh && !window->win32.refreshTimerId)
                 window->win32.refreshTimerId = SetTimer(window->win32.handle, GLFW_TIMER_REFRESH, 16, NULL);
 
             break;
@@ -1266,7 +1266,7 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
             else if (window->cursorMode == GLFW_CURSOR_CAPTURED)
                 captureCursor(window);
 
-            if (uMsg == WM_EXITSIZEMOVE && window->win32.refreshTimerId)
+            if (window->win32.refreshTimerId)
             {
                 KillTimer(window->win32.handle, GLFW_TIMER_REFRESH);
                 window->win32.refreshTimerId = 0;

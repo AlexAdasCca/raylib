@@ -16,6 +16,9 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+#include <stdint.h>
+
 // Acquire the global GLFW runtime (ref-counted). The first acquire initializes GLFW.
 // Returns false if glfwInit fails.
 bool RLGlfwGlobalAcquire(void);
@@ -32,6 +35,37 @@ void RLGlfwGlobalUnlock(void);
 // becomes the event-pump thread.
 bool RLGlfwIsEventPumpThread(void);
 void RLGlfwSetEventPumpThreadToCurrent(void);
+
+// ---------------------------------------------------------------------------------
+// Thread/sync primitives (C ABI)
+// ---------------------------------------------------------------------------------
+// These are intentionally tiny helpers to allow Win32 event-thread separation
+// from C code without introducing platform-specific headers here.
+
+typedef struct RLThread RLThread;
+typedef struct RLMutex  RLMutex;
+typedef struct RLEvent  RLEvent;
+
+typedef void (*RLThreadFn)(void* user);
+
+// Thread
+RLThread* RLThreadCreate(RLThreadFn fn, void* user);
+void      RLThreadJoin(RLThread* t);
+void      RLThreadDestroy(RLThread* t);
+
+// Mutex
+RLMutex*  RLMutexCreate(void);
+void      RLMutexLock(RLMutex* m);
+void      RLMutexUnlock(RLMutex* m);
+void      RLMutexDestroy(RLMutex* m);
+
+// Auto-reset event
+RLEvent*  RLEventCreate(bool initialSignaled);
+void      RLEventSignal(RLEvent* e);
+void      RLEventReset(RLEvent* e);
+void      RLEventWait(RLEvent* e);
+bool      RLEventWaitTimeout(RLEvent* e, uint32_t timeoutMs);
+void      RLEventDestroy(RLEvent* e);
 
 #ifdef __cplusplus
 }

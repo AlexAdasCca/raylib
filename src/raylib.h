@@ -553,7 +553,8 @@ typedef enum {
     FLAG_MSAA_4X_HINT       = 0x00000020,   // Set to try enabling MSAA 4X
     FLAG_INTERLACED_HINT    = 0x00010000,   // Set to try enabling interlaced video format (for V3D)
     FLAG_WINDOW_EVENT_THREAD        = 0x00020000,   // [GLFW/Win32] Create a dedicated message/event thread for this window (render thread separated)
-    FLAG_WINDOW_REFRESH_CALLBACK   = 0x00040000    // [GLFW/Win32] Use window refresh callback/timer to wake rendering during drag/resize
+    FLAG_WINDOW_REFRESH_CALLBACK   = 0x00040000,   // [GLFW/Win32] Enable OS-driven refresh ticks during Win32 modal loops (move/size/menu); use with RLSetWindowRefreshCallback()
+    FLAG_WINDOW_BROADCAST_WAKE    = 0x00080000    // [GLFW/Win32] Broadcast wake to all windows' render threads on shutdown/close (optional)
 } RLConfigFlags;
 
 // Trace log level
@@ -954,6 +955,13 @@ typedef bool (*RLSaveFileDataCallback)(const char *fileName, void *data, int dat
 typedef char *(*RLLoadFileTextCallback)(const char *fileName);            // FileIO: Load text data
 typedef bool (*RLSaveFileTextCallback)(const char *fileName, const char *text); // FileIO: Save text data
 
+
+// Window refresh callback
+// NOTE: When FLAG_WINDOW_REFRESH_CALLBACK is enabled (Win32/GLFW), this callback can be invoked while the OS is in a modal loop
+// (e.g. interactive move/size or menu tracking) to allow the application to redraw without using a separate event thread.
+// The callback is executed with a valid OpenGL context current on the calling thread.
+typedef void (*RLWindowRefreshCallback)(void);
+
 //------------------------------------------------------------------------------------
 // Global Variables Definition
 //------------------------------------------------------------------------------------
@@ -1106,6 +1114,7 @@ RLAPI void RLUnloadRandomSequence(int *sequence);         // Unload random value
 // Misc. functions
 RLAPI void RLTakeScreenshot(const char *fileName);                // Takes a screenshot of current screen (filename extension defines format)
 RLAPI void RLSetConfigFlags(unsigned int flags);                  // Setup init configuration flags (view FLAGS)
+RLAPI void RLSetWindowRefreshCallback(RLWindowRefreshCallback callback); // Set user window refresh callback (used by FLAG_WINDOW_REFRESH_CALLBACK)
 RLAPI void RLOpenURL(const char *url);                            // Open URL with default system browser (if available)
 
 // Logging system

@@ -303,6 +303,8 @@ typedef struct CoreData {
         bool shouldClose;                   // Check if window set for closing
         bool resizedLastFrame;              // Check if window has been resized last frame
         bool eventWaiting;                  // Wait for events before ending frame
+        RLWindowRefreshCallback refreshCallback;  // User callback for OS-driven refresh ticks (Win32 modal loops)
+        bool refreshCallbackActive;           // Guard: true while running refresh callback-driven frame
         bool usingFbo;                      // Using FBO (RenderTexture) for rendering instead of default framebuffer
 
         Size display;                       // Display width and height (monitor, device-screen, LCD, ...)
@@ -972,19 +974,22 @@ void RLEndDrawing(void)
 
     CORE.Time.frame = CORE.Time.update + CORE.Time.draw;
 
-    // Wait for some milliseconds...
-    if (CORE.Time.frame < CORE.Time.target)
+    if (!CORE.Window.refreshCallbackActive)
     {
-        RLWaitTime(CORE.Time.target - CORE.Time.frame);
+        // Wait for some milliseconds...
+        if (CORE.Time.frame < CORE.Time.target)
+        {
+            RLWaitTime(CORE.Time.target - CORE.Time.frame);
 
-        CORE.Time.current = RLGetTime();
-        double waitTime = CORE.Time.current - CORE.Time.previous;
-        CORE.Time.previous = CORE.Time.current;
+            CORE.Time.current = RLGetTime();
+            double waitTime = CORE.Time.current - CORE.Time.previous;
+            CORE.Time.previous = CORE.Time.current;
 
-        CORE.Time.frame += waitTime;    // Total frame time: update + draw + wait
+            CORE.Time.frame += waitTime;    // Total frame time: update + draw + wait
+        }
+
+        RLPollInputEvents();      // Poll user events (before next frame update)
     }
-
-    RLPollInputEvents();      // Poll user events (before next frame update)
 #endif
 
 #if defined(SUPPORT_SCREEN_CAPTURE)
@@ -1920,6 +1925,12 @@ void RLSetConfigFlags(unsigned int flags)
     // Selected flags are set but not evaluated at this point,
     // flag evaluation happens at InitWindow() or SetWindowState()
     FLAG_SET(CORE.Window.flags, flags);
+}
+
+// Set window refresh callback (used by FLAG_WINDOW_REFRESH_CALLBACK on Win32/GLFW)
+void RLSetWindowRefreshCallback(RLWindowRefreshCallback callback)
+{
+    CORE.Window.refreshCallback = callback;
 }
 
 // void OpenURL(const char *url);   // Defined per platform
