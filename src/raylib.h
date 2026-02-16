@@ -555,7 +555,8 @@ typedef enum {
     FLAG_INTERLACED_HINT    = 0x00010000,   // Set to try enabling interlaced video format (for V3D)
     FLAG_WINDOW_EVENT_THREAD        = 0x00020000,   // [GLFW/Win32] Create a dedicated message/event thread for this window (render thread separated)
     FLAG_WINDOW_REFRESH_CALLBACK   = 0x00040000,   // [GLFW/Win32] Enable OS-driven refresh ticks during Win32 modal loops (move/size/menu); use with RLSetWindowRefreshCallback()
-    FLAG_WINDOW_BROADCAST_WAKE    = 0x00080000    // [GLFW/Win32] Broadcast wake to all windows' render threads on shutdown/close (optional)
+    FLAG_WINDOW_BROADCAST_WAKE    = 0x00080000, // [GLFW/Win32] Broadcast wake to all windows' render threads on shutdown/close (optional)
+    FLAG_WINDOW_SNAP_LAYOUT       = 0x00100000    // [GLFW/Win32] Keep Win11 Snap Layout affordances even when non-resizable (blocks interactive border resize)
 } RLConfigFlags;
 
 // Trace log level
@@ -976,6 +977,24 @@ typedef void (*RLWindowRefreshCallback)(void);
 // By default, a per-thread default context is created on first use.
 typedef struct RLContext RLContext;
 
+
+// GPU resource sharing between contexts/windows (desktop OpenGL backend).
+// NOTE: Resource sharing is implemented using platform OpenGL context sharing (GLFW share parameter).
+//       When enabled, OpenGL objects created in one context (textures, buffers, shaders, etc.) become
+//       visible to other contexts in the same share group.
+//
+// Important:
+// - Sharing is backend-dependent; currently supported on DESKTOP (GLFW) OpenGL.
+// - You must configure sharing BEFORE calling RLInitWindow/RLInitWindowEx for that context.
+// - Resource lifetime becomes share-group wide: deleting/unloading an object in any context deletes it for all.
+// - If contexts render on different threads, you are responsible for synchronization (glFlush/glFinish/fences).
+
+typedef enum RLContextResourceShareMode {
+    RL_CONTEXT_SHARE_NONE = 0,             // Do not share GPU objects (default).
+    RL_CONTEXT_SHARE_WITH_PRIMARY = 1,     // Share with the process primary window/context (first created).
+    RL_CONTEXT_SHARE_WITH_CONTEXT = 2      // Share with an explicit RLContext (see RLContextSetResourceShareMode).
+} RLContextResourceShareMode;
+
 #if defined(__cplusplus)
 extern "C" {            // Prevents name mangling of functions
 #endif
@@ -985,6 +1004,11 @@ RLAPI RLContext *RLCreateContext(void);
 RLAPI void RLDestroyContext(RLContext *ctx);
 RLAPI void RLSetCurrentContext(RLContext *ctx);
 RLAPI RLContext *RLGetCurrentContext(void);
+
+// Configure how the next window created for this context will share GPU resources.
+RLAPI void RLContextSetResourceShareMode(RLContext* ctx, RLContextResourceShareMode mode, RLContext* shareWith);
+RLAPI RLContextResourceShareMode RLContextGetResourceShareMode(RLContext* ctx);
+RLAPI RLContext* RLContextGetResourceShareContext(RLContext* ctx);
 
 // Window-related functions
 RLAPI void RLInitWindow(int width, int height, const char *title);  // Initialize window and OpenGL context
@@ -999,6 +1023,7 @@ RLAPI bool RLIsWindowMaximized(void);                               // Check if 
 RLAPI bool RLIsWindowFocused(void);                                 // Check if window is currently focused
 RLAPI bool RLIsWindowResized(void);                                 // Check if window has been resized last frame
 RLAPI bool RLIsWindowState(unsigned int flag);                      // Check if one specific window flag is enabled
+RLAPI unsigned int RLGetWindowState(void);                         // Get current window configuration state flags
 RLAPI void RLSetWindowState(unsigned int flags);                    // Set window configuration state using flags
 RLAPI void RLClearWindowState(unsigned int flags);                  // Clear window configuration state flags
 RLAPI void RLToggleFullscreen(void);                                // Toggle window state: fullscreen/windowed, resizes monitor to match window resolution

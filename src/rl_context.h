@@ -43,6 +43,12 @@ struct RLContext
     // One-shot Win32 class name override for the next GLFW window created
     // (desktop+GLFW on Windows only). Empty string means default.
     char win32ClassName[256];
+
+
+    // GPU resource sharing configuration for the next window created by this context.
+    // See RLContextSetResourceShareMode() in raylib.h.
+    int resourceShareMode;
+    struct RLContext *resourceShareWith;
 };
 
 // Internal helper called by rl_context.cpp before freeing RLContext.

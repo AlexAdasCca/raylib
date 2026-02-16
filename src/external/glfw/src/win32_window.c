@@ -307,6 +307,7 @@ static LRESULT CALLBACK dispatchWindowProcWin32(HWND hWnd, UINT uMsg, WPARAM wPa
 
     switch (uMsg)
     {
+
         case GLFW_WM_THREAD_TASK:
             _glfwDrainThreadTasksWin32(ctx);
             return 0;
@@ -465,7 +466,7 @@ static DWORD getWindowStyle(const _GLFWwindow* window)
         {
             style |= WS_CAPTION;
 
-            if (window->resizable)
+            if (window->resizable || window->win32.snapLayout)
                 style |= WS_MAXIMIZEBOX | WS_THICKFRAME;
         }
         else
@@ -1063,6 +1064,24 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 
     switch (uMsg)
     {
+        case WM_NCHITTEST:
+        {
+            // Allow Windows 11 Snap Layout affordances while preventing
+            // interactive border resizing when the window is not resizable.
+            LRESULT hit = DefWindowProcW(hWnd, uMsg, wParam, lParam);
+            if (window->win32.snapLayout && !window->resizable)
+            {
+                switch (hit)
+                {
+                    case HTLEFT: case HTRIGHT: case HTTOP: case HTBOTTOM:
+                    case HTTOPLEFT: case HTTOPRIGHT: case HTBOTTOMLEFT: case HTBOTTOMRIGHT:
+                        return HTCLIENT;
+                    default: break;
+                }
+            }
+            return hit;
+        }
+
         case WM_MOUSEACTIVATE:
         {
             // HACK: Postpone cursor disabling when the window was activated by
@@ -1140,6 +1159,14 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
                     else
                         break;
                 }
+                case SC_SIZE:
+                {
+                    if (window->win32.snapLayout && !window->resizable)
+                        return 0;
+                    break;
+                }
+
+
 
                 // User trying to access application menu using ALT?
                 case SC_KEYMENU:
@@ -1812,6 +1839,17 @@ static int createNativeWindow(_GLFWwindow* window,
 {
     int frameX, frameY, frameWidth, frameHeight;
     WCHAR* wideTitle;
+
+    // NOTE: Some style decisions (e.g. Snap Layout support) depend on Win32-specific
+    // per-window state. Ensure it is populated from wndconfig BEFORE computing the
+    // initial styles / creating the native window.
+    window->win32.scaleToMonitor = wndconfig->scaleToMonitor;
+    window->win32.keymenu = wndconfig->win32.keymenu;
+    window->win32.showDefault = wndconfig->win32.showDefault;
+    window->win32.snapLayout = wndconfig->win32.snapLayout;
+
+
+
     DWORD style = getWindowStyle(window);
     DWORD exStyle = getWindowExStyle(window);
 
@@ -1933,9 +1971,6 @@ static int createNativeWindow(_GLFWwindow* window,
                                     WM_COPYGLOBALDATA, MSGFLT_ALLOW, NULL);
     }
 
-    window->win32.scaleToMonitor = wndconfig->scaleToMonitor;
-    window->win32.keymenu = wndconfig->win32.keymenu;
-    window->win32.showDefault = wndconfig->win32.showDefault;
 
     if (!window->monitor)
     {
@@ -2558,6 +2593,19 @@ void _glfwSetWindowResizableWin32(_GLFWwindow* window, GLFWbool enabled)
 {
     updateWindowStyles(window);
 }
+
+void _glfwSetWindowSnapLayoutWin32(_GLFWwindow* window, GLFWbool enabled)
+{
+    if (window->win32.snapLayout == enabled)
+        return;
+
+    window->win32.snapLayout = enabled;
+
+    // Only affects windowed mode. Fullscreen uses monitor and ignores frame styles.
+    if (!window->monitor)
+        updateWindowStyles(window);
+}
+
 
 void _glfwSetWindowDecoratedWin32(_GLFWwindow* window, GLFWbool enabled)
 {

@@ -33,6 +33,10 @@
 #include <stdlib.h>
 #include <float.h>
 
+#if defined(_GLFW_WIN32)
+void _glfwSetWindowSnapLayoutWin32(_GLFWwindow* window, GLFWbool enabled);
+#endif
+
 
 //////////////////////////////////////////////////////////////////////////
 //////                         GLFW event API                       //////
@@ -384,6 +388,9 @@ GLFWAPI void glfwWindowHint(int hint, int value)
             return;
         case GLFW_WIN32_SHOWDEFAULT:
             _glfw.hints.window.win32.showDefault = value ? GLFW_TRUE : GLFW_FALSE;
+            return;
+        case GLFW_WIN32_SNAP_LAYOUT:
+            _glfw.hints.window.win32.snapLayout = value ? GLFW_TRUE : GLFW_FALSE;
             return;
         case GLFW_COCOA_GRAPHICS_SWITCHING:
             _glfw.hints.context.nsgl.offline = value ? GLFW_TRUE : GLFW_FALSE;
@@ -981,6 +988,13 @@ GLFWAPI void glfwSetWindowAttrib(GLFWwindow* handle, int attrib, int value)
             window->mousePassthrough = value;
             _glfw.platform.setWindowMousePassthrough(window, value);
             return;
+#if defined(_GLFW_WIN32)
+        case GLFW_WIN32_SNAP_LAYOUT:
+            if (window->win32.snapLayout == value)
+                return;
+            _glfwSetWindowSnapLayoutWin32(window, value ? GLFW_TRUE : GLFW_FALSE);
+            return;
+#endif
     }
 
     _glfwInputError(GLFW_INVALID_ENUM, "Invalid window attribute 0x%08X", attrib);

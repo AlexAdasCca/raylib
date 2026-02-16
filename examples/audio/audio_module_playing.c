@@ -183,8 +183,12 @@ int main(void)
 
     RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_REFRESH_CALLBACK);  // NOTE: Try to enable MSAA 4X
 
+    RLSetWindowState(FLAG_WINDOW_SNAP_LAYOUT);
+
     RLInitWindowEx(screenWidth, screenHeight, 
         "raylib [audio] example - module playing", "RLCustomWindowClass");
+
+    //RLSetWindowState(FLAG_WINDOW_SNAP_LAYOUT);
 
     RLInitAudioDevice();                  // Initialize audio device
 

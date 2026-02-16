@@ -1182,6 +1182,12 @@ bool RLIsWindowState(unsigned int flag)
     return FLAG_IS_SET(CORE.Window.flags, flag);
 }
 
+// Get current window configuration state flags
+unsigned int RLGetWindowState(void)
+{
+    return CORE.Window.flags;
+}
+
 // Get current screen width
 int RLGetScreenWidth(void)
 {

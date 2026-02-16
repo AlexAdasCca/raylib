@@ -471,6 +471,11 @@ typedef struct _GLFWwindowWin32
     GLFWbool            scaleToMonitor;
     GLFWbool            keymenu;
     GLFWbool            showDefault;
+    // If true, keep Win11 Snap Layout behavior even when the window is not
+    // user-resizable (i.e. force WS_THICKFRAME|WS_MAXIMIZEBOX in the style).
+    // User sizing is then typically blocked via WM_NCHITTEST/SC_SIZE handling
+    // in the Win32 window procedure.
+    GLFWbool            snapLayout;
 
     // Cached size used to filter out duplicate events
     int                 width, height;

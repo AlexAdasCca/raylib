@@ -1134,6 +1134,13 @@ extern "C" {
  *  Overrides the Win32 window class name used for windows created by GLFW.
  */
 #define GLFW_WIN32_CLASS_NAME       0x00025003
+/*! @brief Win32 specific [window hint](@ref GLFW_WIN32_SNAP_LAYOUT_hint).
+ *
+ *  Enables Snap Layout affordances (maximize button hover) even if the window
+ *  is not user-resizable. When enabled with a non-resizable window, GLFW will
+ *  keep the required style bits while preventing interactive border resizing.
+ */
+#define GLFW_WIN32_SNAP_LAYOUT     0x00025004
 /*! @brief Wayland specific
  *  [window hint](@ref GLFW_WAYLAND_APP_ID_hint).
  *  

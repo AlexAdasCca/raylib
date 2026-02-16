@@ -21,6 +21,9 @@ static RLContext *RLAllocContext(void)
         ctx->bIsShapesTextureReady = false;
         ctx->stShapesTexture = { 0 };
         ctx->stShapesTextureRec = { 0.0f, 0.0f, 0.0f, 0.0f };
+        // Resource sharing defaults
+        ctx->resourceShareMode = RL_CONTEXT_SHARE_NONE;
+        ctx->resourceShareWith = nullptr;
     }
 
     return ctx;
@@ -41,6 +44,26 @@ extern "C" RLContext *RLCreateContext(void)
 {
     return RLAllocContext();
 }
+
+extern "C" void RLContextSetResourceShareMode(RLContext *ctx, RLContextResourceShareMode mode, RLContext *shareWith)
+{
+    if (!ctx) return;
+    ctx->resourceShareMode = (int)mode;
+    ctx->resourceShareWith = (mode == RL_CONTEXT_SHARE_WITH_CONTEXT) ? shareWith : nullptr;
+}
+
+extern "C" RLContextResourceShareMode RLContextGetResourceShareMode(RLContext *ctx)
+{
+    if (!ctx) return RL_CONTEXT_SHARE_NONE;
+    return (RLContextResourceShareMode)ctx->resourceShareMode;
+}
+
+extern "C" RLContext *RLContextGetResourceShareContext(RLContext *ctx)
+{
+    if (!ctx) return nullptr;
+    return (RLContext *)ctx->resourceShareWith;
+}
+
 
 extern "C" void RLDestroyContext(RLContext *ctx)
 {

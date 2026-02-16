@@ -389,6 +389,41 @@ static inline PlatformData *RLGetPlatformDataPtr(void)
 }
 #define platform (*RLGetPlatformDataPtr())
 
+
+//----------------------------------------------------------------------------------
+// GPU resource sharing between contexts/windows
+//----------------------------------------------------------------------------------
+static GLFWwindow *RLGlfwGetPrimaryShareWindow(void)
+{
+#if defined(_WIN32)
+    return gRlGlfwPrimaryWindow;
+#else
+    return NULL;
+#endif
+}
+
+static GLFWwindow *RLGlfwResolveShareWindowForContext(RLContext *ctx)
+{
+    if (ctx == NULL) return NULL;
+
+    RLContextResourceShareMode mode = (RLContextResourceShareMode)ctx->resourceShareMode;
+    if (mode == RL_CONTEXT_SHARE_WITH_PRIMARY)
+    {
+        GLFWwindow *w = RLGlfwGetPrimaryShareWindow();
+        return (w != NULL) ? w : NULL;
+    }
+    else if (mode == RL_CONTEXT_SHARE_WITH_CONTEXT)
+    {
+        RLContext *other = (RLContext *)ctx->resourceShareWith;
+        if (other == NULL) return NULL;
+        PlatformData *opd = (PlatformData *)other->platformData;
+        if ((opd == NULL) || (opd->handle == NULL)) return NULL;
+        return opd->handle;
+    }
+
+    return NULL;
+}
+
 //----------------------------------------------------------------------------------
 // Module Internal Functions Declaration
 //----------------------------------------------------------------------------------
@@ -725,6 +760,7 @@ static void RLGlfwTask_SetWindowPos(void *user);
 static void RLGlfwTask_SetWindowSize(void *user);
 static void RLGlfwTask_SetWindowTitle(void *user);
 static void RLGlfwTask_SetWindowAttrib(void *user);
+static void RLGlfwTask_SetWindowRefreshCallback(void *user);
 static void RLGlfwTask_SetWindowSizeLimits(void *user);
 static void RLGlfwTask_SetWindowOpacity(void *user);
 static void RLGlfwTask_SetWindowMonitor(void *user);
@@ -759,6 +795,18 @@ static void RLGlfwSetWindowAttribThreadAware(int attrib, int value)
     }
 
     glfwSetWindowAttrib(platform.handle, attrib, value);
+}
+
+static void RLGlfwSetWindowRefreshCallbackThreadAware(int enable)
+{
+    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    {
+        int v = enable;
+        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowRefreshCallback, &v, true);
+        return;
+    }
+
+    glfwSetWindowRefreshCallback(platform.handle, enable ? WindowRefreshCallback : NULL);
 }
 
 static void RLGlfwHideWindowThreadAware(void)
@@ -1149,7 +1197,14 @@ void RLRestoreWindow(void)
 // Set window configuration state using flags
 void RLSetWindowState(unsigned int flags)
 {
-    if (!CORE.Window.ready) TRACELOG(LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
+    // NOTE: SetWindowState() is meant to be used after InitWindow().
+    // For pre-init configuration, route to SetConfigFlags() to avoid touching platform handles.
+    if (!CORE.Window.ready)
+    {
+        TRACELOG(LOG_WARNING, "WINDOW: SetWindowState called before window initialization, routing to SetConfigFlags");
+        RLSetConfigFlags(flags);
+        return;
+    }
 
     // Check previous state and requested state to apply required changes
     // NOTE: In most cases the functions already change the flags internally
@@ -1249,6 +1304,38 @@ void RLSetWindowState(unsigned int flags)
         FLAG_SET(CORE.Window.flags, FLAG_WINDOW_ALWAYS_RUN);
     }
 
+    
+    // State change: FLAG_WINDOW_BROADCAST_WAKE
+    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_BROADCAST_WAKE) != FLAG_IS_SET(flags, FLAG_WINDOW_BROADCAST_WAKE)) && FLAG_IS_SET(flags, FLAG_WINDOW_BROADCAST_WAKE))
+    {
+#if defined(_WIN32)
+        platform.broadcastWake = true;
+#endif
+        FLAG_SET(CORE.Window.flags, FLAG_WINDOW_BROADCAST_WAKE);
+    }
+
+    // State change: FLAG_WINDOW_REFRESH_CALLBACK
+    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_REFRESH_CALLBACK) != FLAG_IS_SET(flags, FLAG_WINDOW_REFRESH_CALLBACK)) && FLAG_IS_SET(flags, FLAG_WINDOW_REFRESH_CALLBACK))
+    {
+#if defined(_WIN32)
+        RLGlfwSetWindowRefreshCallbackThreadAware(1);
+#else
+        glfwSetWindowRefreshCallback(platform.handle, WindowRefreshCallback);
+#endif
+        FLAG_SET(CORE.Window.flags, FLAG_WINDOW_REFRESH_CALLBACK);
+    }
+
+    // State change: FLAG_WINDOW_SNAP_LAYOUT
+    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_SNAP_LAYOUT) != FLAG_IS_SET(flags, FLAG_WINDOW_SNAP_LAYOUT)) && FLAG_IS_SET(flags, FLAG_WINDOW_SNAP_LAYOUT))
+    {
+#if defined(_WIN32)
+        RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_TRUE);
+#endif
+        FLAG_SET(CORE.Window.flags, FLAG_WINDOW_SNAP_LAYOUT);
+    }
+
+    /* RL_DYNAMIC_SET_WIN32_FLAGS */
+
     // The following states can not be changed after window creation
 
     // State change: FLAG_WINDOW_TRANSPARENT
@@ -1290,6 +1377,15 @@ void RLSetWindowState(unsigned int flags)
 // Clear window configuration state flags
 void RLClearWindowState(unsigned int flags)
 {
+    // NOTE: ClearWindowState() is meant to be used after InitWindow().
+    // If called pre-init, just clear the pending config flags and return.
+    if (!CORE.Window.ready)
+    {
+        TRACELOG(LOG_WARNING, "WINDOW: ClearWindowState called before window initialization, clearing pending config flags");
+        FLAG_CLEAR(CORE.Window.flags, flags);
+        return;
+    }
+
     // Check previous state and requested state to apply required changes
     // NOTE: In most cases the functions already change the flags internally
 
@@ -1385,6 +1481,38 @@ void RLClearWindowState(unsigned int flags)
     {
         FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_ALWAYS_RUN);
     }
+
+    
+    // State change: FLAG_WINDOW_BROADCAST_WAKE
+    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_BROADCAST_WAKE)) && (FLAG_IS_SET(flags, FLAG_WINDOW_BROADCAST_WAKE)))
+    {
+#if defined(_WIN32)
+        platform.broadcastWake = false;
+#endif
+        FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_BROADCAST_WAKE);
+    }
+
+    // State change: FLAG_WINDOW_REFRESH_CALLBACK
+    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_REFRESH_CALLBACK)) && (FLAG_IS_SET(flags, FLAG_WINDOW_REFRESH_CALLBACK)))
+    {
+#if defined(_WIN32)
+        RLGlfwSetWindowRefreshCallbackThreadAware(0);
+#else
+        glfwSetWindowRefreshCallback(platform.handle, NULL);
+#endif
+        FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_REFRESH_CALLBACK);
+    }
+
+    // State change: FLAG_WINDOW_SNAP_LAYOUT
+    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_SNAP_LAYOUT)) && (FLAG_IS_SET(flags, FLAG_WINDOW_SNAP_LAYOUT)))
+    {
+#if defined(_WIN32)
+        RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_FALSE);
+#endif
+        FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_SNAP_LAYOUT);
+    }
+
+    /* RL_DYNAMIC_CLEAR_WIN32_FLAGS */
 
     // The following states can not be changed after window creation
 
@@ -2074,7 +2202,7 @@ int RLWin32IsKnownWindowHandle(void* hwnd)
 
 int RLWin32SetWindowPropByHandle(void* hwnd, const char* name, void* value)
 {
-    const HWND hNativeWindowHandle = (HWND)hwnd;
+    HWND hNativeWindowHandle = (HWND)hwnd;
     if (hNativeWindowHandle == NULL || name == NULL) return 0;
     if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return 0;
     RLWin32PropSetCall callData = { name, value, 0 };
@@ -2084,7 +2212,7 @@ int RLWin32SetWindowPropByHandle(void* hwnd, const char* name, void* value)
 
 void* RLWin32GetWindowPropByHandle(void* hwnd, const char* name)
 {
-    const HWND hNativeWindowHandle = (HWND)hwnd;
+    HWND hNativeWindowHandle = (HWND)hwnd;
     if (hNativeWindowHandle == NULL || name == NULL) return NULL;
     if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return NULL;
     RLWin32PropGetCall callData = { name, NULL };
@@ -2094,7 +2222,7 @@ void* RLWin32GetWindowPropByHandle(void* hwnd, const char* name)
 
 void* RLWin32RemoveWindowPropByHandle(void* hwnd, const char* name)
 {
-    const HWND hNativeWindowHandle = (HWND)hwnd;
+    HWND hNativeWindowHandle = (HWND)hwnd;
     if (hNativeWindowHandle == NULL || name == NULL) return NULL;
     if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return NULL;
     RLWin32PropGetCall callData = { name, NULL };
@@ -2104,7 +2232,7 @@ void* RLWin32RemoveWindowPropByHandle(void* hwnd, const char* name)
 
 void* RLWin32AddMessageHookByHandle(void* hwnd, RLWin32MessageHook hook, void* user)
 {
-    const HWND hNativeWindowHandle = (HWND)hwnd;
+    HWND hNativeWindowHandle = (HWND)hwnd;
     if (hNativeWindowHandle == NULL || hook == NULL) return NULL;
     if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return NULL;
 
@@ -2128,7 +2256,7 @@ void* RLWin32AddMessageHookByHandle(void* hwnd, RLWin32MessageHook hook, void* u
 
 int RLWin32RemoveMessageHookByHandle(void* hwnd, void* token)
 {
-    const HWND hNativeWindowHandle = (HWND)hwnd;
+    HWND hNativeWindowHandle = (HWND)hwnd;
     if (hNativeWindowHandle == NULL || token == NULL) return 0;
     if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return 0;
 
@@ -2183,10 +2311,10 @@ intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvo
 {
     if (!hwnd || !fn) return (intptr_t)0;
 
-    const HWND h = (HWND)hwnd;
+    HWND hNativeWindowHandle = (HWND)hwnd;
 
     // If already on the owning window thread, run inline.
-    const DWORD ownerTid = GetWindowThreadProcessId(h, NULL);
+    const DWORD ownerTid = GetWindowThreadProcessId(hNativeWindowHandle, NULL);
     if (ownerTid != 0 && ownerTid == GetCurrentThreadId())
     {
         return fn(hwnd, user);
@@ -2195,7 +2323,7 @@ intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvo
     if (wait)
     {
         RLWin32UserInvokeCall call = { fn, hwnd, user, 0 };
-        return (intptr_t)RLWin32DispatchToHwnd(h, RLWin32Dispatch_InvokeUser, &call);
+        return (intptr_t)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_InvokeUser, &call);
     }
 
     RLWin32UserInvokeCall* call = (RLWin32UserInvokeCall*)RL_CALLOC(1, sizeof(RLWin32UserInvokeCall));
@@ -2206,7 +2334,10 @@ intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvo
     call->user = user;
     call->autoFree = 1;
 
-    return PostMessageW(h, RLWin32GetDispatchMessageId(), (WPARAM)RLWin32Dispatch_InvokeUser, (LPARAM)call) ? (intptr_t)1 : (intptr_t)0;
+    return PostMessageW(hNativeWindowHandle,                        /* hWnd */
+                        RLWin32GetDispatchMessageId(),              /* Msg */
+                        (WPARAM)RLWin32Dispatch_InvokeUser,         /* wParam */
+                        (LPARAM)call) ? (intptr_t)1 : (intptr_t)0;  /* lParam */
 }
 
 #ifndef RL_WINDOW_RENDER_THREAD_INVOKE_DEFINED
@@ -2245,7 +2376,7 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
 {
     if (!hwnd || !fn) return (intptr_t)0;
 
-    const HWND h = (HWND)hwnd;
+    HWND h = (HWND)hwnd;
     PlatformData* pd = RLWin32FindPlatformByHwnd(h);
     if (!pd || !pd->ownerCtx) return (intptr_t)0;
 
@@ -3128,6 +3259,11 @@ int InitPlatform(void)
     if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE)) glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // Resizable window
     else glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);  // Avoid window being resizable
 
+#if defined(_WIN32)
+    // Keep Win32 Snap Layout affordances even when the window is not user-resizable
+    glfwWindowHint(GLFW_WIN32_SNAP_LAYOUT, FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_SNAP_LAYOUT)? GLFW_TRUE : GLFW_FALSE);
+#endif
+
     // Disable FLAG_WINDOW_MINIMIZED, not supported on initialization
     if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
 
@@ -3336,7 +3472,9 @@ int InitPlatform(void)
             CORE.Window.screen = CORE.Window.display;
         }
 
-        platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", monitor, NULL);
+        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(RLGetCurrentContext());
+
+        platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", monitor, shareWindow);
         if (!platform.handle)
         {
             RLGlfwGlobalRelease();
@@ -3355,7 +3493,9 @@ int InitPlatform(void)
         if (CORE.Window.screen.width == 0) CORE.Window.screen.width = 1;
         if (CORE.Window.screen.height == 0) CORE.Window.screen.height = 1;
 
-        platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", NULL, NULL);
+        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(RLGetCurrentContext());
+
+        platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", NULL, shareWindow);
         if (!platform.handle)
         {
             RLGlfwGlobalRelease();
@@ -3414,6 +3554,15 @@ _rlglfw_window_created:
     // Cache HWND and ensure this PlatformData participates in the global registry.
     if (platform.win32Hwnd == NULL) platform.win32Hwnd = (HWND)glfwGetWin32Window(platform.handle);
     RLGlfwPlatformRegister(&platform);
+
+    // NOTE: In useEventThread mode the native window is created on the GLFW event thread.
+    // Some Win32-specific behavior (like Snap Layout affordances) must be explicitly synced
+    // after the GLFWwindow exists, otherwise RLSetConfigFlags() may appear ineffective.
+    if (FLAG_IS_SET(requestedWindowFlags, FLAG_WINDOW_SNAP_LAYOUT))
+    {
+        // Force-sync the GLFW window attribute to the requested flag.
+        RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_TRUE);
+    }
 #endif
 
     glfwMakeContextCurrent(platform.handle);
@@ -5029,6 +5178,14 @@ static void RLGlfwTask_SetWindowAttrib(void *user)
     if ((platform.handle != NULL) && (av != NULL)) glfwSetWindowAttrib(platform.handle, av[0], av[1]);
 }
 
+// Toggle GLFW refresh callback (thread-affine in Win32 event-thread mode)
+static void RLGlfwTask_SetWindowRefreshCallback(void *user)
+{
+    const int *enable = (const int *)user;
+    if ((platform.handle == NULL) || (enable == NULL)) return;
+    glfwSetWindowRefreshCallback(platform.handle, (*enable) ? WindowRefreshCallback : NULL);
+}
+
 static void RLGlfwTask_SetWindowSizeLimits(void *user)
 {
     const int *lim = (const int *)user;
@@ -5263,7 +5420,9 @@ static void RLGlfwEventThreadMain(void *p)
         }
     }
 
-    platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, CORE.Window.title, monitor, NULL);
+    GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
+
+    platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, CORE.Window.title, monitor, shareWindow);
 
     if (platform.handle != NULL)
     {
