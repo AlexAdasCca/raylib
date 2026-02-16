@@ -584,6 +584,286 @@ const char *RLTextFormat(const char *text, ...); // Formatting of text with vari
     #endif
 #endif // SUPPORT_CLIPBOARD_IMAGE
 
+
+//----------------------------------------------------------------------------------
+// Event-thread diagnostics (optional, see src/config.h)
+//----------------------------------------------------------------------------------
+#ifndef RL_EVENT_DIAG_STATS
+    #define RL_EVENT_DIAG_STATS 0
+#endif
+
+typedef enum RLDiagPayloadKind {
+    RL_DIAG_PAYLOAD_MOUSEMOVE = 0,
+    RL_DIAG_PAYLOAD_MOUSEWHEEL,
+    RL_DIAG_PAYLOAD_MOUSEBUTTON,
+    RL_DIAG_PAYLOAD_KEY,
+    RL_DIAG_PAYLOAD_CHAR,
+    RL_DIAG_PAYLOAD_WINPOS,
+    RL_DIAG_PAYLOAD_FBSIZE,
+    RL_DIAG_PAYLOAD_SCALE,
+    RL_DIAG_PAYLOAD_DROP,
+    RL_DIAG_PAYLOAD_WINCLOSE,
+    RL_DIAG_PAYLOAD_OTHER,
+    RL_DIAG_PAYLOAD__COUNT
+} RLDiagPayloadKind;
+
+#if RL_EVENT_DIAG_STATS
+    // IMPORTANT: Do not include <windows.h> here.
+    // raylib's win32_clipboard.h provides minimal Win32 types/structs when windows.h is absent.
+    // Including windows.h in a unity-build translation unit can cause redefinition conflicts.
+    // For Win32 atomics we use MSVC intrinsics from <intrin.h> instead.
+
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+        #pragma intrinsic(_InterlockedExchangeAdd64)
+        #pragma intrinsic(_InterlockedCompareExchange64)
+        #pragma intrinsic(_InterlockedExchange64)
+
+        static inline long long RLDiag_Add64(volatile long long *p, long long v)
+        {
+            // _InterlockedExchangeAdd64 returns the previous value.
+            return _InterlockedExchangeAdd64((volatile __int64*)p, (__int64)v) + v;
+        }
+
+        static inline long long RLDiag_Load64(volatile long long *p)
+        {
+            return _InterlockedCompareExchange64((volatile __int64*)p, 0, 0);
+        }
+
+        static inline void RLDiag_Store64(volatile long long *p, long long v)
+        {
+            (void)_InterlockedExchange64((volatile __int64*)p, (__int64)v);
+        }
+
+        static inline void RLDiag_Max64(volatile long long *p, long long v)
+        {
+            for (;;)
+            {
+                long long cur = RLDiag_Load64(p);
+                if (v <= cur) break;
+                if (_InterlockedCompareExchange64((volatile __int64*)p, (__int64)v, (__int64)cur) == (__int64)cur) break;
+            }
+        }
+
+    #elif defined(__GNUC__) || defined(__clang__)
+
+        static inline long long RLDiag_Add64(volatile long long *p, long long v) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
+        static inline long long RLDiag_Load64(volatile long long *p) { return __atomic_load_n(p, __ATOMIC_SEQ_CST); }
+        static inline void RLDiag_Store64(volatile long long *p, long long v) { __atomic_store_n(p, v, __ATOMIC_SEQ_CST); }
+        static inline void RLDiag_Max64(volatile long long *p, long long v)
+        {
+            for (;;)
+            {
+                long long cur = RLDiag_Load64(p);
+                if (v <= cur) break;
+                if (__atomic_compare_exchange_n((long long*)p, &cur, v, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) break;
+            }
+        }
+
+    #else
+        // Fallback (best-effort, not strictly atomic). Should be rare.
+        static inline long long RLDiag_Add64(volatile long long *p, long long v) { long long nv = (*p + v); *p = nv; return nv; }
+        static inline long long RLDiag_Load64(volatile long long *p) { return *p; }
+        static inline void RLDiag_Store64(volatile long long *p, long long v) { *p = v; }
+        static inline void RLDiag_Max64(volatile long long *p, long long v) { if (v > *p) *p = v; }
+    #endif
+
+    #if defined(_MSC_VER)
+        __declspec(thread) static unsigned int rlDiag_tlsPumpTaskCount = 0;
+        __declspec(thread) static int rlDiag_tlsInPump = 0;
+    #else
+        static __thread unsigned int rlDiag_tlsPumpTaskCount = 0;
+        static __thread int rlDiag_tlsInPump = 0;
+    #endif
+#endif // RL_EVENT_DIAG_STATS
+
+// Global counters (updated from event/render threads)
+static volatile long long rlDiag_renderCallAlloc = 0;
+static volatile long long rlDiag_renderCallFree = 0;
+
+static volatile long long rlDiag_payloadAlloc[RL_DIAG_PAYLOAD__COUNT] = { 0 };
+static volatile long long rlDiag_payloadFree[RL_DIAG_PAYLOAD__COUNT] = { 0 };
+static volatile long long rlDiag_payloadAllocBytes = 0;
+static volatile long long rlDiag_payloadFreeBytes = 0;
+
+static volatile long long rlDiag_payloadOutstanding = 0;
+static volatile long long rlDiag_payloadOutstandingMax = 0;
+
+static volatile long long rlDiag_tasksPosted = 0;
+static volatile long long rlDiag_tasksExecuted = 0;
+
+static volatile long long rlDiag_pumpCalls = 0;
+static volatile long long rlDiag_pumpTasksTotal = 0;
+static volatile long long rlDiag_pumpTasksMax = 0;
+static volatile long long rlDiag_pumpTimeTotalUs = 0;
+static volatile long long rlDiag_pumpTimeMaxUs = 0;
+
+#if RL_EVENT_DIAG_STATS
+static inline void RLDiag_OnPayloadAlloc(RLDiagPayloadKind kind, size_t bytes)
+{
+    if ((unsigned)kind >= (unsigned)RL_DIAG_PAYLOAD__COUNT) kind = RL_DIAG_PAYLOAD_OTHER;
+    RLDiag_Add64(&rlDiag_payloadAlloc[kind], 1);
+    RLDiag_Add64(&rlDiag_payloadAllocBytes, (long long)bytes);
+    long long out = RLDiag_Add64(&rlDiag_payloadOutstanding, 1);
+    RLDiag_Max64(&rlDiag_payloadOutstandingMax, out);
+}
+
+static inline void RLDiag_OnPayloadFree(RLDiagPayloadKind kind, size_t bytes)
+{
+    if ((unsigned)kind >= (unsigned)RL_DIAG_PAYLOAD__COUNT) kind = RL_DIAG_PAYLOAD_OTHER;
+    RLDiag_Add64(&rlDiag_payloadFree[kind], 1);
+    RLDiag_Add64(&rlDiag_payloadFreeBytes, (long long)bytes);
+    (void)RLDiag_Add64(&rlDiag_payloadOutstanding, -1);
+}
+
+static inline void RLDiag_OnRenderCallAlloc(size_t bytes)
+{
+    (void)bytes;
+    RLDiag_Add64(&rlDiag_renderCallAlloc, 1);
+}
+
+static inline void RLDiag_OnRenderCallFree(size_t bytes)
+{
+    (void)bytes;
+    RLDiag_Add64(&rlDiag_renderCallFree, 1);
+}
+
+static inline void RLDiag_OnTaskPosted(void) { RLDiag_Add64(&rlDiag_tasksPosted, 1); }
+static inline void RLDiag_OnTaskExecuted(void)
+{
+    RLDiag_Add64(&rlDiag_tasksExecuted, 1);
+    if (rlDiag_tlsInPump) rlDiag_tlsPumpTaskCount++;
+}
+
+static inline void RLDiag_PumpBegin(void) { rlDiag_tlsInPump = 1; rlDiag_tlsPumpTaskCount = 0; }
+static inline unsigned int RLDiag_PumpEnd(void) { unsigned int n = rlDiag_tlsPumpTaskCount; rlDiag_tlsInPump = 0; return n; }
+
+static inline void RLDiag_OnPump(double dtSeconds, unsigned int tasksExecuted)
+{
+    long long us = (long long)(dtSeconds * 1000000.0);
+    if (us < 0) us = 0;
+
+    RLDiag_Add64(&rlDiag_pumpCalls, 1);
+    RLDiag_Add64(&rlDiag_pumpTasksTotal, (long long)tasksExecuted);
+    RLDiag_Max64(&rlDiag_pumpTasksMax, (long long)tasksExecuted);
+
+    RLDiag_Add64(&rlDiag_pumpTimeTotalUs, us);
+    RLDiag_Max64(&rlDiag_pumpTimeMaxUs, us);
+}
+
+#define RL_DIAG_PAYLOAD_ALLOC(kind, bytes) RLDiag_OnPayloadAlloc((kind), (bytes))
+#define RL_DIAG_PAYLOAD_FREE(kind, bytes)  RLDiag_OnPayloadFree((kind), (bytes))
+#define RL_DIAG_RENDERCALL_ALLOC(bytes)    RLDiag_OnRenderCallAlloc((bytes))
+#define RL_DIAG_RENDERCALL_FREE(bytes)     RLDiag_OnRenderCallFree((bytes))
+#define RL_DIAG_TASK_POSTED()              RLDiag_OnTaskPosted()
+#define RL_DIAG_TASK_EXECUTED()            RLDiag_OnTaskExecuted()
+#define RL_DIAG_PUMP_BEGIN()               RLDiag_PumpBegin()
+#define RL_DIAG_PUMP_END()                 RLDiag_PumpEnd()
+#define RL_DIAG_ON_PUMP(dt, tasks)         RLDiag_OnPump((dt), (tasks))
+
+#else
+// Compiled out
+#define RL_DIAG_PAYLOAD_ALLOC(kind, bytes) ((void)0)
+#define RL_DIAG_PAYLOAD_FREE(kind, bytes)  ((void)0)
+#define RL_DIAG_RENDERCALL_ALLOC(bytes)    ((void)0)
+#define RL_DIAG_RENDERCALL_FREE(bytes)     ((void)0)
+#define RL_DIAG_TASK_POSTED()              ((void)0)
+#define RL_DIAG_TASK_EXECUTED()            ((void)0)
+#define RL_DIAG_PUMP_BEGIN()               ((void)0)
+#define RL_DIAG_PUMP_END()                 (0u)
+#define RL_DIAG_ON_PUMP(dt, tasks)         ((void)0)
+#endif
+
+RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
+{
+    RLEventThreadDiagStats out = { 0 };
+
+#if RL_EVENT_DIAG_STATS
+    out.renderCallAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_renderCallAlloc);
+    out.renderCallFree  = (unsigned long long)RLDiag_Load64(&rlDiag_renderCallFree);
+
+    // Totals
+    unsigned long long payloadAllocTotal = 0;
+    unsigned long long payloadFreeTotal = 0;
+    for (int i = 0; i < (int)RL_DIAG_PAYLOAD__COUNT; i++)
+    {
+        payloadAllocTotal += (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[i]);
+        payloadFreeTotal  += (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[i]);
+    }
+
+    out.payloadAlloc = payloadAllocTotal;
+    out.payloadFree  = payloadFreeTotal;
+    out.payloadAllocBytes = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAllocBytes);
+    out.payloadFreeBytes  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFreeBytes);
+    out.payloadOutstandingMax = (unsigned long long)RLDiag_Load64(&rlDiag_payloadOutstandingMax);
+
+    // Breakdown
+    out.mouseMoveAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_MOUSEMOVE]);
+    out.mouseMoveFree  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_MOUSEMOVE]);
+    out.mouseWheelAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_MOUSEWHEEL]);
+    out.mouseWheelFree  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_MOUSEWHEEL]);
+    out.mouseButtonAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_MOUSEBUTTON]);
+    out.mouseButtonFree  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_MOUSEBUTTON]);
+    out.keyAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_KEY]);
+    out.keyFree  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_KEY]);
+    out.chAlloc  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_CHAR]);
+    out.chFree   = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_CHAR]);
+    out.winPosAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_WINPOS]);
+    out.winPosFree  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_WINPOS]);
+    out.fbSizeAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_FBSIZE]);
+    out.fbSizeFree  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_FBSIZE]);
+    out.scaleAlloc  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_SCALE]);
+    out.scaleFree   = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_SCALE]);
+    out.dropAlloc   = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_DROP]);
+    out.dropFree    = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_DROP]);
+    out.winCloseAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_WINCLOSE]);
+    out.winCloseFree  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_WINCLOSE]);
+    out.otherAlloc  = (unsigned long long)RLDiag_Load64(&rlDiag_payloadAlloc[RL_DIAG_PAYLOAD_OTHER]);
+    out.otherFree   = (unsigned long long)RLDiag_Load64(&rlDiag_payloadFree[RL_DIAG_PAYLOAD_OTHER]);
+
+    out.tasksPosted   = (unsigned long long)RLDiag_Load64(&rlDiag_tasksPosted);
+    out.tasksExecuted = (unsigned long long)RLDiag_Load64(&rlDiag_tasksExecuted);
+
+    out.pumpCalls = (unsigned long long)RLDiag_Load64(&rlDiag_pumpCalls);
+    out.pumpTasksExecutedTotal = (unsigned long long)RLDiag_Load64(&rlDiag_pumpTasksTotal);
+    out.pumpTasksExecutedMax = (unsigned int)RLDiag_Load64(&rlDiag_pumpTasksMax);
+
+    long long totalUs = RLDiag_Load64(&rlDiag_pumpTimeTotalUs);
+    long long maxUs   = RLDiag_Load64(&rlDiag_pumpTimeMaxUs);
+    out.pumpTimeTotalMs = (double)totalUs / 1000.0;
+    out.pumpTimeMaxMs   = (double)maxUs / 1000.0;
+#endif
+
+    return out;
+}
+
+void RLResetEventThreadDiagStats(void)
+{
+#if RL_EVENT_DIAG_STATS
+    RLDiag_Store64(&rlDiag_renderCallAlloc, 0);
+    RLDiag_Store64(&rlDiag_renderCallFree, 0);
+
+    for (int i = 0; i < (int)RL_DIAG_PAYLOAD__COUNT; i++)
+    {
+        RLDiag_Store64(&rlDiag_payloadAlloc[i], 0);
+        RLDiag_Store64(&rlDiag_payloadFree[i], 0);
+    }
+    RLDiag_Store64(&rlDiag_payloadAllocBytes, 0);
+    RLDiag_Store64(&rlDiag_payloadFreeBytes, 0);
+    RLDiag_Store64(&rlDiag_payloadOutstanding, 0);
+    RLDiag_Store64(&rlDiag_payloadOutstandingMax, 0);
+
+    RLDiag_Store64(&rlDiag_tasksPosted, 0);
+    RLDiag_Store64(&rlDiag_tasksExecuted, 0);
+
+    RLDiag_Store64(&rlDiag_pumpCalls, 0);
+    RLDiag_Store64(&rlDiag_pumpTasksTotal, 0);
+    RLDiag_Store64(&rlDiag_pumpTasksMax, 0);
+    RLDiag_Store64(&rlDiag_pumpTimeTotalUs, 0);
+    RLDiag_Store64(&rlDiag_pumpTimeMaxUs, 0);
+#endif
+}
+
 // Include platform-specific submodules
 #if defined(PLATFORM_DESKTOP_GLFW)
     #include "platforms/rcore_desktop_glfw.c"
@@ -801,6 +1081,39 @@ void RLInitWindow(int width, int height, const char *title)
     RLSetRandomSeed((unsigned int)time(NULL));
 
     TRACELOG(LOG_INFO, "SYSTEM: Working Directory: %s", RLGetWorkingDirectory());
+}
+
+// Set one-shot Win32 class name for the next window creation.
+void RLSetWindowWin32ClassName(const char *win32ClassName)
+{
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP)
+    RLContext* ctx = RLGetCurrentContext();
+    if (!ctx)
+        return;
+
+    if (!win32ClassName)
+    {
+        ctx->win32ClassName[0] = '\0';
+        return;
+    }
+
+    strncpy(ctx->win32ClassName, win32ClassName, sizeof(ctx->win32ClassName) - 1);
+    ctx->win32ClassName[sizeof(ctx->win32ClassName) - 1] = '\0';
+#else
+    (void)win32ClassName;
+#endif
+}
+
+// Initialize window and OpenGL context, with an optional Win32 window class name.
+// The class name is applied once to the next GLFW window creation (desktop+GLFW on Windows).
+void RLInitWindowEx(int width, int height, const char *title, const char *win32ClassName)
+{
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP)
+    RLSetWindowWin32ClassName(win32ClassName);
+#else
+    (void)win32ClassName;
+#endif
+    RLInitWindow(width, height, title);
 }
 
 // Close window and unload OpenGL context

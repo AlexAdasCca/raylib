@@ -224,6 +224,18 @@ typedef enum
 // This alias must appear before any prototypes that use _GLFWwin32ThreadContext.
 typedef GLFWthread _GLFWwin32ThreadContext;
 
+// Internal Win32 window class registry and per-window message hook list
+typedef struct _GLFWwin32WindowClass _GLFWwin32WindowClass;
+typedef struct _GLFWwin32MessageHook _GLFWwin32MessageHook;
+
+struct _GLFWwin32WindowClass
+{
+    WCHAR* name;
+    ATOM   atom;
+    int    refcount;
+    struct _GLFWwin32WindowClass* next;
+};
+
 // Thread-aware dispatch window / tasks (Win32)
 _GLFWwin32ThreadContext* _glfwGetThreadContextWin32(void);
 GLFWbool _glfwEnsureDispatchWindowWin32(_GLFWwin32ThreadContext* ctx);
@@ -468,6 +480,16 @@ typedef struct _GLFWwindowWin32
     // Timer used to generate refresh callbacks while in modal move/size loops
     UINT_PTR            refreshTimerId;
 
+    // Registered window class entry for this window (ref-counted)
+    _GLFWwin32WindowClass* windowClass;
+
+    // Optional pre-dispatch Win32 message hooks (registered by user)
+    _GLFWwin32MessageHook* messageHooks;
+
+    // Hook dispatch bookkeeping (to safely remove hooks while dispatching)
+    int                 hookDispatchDepth;
+    _GLFWwin32MessageHook* pendingHookFrees;
+
     // The last received high surrogate when decoding pairs of UTF-16 messages
     WCHAR               highSurrogate;
 } _GLFWwindowWin32;
@@ -479,8 +501,18 @@ typedef struct _GLFWlibraryWin32
     HINSTANCE           instance;
     HWND                helperWindowHandle;
     ATOM                helperWindowClass;
-    ATOM                mainWindowClass;
     ATOM                dispatchWindowClass;
+
+    // Win32 window class registry
+    _GLFWmutex*          classLock;
+    _GLFWwin32WindowClass* windowClasses;
+
+    // Win32 message hook registry
+    _GLFWmutex*          hookLock;
+
+    // A per-process registered message used by raylib to dispatch small calls
+    // onto the Win32 window thread (the thread that owns the HWND).
+    UINT                raylibDispatchMsg;
 
     // Thread-aware event wait/wake registry (Win32)
     DWORD               mainThreadId;

@@ -163,6 +163,7 @@ extern "C" {
  *************************************************************************/
 
 #if defined(GLFW_EXPOSE_NATIVE_WIN32)
+#include <stdint.h>
 /*! @brief Returns the adapter device name of the specified monitor.
  *
  *  @return The UTF-8 encoded adapter device name (for example `\\.\DISPLAY1`)
@@ -223,6 +224,23 @@ GLFWAPI const char* glfwGetWin32Monitor(GLFWmonitor* monitor);
  *  @ingroup native
  */
 GLFWAPI HWND glfwGetWin32Window(GLFWwindow* window);
+
+// Win32 helpers (property bag + message hooks)
+
+typedef int (*GLFWwin32MessageHook)(GLFWwindow* window,
+                                   HWND hWnd, unsigned int uMsg, uintptr_t wParam, intptr_t lParam,
+                                   intptr_t* result, void* user);
+
+// Store arbitrary per-window data in the native Win32 property list.
+// `name` is UTF-8 and will be converted to UTF-16 for the Win32 APIs.
+GLFWAPI int   glfwWin32SetWindowProp(GLFWwindow* window, const char* name, void* value);
+GLFWAPI void* glfwWin32GetWindowProp(GLFWwindow* window, const char* name);
+GLFWAPI void* glfwWin32RemoveWindowProp(GLFWwindow* window, const char* name);
+
+// Register a pre-dispatch Win32 message hook. Return value is an opaque token.
+// If the hook returns non-zero, GLFW will stop processing and return `*result`.
+GLFWAPI void* glfwWin32AddMessageHook(GLFWwindow* window, GLFWwin32MessageHook hook, void* user);
+GLFWAPI int   glfwWin32RemoveMessageHook(GLFWwindow* window, void* token);
 #endif
 
 #if defined(GLFW_EXPOSE_NATIVE_WGL)

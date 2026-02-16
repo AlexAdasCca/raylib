@@ -39,6 +39,10 @@ struct RLContext
     RLTexture2D stShapesTexture;
     RLRectangle stShapesTextureRec;
     bool bIsShapesTextureReady;
+
+    // One-shot Win32 class name override for the next GLFW window created
+    // (desktop+GLFW on Windows only). Empty string means default.
+    char win32ClassName[256];
 };
 
 // Internal helper called by rl_context.cpp before freeing RLContext.

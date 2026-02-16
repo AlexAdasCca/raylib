@@ -1,4 +1,4 @@
-/**********************************************************************************************
+﻿/**********************************************************************************************
 *
 *   raylib configuration flags
 *
@@ -305,5 +305,26 @@
 #define AUDIO_DEVICE_SAMPLE_RATE           0    // Device sample rate (device default)
 
 #define MAX_AUDIO_BUFFER_POOL_CHANNELS    16    // Maximum number of audio pool channels
+
+//------------------------------------------------------------------------------------
+// Diagnostics: Event-thread/task stats (desktop GLFW Win32 extensions)
+//------------------------------------------------------------------------------------
+// Enable diagnostic counters for event-thread task allocations/frees and pump timings.
+// NOTE: This option is intended for profiling and verification.
+// You can enable it by editing this file or by passing -DRL_EVENT_DIAG_STATS=1 to your compiler.
+#ifndef RL_EVENT_DIAG_STATS
+    #define RL_EVENT_DIAG_STATS 0
+#endif
+
+
+//------------------------------------------------------------------------------------
+// Win32 event-thread: coalesce high-frequency state updates (mouse move, wheel, window pos/scale/fbsize)
+//------------------------------------------------------------------------------------
+// When enabled (default: 1), the Win32 event thread will merge multiple high-frequency callbacks into
+// a single render-thread drain task, avoiding per-message heap allocations and task spam.
+// You can disable it by passing -DRL_EVENTTHREAD_COALESCE_STATE=0 to your compiler.
+#ifndef RL_EVENTTHREAD_COALESCE_STATE
+    #define RL_EVENTTHREAD_COALESCE_STATE 1
+#endif
 
 #endif // CONFIG_H

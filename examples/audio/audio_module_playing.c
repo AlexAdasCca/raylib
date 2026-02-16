@@ -68,6 +68,49 @@ typedef struct {
     struct GLFWthread* mainThread;             // [Win32] Owner thread (FLAG_WINDOW_EVENT_THREAD scaffolding)
 } Win32PlatformData;
 
+
+static int MyHook1(void* hwnd, unsigned int msg, uintptr_t wp, intptr_t lp, intptr_t* result, void* user)
+{
+    (void)hwnd; (void)wp; (void)lp; (void)user;
+
+    if (msg == WM_NCHITTEST) { *result = HTCAPTION; return 1; }
+    return 0;
+}
+
+static int MyHook2(void* hwnd, unsigned int msg, uintptr_t wp, intptr_t lp, intptr_t* result, void* user) {
+    (void)hwnd; (void)msg; (void)wp; (void)lp; (void)result; (void)user;
+    RLTraceLog(LOG_INFO, "MyHook2: %p, %d, %p", hwnd, msg, wp, lp, result, user);
+    return 0;
+}
+
+static unsigned __stdcall OtherThread(void* arg)
+{
+    int nRelNumber = RLWin32GetAllWindowHandles(NULL, -1);
+
+    RLTraceLog(LOG_INFO, "Win32 Window Handle number: %d.", nRelNumber);
+
+    void* hwnds[32];
+    int n = RLWin32GetAllWindowHandles(hwnds, 32);
+
+    for (int i = 0; i < n; i++) {
+        void* hwnd = hwnds[i];
+        RLWin32SetWindowPropByHandle(hwnd, "MyTag", (void*)0x1234);
+        RLTraceLog(LOG_INFO, "Win32 Window Handle %d: %p.", i, hwnd);
+    }
+
+    void* hwnd = RLWin32GetPrimaryWindowHandle();
+    void* token = RLWin32AddMessageHookByHandle(hwnd, MyHook2, NULL);
+
+    while (!QuitRequested())
+    {
+#if defined(_WIN32)
+        Sleep(100);
+#endif // WIN32
+
+    }
+    RLWin32RemoveMessageHookByHandle(hwnd, token);
+}
+
 static unsigned __stdcall SecondaryWindowThread(void* arg)
 {
     (void)arg;
@@ -80,6 +123,11 @@ static unsigned __stdcall SecondaryWindowThread(void* arg)
     //RLSetWindowMaxSize(1000, 800);
     RLSetTargetFPS(60);
 
+    RLWin32SetWindowProp("my.key", (void*)0x1234);
+    void* v = RLWin32GetWindowProp("my.key");
+
+    void* token = RLWin32AddMessageHook(MyHook1, NULL);
+
     Win32PlatformData* platformData = (Win32PlatformData*)ctx->platformData;
     //_GLFWwindow* window = (_GLFWwindow*)platformData->handle;
 
@@ -89,6 +137,7 @@ static unsigned __stdcall SecondaryWindowThread(void* arg)
         RLClearBackground((RLColor) { 30, 30, 30, 255 });
         RLDrawText("Secondary window (thread)", 20, 20, 20, RAYWHITE);
         RLDrawText("Close this window or press ESC.", 20, 52, 10, LIGHTGRAY);
+        RLDrawText(RLTextFormat("Window properties: 0x%p", v), 20, 72, 10, LIGHTGRAY);
         RLDrawCircle(360, 150, 60, (RLColor) { 80, 160, 255, 255 });
         RLEndDrawing();
     }
@@ -96,6 +145,8 @@ static unsigned __stdcall SecondaryWindowThread(void* arg)
     // Signal main thread to exit too.
     //RequestQuit();
 
+    RLWin32RemoveMessageHook(token);
+    RLWin32RemoveWindowProp("my.key");
     RLCloseWindow();
     RLDestroyContext(ctx);
     return 0;
@@ -113,6 +164,13 @@ static void OnRefreshDraw(void)
     RLDrawText("Refreshing during modal loop...", x, 20, 20, RED);
 }
 
+static intptr_t DoRender(void* hwnd, void* user) {
+    double t = RLGetTime();
+    int x = 20 + (int)(10.0 * sin(t * 6.283));
+    RLDrawText("Paint Command Invoked From Another Thread.", x, 320, 20, RED);
+    return 1;
+}
+
 //------------------------------------------------------------------------------------
 // Program main entry point
 //------------------------------------------------------------------------------------
@@ -125,7 +183,8 @@ int main(void)
 
     RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_REFRESH_CALLBACK);  // NOTE: Try to enable MSAA 4X
 
-    RLInitWindow(screenWidth, screenHeight, "raylib [audio] example - module playing");
+    RLInitWindowEx(screenWidth, screenHeight, 
+        "raylib [audio] example - module playing", "RLCustomWindowClass");
 
     RLInitAudioDevice();                  // Initialize audio device
 
@@ -133,6 +192,7 @@ int main(void)
 
 #if defined(_WIN32)
     HANDLE hThread = (HANDLE)_beginthreadex(NULL, 0, SecondaryWindowThread, NULL, 0, NULL);
+    HANDLE hOtherThread = (HANDLE)_beginthreadex(NULL, 0, OtherThread, NULL, 0, NULL);
 #endif
     RLColor colors[14] = { ORANGE, RED, GOLD, LIME, BLUE, VIOLET, BROWN, LIGHTGRAY, PINK,
                          YELLOW, GREEN, SKYBLUE, PURPLE, BEIGE };
@@ -161,6 +221,8 @@ int main(void)
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
+
+    void* hwnds[32];
 
     // Main game loop
 #if defined(_WIN32)
@@ -243,6 +305,13 @@ int main(void)
         RLDrawText(RLTextFormat("SPEED: %f", pitch), 40, 130, 20, MAROON);
 
         RLEndDrawing();
+
+        int nWindows = RLWin32GetAllWindowHandles(hwnds, 32);
+        for (int i = 0; i < nWindows; i++) {
+            void* hwnd = hwnds[i];
+            if (hwnd == RLGetWindowHandle()) continue;
+            RLInvokeOnWindowRenderThreadByHandle(hwnd, DoRender, NULL, 0);
+        }
         //----------------------------------------------------------------------------------
     }
 

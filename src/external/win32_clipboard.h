@@ -1,4 +1,4 @@
-#if !defined(_WIN32)
+﻿#if !defined(_WIN32)
 #   error "This module is only made for Windows OS"
 #endif
 
@@ -50,21 +50,29 @@ unsigned char *Win32GetClipboardImageData(int *width, int *height, unsigned long
     #define _IA64_
 #endif
 
+//----------------------------------------------------------------------------------
+// Windows headers compatibility
+//
+// This header is intentionally designed to *avoid* including <windows.h> to keep
+// raylib compilation lightweight. However, if the translation unit already
+// included Windows headers (directly or indirectly), we must NOT redeclare Win32
+// APIs or structs, otherwise we will hit redefinition errors.
+//----------------------------------------------------------------------------------
 
-#define WIN32_LEAN_AND_MEAN
+#if defined(_WINDOWS_) || defined(_INC_WINDOWS)
+    #define WIN32_CLIPBOARD_WINDOWS_HEADERS_PRESENT 1
+#else
+    #define WIN32_CLIPBOARD_WINDOWS_HEADERS_PRESENT 0
+#endif
+
+#ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
+#endif
 // #include <sdkddkver.h>
 // #include <windows.h>
 // #include <winuser.h>
 #include <minwindef.h>
 // #include <minwinbase.h>
-
-#ifndef WINAPI
-    #if defined(_ARM_)
-        #define WINAPI
-    #else
-        #define WINAPI __stdcall
-    #endif
-#endif
 
 #ifndef WINAPI
     #if defined(_ARM_)
@@ -92,7 +100,7 @@ unsigned char *Win32GetClipboardImageData(int *width, int *height, unsigned long
 
 typedef int WINBOOL;
 
-#if !defined(_WINUSER_) || !defined(WINUSER_ALREADY_INCLUDED)
+#if !WIN32_CLIPBOARD_WINDOWS_HEADERS_PRESENT && !defined(_WINUSER_)
 WINUSERAPI WINBOOL WINAPI OpenClipboard(HWND hWndNewOwner);
 WINUSERAPI WINBOOL WINAPI CloseClipboard(VOID);
 WINUSERAPI DWORD   WINAPI GetClipboardSequenceNumber(VOID);
@@ -118,13 +126,13 @@ WINUSERAPI HWND    WINAPI GetOpenClipboardWindow(VOID);
     #define HGLOBAL void*
 #endif
 
-#if !defined(_WINBASE_) || !defined(WINBASE_ALREADY_INCLUDED)
+#if !WIN32_CLIPBOARD_WINDOWS_HEADERS_PRESENT && !defined(_WINBASE_)
 WINBASEAPI SIZE_T  WINAPI GlobalSize (HGLOBAL hMem);
 WINBASEAPI LPVOID  WINAPI GlobalLock (HGLOBAL hMem);
 WINBASEAPI WINBOOL WINAPI GlobalUnlock (HGLOBAL hMem);
 #endif
 
-#if !defined(_WINGDI_) || !defined(WINGDI_ALREADY_INCLUDED)
+#if !WIN32_CLIPBOARD_WINDOWS_HEADERS_PRESENT && !defined(_WINGDI_)
 #ifndef BITMAPINFOHEADER_ALREADY_DEFINED
 #define BITMAPINFOHEADER_ALREADY_DEFINED
 // Does this header need to be packed ? by the windowps header it doesnt seem to be
@@ -169,20 +177,39 @@ typedef struct tagRGBQUAD {
 #endif
 
 // REF: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-wmf/4e588f70-bd92-4a6f-b77f-35d0feaf7a57
-#define BI_RGB       0x0000
-#define BI_RLE8      0x0001
-#define BI_RLE4      0x0002
-#define BI_BITFIELDS 0x0003
-#define BI_JPEG      0x0004
-#define BI_PNG       0x0005
-#define BI_CMYK      0x000B
-#define BI_CMYKRLE8  0x000C
-#define BI_CMYKRLE4  0x000D
+#ifndef BI_RGB
+    #define BI_RGB       0x0000
+#endif
+#ifndef BI_RLE8
+    #define BI_RLE8      0x0001
+#endif
+#ifndef BI_RLE4
+    #define BI_RLE4      0x0002
+#endif
+#ifndef BI_BITFIELDS
+    #define BI_BITFIELDS 0x0003
+#endif
+#ifndef BI_JPEG
+    #define BI_JPEG      0x0004
+#endif
+#ifndef BI_PNG
+    #define BI_PNG       0x0005
+#endif
+#ifndef BI_CMYK
+    #define BI_CMYK      0x000B
+#endif
+#ifndef BI_CMYKRLE8
+    #define BI_CMYKRLE8  0x000C
+#endif
+#ifndef BI_CMYKRLE4
+    #define BI_CMYKRLE4  0x000D
+#endif
+
+#endif
 
 // Bitmap not compressed and that the color table consists of four DWORD color masks, 
 // that specify the red, green, blue, and alpha components of each pixel
 #define BI_ALPHABITFIELDS 0x0006
-#endif
 
 // REF: https://learn.microsoft.com/en-us/windows/win32/dataxchg/standard-clipboard-formats
 #define CF_DIB 8

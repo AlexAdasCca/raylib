@@ -416,6 +416,7 @@ struct _GLFWwndconfig
     struct {
         GLFWbool  keymenu;
         GLFWbool  showDefault;
+        char      className[256];
     } win32;
     struct {
         char      appId[256];

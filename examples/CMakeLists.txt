@@ -1,4 +1,4 @@
-# Setup the project and settings
+﻿# Setup the project and settings
 project(examples LANGUAGES C CXX)
 # Directories that contain examples
 set(example_dirs

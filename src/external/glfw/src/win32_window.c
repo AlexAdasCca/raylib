@@ -32,9 +32,193 @@
 
 #include <limits.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <windowsx.h>
 #include <shellapi.h>
+
+// -------------------------------------------------------------------------
+// Win32 per-window message hook list
+// -------------------------------------------------------------------------
+
+struct _GLFWwin32MessageHook
+{
+    int (*fn)(GLFWwindow* window,
+              HWND hWnd, unsigned int uMsg, uintptr_t wParam, intptr_t lParam,
+              intptr_t* result, void* user);
+    void* user;
+    struct _GLFWwin32MessageHook* next;
+};
+
+// Forward declaration needed by window class registration
+static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+// -------------------------------------------------------------------------
+// Win32 window class registry (per-class ref-counting)
+// -------------------------------------------------------------------------
+
+static const WCHAR* _glfwGetDefaultWin32ClassName(void)
+{
+#ifdef _GLFW_WNDCLASSNAME
+    return _GLFW_WNDCLASSNAME;
+#else
+    return L"GLFW30";
+#endif
+}
+
+static _GLFWwin32WindowClass* _glfwAcquireWindowClassWin32(const _GLFWwndconfig* wndconfig)
+{
+    _GLFWwin32WindowClass* it = NULL;
+    WCHAR* requested = NULL;
+    const WCHAR* classNameW = NULL;
+
+    if (wndconfig && wndconfig->win32.className[0])
+        requested = _glfwCreateWideStringFromUTF8Win32(wndconfig->win32.className);
+
+    classNameW = requested ? requested : _glfwGetDefaultWin32ClassName();
+
+    if (_glfw.win32.classLock)
+        _glfwPlatformLockMutex(_glfw.win32.classLock);
+
+    for (it = _glfw.win32.windowClasses; it; it = it->next)
+    {
+        if (it->name && wcscmp(it->name, classNameW) == 0)
+        {
+            it->refcount++;
+            if (_glfw.win32.classLock)
+                _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+            if (requested) _glfw_free(requested);
+            return it;
+        }
+    }
+
+    // Register new window class
+    it = _glfw_calloc(1, sizeof(_GLFWwin32WindowClass));
+    if (!it)
+    {
+        if (_glfw.win32.classLock)
+            _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+        if (requested) _glfw_free(requested);
+        _glfwInputError(GLFW_OUT_OF_MEMORY, "Win32: Failed to allocate window class registry entry");
+        return NULL;
+    }
+
+    {
+        const size_t len = wcslen(classNameW) + 1;
+        it->name = _glfw_calloc(len, sizeof(WCHAR));
+        if (it->name)
+            wcscpy(it->name, classNameW);
+    }
+    if (!it->name)
+    {
+        _glfw_free(it);
+        if (_glfw.win32.classLock)
+            _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+        if (requested) _glfw_free(requested);
+        _glfwInputError(GLFW_OUT_OF_MEMORY, "Win32: Failed to allocate window class name");
+        return NULL;
+    }
+
+    it->refcount = 1;
+
+    // Insert into registry list
+    it->next = _glfw.win32.windowClasses;
+    _glfw.win32.windowClasses = it;
+
+    if (_glfw.win32.classLock)
+        _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+
+    if (requested) _glfw_free(requested);
+
+    return it;
+}
+
+static GLFWbool _glfwEnsureWindowClassRegisteredWin32(_GLFWwin32WindowClass* cls)
+{
+    WNDCLASSEXW wc;
+
+    if (!cls)
+        return GLFW_FALSE;
+
+    if (_glfw.win32.classLock)
+        _glfwPlatformLockMutex(_glfw.win32.classLock);
+    if (cls->atom)
+    {
+        if (_glfw.win32.classLock)
+            _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+        return GLFW_TRUE;
+    }
+
+    ZeroMemory(&wc, sizeof(wc));
+    wc.cbSize        = sizeof(wc);
+    wc.style         = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+    wc.lpfnWndProc   = (WNDPROC) windowProc;
+    wc.hInstance     = _glfw.win32.instance;
+    wc.hCursor       = LoadCursorW(NULL, IDC_ARROW);
+    wc.lpszClassName = cls->name;
+
+    // Load user-provided icon if available
+    wc.hIcon = LoadImageW(GetModuleHandleW(NULL),
+                          L"GLFW_ICON", IMAGE_ICON,
+                          0, 0, LR_DEFAULTSIZE | LR_SHARED);
+    if (!wc.hIcon)
+    {
+        // No user-provided icon found, load default icon
+        wc.hIcon = LoadImageW(NULL,
+                              IDI_APPLICATION, IMAGE_ICON,
+                              0, 0, LR_DEFAULTSIZE | LR_SHARED);
+    }
+    wc.hIconSm = wc.hIcon;
+
+    cls->atom = RegisterClassExW(&wc);
+    if (!cls->atom)
+    {
+        _glfwInputErrorWin32(GLFW_PLATFORM_ERROR, "Win32: Failed to register window class");
+        if (_glfw.win32.classLock)
+            _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+        return GLFW_FALSE;
+    }
+
+    if (_glfw.win32.classLock)
+        _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+
+    return GLFW_TRUE;
+}
+
+static void _glfwReleaseWindowClassWin32(_GLFWwin32WindowClass* cls)
+{
+    _GLFWwin32WindowClass** pp = NULL;
+
+    if (!cls)
+        return;
+
+    if (_glfw.win32.classLock)
+        _glfwPlatformLockMutex(_glfw.win32.classLock);
+
+    if (cls->refcount > 0)
+        cls->refcount--;
+
+    if (cls->refcount == 0)
+    {
+        // unlink
+        for (pp = &_glfw.win32.windowClasses; *pp; pp = &(*pp)->next)
+        {
+            if (*pp == cls)
+            {
+                *pp = cls->next;
+                break;
+            }
+        }
+        if (cls->atom)
+            UnregisterClassW(MAKEINTATOM(cls->atom), _glfw.win32.instance);
+        if (cls->name)
+            _glfw_free(cls->name);
+        _glfw_free(cls);
+    }
+
+    if (_glfw.win32.classLock)
+        _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+}
 
 // -------------------------------------------------------------------------
 // Win32 per-thread event wait / wake support
@@ -782,6 +966,99 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
         }
 
         return DefWindowProcW(hWnd, uMsg, wParam, lParam);
+    }
+
+    // Raylib: allow cross-thread dispatch of small operations onto the HWND owner thread.
+    // This runs *before* user hooks to keep the internal control channel private.
+    if (uMsg == _glfw.win32.raylibDispatchMsg)
+    {
+        // wParam: function pointer, lParam: user pointer
+        // Signature: LRESULT (*fn)(GLFWwindow* window, HWND hWnd, void* user)
+        if (wParam)
+            return ((LRESULT (*)(GLFWwindow*, HWND, void*)) wParam)((GLFWwindow*) window, hWnd, (void*) lParam);
+        return 0;
+    }
+
+    // Give user-registered hooks a chance to handle the message first.
+    // Hooks are copied while holding a lock so they can be safely removed
+    // concurrently without risking use-after-free.
+    if (window->win32.messageHooks)
+    {
+        typedef struct _HookCall
+        {
+            int (*fn)(GLFWwindow* window,
+              HWND hWnd, unsigned int uMsg, uintptr_t wParam, intptr_t lParam,
+              intptr_t* result, void* user);
+            void* user;
+        } _HookCall;
+
+        _HookCall stackCalls[16];
+        _HookCall* calls = stackCalls;
+        size_t count = 0;
+        size_t cap = sizeof(stackCalls) / sizeof(stackCalls[0]);
+        _GLFWwin32MessageHook* it;
+        intptr_t hookResult = 0;
+        GLFWbool handled = GLFW_FALSE;
+
+        if (_glfw.win32.hookLock)
+            _glfwPlatformLockMutex(_glfw.win32.hookLock);
+        window->win32.hookDispatchDepth++;
+
+        for (it = window->win32.messageHooks; it; it = it->next)
+        {
+            if (count == cap)
+            {
+                const size_t newCap = cap * 2;
+                _HookCall* newCalls = _glfw_calloc(newCap, sizeof(_HookCall));
+                if (!newCalls)
+                    break;
+                memcpy(newCalls, calls, cap * sizeof(_HookCall));
+                if (calls != stackCalls)
+                    _glfw_free(calls);
+                calls = newCalls;
+                cap = newCap;
+            }
+            calls[count].fn = it->fn;
+            calls[count].user = it->user;
+            count++;
+        }
+
+        if (_glfw.win32.hookLock)
+            _glfwPlatformUnlockMutex(_glfw.win32.hookLock);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            if (calls[i].fn && calls[i].fn((GLFWwindow*) window, hWnd, uMsg, wParam, lParam, &hookResult, calls[i].user))
+            {
+                handled = GLFW_TRUE;
+                break;
+            }
+        }
+
+        if (calls != stackCalls)
+            _glfw_free(calls);
+
+        if (_glfw.win32.hookLock)
+            _glfwPlatformLockMutex(_glfw.win32.hookLock);
+
+        window->win32.hookDispatchDepth--;
+        if (window->win32.hookDispatchDepth <= 0 && window->win32.pendingHookFrees)
+        {
+            _GLFWwin32MessageHook* pit = window->win32.pendingHookFrees;
+            window->win32.pendingHookFrees = NULL;
+            while (pit)
+            {
+                _GLFWwin32MessageHook* next = pit->next;
+                _glfw_free(pit);
+                pit = next;
+            }
+        }
+
+        if (_glfw.win32.hookLock)
+            _glfwPlatformUnlockMutex(_glfw.win32.hookLock);
+
+        if (handled)
+        return (LRESULT) hookResult;
     }
 
     switch (uMsg)
@@ -1538,37 +1815,14 @@ static int createNativeWindow(_GLFWwindow* window,
     DWORD style = getWindowStyle(window);
     DWORD exStyle = getWindowExStyle(window);
 
-    if (!_glfw.win32.mainWindowClass)
+    window->win32.windowClass = _glfwAcquireWindowClassWin32(wndconfig);
+    if (!window->win32.windowClass)
+        return GLFW_FALSE;
+    if (!_glfwEnsureWindowClassRegisteredWin32(window->win32.windowClass))
     {
-        WNDCLASSEXW wc = { sizeof(wc) };
-        wc.style         = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-        wc.lpfnWndProc   = windowProc;
-        wc.hInstance     = _glfw.win32.instance;
-        wc.hCursor       = LoadCursorW(NULL, IDC_ARROW);
-#if defined(_GLFW_WNDCLASSNAME)
-        wc.lpszClassName = _GLFW_WNDCLASSNAME;
-#else
-        wc.lpszClassName = L"GLFW30";
-#endif
-        // Load user-provided icon if available
-        wc.hIcon = LoadImageW(GetModuleHandleW(NULL),
-                              L"GLFW_ICON", IMAGE_ICON,
-                              0, 0, LR_DEFAULTSIZE | LR_SHARED);
-        if (!wc.hIcon)
-        {
-            // No user-provided icon found, load default icon
-            wc.hIcon = LoadImageW(NULL,
-                                  IDI_APPLICATION, IMAGE_ICON,
-                                  0, 0, LR_DEFAULTSIZE | LR_SHARED);
-        }
-
-        _glfw.win32.mainWindowClass = RegisterClassExW(&wc);
-        if (!_glfw.win32.mainWindowClass)
-        {
-            _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,
-                                 "Win32: Failed to register window class");
-            return GLFW_FALSE;
-        }
+        _glfwReleaseWindowClassWin32(window->win32.windowClass);
+        window->win32.windowClass = NULL;
+        return GLFW_FALSE;
     }
 
     if (GetSystemMetrics(SM_REMOTESESSION))
@@ -1639,10 +1893,14 @@ static int createNativeWindow(_GLFWwindow* window,
 
     wideTitle = _glfwCreateWideStringFromUTF8Win32(wndconfig->title);
     if (!wideTitle)
+    {
+        _glfwReleaseWindowClassWin32(window->win32.windowClass);
+        window->win32.windowClass = NULL;
         return GLFW_FALSE;
+    }
 
     window->win32.handle = CreateWindowExW(exStyle,
-                                           MAKEINTATOM(_glfw.win32.mainWindowClass),
+                                           window->win32.windowClass->name,
                                            wideTitle,
                                            style,
                                            frameX, frameY,
@@ -1656,6 +1914,8 @@ static int createNativeWindow(_GLFWwindow* window,
 
     if (!window->win32.handle)
     {
+        _glfwReleaseWindowClassWin32(window->win32.windowClass);
+        window->win32.windowClass = NULL;
         _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,
                              "Win32: Failed to create window");
         return GLFW_FALSE;
@@ -1829,6 +2089,44 @@ void _glfwDestroyWindowWin32(_GLFWwindow* window)
         RemovePropW(window->win32.handle, L"GLFW");
         DestroyWindow(window->win32.handle);
         window->win32.handle = NULL;
+    }
+
+    // Free any registered message hooks
+    if (window->win32.messageHooks || window->win32.pendingHookFrees)
+    {
+        _GLFWwin32MessageHook* hooks;
+        _GLFWwin32MessageHook* pending;
+
+        if (_glfw.win32.hookLock)
+            _glfwPlatformLockMutex(_glfw.win32.hookLock);
+
+        hooks = window->win32.messageHooks;
+        pending = window->win32.pendingHookFrees;
+        window->win32.messageHooks = NULL;
+        window->win32.pendingHookFrees = NULL;
+        window->win32.hookDispatchDepth = 0;
+
+        if (_glfw.win32.hookLock)
+            _glfwPlatformUnlockMutex(_glfw.win32.hookLock);
+
+        while (hooks)
+        {
+            _GLFWwin32MessageHook* next = hooks->next;
+            _glfw_free(hooks);
+            hooks = next;
+        }
+        while (pending)
+        {
+            _GLFWwin32MessageHook* next = pending->next;
+            _glfw_free(pending);
+            pending = next;
+        }
+    }
+
+    if (window->win32.windowClass)
+    {
+        _glfwReleaseWindowClassWin32(window->win32.windowClass);
+        window->win32.windowClass = NULL;
     }
 
     if (window->win32.bigIcon)
@@ -2910,6 +3208,148 @@ GLFWAPI HWND glfwGetWin32Window(GLFWwindow* handle)
     }
 
     return window->win32.handle;
+}
+
+GLFWAPI int glfwWin32SetWindowProp(GLFWwindow* handle, const char* name, void* value)
+{
+    _GLFWwindow* window = (_GLFWwindow*) handle;
+    WCHAR* wideName;
+
+    _GLFW_REQUIRE_INIT_OR_RETURN(GLFW_FALSE);
+    if (!window || !name)
+        return GLFW_FALSE;
+
+    wideName = _glfwCreateWideStringFromUTF8Win32(name);
+    if (!wideName)
+        return GLFW_FALSE;
+
+    const BOOL ok = SetPropW(window->win32.handle, wideName, (HANDLE) value);
+    _glfw_free(wideName);
+    return ok ? GLFW_TRUE : GLFW_FALSE;
+}
+
+GLFWAPI void* glfwWin32GetWindowProp(GLFWwindow* handle, const char* name)
+{
+    _GLFWwindow* window = (_GLFWwindow*) handle;
+    WCHAR* wideName;
+
+    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
+    if (!window || !name)
+        return NULL;
+
+    wideName = _glfwCreateWideStringFromUTF8Win32(name);
+    if (!wideName)
+        return NULL;
+
+    const HANDLE value = GetPropW(window->win32.handle, wideName);
+    _glfw_free(wideName);
+    return (void*) value;
+}
+
+GLFWAPI void* glfwWin32RemoveWindowProp(GLFWwindow* handle, const char* name)
+{
+    _GLFWwindow* window = (_GLFWwindow*) handle;
+    WCHAR* wideName;
+
+    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
+    if (!window || !name)
+        return NULL;
+
+    wideName = _glfwCreateWideStringFromUTF8Win32(name);
+    if (!wideName)
+        return NULL;
+
+    const HANDLE value = RemovePropW(window->win32.handle, wideName);
+    _glfw_free(wideName);
+    return (void*) value;
+}
+
+GLFWAPI void* glfwWin32AddMessageHook(GLFWwindow* handle,
+                                     int (*hook)(GLFWwindow* window,
+                                                 HWND hWnd, unsigned int uMsg, uintptr_t wParam, intptr_t lParam,
+                                                 intptr_t* result, void* user),
+                                     void* user)
+{
+    _GLFWwindow* window = (_GLFWwindow*) handle;
+    _GLFWwin32MessageHook* node;
+    _GLFWwin32MessageHook** pp;
+
+    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
+    if (!window || !hook)
+        return NULL;
+
+    node = _glfw_calloc(1, sizeof(*node));
+    if (!node)
+    {
+        _glfwInputError(GLFW_OUT_OF_MEMORY, "Win32: Failed to allocate message hook");
+        return NULL;
+    }
+
+    node->fn = hook;
+    node->user = user;
+    node->next = NULL;
+
+    if (_glfw.win32.hookLock)
+        _glfwPlatformLockMutex(_glfw.win32.hookLock);
+
+    // Append (preserve registration order)
+    pp = &window->win32.messageHooks;
+    while (*pp)
+        pp = &(*pp)->next;
+    *pp = node;
+
+    if (_glfw.win32.hookLock)
+        _glfwPlatformUnlockMutex(_glfw.win32.hookLock);
+
+    return (void*) node;
+}
+
+GLFWAPI int glfwWin32RemoveMessageHook(GLFWwindow* handle, void* token)
+{
+    _GLFWwindow* window = (_GLFWwindow*) handle;
+    _GLFWwin32MessageHook** pp;
+    _GLFWwin32MessageHook* node;
+
+    _GLFW_REQUIRE_INIT_OR_RETURN(GLFW_FALSE);
+    if (!window || !token)
+        return GLFW_FALSE;
+
+    if (_glfw.win32.hookLock)
+        _glfwPlatformLockMutex(_glfw.win32.hookLock);
+
+    pp = &window->win32.messageHooks;
+    while (*pp && *pp != (_GLFWwin32MessageHook*) token)
+        pp = &(*pp)->next;
+
+    if (!*pp)
+    {
+        if (_glfw.win32.hookLock)
+            _glfwPlatformUnlockMutex(_glfw.win32.hookLock);
+        return GLFW_FALSE;
+    }
+
+    node = *pp;
+    *pp = node->next;
+    node->next = window->win32.pendingHookFrees;
+    window->win32.pendingHookFrees = node;
+
+    // If we are not dispatching hooks, free immediately.
+    if (window->win32.hookDispatchDepth <= 0)
+    {
+        _GLFWwin32MessageHook* it = window->win32.pendingHookFrees;
+        window->win32.pendingHookFrees = NULL;
+        while (it)
+        {
+            _GLFWwin32MessageHook* next = it->next;
+            _glfw_free(it);
+            it = next;
+        }
+    }
+
+    if (_glfw.win32.hookLock)
+        _glfwPlatformUnlockMutex(_glfw.win32.hookLock);
+
+    return GLFW_TRUE;
 }
 
 #endif // _GLFW_WIN32

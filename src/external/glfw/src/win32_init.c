@@ -722,6 +722,43 @@ int _glfwInitWin32(void)
         _glfw.win32.threadLock = NULL;
         return GLFW_FALSE;
     }
+
+    // Win32 window class registry + message hook locks
+    _glfw.win32.windowClasses = NULL;
+    _glfw.win32.classLock = (_GLFWmutex*) _glfw_calloc(1, sizeof(_GLFWmutex));
+    _glfw.win32.hookLock  = (_GLFWmutex*) _glfw_calloc(1, sizeof(_GLFWmutex));
+    if (!_glfw.win32.classLock || !_glfw.win32.hookLock)
+    {
+        if (_glfw.win32.classLock)
+            _glfw_free(_glfw.win32.classLock);
+        if (_glfw.win32.hookLock)
+            _glfw_free(_glfw.win32.hookLock);
+        _glfw.win32.classLock = NULL;
+        _glfw.win32.hookLock = NULL;
+        return GLFW_FALSE;
+    }
+
+    if (!_glfwPlatformCreateMutex(_glfw.win32.classLock) ||
+        !_glfwPlatformCreateMutex(_glfw.win32.hookLock))
+    {
+        if (_glfw.win32.classLock)
+        {
+            _glfwPlatformDestroyMutex(_glfw.win32.classLock);
+            _glfw_free(_glfw.win32.classLock);
+            _glfw.win32.classLock = NULL;
+        }
+        if (_glfw.win32.hookLock)
+        {
+            _glfwPlatformDestroyMutex(_glfw.win32.hookLock);
+            _glfw_free(_glfw.win32.hookLock);
+            _glfw.win32.hookLock = NULL;
+        }
+        return GLFW_FALSE;
+    }
+
+    // Raylib dispatch message (used to run small callbacks on the HWND owner thread)
+    // The ID returned by RegisterWindowMessageW is stable within this process.
+    _glfw.win32.raylibDispatchMsg = RegisterWindowMessageW(L"GLFW_RAYLIB_DISPATCH_V1_{3A2C1E22-6B43-4E67-A8F2-5E2D1E04F9A8}");
     _glfwPollMonitorsWin32();
     return GLFW_TRUE;
 }
@@ -783,8 +820,39 @@ void _glfwTerminateWin32(void)
         DestroyWindow(_glfw.win32.helperWindowHandle);
     if (_glfw.win32.helperWindowClass)
         UnregisterClassW(MAKEINTATOM(_glfw.win32.helperWindowClass), _glfw.win32.instance);
-    if (_glfw.win32.mainWindowClass)
-        UnregisterClassW(MAKEINTATOM(_glfw.win32.mainWindowClass), _glfw.win32.instance);
+
+    // Unregister and free any remaining Win32 window classes
+    if (_glfw.win32.classLock)
+    {
+        _GLFWwin32WindowClass* it = NULL;
+
+        _glfwPlatformLockMutex(_glfw.win32.classLock);
+        it = _glfw.win32.windowClasses;
+        _glfw.win32.windowClasses = NULL;
+        _glfwPlatformUnlockMutex(_glfw.win32.classLock);
+
+        while (it)
+        {
+            _GLFWwin32WindowClass* next = it->next;
+            if (it->atom)
+                UnregisterClassW(MAKEINTATOM(it->atom), _glfw.win32.instance);
+            if (it->name)
+                _glfw_free(it->name);
+            _glfw_free(it);
+            it = next;
+        }
+
+        _glfwPlatformDestroyMutex(_glfw.win32.classLock);
+        _glfw_free(_glfw.win32.classLock);
+        _glfw.win32.classLock = NULL;
+    }
+
+    if (_glfw.win32.hookLock)
+    {
+        _glfwPlatformDestroyMutex(_glfw.win32.hookLock);
+        _glfw_free(_glfw.win32.hookLock);
+        _glfw.win32.hookLock = NULL;
+    }
 
     _glfw_free(_glfw.win32.clipboardString);
     _glfw_free(_glfw.win32.rawInput);

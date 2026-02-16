@@ -1129,6 +1129,11 @@ extern "C" {
 /*! @brief Win32 specific [window hint](@ref GLFW_WIN32_SHOWDEFAULT_hint).
  */
 #define GLFW_WIN32_SHOWDEFAULT      0x00025002
+/*! @brief Win32 specific [window hint](@ref GLFW_WIN32_CLASS_NAME_hint).
+ *
+ *  Overrides the Win32 window class name used for windows created by GLFW.
+ */
+#define GLFW_WIN32_CLASS_NAME       0x00025003
 /*! @brief Wayland specific
  *  [window hint](@ref GLFW_WAYLAND_APP_ID_hint).
  *  
@@ -3221,6 +3226,12 @@ GLFWAPI void glfwWindowHintString(int hint, const char* value);
  *  present and not empty, or fall back to the window title.  Set the
  *  [GLFW_X11_CLASS_NAME](@ref GLFW_X11_CLASS_NAME_hint) and
  *  [GLFW_X11_INSTANCE_NAME](@ref GLFW_X11_INSTANCE_NAME_hint) window hints to
+ *  override this.
+ *
+ *  @remark @win32 The window class name used for windows created by GLFW will
+ *  by default be set to `GLFW30` (or the value of the internal
+ *  `_GLFW_WNDCLASSNAME` define, if overridden by the build).  Set the
+ *  [GLFW_WIN32_CLASS_NAME](@ref GLFW_WIN32_CLASS_NAME_hint) window hint to
  *  override this.
  *
  *  @thread_safety This function must only be called from the main thread.

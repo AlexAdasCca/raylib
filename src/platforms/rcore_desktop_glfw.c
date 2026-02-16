@@ -105,6 +105,7 @@
 #endif
 
 #include <stddef.h>  // Required for: size_t
+#include <stdint.h>  // Required for: uintptr_t, intptr_t
 #include <rl_context.h>
 #include "rglfwglobal.h"
 
@@ -136,6 +137,12 @@ typedef struct {
     // broadcast to all windows' render threads. Otherwise only wake the current window.
     bool broadcastWake;
 
+    // Global registry helpers
+    int isRegistered;                   // Whether this PlatformData is in gRlGlfwPdHead
+    HWND win32Hwnd;                     // Cached HWND for the window (set after creation)
+
+	RLContext *ownerCtx;                // Owning RLContext for this window (used for cross-thread render dispatch)
+
     // Thread handles (GLFW per-thread contexts).
     GLFWthread *renderThread;           // Thread that owns the OpenGL/Vulkan context
     GLFWthread *eventThread;            // Thread that owns the Win32 window/message queue
@@ -149,6 +156,27 @@ typedef struct {
 
     volatile int eventThreadStop;       // Non-zero => event thread should exit
     volatile int closing;               // Non-zero => context/window is closing (drop non-critical tasks)
+
+#if RL_EVENTTHREAD_COALESCE_STATE
+    // Coalesced pending input/state for Win32 event-thread mode
+    volatile long pendingMask;
+    volatile long pendingQueued;
+    // mouse move (last)
+    volatile long pendingMouseXBits;
+    volatile long pendingMouseYBits;
+    // wheel (accumulated, fixed-point)
+    volatile long pendingWheelX_fp;
+    volatile long pendingWheelY_fp;
+    // window pos (last)
+    volatile long pendingWinX;
+    volatile long pendingWinY;
+    // content scale (last)
+    volatile long pendingScaleXBits;
+    volatile long pendingScaleYBits;
+    // framebuffer size (last)
+    volatile long pendingFbW;
+    volatile long pendingFbH;
+#endif
 #endif
 } PlatformData;
 
@@ -262,24 +290,27 @@ static void RLGlfwTrackWindowDestroyed(GLFWwindow *window, bool globalLockHeld)
 static void RLGlfwPlatformRegister(PlatformData *pd)
 {
     if (pd == NULL) return;
+    if (pd->isRegistered) return;
     RLGlfwGlobalLock();
 
     // Prevent duplicates.
     for (RLGlfwPlatformNode *it = gRlGlfwPdHead; it != NULL; it = it->next)
     {
-        if (it->pd == pd) { RLGlfwGlobalUnlock(); return; }
+        if (it->pd == pd) { pd->isRegistered = 1; RLGlfwGlobalUnlock(); return; }
     }
 
     RLGlfwPlatformNode *n = (RLGlfwPlatformNode *)RL_CALLOC(1, sizeof(RLGlfwPlatformNode));
     n->pd = pd;
     n->next = gRlGlfwPdHead;
     gRlGlfwPdHead = n;
+    pd->isRegistered = 1;
     RLGlfwGlobalUnlock();
 }
 
 static void RLGlfwPlatformUnregister(PlatformData *pd)
 {
     if (pd == NULL) return;
+    if (!pd->isRegistered) return;
     RLGlfwGlobalLock();
 
     RLGlfwPlatformNode **pp = &gRlGlfwPdHead;
@@ -290,6 +321,7 @@ static void RLGlfwPlatformUnregister(PlatformData *pd)
         {
             *pp = cur->next;
             RL_FREE(cur);
+            pd->isRegistered = 0;
             break;
         }
         pp = &cur->next;
@@ -368,6 +400,65 @@ void ClosePlatform(void);        // Close platform
 // Win32: message/event thread separation helpers
 //----------------------------------------------------------------------------------
 
+
+#if RL_EVENTTHREAD_COALESCE_STATE
+//----------------------------------------------------------------------------------
+// Win32: coalesced pending state for event-thread mode
+//----------------------------------------------------------------------------------
+#define RL_PENDING_MOUSE_MOVE   (1L<<0)
+#define RL_PENDING_WHEEL        (1L<<1)
+#define RL_PENDING_WIN_POS      (1L<<2)
+#define RL_PENDING_SCALE        (1L<<3)
+#define RL_PENDING_FB_SIZE      (1L<<4)
+
+// Accumulate wheel deltas as fixed-point integers, then convert back in the drain task.
+#ifndef RL_WHEEL_FP_SCALE
+    #define RL_WHEEL_FP_SCALE 1000L
+#endif
+
+#if defined(_MSC_VER)
+    #include <intrin.h>
+    static inline long RLAtomicExchangeLong(volatile long *p, long v) { return _InterlockedExchange(p, v); }
+    static inline long RLAtomicCompareExchangeLong(volatile long *p, long desired, long expected) { return _InterlockedCompareExchange(p, desired, expected); }
+    static inline long RLAtomicOrLong(volatile long *p, long v) { return _InterlockedOr(p, v); }
+    static inline long RLAtomicAddLong(volatile long *p, long v) { return _InterlockedExchangeAdd(p, v) + v; }
+    static inline long RLAtomicLoadLong(volatile long *p) { return _InterlockedCompareExchange(p, 0, 0); }
+#else
+    static inline long RLAtomicExchangeLong(volatile long *p, long v) { return __sync_lock_test_and_set(p, v); }
+    static inline long RLAtomicCompareExchangeLong(volatile long *p, long desired, long expected) { return __sync_val_compare_and_swap(p, expected, desired); }
+    static inline long RLAtomicOrLong(volatile long *p, long v) { return __sync_fetch_and_or(p, v); }
+    static inline long RLAtomicAddLong(volatile long *p, long v) { return __sync_add_and_fetch(p, v); }
+    static inline long RLAtomicLoadLong(volatile long *p) { return __sync_add_and_fetch(p, 0); }
+#endif
+
+static inline bool RLAtomicCASLong(volatile long *p, long expected, long desired)
+{
+    return (RLAtomicCompareExchangeLong(p, desired, expected) == expected);
+}
+
+static inline long RLFloatBitsFromFloat(float f)
+{
+    union { float f; uint32_t u; } cv;
+    cv.f = f;
+    return (long)cv.u;
+}
+
+static inline float RLFloatFromBits(long bits)
+{
+    union { float f; uint32_t u; } cv;
+    cv.u = (uint32_t)bits;
+    return cv.f;
+}
+
+static inline long RLWheelToFixed(double v)
+{
+    const double s = v*(double)RL_WHEEL_FP_SCALE;
+    // round to nearest integer (ties away from zero)
+    if (s >= 0.0) return (long)(s + 0.5);
+    else return (long)(s - 0.5);
+}
+#endif // RL_EVENTTHREAD_COALESCE_STATE
+
 typedef struct
 {
     void (*fn)(void *user);
@@ -396,6 +487,7 @@ static void RLGlfwThreadCallTrampoline(void *p)
 static void RLGlfwRenderCallTrampoline(void *p)
 {
     RLGlfwRenderCall *call = (RLGlfwRenderCall *)p;
+    RL_DIAG_TASK_EXECUTED();
     if (call && call->ctx)
     {
         PlatformData *pd = (PlatformData *)call->ctx->platformData;
@@ -412,7 +504,7 @@ static void RLGlfwRenderCallTrampoline(void *p)
         RLSetCurrentContext(call->ctx);
     }
     if (call && call->fn) call->fn(call->user);
-    if (call) RL_FREE(call);
+    if (call) { RL_DIAG_RENDERCALL_FREE(sizeof(RLGlfwRenderCall)); RL_FREE(call); }
 }
 
 static bool RLGlfwIsThread(GLFWthread *thr)
@@ -438,6 +530,19 @@ static void RLGlfwBarrierSignalTask(void *user)
     if (user) RLEventSignal((RLEvent *)user);
 }
 
+static void RLGlfwPumpThreadTasksWithDiag(void)
+{
+#if RL_EVENT_DIAG_STATS
+    double t0 = RLGetTime();
+    RL_DIAG_PUMP_BEGIN();
+    glfwPumpThreadTasks();
+    unsigned int n = RL_DIAG_PUMP_END();
+    RL_DIAG_ON_PUMP(RLGetTime() - t0, n);
+#else
+    glfwPumpThreadTasks();
+#endif
+}
+
 // Drain pending tasks posted to the current render thread. Used during shutdown to avoid
 // executing tasks after the RLContext/Core are freed.
 static void RLGlfwDrainRenderThreadTasks(void)
@@ -446,7 +551,7 @@ static void RLGlfwDrainRenderThreadTasks(void)
     if (!platform.renderThread || !RLGlfwIsThread(platform.renderThread))
     {
         // Best-effort: execute any tasks queued for the current thread.
-        glfwPumpThreadTasks();
+        RLGlfwPumpThreadTasksWithDiag();
         return;
     }
 
@@ -454,7 +559,7 @@ static void RLGlfwDrainRenderThreadTasks(void)
     RLEvent *done = RLEventCreate(false);
     if (done == NULL)
     {
-        glfwPumpThreadTasks();
+        RLGlfwPumpThreadTasksWithDiag();
         return;
     }
 
@@ -464,7 +569,7 @@ static void RLGlfwDrainRenderThreadTasks(void)
     // Pump until the barrier is observed.
     for (int spin = 0; spin < 100000; spin++)
     {
-        glfwPumpThreadTasks();
+        RLGlfwPumpThreadTasksWithDiag();
         if (RLEventWaitTimeout(done, 0)) break;
     }
 
@@ -530,6 +635,8 @@ static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void
     }
 
     RLGlfwRenderCall *call = (RLGlfwRenderCall *)RL_CALLOC(1, sizeof(RLGlfwRenderCall));
+    RL_DIAG_RENDERCALL_ALLOC(sizeof(RLGlfwRenderCall));
+    RL_DIAG_TASK_POSTED();
     call->ctx = ctx;
     call->fn = fn;
     call->user = user;
@@ -537,6 +644,25 @@ static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void
     glfwPostTask(platform.renderThread, RLGlfwRenderCallTrampoline, call);
     RLGlfwWakeRenderThread();
 }
+
+#if RL_EVENTTHREAD_COALESCE_STATE
+// Forward declaration required because RLGlfwQueuePendingDrain() may be used before the
+// task declarations section further down in this translation unit.
+static void RLGlfwTask_DrainPendingInput(void *user);
+
+static inline void RLGlfwQueuePendingDrain(RLContext *ctx, PlatformData *pd)
+{
+    if ((ctx == NULL) || (pd == NULL)) return;
+    if (pd->closing) return;
+
+    // Only queue one drain task at a time
+    if (!RLAtomicCASLong(&pd->pendingQueued, 0, 1)) return;
+
+    RLSetCurrentContext(ctx);
+    RLGlfwRunOnRenderThread(ctx, RLGlfwTask_DrainPendingInput, pd);
+}
+#endif // RL_EVENTTHREAD_COALESCE_STATE
+
 
 typedef struct
 {
@@ -1655,6 +1781,530 @@ void *RLGetWindowHandle(void)
     return NULL;
 }
 
+#if defined(_WIN32)
+
+//----------------------------------------------------------------------------------
+// Win32 helpers (property bag + message hooks) - raylib wrappers
+
+#define RL_WIN32_DISPATCH_MSG_NAME L"GLFW_RAYLIB_DISPATCH_V1_{3A2C1E22-6B43-4E67-A8F2-5E2D1E04F9A8}"
+
+// Minimal Win32 message dispatch surface (no windows.h)
+typedef uintptr_t WPARAM;
+typedef intptr_t LPARAM;
+typedef intptr_t LRESULT;
+typedef unsigned long DWORD;
+
+__declspec(dllimport) DWORD __stdcall GetCurrentThreadId(void);
+__declspec(dllimport) DWORD __stdcall GetWindowThreadProcessId(HWND hWnd, DWORD* lpdwProcessId);
+__declspec(dllimport) int __stdcall PostMessageW(HWND hWnd, unsigned int Msg, WPARAM wParam, LPARAM lParam);
+
+__declspec(dllimport) unsigned int __stdcall RegisterWindowMessageW(const wchar_t* lpString);
+__declspec(dllimport) LRESULT __stdcall SendMessageW(HWND hWnd, unsigned int Msg, WPARAM wParam, LPARAM lParam);
+
+typedef LRESULT (*RLWin32DispatchFn)(GLFWwindow* window, HWND hWnd, void* user);
+
+static unsigned int RLWin32GetDispatchMessageId(void)
+{
+    static unsigned int msg = 0;
+    if (msg == 0) msg = RegisterWindowMessageW(RL_WIN32_DISPATCH_MSG_NAME);
+    return msg;
+}
+
+static LRESULT RLWin32DispatchToHwnd(HWND hWnd, RLWin32DispatchFn fnDispatch, void* user)
+{
+    if (hWnd == NULL || fnDispatch == NULL) return 0;
+    const unsigned int msg = RLWin32GetDispatchMessageId();
+    if (msg == 0) return 0;
+    return SendMessageW(hWnd, msg, (WPARAM) fnDispatch, (LPARAM) user);
+}
+
+static PlatformData* RLWin32FindPlatformByHwnd(HWND hwnd)
+{
+    if (hwnd == NULL) return NULL;
+    PlatformData* out = NULL;
+    RLGlfwGlobalLock();
+    for (RLGlfwPlatformNode* it = gRlGlfwPdHead; it; it = it->next)
+    {
+        PlatformData* pd = it->pd;
+        if (pd && pd->handle && pd->win32Hwnd == hwnd) { out = pd; break; }
+    }
+    RLGlfwGlobalUnlock();
+    return out;
+}
+
+static int RLWin32IsKnownWindowHandle_Internal(HWND hwnd)
+{
+    return (RLWin32FindPlatformByHwnd(hwnd) != NULL);
+}
+
+// --- Dispatch handlers (run on the HWND owner thread) ---
+typedef struct { const char* name; void* value; int ok; } RLWin32PropSetCall;
+typedef struct { const char* name; void* out; } RLWin32PropGetCall;
+
+static LRESULT RLWin32Dispatch_SetProp(GLFWwindow* window, HWND hWnd, void* user)
+{
+    (void)hWnd;
+    RLWin32PropSetCall* callData = (RLWin32PropSetCall*)user;
+    if (!callData) return 0;
+    callData->ok = glfwWin32SetWindowProp(window, callData->name, callData->value);
+    return (LRESULT)callData->ok;
+}
+
+static LRESULT RLWin32Dispatch_GetProp(GLFWwindow* window, HWND hWnd, void* user)
+{
+    (void)hWnd;
+    RLWin32PropGetCall* callData = (RLWin32PropGetCall*)user;
+    if (!callData) return 0;
+    callData->out = glfwWin32GetWindowProp(window, callData->name);
+    return (LRESULT)(uintptr_t)callData->out;
+}
+
+static LRESULT RLWin32Dispatch_RemoveProp(GLFWwindow* window, HWND hWnd, void* user)
+{
+    (void)hWnd;
+    RLWin32PropGetCall* callData = (RLWin32PropGetCall*)user;
+    if (!callData) return 0;
+    callData->out = glfwWin32RemoveWindowProp(window, callData->name);
+    return (LRESULT)(uintptr_t)callData->out;
+}
+
+typedef struct {
+    RLWin32MessageHook hook;
+    void* user;
+    void* glfwToken;
+    HWND hwnd;
+} RLWin32HookWrapper;
+
+static int RLWin32HookAdapter(GLFWwindow* window, HWND hWnd, unsigned int uMsg, uintptr_t wParam, intptr_t lParam, intptr_t* result, void* user)
+{
+    (void)window;
+    RLWin32HookWrapper* wrapper = (RLWin32HookWrapper*)user;
+    if (!wrapper || !wrapper->hook) return 0;
+    return wrapper->hook((void*)hWnd, uMsg, wParam, lParam, result, wrapper->user);
+}
+
+typedef struct { RLWin32HookWrapper* wrapper; void* outToken; } RLWin32HookAddCall;
+static LRESULT RLWin32Dispatch_AddHook(GLFWwindow* window, HWND hWnd, void* user)
+{
+    RLWin32HookAddCall* callData = (RLWin32HookAddCall*)user;
+    if (!callData || !callData->wrapper) return 0;
+    callData->wrapper->hwnd = hWnd;
+    callData->outToken = glfwWin32AddMessageHook(window, RLWin32HookAdapter, callData->wrapper);
+    callData->wrapper->glfwToken = callData->outToken;
+    return (LRESULT)(uintptr_t)callData->outToken;
+}
+
+static LRESULT RLWin32Dispatch_RemoveHook(GLFWwindow* window, HWND hWnd, void* user)
+{
+    (void)hWnd;
+    RLWin32HookWrapper* wrapper = (RLWin32HookWrapper*)user;
+    if (!wrapper || !wrapper->glfwToken) return 0;
+    const int isRemoveOk = glfwWin32RemoveMessageHook(window, wrapper->glfwToken);
+    if (isRemoveOk) wrapper->glfwToken = NULL;
+    return (LRESULT)isRemoveOk;
+}
+//----------------------------------------------------------------------------------
+
+typedef struct RLWin32PropTask
+{
+    const char* name;
+    void* value;
+    void* out;
+    int ok;
+} RLWin32PropTask;
+
+static void RLGlfwTask_Win32SetWindowProp(void* user)
+{
+    RLWin32PropTask* t = (RLWin32PropTask*) user;
+    t->ok = glfwWin32SetWindowProp(platform.handle, t->name, t->value);
+}
+
+static void RLGlfwTask_Win32GetWindowProp(void* user)
+{
+    RLWin32PropTask* t = (RLWin32PropTask*) user;
+    t->out = glfwWin32GetWindowProp(platform.handle, t->name);
+}
+
+static void RLGlfwTask_Win32RemoveWindowProp(void* user)
+{
+    RLWin32PropTask* t = (RLWin32PropTask*) user;
+    t->out = glfwWin32RemoveWindowProp(platform.handle, t->name);
+}
+
+typedef struct RLWin32HookToken
+{
+    void* glfwToken;
+    RLWin32MessageHook hook;
+    void* user;
+} RLWin32HookToken;
+
+static int RLWin32MessageHookTrampoline(GLFWwindow* window,
+                                       HWND hWnd, unsigned int uMsg, uintptr_t wParam, intptr_t lParam,
+                                       intptr_t* result, void* user)
+{
+    (void) window;
+    RLWin32HookToken* tok = (RLWin32HookToken*) user;
+    if (!tok || !tok->hook) return 0;
+    return tok->hook((void*) hWnd, uMsg, wParam, lParam, result, tok->user) ? 1 : 0;
+}
+
+typedef struct RLWin32HookTask
+{
+    RLWin32HookToken* tok;
+    int ok;
+} RLWin32HookTask;
+
+static void RLGlfwTask_Win32AddMessageHook(void* user)
+{
+    RLWin32HookTask* t = (RLWin32HookTask*) user;
+    if (!t || !t->tok) { t->ok = 0; return; }
+    t->tok->glfwToken = glfwWin32AddMessageHook(platform.handle, RLWin32MessageHookTrampoline, t->tok);
+    t->ok = (t->tok->glfwToken != NULL);
+}
+
+static void RLGlfwTask_Win32RemoveMessageHook(void* user)
+{
+    RLWin32HookTask* t = (RLWin32HookTask*) user;
+    if (!t || !t->tok || !t->tok->glfwToken) { t->ok = 0; return; }
+    t->ok = glfwWin32RemoveMessageHook(platform.handle, t->tok->glfwToken);
+}
+
+int RLWin32SetWindowProp(const char* name, void* value)
+{
+    RLWin32PropTask t = { name, value, NULL, 0 };
+    RLGlfwRunOnEventThread(RLGlfwTask_Win32SetWindowProp, &t, true);
+    return t.ok;
+}
+
+void* RLWin32GetWindowProp(const char* name)
+{
+    RLWin32PropTask t = { name, NULL, NULL, 0 };
+    RLGlfwRunOnEventThread(RLGlfwTask_Win32GetWindowProp, &t, true);
+    return t.out;
+}
+
+void* RLWin32RemoveWindowProp(const char* name)
+{
+    RLWin32PropTask t = { name, NULL, NULL, 0 };
+    RLGlfwRunOnEventThread(RLGlfwTask_Win32RemoveWindowProp, &t, true);
+    return t.out;
+}
+
+void* RLWin32AddMessageHook(RLWin32MessageHook hook, void* user)
+{
+    if (!hook) return NULL;
+
+    RLWin32HookToken* tok = (RLWin32HookToken*) RL_CALLOC(1, sizeof(RLWin32HookToken));
+    if (!tok) return NULL;
+
+    tok->hook = hook;
+    tok->user = user;
+
+    RLWin32HookTask task = { tok, 0 };
+    RLGlfwRunOnEventThread(RLGlfwTask_Win32AddMessageHook, &task, true);
+
+    if (!task.ok)
+    {
+        RL_FREE(tok);
+        return NULL;
+    }
+
+    return (void*) tok;
+}
+
+int RLWin32RemoveMessageHook(void* token)
+{
+    RLWin32HookToken* tok = (RLWin32HookToken*) token;
+    if (!tok) return 0;
+
+    RLWin32HookTask task = { tok, 0 };
+    RLGlfwRunOnEventThread(RLGlfwTask_Win32RemoveMessageHook, &task, true);
+
+	// Only free the token if removal succeeded; otherwise it may still be referenced
+	// by the underlying GLFW hook trampoline.
+	if (task.ok) RL_FREE(tok);
+    return task.ok;
+}
+
+// ------------------------------------------------------------
+// Global window management + cross-thread helpers (HWND based)
+// ------------------------------------------------------------
+
+int RLWin32GetAllWindowHandles(void** outHwnds, int maxCount)
+{
+    int count = 0;
+    RLGlfwGlobalLock();
+    for (RLGlfwPlatformNode* it = gRlGlfwPdHead; it; it = it->next)
+    {
+        PlatformData* pd = it->pd;
+        if (!pd || !pd->handle || !pd->win32Hwnd) continue;
+        if (outHwnds && maxCount > 0 && count < maxCount) outHwnds[count] = (void*)pd->win32Hwnd;
+        count++;
+    }
+    RLGlfwGlobalUnlock();
+    return count;
+}
+
+void* RLWin32GetPrimaryWindowHandle(void)
+{
+    void* out = NULL;
+    RLGlfwGlobalLock();
+    // Primary is tracked by GLFWwindow* (first created window in the process).
+    // Resolve to cached HWND via the global platform list to avoid calling into GLFW under unknown thread state.
+    if (gRlGlfwPrimaryWindow)
+    {
+        for (RLGlfwPlatformNode* it = gRlGlfwPdHead; it; it = it->next)
+        {
+            PlatformData* pd = it->pd;
+            if (pd && pd->handle == gRlGlfwPrimaryWindow && pd->win32Hwnd)
+            {
+                out = (void*)pd->win32Hwnd;
+                break;
+            }
+        }
+    }
+    RLGlfwGlobalUnlock();
+    return out;
+}
+
+int RLWin32IsKnownWindowHandle(void* hwnd)
+{
+    return RLWin32IsKnownWindowHandle_Internal((HWND)hwnd);
+}
+
+int RLWin32SetWindowPropByHandle(void* hwnd, const char* name, void* value)
+{
+    const HWND hNativeWindowHandle = (HWND)hwnd;
+    if (hNativeWindowHandle == NULL || name == NULL) return 0;
+    if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return 0;
+    RLWin32PropSetCall callData = { name, value, 0 };
+    (void)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_SetProp, &callData);
+    return callData.ok;
+}
+
+void* RLWin32GetWindowPropByHandle(void* hwnd, const char* name)
+{
+    const HWND hNativeWindowHandle = (HWND)hwnd;
+    if (hNativeWindowHandle == NULL || name == NULL) return NULL;
+    if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return NULL;
+    RLWin32PropGetCall callData = { name, NULL };
+    (void)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_GetProp, &callData);
+    return callData.out;
+}
+
+void* RLWin32RemoveWindowPropByHandle(void* hwnd, const char* name)
+{
+    const HWND hNativeWindowHandle = (HWND)hwnd;
+    if (hNativeWindowHandle == NULL || name == NULL) return NULL;
+    if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return NULL;
+    RLWin32PropGetCall callData = { name, NULL };
+    (void)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_RemoveProp, &callData);
+    return callData.out;
+}
+
+void* RLWin32AddMessageHookByHandle(void* hwnd, RLWin32MessageHook hook, void* user)
+{
+    const HWND hNativeWindowHandle = (HWND)hwnd;
+    if (hNativeWindowHandle == NULL || hook == NULL) return NULL;
+    if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return NULL;
+
+    RLWin32HookWrapper* wrapper = (RLWin32HookWrapper*)RL_CALLOC(1, sizeof(RLWin32HookWrapper));
+    if (!wrapper) return NULL;
+    wrapper->hook = hook;
+    wrapper->user = user;
+
+    RLWin32HookAddCall call = { 0 };
+    call.wrapper = wrapper;
+    (void)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_AddHook, &call);
+
+    if (call.outToken == NULL)
+    {
+        RL_FREE(wrapper);
+        return NULL;
+    }
+
+    return (void*)wrapper;
+}
+
+int RLWin32RemoveMessageHookByHandle(void* hwnd, void* token)
+{
+    const HWND hNativeWindowHandle = (HWND)hwnd;
+    if (hNativeWindowHandle == NULL || token == NULL) return 0;
+    if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return 0;
+
+    RLWin32HookWrapper* wrapper = (RLWin32HookWrapper*)token;
+    if (wrapper->hwnd && wrapper->hwnd != hNativeWindowHandle) return 0;
+
+    const int isDispatchOk = (int)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_RemoveHook, wrapper);
+    if (isDispatchOk) RL_FREE(wrapper);
+    return isDispatchOk;
+}
+
+// Generic cross-thread invoke helpers (Win32)
+//
+// These are low-level primitives intended for advanced integrations.
+// - Window-thread invoke: runs on the Win32 GUI thread that owns the HWND (safe for Win32 UI ops).
+// - Render-thread invoke: runs on the render thread associated with that window (safe for raylib/GL for that window).
+//
+// NOTE: In non-event-thread mode, render-thread invoke only works when called from the same thread
+//       that currently owns the target OpenGL context.
+
+#ifndef RL_WIN32_WINDOW_THREAD_INVOKE_DEFINED
+#define RL_WIN32_WINDOW_THREAD_INVOKE_DEFINED
+typedef intptr_t (*RLWin32WindowThreadInvoke)(void* hwnd, void* user);
+#endif
+
+
+typedef struct RLWin32UserInvokeCall
+{
+    RLWin32WindowThreadInvoke fn;
+    void* hwnd;
+    void* user;
+    int autoFree;
+} RLWin32UserInvokeCall;
+
+static LRESULT RLWin32Dispatch_InvokeUser(GLFWwindow* window, HWND hWnd, void* user)
+{
+    (void)window;
+    RLWin32UserInvokeCall* c = (RLWin32UserInvokeCall*)user;
+    if (!c || !c->fn)
+    {
+        if (c && c->autoFree) RL_FREE(c);
+        return (LRESULT)0;
+    }
+
+    const intptr_t r = c->fn(c->hwnd ? c->hwnd : (void*)hWnd, c->user);
+
+    if (c->autoFree) RL_FREE(c);
+    return (LRESULT)r;
+}
+
+intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait)
+{
+    if (!hwnd || !fn) return (intptr_t)0;
+
+    const HWND h = (HWND)hwnd;
+
+    // If already on the owning window thread, run inline.
+    const DWORD ownerTid = GetWindowThreadProcessId(h, NULL);
+    if (ownerTid != 0 && ownerTid == GetCurrentThreadId())
+    {
+        return fn(hwnd, user);
+    }
+
+    if (wait)
+    {
+        RLWin32UserInvokeCall call = { fn, hwnd, user, 0 };
+        return (intptr_t)RLWin32DispatchToHwnd(h, RLWin32Dispatch_InvokeUser, &call);
+    }
+
+    RLWin32UserInvokeCall* call = (RLWin32UserInvokeCall*)RL_CALLOC(1, sizeof(RLWin32UserInvokeCall));
+    if (!call) return (intptr_t)0;
+
+    call->fn = fn;
+    call->hwnd = hwnd;
+    call->user = user;
+    call->autoFree = 1;
+
+    return PostMessageW(h, RLWin32GetDispatchMessageId(), (WPARAM)RLWin32Dispatch_InvokeUser, (LPARAM)call) ? (intptr_t)1 : (intptr_t)0;
+}
+
+#ifndef RL_WINDOW_RENDER_THREAD_INVOKE_DEFINED
+#define RL_WINDOW_RENDER_THREAD_INVOKE_DEFINED
+typedef intptr_t (*RLWindowRenderThreadInvoke)(void* hwnd, void* user);
+#endif
+
+
+typedef struct RLRenderUserInvokeCall
+{
+    RLWindowRenderThreadInvoke fn;
+    void* hwnd;
+    void* user;
+    intptr_t result;
+    RLEvent* done;
+    int autoFree;
+} RLRenderUserInvokeCall;
+
+static void RLGlfwTask_InvokeUserOnRenderThread(void* user)
+{
+    RLRenderUserInvokeCall* c = (RLRenderUserInvokeCall*)user;
+    if (!c || !c->fn)
+    {
+        if (c && c->done) RLEventSignal(c->done);
+        if (c && c->autoFree) RL_FREE(c);
+        return;
+    }
+
+    c->result = c->fn(c->hwnd, c->user);
+
+    if (c->done) RLEventSignal(c->done);
+    if (c->autoFree) RL_FREE(c);
+}
+
+intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait)
+{
+    if (!hwnd || !fn) return (intptr_t)0;
+
+    const HWND h = (HWND)hwnd;
+    PlatformData* pd = RLWin32FindPlatformByHwnd(h);
+    if (!pd || !pd->ownerCtx) return (intptr_t)0;
+
+    // Non-event-thread mode: only safe from the thread that currently owns this GL context.
+    if (!pd->useEventThread)
+    {
+        if (glfwGetCurrentContext() != pd->handle) return (intptr_t)0;
+
+        RLContext* prev = RLGetCurrentContext();
+        if (prev != pd->ownerCtx) RLSetCurrentContext(pd->ownerCtx);
+        const intptr_t r = fn(hwnd, user);
+        if (prev != pd->ownerCtx) RLSetCurrentContext(prev);
+        return r;
+    }
+
+    if (!pd->renderThread || !pd->renderWakeEvent) return (intptr_t)0;
+
+    RLRenderUserInvokeCall* call = (RLRenderUserInvokeCall*)RL_CALLOC(1, sizeof(RLRenderUserInvokeCall));
+    if (!call) return (intptr_t)0;
+
+    call->fn = fn;
+    call->hwnd = hwnd;
+    call->user = user;
+    call->done = wait ? RLEventCreate(false) : NULL;
+    call->autoFree = wait ? 0 : 1;
+
+    RLGlfwRenderCall* rc = (RLGlfwRenderCall*)RL_CALLOC(1, sizeof(RLGlfwRenderCall));
+
+    if (!rc)
+    {
+        if (call->done) RLEventDestroy(call->done);
+        RL_FREE(call);
+        return (intptr_t)0;
+    }
+
+    RL_DIAG_RENDERCALL_ALLOC(sizeof(RLGlfwRenderCall));
+    RL_DIAG_TASK_POSTED();
+
+    rc->ctx = pd->ownerCtx;
+    rc->fn = RLGlfwTask_InvokeUserOnRenderThread;
+    rc->user = call;
+
+    glfwPostTask(pd->renderThread, RLGlfwRenderCallTrampoline, rc);
+    RLGlfwSignalOneRenderWake(pd);
+
+    if (wait)
+    {
+        RLEventWait(call->done);
+        const intptr_t r = call->result;
+        RLEventDestroy(call->done);
+        RL_FREE(call);
+        return r;
+    }
+
+    return (intptr_t)1;
+}
+#endif
+
+
 // Get number of monitors
 int RLGetMonitorCount(void)
 {
@@ -2341,7 +2991,7 @@ void RLPollInputEvents(void)
     CORE.Window.resizedLastFrame = false;
 
     // Drain tasks posted to this thread (thread-aware GLFW extensions; no-op on non-Win32 builds)
-    glfwPumpThreadTasks();
+    RLGlfwPumpThreadTasksWithDiag();
 
 #if defined(_WIN32)
     if (platform.useEventThread)
@@ -2445,9 +3095,20 @@ int InitPlatform(void)
     unsigned int requestedWindowFlags = CORE.Window.flags;
 
 #if defined(_WIN32)
+    // Optional per-window Win32 class name override (one-shot)
+    RLContext* ctxHint = RLGetCurrentContext();
+    if (ctxHint && ctxHint->win32ClassName[0])
+    {
+        glfwWindowHintString(GLFW_WIN32_CLASS_NAME, ctxHint->win32ClassName);
+        ctxHint->win32ClassName[0] = '\0';
+    }
+#endif
+
+#if defined(_WIN32)
     // Win32 optional event-thread mode: run the GLFW event/message pump on a dedicated
     // thread while keeping rendering on the caller thread.
     platform.useEventThread = FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_EVENT_THREAD);
+    platform.ownerCtx = RLGetCurrentContext();
     platform.broadcastWake = FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_BROADCAST_WAKE);
     platform.renderThread = platform.useEventThread? glfwGetCurrentThread() : NULL;
     platform.eventThread = NULL;
@@ -2592,16 +3253,19 @@ int InitPlatform(void)
         RLGlfwPlatformRegister(&platform);
 
         RLGlfwEventThreadStart *start = (RLGlfwEventThreadStart *)RL_MALLOC(sizeof(RLGlfwEventThreadStart));
+        RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwEventThreadStart));
         start->ctx = RLGetCurrentContext();
 
         platform.eventThreadHandle = RLThreadCreate(RLGlfwEventThreadMain, start);
         if (platform.eventThreadHandle == NULL)
         {
+            RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwEventThreadStart));
             RL_FREE(start);
             TRACELOG(LOG_WARNING, "GLFW: Failed to create event thread");
             if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
             if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
             RLGlfwPlatformUnregister(&platform);
+	    	platform.win32Hwnd = NULL;
             RLGlfwGlobalRelease();
             return -1;
         }
@@ -2746,6 +3410,10 @@ _rlglfw_window_created:
     // Track primary window semantics and reset stale global quit when starting a fresh run.
 #if defined(_WIN32)
     RLGlfwTrackWindowCreated(platform.handle, holdGlobalLock);
+
+    // Cache HWND and ensure this PlatformData participates in the global registry.
+    if (platform.win32Hwnd == NULL) platform.win32Hwnd = (HWND)glfwGetWin32Window(platform.handle);
+    RLGlfwPlatformRegister(&platform);
 #endif
 
     glfwMakeContextCurrent(platform.handle);
@@ -3029,6 +3697,8 @@ void ClosePlatform(void)
 #if defined(_WIN32)
     // Update global primary/window-count tracking while the global lock is held.
     RLGlfwTrackWindowDestroyed(closingWindow, true);
+    RLGlfwPlatformUnregister(&platform);
+    platform.win32Hwnd = NULL;
 #endif
 
     RLGlfwGlobalUnlock();
@@ -3085,6 +3755,9 @@ typedef struct { int jid; int event; char *name; } RLGlfwJoystickEvent;
 typedef struct { int shouldClose; } RLGlfwWindowCloseEvent;
 
 static void RLGlfwTask_WindowPos(void *user);
+#if RL_EVENTTHREAD_COALESCE_STATE
+static void RLGlfwTask_DrainPendingInput(void *user);
+#endif
 static void RLGlfwTask_FramebufferSize(void *user);
 static void RLGlfwTask_WindowContentScale(void *user);
 static void RLGlfwTask_WindowIconify(void *user);
@@ -3125,11 +3798,21 @@ static void FramebufferSizeCallback(GLFWwindow *window, int width, int height)
             // but internal screen values should not be changed, it breaks things
             if ((width == 0) || (height == 0)) return;
 
+#if RL_EVENTTHREAD_COALESCE_STATE
+            RLSetCurrentContext(ctx);
+            RLAtomicExchangeLong(&pd->pendingFbW, (long)width);
+            RLAtomicExchangeLong(&pd->pendingFbH, (long)height);
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_FB_SIZE);
+            RLGlfwQueuePendingDrain(ctx, pd);
+            return;
+#else
             RLSetCurrentContext(ctx);
             RLGlfwSizeI2 *e = (RLGlfwSizeI2 *)RL_MALLOC(sizeof(RLGlfwSizeI2));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_FBSIZE, sizeof(RLGlfwSizeI2));
             e->w = width; e->h = height;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_FramebufferSize, e);
             return;
+#endif
         }
     }
     #endif
@@ -3202,11 +3885,21 @@ static void WindowContentScaleCallback(GLFWwindow *window, float scalex, float s
         if ((pd != NULL) && pd->useEventThread)
         {
             if (pd->closing) return;
+#if RL_EVENTTHREAD_COALESCE_STATE
+            RLSetCurrentContext(ctx);
+            RLAtomicExchangeLong(&pd->pendingScaleXBits, RLFloatBitsFromFloat(scalex));
+            RLAtomicExchangeLong(&pd->pendingScaleYBits, RLFloatBitsFromFloat(scaley));
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_SCALE);
+            RLGlfwQueuePendingDrain(ctx, pd);
+            return;
+#else
             RLSetCurrentContext(ctx);
             RLGlfwWindowScaleEvent *e = (RLGlfwWindowScaleEvent *)RL_MALLOC(sizeof(RLGlfwWindowScaleEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_SCALE, sizeof(RLGlfwWindowScaleEvent));
             e->sx = scalex; e->sy = scaley;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowContentScale, e);
             return;
+#endif
         }
     }
 #endif
@@ -3242,11 +3935,21 @@ static void WindowPosCallback(GLFWwindow *window, int x, int y)
         if ((pd != NULL) && pd->useEventThread)
         {
             if (pd->closing) return;
+#if RL_EVENTTHREAD_COALESCE_STATE
+            RLSetCurrentContext(ctx);
+            RLAtomicExchangeLong(&pd->pendingWinX, (long)x);
+            RLAtomicExchangeLong(&pd->pendingWinY, (long)y);
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_WIN_POS);
+            RLGlfwQueuePendingDrain(ctx, pd);
+            return;
+#else
             RLSetCurrentContext(ctx);
             RLGlfwPosI2 *e = (RLGlfwPosI2 *)RL_MALLOC(sizeof(RLGlfwPosI2));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_WINPOS, sizeof(RLGlfwPosI2));
             e->x = x; e->y = y;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowPos, e);
             return;
+#endif
         }
     }
 #endif
@@ -3269,6 +3972,7 @@ static void WindowIconifyCallback(GLFWwindow *window, int iconified)
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
             RLGlfwWindowIconifyEvent *e = (RLGlfwWindowIconifyEvent *)RL_MALLOC(sizeof(RLGlfwWindowIconifyEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowIconifyEvent));
             e->iconified = iconified;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowIconify, e);
             return;
@@ -3293,6 +3997,7 @@ static void WindowMaximizeCallback(GLFWwindow *window, int maximized)
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
             RLGlfwWindowMaximizeEvent *e = (RLGlfwWindowMaximizeEvent *)RL_MALLOC(sizeof(RLGlfwWindowMaximizeEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowMaximizeEvent));
             e->maximized = maximized;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowMaximize, e);
             return;
@@ -3388,6 +4093,7 @@ static void WindowCloseCallback(GLFWwindow *window)
             // Mirror GLFW close intent immediately on the window thread.
             glfwSetWindowShouldClose(window, GLFW_TRUE);
             RLGlfwWindowCloseEvent *e = (RLGlfwWindowCloseEvent *)RL_MALLOC(sizeof(RLGlfwWindowCloseEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_WINCLOSE, sizeof(RLGlfwWindowCloseEvent));
             e->shouldClose = 1;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowClose, e);
             RLGlfwSignalWakeByPolicy(pd, true);
@@ -3427,6 +4133,7 @@ static void WindowFocusCallback(GLFWwindow *window, int focused)
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
             RLGlfwWindowFocusEvent *e = (RLGlfwWindowFocusEvent *)RL_MALLOC(sizeof(RLGlfwWindowFocusEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowFocusEvent));
             e->focused = focused;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowFocus, e);
             return;
@@ -3451,6 +4158,7 @@ static void WindowDropCallback(GLFWwindow *window, int count, const char **paths
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
             RLGlfwDropEvent *e = (RLGlfwDropEvent *)RL_MALLOC(sizeof(RLGlfwDropEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_DROP, sizeof(RLGlfwDropEvent));
             e->count = count;
             e->paths = NULL;
             if (count > 0)
@@ -3507,6 +4215,7 @@ static void KeyCallback(GLFWwindow *window, int key, int scancode, int action, i
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
             RLGlfwKeyEvent *e = (RLGlfwKeyEvent *)RL_MALLOC(sizeof(RLGlfwKeyEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_KEY, sizeof(RLGlfwKeyEvent));
             // NOTE: GLFW LockKeyMods does not include lock state in `mods`, so query it here on the
             // owning (message) thread and forward the combined value to the render thread.
             int combinedMods = mods;
@@ -3560,6 +4269,7 @@ static void CharCallback(GLFWwindow *window, unsigned int codepoint)
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
             RLGlfwCharEvent *e = (RLGlfwCharEvent *)RL_MALLOC(sizeof(RLGlfwCharEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_CHAR, sizeof(RLGlfwCharEvent));
             e->codepoint = codepoint;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Char, e);
             return;
@@ -3594,6 +4304,7 @@ static void MouseButtonCallback(GLFWwindow *window, int button, int action, int 
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
             RLGlfwMouseButtonEvent *e = (RLGlfwMouseButtonEvent *)RL_MALLOC(sizeof(RLGlfwMouseButtonEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEBUTTON, sizeof(RLGlfwMouseButtonEvent));
             e->button = button; e->action = action; e->mods = mods;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseButton, e);
             return;
@@ -3646,11 +4357,21 @@ static void MouseCursorPosCallback(GLFWwindow *window, double x, double y)
         if ((pd != NULL) && pd->useEventThread)
         {
             if (pd->closing) return;
+#if RL_EVENTTHREAD_COALESCE_STATE
+            RLSetCurrentContext(ctx);
+            RLAtomicExchangeLong(&pd->pendingMouseXBits, RLFloatBitsFromFloat((float)x));
+            RLAtomicExchangeLong(&pd->pendingMouseYBits, RLFloatBitsFromFloat((float)y));
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_MOUSE_MOVE);
+            RLGlfwQueuePendingDrain(ctx, pd);
+            return;
+#else
             RLSetCurrentContext(ctx);
             RLGlfwMouseMoveEvent *e = (RLGlfwMouseMoveEvent *)RL_MALLOC(sizeof(RLGlfwMouseMoveEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEMOVE, sizeof(RLGlfwMouseMoveEvent));
             e->xpos = x; e->ypos = y;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseMove, e);
             return;
+#endif
         }
     }
 #endif
@@ -3695,12 +4416,22 @@ static void MouseScrollCallback(GLFWwindow *window, double xoffset, double yoffs
         if ((pd != NULL) && pd->useEventThread)
         {
             if (pd->closing) return;
+#if RL_EVENTTHREAD_COALESCE_STATE
+            RLSetCurrentContext(ctx);
+            RLAtomicAddLong(&pd->pendingWheelX_fp, RLWheelToFixed(xoffset));
+            RLAtomicAddLong(&pd->pendingWheelY_fp, RLWheelToFixed(yoffset));
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_WHEEL);
+            RLGlfwQueuePendingDrain(ctx, pd);
+            return;
+#else
             RLSetCurrentContext(ctx);
             RLGlfwMouseWheelEvent *e = (RLGlfwMouseWheelEvent *)RL_MALLOC(sizeof(RLGlfwMouseWheelEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEWHEEL, sizeof(RLGlfwMouseWheelEvent));
             e->xoffset = xoffset;
             e->yoffset = yoffset;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseWheel, e);
             return;
+#endif
         }
     }
 #endif
@@ -3722,6 +4453,7 @@ static void CursorEnterCallback(GLFWwindow *window, int enter)
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
             RLGlfwCursorEnterEvent *e = (RLGlfwCursorEnterEvent *)RL_MALLOC(sizeof(RLGlfwCursorEnterEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwCursorEnterEvent));
             e->entered = enter;
             RLGlfwRunOnRenderThread(ctx, RLGlfwTask_CursorEnter, e);
             return;
@@ -3748,6 +4480,7 @@ static void JoystickCallback(int jid, int event)
         if (ctx != NULL)
         {
             RLGlfwJoystickEvent *e = (RLGlfwJoystickEvent *)RL_MALLOC(sizeof(RLGlfwJoystickEvent));
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwJoystickEvent));
             memset(e, 0, sizeof(RLGlfwJoystickEvent));
             e->jid = jid;
             e->event = event;
@@ -3790,8 +4523,128 @@ static void RLGlfwTask_WindowPos(void *user)
     if (e == NULL) return;
     CORE.Window.position.x = e->x;
     CORE.Window.position.y = e->y;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_WINPOS, sizeof(RLGlfwPosI2));
     RL_FREE(e);
 }
+
+#if RL_EVENTTHREAD_COALESCE_STATE
+// Drain coalesced pending input/state for Win32 event-thread mode.
+// This runs on the render thread (via RLGlfwRunOnRenderThread).
+static void RLGlfwTask_DrainPendingInput(void *user)
+{
+    PlatformData *pd = (PlatformData *)user;
+    if (pd == NULL) return;
+
+    // If shutting down, drop any pending state and exit.
+    if (pd->closing)
+    {
+        RLAtomicExchangeLong(&pd->pendingMask, 0);
+        RLAtomicExchangeLong(&pd->pendingWheelX_fp, 0);
+        RLAtomicExchangeLong(&pd->pendingWheelY_fp, 0);
+        RLAtomicExchangeLong(&pd->pendingQueued, 0);
+        return;
+    }
+
+    for (;;)
+    {
+        long mask = RLAtomicExchangeLong(&pd->pendingMask, 0);
+
+        if (mask & RL_PENDING_SCALE)
+        {
+            const float scalex = RLFloatFromBits(RLAtomicLoadLong(&pd->pendingScaleXBits));
+            const float scaley = RLFloatFromBits(RLAtomicLoadLong(&pd->pendingScaleYBits));
+
+            float fbWidth = (float)CORE.Window.screen.width*scalex;
+            float fbHeight = (float)CORE.Window.screen.height*scaley;
+
+            CORE.Window.screenScale = MatrixScale(scalex, scaley, 1.0f);
+#if !defined(__APPLE__)
+            RLSetMouseScale(1.0f/scalex, 1.0f/scaley);
+#endif
+            CORE.Window.render.width = (int)fbWidth;
+            CORE.Window.render.height = (int)fbHeight;
+            CORE.Window.currentFbo = CORE.Window.render;
+        }
+
+        if (mask & RL_PENDING_FB_SIZE)
+        {
+            const int width = (int)RLAtomicLoadLong(&pd->pendingFbW);
+            const int height = (int)RLAtomicLoadLong(&pd->pendingFbH);
+
+            if ((width != 0) && (height != 0))
+            {
+                // Reset viewport and projection matrix for new size
+                SetupViewport(width, height);
+
+                // Set render size
+                CORE.Window.currentFbo.width = width;
+                CORE.Window.currentFbo.height = height;
+                CORE.Window.resizedLastFrame = true;
+
+                if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE))
+                {
+                    CORE.Window.screen.width = width;
+                    CORE.Window.screen.height = height;
+                    CORE.Window.screenScale = MatrixScale(1.0f, 1.0f, 1.0f);
+                    RLSetMouseScale(1.0f, 1.0f);
+                }
+                else
+                {
+                    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI))
+                    {
+                        RLVector2 scaleDpi = RLGetWindowScaleDPI();
+                        CORE.Window.screen.width = (int)((float)width/scaleDpi.x);
+                        CORE.Window.screen.height = (int)((float)height/scaleDpi.y);
+                        CORE.Window.screenScale = MatrixScale(scaleDpi.x, scaleDpi.y, 1.0f);
+#if !defined(__APPLE__)
+                        RLSetMouseScale(1.0f/scaleDpi.x, 1.0f/scaleDpi.y);
+#endif
+                    }
+                    else
+                    {
+                        CORE.Window.screen.width = width;
+                        CORE.Window.screen.height = height;
+                    }
+                }
+            }
+        }
+
+        if (mask & RL_PENDING_WIN_POS)
+        {
+            CORE.Window.position.x = (int)RLAtomicLoadLong(&pd->pendingWinX);
+            CORE.Window.position.y = (int)RLAtomicLoadLong(&pd->pendingWinY);
+        }
+
+        if (mask & RL_PENDING_MOUSE_MOVE)
+        {
+            const float x = RLFloatFromBits(RLAtomicLoadLong(&pd->pendingMouseXBits));
+            const float y = RLFloatFromBits(RLAtomicLoadLong(&pd->pendingMouseYBits));
+
+            CORE.Input.Mouse.currentPosition.x = x;
+            CORE.Input.Mouse.currentPosition.y = y;
+            CORE.Input.Touch.position[0].x = x;
+            CORE.Input.Touch.position[0].y = y;
+        }
+
+        if (mask & RL_PENDING_WHEEL)
+        {
+            const long dx_fp = RLAtomicExchangeLong(&pd->pendingWheelX_fp, 0);
+            const long dy_fp = RLAtomicExchangeLong(&pd->pendingWheelY_fp, 0);
+
+            // Accumulate all wheel steps that happened before this drain task executed.
+            CORE.Input.Mouse.currentWheelMove.x += (float)dx_fp/(float)RL_WHEEL_FP_SCALE;
+            CORE.Input.Mouse.currentWheelMove.y += (float)dy_fp/(float)RL_WHEEL_FP_SCALE;
+        }
+
+        // Mark this drain task as complete (allow another to be queued).
+        RLAtomicExchangeLong(&pd->pendingQueued, 0);
+
+        // If more pending events arrived while draining, try to continue in this same task.
+        if (RLAtomicLoadLong(&pd->pendingMask) == 0) break;
+        if (!RLAtomicCASLong(&pd->pendingQueued, 0, 1)) break;
+    }
+}
+#endif // RL_EVENTTHREAD_COALESCE_STATE
 
 static void RLGlfwTask_FramebufferSize(void *user)
 {
@@ -3800,6 +4653,7 @@ static void RLGlfwTask_FramebufferSize(void *user)
 
     const int width = e->w;
     const int height = e->h;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_FBSIZE, sizeof(RLGlfwSizeI2));
     RL_FREE(e);
 
     if ((width == 0) || (height == 0)) return;
@@ -3846,6 +4700,7 @@ static void RLGlfwTask_WindowContentScale(void *user)
 
     const float scalex = e->sx;
     const float scaley = e->sy;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_SCALE, sizeof(RLGlfwWindowScaleEvent));
     RL_FREE(e);
 
     float fbWidth = (float)CORE.Window.screen.width*scalex;
@@ -3867,6 +4722,7 @@ static void RLGlfwTask_WindowIconify(void *user)
     if (e == NULL) return;
     if (e->iconified) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
     else FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowIconifyEvent));
     RL_FREE(e);
 }
 
@@ -3876,6 +4732,7 @@ static void RLGlfwTask_WindowMaximize(void *user)
     if (e == NULL) return;
     if (e->maximized) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
     else FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowMaximizeEvent));
     RL_FREE(e);
 }
 
@@ -3885,6 +4742,7 @@ static void RLGlfwTask_WindowFocus(void *user)
     if (e == NULL) return;
     if (e->focused) FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED);
     else FLAG_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED);
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowFocusEvent));
     RL_FREE(e);
 }
 
@@ -3903,7 +4761,7 @@ static void RLGlfwTask_WindowRefresh(void *user)
 static void RLGlfwTask_WindowClose(void *user)
 {
     RLGlfwWindowCloseEvent *e = (RLGlfwWindowCloseEvent *)user;
-    if (e != NULL) RL_FREE(e);
+    if (e != NULL) { RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_WINCLOSE, sizeof(RLGlfwWindowCloseEvent)); RL_FREE(e); }
     CORE.Window.shouldClose = true;
 }
 
@@ -3929,6 +4787,7 @@ static void RLGlfwTask_Drop(void *user)
     }
 
     // Free envelope only (strings are now owned by CORE)
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_DROP, sizeof(RLGlfwDropEvent));
     RL_FREE(e);
 }
 
@@ -3941,6 +4800,7 @@ static void RLGlfwTask_Key(void *user)
     const int scancode = e->scancode;
     const int action = e->action;
     const int mods = e->mods;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_KEY, sizeof(RLGlfwKeyEvent));
     RL_FREE(e);
 
     if (key == GLFW_KEY_UNKNOWN) return;
@@ -3986,6 +4846,7 @@ static void RLGlfwTask_Char(void *user)
     RLGlfwCharEvent *e = (RLGlfwCharEvent *)user;
     if (e == NULL) return;
     const unsigned int codepoint = e->codepoint;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_CHAR, sizeof(RLGlfwCharEvent));
     RL_FREE(e);
 
     if (CORE.Input.Keyboard.charPressedQueueCount < MAX_CHAR_PRESSED_QUEUE)
@@ -4002,6 +4863,7 @@ static void RLGlfwTask_MouseButton(void *user)
     const int button = e->button;
     const int action = e->action;
     const int mods = e->mods;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_MOUSEBUTTON, sizeof(RLGlfwMouseButtonEvent));
     RL_FREE(e);
 
     if (button >= 0)
@@ -4036,6 +4898,7 @@ static void RLGlfwTask_MouseMove(void *user)
     if (e == NULL) return;
     const double xpos = e->xpos;
     const double ypos = e->ypos;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_MOUSEMOVE, sizeof(RLGlfwMouseMoveEvent));
     RL_FREE(e);
 
     CORE.Input.Mouse.currentPosition.x = (float)xpos;
@@ -4051,6 +4914,7 @@ static void RLGlfwTask_MouseWheel(void *user)
     if (e == NULL) return;
     const double xoffset = e->xoffset;
     const double yoffset = e->yoffset;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_MOUSEWHEEL, sizeof(RLGlfwMouseWheelEvent));
     RL_FREE(e);
 
     // WARNING: GLFW could return both X and Y offset values for a mouse wheel event
@@ -4063,6 +4927,7 @@ static void RLGlfwTask_CursorEnter(void *user)
     RLGlfwCursorEnterEvent *e = (RLGlfwCursorEnterEvent *)user;
     if (e == NULL) return;
     const int entered = e->entered;
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwCursorEnterEvent));
     RL_FREE(e);
 
     CORE.Input.Mouse.cursorOnScreen = (entered != 0);
@@ -4092,6 +4957,7 @@ static void RLGlfwTask_Joystick(void *user)
     }
 
     if (e->name != NULL) RL_FREE(e->name);
+    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwJoystickEvent));
     RL_FREE(e);
 }
 
@@ -4364,7 +5230,7 @@ static void RLGlfwEventThreadMain(void *p)
 {
     RLGlfwEventThreadStart *start = (RLGlfwEventThreadStart *)p;
     RLContext *ctx = (start != NULL)? start->ctx : NULL;
-    if (start != NULL) RL_FREE(start);
+    if (start != NULL) { RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwEventThreadStart)); RL_FREE(start); }
     if (ctx == NULL) return;
 
     RLSetCurrentContext(ctx);
@@ -4403,6 +5269,9 @@ static void RLGlfwEventThreadMain(void *p)
     {
         glfwSetWindowUserPointer(platform.handle, ctx);
 
+        // Cache HWND for cross-thread management APIs.
+        platform.win32Hwnd = (HWND)glfwGetWin32Window(platform.handle);
+
         // Register callbacks on the message thread.
         glfwSetWindowSizeCallback(platform.handle, WindowSizeCallback);
         glfwSetFramebufferSizeCallback(platform.handle, FramebufferSizeCallback);
@@ -4440,11 +5309,11 @@ static void RLGlfwEventThreadMain(void *p)
     while (!platform.eventThreadStop)
     {
         glfwWaitEventsTimeout(0.05);
-        glfwPumpThreadTasks();
+        RLGlfwPumpThreadTasksWithDiag();
     }
 
     // Ensure any remaining tasks are drained.
-    glfwPumpThreadTasks();
+    RLGlfwPumpThreadTasksWithDiag();
 }
 
 #endif // defined(_WIN32)

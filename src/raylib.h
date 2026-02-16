@@ -1,4 +1,4 @@
-/**********************************************************************************************
+﻿/**********************************************************************************************
 *
 *   raylib v5.6-dev - A simple and easy-to-use library to enjoy videogames programming (www.raylib.com)
 *
@@ -83,7 +83,8 @@
 #ifndef RAYLIB_H
 #define RAYLIB_H
 
-#include <stdarg.h>     // Required for: va_list - Only used by TraceLogCallback
+#include <stdarg.h>
+#include <stdint.h>     // Required for: va_list - Only used by TraceLogCallback
 
 #define RAYLIB_VERSION_MAJOR 5
 #define RAYLIB_VERSION_MINOR 6
@@ -987,6 +988,7 @@ RLAPI RLContext *RLGetCurrentContext(void);
 
 // Window-related functions
 RLAPI void RLInitWindow(int width, int height, const char *title);  // Initialize window and OpenGL context
+RLAPI void RLInitWindowEx(int width, int height, const char *title, const char *win32ClassName); // Initialize window with optional Win32 class name (desktop+GLFW on Windows)
 RLAPI void RLCloseWindow(void);                                     // Close window and unload OpenGL context
 RLAPI bool RLWindowShouldClose(void);                               // Check if application should close (KEY_ESCAPE pressed or windows close icon clicked)
 RLAPI bool RLIsWindowReady(void);                                   // Check if window has been initialized successfully
@@ -1015,6 +1017,55 @@ RLAPI void RLSetWindowSize(int width, int height);                  // Set windo
 RLAPI void RLSetWindowOpacity(float opacity);                       // Set window opacity [0.0f..1.0f]
 RLAPI void RLSetWindowFocused(void);                                // Set window focused
 RLAPI void *RLGetWindowHandle(void);                                // Get native window handle
+
+#if defined(_WIN32)
+// Win32 helpers (property bag + message hooks)
+// NOTE: Available only when using the GLFW desktop backend on Windows.
+//       Property values are stored with SetProp/GetProp/RemoveProp on the underlying HWND.
+//
+// Return non-zero to mark the message as handled. If handled, *result will be returned by the window proc.
+typedef int (*RLWin32MessageHook)(void* hwnd, unsigned int uMsg, uintptr_t wParam, intptr_t lParam, intptr_t* result, void* user);
+
+RLAPI int RLWin32SetWindowProp(const char* name, void* value);
+RLAPI void* RLWin32GetWindowProp(const char* name);
+RLAPI void* RLWin32RemoveWindowProp(const char* name);
+
+// Returns an opaque token to be passed to RLWin32RemoveMessageHook.
+RLAPI void* RLWin32AddMessageHook(RLWin32MessageHook hook, void* user);
+RLAPI int RLWin32RemoveMessageHook(void* token);
+
+// Global window management (process-wide)
+// If outHwnds is NULL or maxCount <= 0, returns the number of currently tracked raylib windows.
+RLAPI int RLWin32GetAllWindowHandles(void** outHwnds, int maxCount);
+RLAPI void* RLWin32GetPrimaryWindowHandle(void);
+RLAPI int RLWin32IsKnownWindowHandle(void* hwnd);
+
+// Cross-thread helpers (operate on a specific raylib window by HWND)
+RLAPI int RLWin32SetWindowPropByHandle(void* hwnd, const char* name, void* value);
+RLAPI void* RLWin32GetWindowPropByHandle(void* hwnd, const char* name);
+RLAPI void* RLWin32RemoveWindowPropByHandle(void* hwnd, const char* name);
+
+RLAPI void* RLWin32AddMessageHookByHandle(void* hwnd, RLWin32MessageHook hook, void* user);
+RLAPI int RLWin32RemoveMessageHookByHandle(void* hwnd, void* token);
+// Generic cross-thread dispatch primitives (advanced)
+// NOTE: Window-thread invoke runs on the Win32 thread that owns the HWND (safe for Win32 UI ops).
+#ifndef RL_WIN32_WINDOW_THREAD_INVOKE_DEFINED
+#define RL_WIN32_WINDOW_THREAD_INVOKE_DEFINED
+typedef intptr_t (*RLWin32WindowThreadInvoke)(void* hwnd, void* user);
+#endif
+RLAPI intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait);
+
+// NOTE: Render-thread invoke runs on the render thread of the target window (safe for raylib drawing/GL for that window).
+// In non-event-thread mode, this only works when called from the same thread that owns the target OpenGL context.
+#ifndef RL_WINDOW_RENDER_THREAD_INVOKE_DEFINED
+#define RL_WINDOW_RENDER_THREAD_INVOKE_DEFINED
+typedef intptr_t (*RLWindowRenderThreadInvoke)(void* hwnd, void* user);
+#endif
+RLAPI intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait);
+
+#endif
+
+RLAPI void RLSetWindowWin32ClassName(const char *win32ClassName);   // Set one-shot Win32 class name for next window creation (desktop+GLFW on Windows)
 RLAPI int RLGetScreenWidth(void);                                   // Get current screen width
 RLAPI int RLGetScreenHeight(void);                                  // Get current screen height
 RLAPI int RLGetRenderWidth(void);                                   // Get current render width (it considers HiDPI)
@@ -1738,6 +1789,50 @@ RLAPI void RLDetachAudioStreamProcessor(RLAudioStream stream, RLAudioCallback pr
 
 RLAPI void RLAttachAudioMixedProcessor(RLAudioCallback processor); // Attach audio stream processor to the entire audio pipeline, receives frames x 2 samples as 'float' (stereo)
 RLAPI void RLDetachAudioMixedProcessor(RLAudioCallback processor); // Detach audio stream processor from the entire audio pipeline
+
+//------------------------------------------------------------------------------------
+// Event-thread diagnostics (desktop GLFW Win32 extensions)
+//------------------------------------------------------------------------------------
+// NOTE: Meaningful only when FLAG_WINDOW_EVENT_THREAD is used and the library is built with
+// RL_EVENT_DIAG_STATS=1 (see src/config.h or compile definitions).
+
+typedef struct RLEventThreadDiagStats {
+    // Render-thread task envelope (internal)
+    unsigned long long renderCallAlloc;
+    unsigned long long renderCallFree;
+
+    // Payload allocations (common input/window callbacks posted across threads)
+    unsigned long long payloadAlloc;
+    unsigned long long payloadFree;
+    unsigned long long payloadAllocBytes;
+    unsigned long long payloadFreeBytes;
+    unsigned long long payloadOutstandingMax;
+
+    // Per-payload breakdown (counts only; bytes are included in payload*Bytes totals)
+    unsigned long long mouseMoveAlloc, mouseMoveFree;
+    unsigned long long mouseWheelAlloc, mouseWheelFree;
+    unsigned long long mouseButtonAlloc, mouseButtonFree;
+    unsigned long long keyAlloc, keyFree;
+    unsigned long long chAlloc, chFree;
+    unsigned long long winPosAlloc, winPosFree;
+    unsigned long long fbSizeAlloc, fbSizeFree;
+    unsigned long long scaleAlloc, scaleFree;
+    unsigned long long dropAlloc, dropFree;
+    unsigned long long winCloseAlloc, winCloseFree;
+    unsigned long long otherAlloc, otherFree;
+
+    // Task/pump performance
+    unsigned long long tasksPosted;
+    unsigned long long tasksExecuted;
+    unsigned long long pumpCalls;
+    unsigned long long pumpTasksExecutedTotal;
+    unsigned int        pumpTasksExecutedMax;
+    double              pumpTimeTotalMs;
+    double              pumpTimeMaxMs;
+} RLEventThreadDiagStats;
+
+RLAPI RLEventThreadDiagStats RLGetEventThreadDiagStats(void);
+RLAPI void RLResetEventThreadDiagStats(void);
 
 #if defined(__cplusplus)
 }
