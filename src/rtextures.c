@@ -62,6 +62,7 @@
 **********************************************************************************************/
 
 #include "raylib.h"             // Declares module functions
+#include "rl_shared_gpu.h"
 
 #include "config.h"             // Defines module configuration flags
 
@@ -4333,6 +4334,18 @@ void RLUnloadTexture(RLTexture2D texture)
     }
 }
 
+void RLSharedRetainTexture(RLTexture2D texture)
+{
+    if (texture.id == 0) return;
+    RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_TEXTURE, texture.id);
+}
+
+void RLSharedReleaseTexture(RLTexture2D texture)
+{
+    if (texture.id == 0) return;
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_TEXTURE, texture.id);
+}
+
 // Check if a render texture is valid (loaded in GPU)
 bool RLIsRenderTextureValid(RLRenderTexture2D target)
 {
@@ -4360,6 +4373,28 @@ void RLUnloadRenderTexture(RLRenderTexture2D target)
         // queried and deleted before deleting framebuffer
         rlUnloadFramebuffer(target.id);
     }
+}
+
+void RLSharedRetainRenderTexture(RLRenderTexture2D target)
+{
+    if (target.id == 0) return;
+
+    // Retain framebuffer + its depth attachment (share-group wide, context-free)
+    RLSharedGpuRetainFramebufferTree(target.id);
+
+    // Retain color attachment
+    if (target.texture.id != 0) RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_TEXTURE, target.texture.id);
+}
+
+void RLSharedReleaseRenderTexture(RLRenderTexture2D target)
+{
+    if (target.id == 0) return;
+
+    // Release color attachment
+    if (target.texture.id != 0) RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_TEXTURE, target.texture.id);
+
+    // Release depth attachment + framebuffer (share-group wide, context-free)
+    RLSharedGpuReleaseFramebufferTree(target.id);
 }
 
 // Update GPU texture with new data

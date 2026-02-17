@@ -1,4 +1,4 @@
-﻿#ifndef RL_CONTEXT_H
+#ifndef RL_CONTEXT_H
 #define RL_CONTEXT_H
 
 // Internal context support for multi-window / multi-thread.
@@ -23,6 +23,7 @@ struct RLContext
     // Opaque pointers to internal module storage (allocated lazily by modules that know the types)
     void *core;        // CoreData*
     void *platformData;    // PlatformData* (GLFW desktop)
+    void *gpuShareGroup;   // RLSharedGpuGroup* (share-group wide refcounting)
     void *rlgl;        // rlglData*
 
     // rlgl module legacy statics

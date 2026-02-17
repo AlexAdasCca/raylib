@@ -1,4 +1,4 @@
-﻿/**********************************************************************************************
+/**********************************************************************************************
 *
 *   rcore - Window/display management, Graphic device/context management and input management
 *
@@ -107,7 +107,8 @@
 #endif
 
 #include "raylib.h"                 // Declares module functions
-#include "rl_context.h"             // Route2: context management
+#include "rl_context.h"
+#include "rl_shared_gpu.h"             // Route2: context management
 
 #include "config.h"                 // Defines module configuration flags
 
@@ -427,6 +428,9 @@ void RLContextOnDestroy(RLContext *ctx)
     // NOTE: Do not call CloseWindow() here automatically; destroying a context from the wrong thread
     // can violate GLFW/Win32 thread-affinity for window/GL context operations. The owner thread
     // should CloseWindow() explicitly before destroying its RLContext.
+
+    // Drop share-group binding (refcount only; no GL calls).
+    RLSharedGpuContextUnbindShareGroup(ctx);
 
     if (ctx->rlgl) { RL_FREE(ctx->rlgl); ctx->rlgl = NULL; }
     if (ctx->core) { RL_FREE(ctx->core); ctx->core = NULL; }
@@ -1125,6 +1129,9 @@ void RLCloseWindow(void)
 
     rlglClose();                // De-init rlgl
 
+    // Drain deferred GPU deletes (share-group wide) while a context is still current.
+    rlSharedGpuFlushDeletes();
+
     // De-initialize platform
     //--------------------------------------------------------------
     ClosePlatform();
@@ -1132,6 +1139,12 @@ void RLCloseWindow(void)
 
     CORE.Window.ready = false;
     TRACELOG(LOG_INFO, "Window closed successfully");
+}
+
+void RLFlushSharedGpuDeletes(void)
+{
+    if (!isGpuReady) return;
+    rlSharedGpuFlushDeletes();
 }
 
 // Check if window has been initialized successfully
@@ -1694,6 +1707,9 @@ RLShader RLLoadShaderFromMemory(const char *vsCode, const char *fsCode)
         shader.locs[SHADER_LOC_MAP_DIFFUSE] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE0);  // SHADER_LOC_MAP_ALBEDO
         shader.locs[SHADER_LOC_MAP_SPECULAR] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE1); // SHADER_LOC_MAP_METALNESS
         shader.locs[SHADER_LOC_MAP_NORMAL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE2);
+
+        // Tie CPU-side shader locations to the shared program lifetime
+        RLSharedGpuRegisterProgramLocs(shader.id, shader.locs);
     }
 
     return shader;
@@ -1734,13 +1750,32 @@ bool RLIsShaderValid(RLShader shader)
 // Unload shader from GPU memory (VRAM)
 void RLUnloadShader(RLShader shader)
 {
-    if (shader.id != rlGetShaderIdDefault())
-    {
-        rlUnloadShaderProgram(shader.id);
-
-        // NOTE: If shader loading failed, it should be 0
-        RL_FREE(shader.locs);
+    // NOTE: shader.id == 0 means load failed; only CPU-side locations exist.
+    if (shader.id == 0) {
+        if (shader.locs != NULL) RL_FREE(shader.locs);
+        return;
     }
+
+    // Default shader is owned by rlgl
+    if (shader.id == rlGetShaderIdDefault()) return;
+
+    // Share-group wide release; CPU-side locations are freed automatically when the program
+    // refcount reaches 0 (see RLSharedGpuRegisterProgramLocs).
+    rlUnloadShaderProgram(shader.id);
+}
+
+void RLSharedRetainShader(RLShader shader)
+{
+    if (shader.id == 0) return;
+    if (shader.id == rlGetShaderIdDefault()) return;
+    RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_PROGRAM, shader.id);
+}
+
+void RLSharedReleaseShader(RLShader shader)
+{
+    if (shader.id == 0) return;
+    if (shader.id == rlGetShaderIdDefault()) return;
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_PROGRAM, shader.id);
 }
 
 // Get shader uniform location

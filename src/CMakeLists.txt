@@ -37,6 +37,7 @@ set(raylib_sources
     rtext.c
     rtextures.c
     rl_context.cpp
+    rl_shared_gpu.cpp
     rglfwglobal.cpp
     )
 

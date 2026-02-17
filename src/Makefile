@@ -276,6 +276,7 @@ endif
 # Define default C compiler and archiver to pack library: CC, AR
 #------------------------------------------------------------------------------------------------
 CC = gcc
+CXX ?= g++
 AR = ar
 
 ifeq ($(TARGET_PLATFORM),PLATFORM_DESKTOP_GLFW)
@@ -658,7 +659,8 @@ endif
 OBJS = rcore.o \
        rshapes.o \
        rtextures.o \
-       rtext.o
+       rtext.o \
+       rl_shared_gpu.o
 
 ifeq ($(TARGET_PLATFORM),PLATFORM_DESKTOP_GLFW)
     ifeq ($(USE_EXTERNAL_GLFW),FALSE)
@@ -759,6 +761,10 @@ rcore.o : platforms/*.c
 # Compile core module
 rcore.o : rcore.c raylib.h rlgl.h raymath.h rcamera.h rgestures.h
 	$(CC) -c $< $(CFLAGS) $(INCLUDE_PATHS)
+
+# Compile shared GPU lifetime tracker (C++)
+rl_shared_gpu.o : rl_shared_gpu.cpp rl_shared_gpu.h rl_context.h
+	$(CXX) -c $< $(CFLAGS) $(INCLUDE_PATHS)
 
 # Compile rglfw module
 rglfw.o : rglfw.c

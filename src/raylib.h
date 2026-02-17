@@ -1,4 +1,4 @@
-﻿/**********************************************************************************************
+/**********************************************************************************************
 *
 *   raylib v5.6-dev - A simple and easy-to-use library to enjoy videogames programming (www.raylib.com)
 *
@@ -986,7 +986,9 @@ typedef struct RLContext RLContext;
 // Important:
 // - Sharing is backend-dependent; currently supported on DESKTOP (GLFW) OpenGL.
 // - You must configure sharing BEFORE calling RLInitWindow/RLInitWindowEx for that context.
-// - Resource lifetime becomes share-group wide: deleting/unloading an object in any context deletes it for all.
+// - GPU object lifetime is share-group wide and reference-counted: unloading in any context decrements
+//   the share-group refcount; when it reaches 0, deletion is deferred until drained on a thread with a
+//   current OpenGL context (implicitly at RLBeginDrawing(), or explicitly via RLFlushSharedGpuDeletes()).
 // - If contexts render on different threads, you are responsible for synchronization (glFlush/glFinish/fences).
 
 typedef enum RLContextResourceShareMode {
@@ -1009,6 +1011,18 @@ RLAPI RLContext *RLGetCurrentContext(void);
 RLAPI void RLContextSetResourceShareMode(RLContext* ctx, RLContextResourceShareMode mode, RLContext* shareWith);
 RLAPI RLContextResourceShareMode RLContextGetResourceShareMode(RLContext* ctx);
 RLAPI RLContext* RLContextGetResourceShareContext(RLContext* ctx);
+
+// Share-group wide GPU lifetime helpers (reference-counted, deferred delete).
+// NOTE: A context belonging to the target share-group must be current when calling these.
+//       Unload*() already uses this mechanism internally; call Retain/Release if you keep
+//       extra references to the same GPU object across windows/threads.
+RLAPI void RLSharedRetainTexture(RLTexture2D texture);
+RLAPI void RLSharedReleaseTexture(RLTexture2D texture);
+RLAPI void RLSharedRetainRenderTexture(RLRenderTexture2D target);
+RLAPI void RLSharedReleaseRenderTexture(RLRenderTexture2D target);
+RLAPI void RLSharedRetainShader(RLShader shader);
+RLAPI void RLSharedReleaseShader(RLShader shader);
+RLAPI void RLFlushSharedGpuDeletes(void);
 
 // Window-related functions
 RLAPI void RLInitWindow(int width, int height, const char *title);  // Initialize window and OpenGL context

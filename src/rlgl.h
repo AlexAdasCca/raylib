@@ -1,4 +1,4 @@
-﻿/**********************************************************************************************
+/**********************************************************************************************
 *
 *   rlgl v5.0 - A multi-OpenGL abstraction layer with an immediate-mode style API
 *
@@ -828,6 +828,8 @@ RLAPI void rlLoadDrawQuad(void);     // Load and draw a quad
 ************************************************************************************/
 
 #if defined(RLGL_IMPLEMENTATION)
+
+#include "rl_shared_gpu.h"
 
 // Expose OpenGL functions from glad in raylib
 #if defined(BUILD_LIBTYPE_SHARED)
@@ -2382,8 +2384,14 @@ void rlglClose(void)
 
     rlUnloadShaderDefault(); // Unload default shader
 
-    glDeleteTextures(1, &RLGL.State.defaultTextureId); // Unload default texture
-    TRACELOG(RL_LOG_INFO, "TEXTURE: [ID %i] Default texture unloaded successfully", RLGL.State.defaultTextureId);
+    // Unload default texture (share-group aware: refcounted + deferred delete).
+    if (RLGL.State.defaultTextureId != 0)
+    {
+        unsigned int texId = RLGL.State.defaultTextureId;
+        rlUnloadTexture(texId);
+        RLGL.State.defaultTextureId = 0;
+        TRACELOG(RL_LOG_INFO, "TEXTURE: [ID %i] Default texture unloaded successfully", texId);
+    }
 #endif
 
 #if defined(GRAPHICS_API_OPENGL_11_SOFTWARE)
@@ -3406,6 +3414,7 @@ unsigned int rlLoadTexture(const void *data, int width, int height, int format, 
     if (id > 0) TRACELOG(RL_LOG_INFO, "TEXTURE: [ID %i] Texture loaded successfully (%ix%i | %s | %i mipmaps)", id, width, height, rlGetPixelFormatName(format), mipmapCount);
     else TRACELOG(RL_LOG_WARNING, "TEXTURE: Failed to load texture");
 
+    if (id > 0) RLSharedGpuRegisterObject(RL_SHARED_GPU_OBJECT_TEXTURE, id);
     return id;
 }
 
@@ -3463,6 +3472,8 @@ unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer)
         TRACELOG(RL_LOG_INFO, "TEXTURE: [ID %i] Depth renderbuffer loaded successfully (%i bits)", id, (RLGL.ExtSupported.maxDepthBits >= 24)? RLGL.ExtSupported.maxDepthBits : 16);
     }
 #endif
+
+    if (id > 0) RLSharedGpuRegisterObject((useRenderBuffer? RL_SHARED_GPU_OBJECT_RENDERBUFFER : RL_SHARED_GPU_OBJECT_TEXTURE), id);
 
     return id;
 }
@@ -3562,6 +3573,7 @@ unsigned int rlLoadTextureCubemap(const void *data, int size, int format, int mi
     if (id > 0) TRACELOG(RL_LOG_INFO, "TEXTURE: [ID %i] Cubemap texture loaded successfully (%ix%i)", id, size, size);
     else TRACELOG(RL_LOG_WARNING, "TEXTURE: Failed to load cubemap texture");
 
+    if (id > 0) RLSharedGpuRegisterObject(RL_SHARED_GPU_OBJECT_TEXTURE, id);
     return id;
 }
 
@@ -3657,7 +3669,7 @@ void rlGetGlTextureFormats(int format, unsigned int *glInternalFormat, unsigned 
 // Unload texture from GPU memory
 void rlUnloadTexture(unsigned int id)
 {
-    glDeleteTextures(1, &id);
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_TEXTURE, id);
 }
 
 // Generate mipmap data for selected texture
@@ -3822,6 +3834,7 @@ unsigned int rlLoadFramebuffer(void)
 
 #if (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2))
     glGenFramebuffers(1, &fboId);       // Create the framebuffer object
+    if (fboId > 0) RLSharedGpuRegisterObject(RL_SHARED_GPU_OBJECT_FRAMEBUFFER, fboId);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);   // Unbind any framebuffer
 #endif
 
@@ -3854,6 +3867,10 @@ void rlFramebufferAttach(unsigned int fboId, unsigned int texId, int attachType,
         {
             if (texType == RL_ATTACHMENT_TEXTURE2D) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, texId, mipLevel);
             else if (texType == RL_ATTACHMENT_RENDERBUFFER)  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, texId);
+
+            // Track depth attachment for context-free retain/release of render textures (share-group wide).
+            if (texId != 0) RLSharedGpuRegisterFramebufferDepth(fboId, (texType == RL_ATTACHMENT_RENDERBUFFER)? RL_SHARED_GPU_OBJECT_RENDERBUFFER : RL_SHARED_GPU_OBJECT_TEXTURE, texId);
+            else RLSharedGpuUnregisterFramebufferDepth(fboId);
         } break;
         case RL_ATTACHMENT_STENCIL:
         {
@@ -3903,28 +3920,39 @@ bool rlFramebufferComplete(unsigned int id)
 // NOTE: All attached textures/cubemaps/renderbuffers are also deleted
 void rlUnloadFramebuffer(unsigned int id)
 {
-#if (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2))
-    // Query depth attachment to automatically delete texture/renderbuffer
-    int depthType = 0;
-    glBindFramebuffer(GL_FRAMEBUFFER, id);   // Bind framebuffer to query depth texture type
-    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &depthType);
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
+    // NOTE: We only delete depth attachments here (color textures are managed by higher-level code).
+    // In shared-context / multi-thread scenarios, querying attachments via glGetFramebufferAttachmentParameteriv
+    // can be unreliable across contexts. Prefer the cached mapping populated by rlFramebufferAttach(), and
+    // fall back to querying only if no mapping is available.
 
-    // WARNING: WebGL: INVALID_ENUM: getFramebufferAttachmentParameter: invalid parameter name
-    // REF: https://registry.khronos.org/webgl/specs/latest/1.0/
-    int depthId = 0;
-    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &depthId);
+    RLSharedGpuObjectType mapType = (RLSharedGpuObjectType)0;
+    unsigned int mapId = 0;
+    if (RLSharedGpuQueryFramebufferDepth(id, &mapType, &mapId))
+    {
+        if (mapId > 0) RLSharedGpuReleaseObject(mapType, mapId);
+        RLSharedGpuUnregisterFramebufferDepth(id);
+    }
+    else
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, id);
 
-    unsigned int depthIdU = (unsigned int)depthId;
-    if (depthType == GL_RENDERBUFFER) glDeleteRenderbuffers(1, &depthIdU);
-    else if (depthType == GL_TEXTURE) glDeleteTextures(1, &depthIdU);
+        int depthAttachment = 0;
+        int depthAttachmentType = 0;
+        glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &depthAttachment);
+        glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &depthAttachmentType);
 
-    // NOTE: If a texture object is deleted while its image is attached to the *currently bound* framebuffer,
-    // the texture image is automatically detached from the currently bound framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDeleteFramebuffers(1, &id);
+        if (depthAttachment > 0)
+        {
+            if (depthAttachmentType == GL_RENDERBUFFER) RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_RENDERBUFFER, (unsigned int)depthAttachment);
+            else RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_TEXTURE, (unsigned int)depthAttachment);
+        }
+        RLSharedGpuUnregisterFramebufferDepth(id);
+    }
 
-    TRACELOG(RL_LOG_INFO, "FBO: [ID %i] Unloaded framebuffer from VRAM (GPU)", id);
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_FRAMEBUFFER, id);
 #endif
 }
 
@@ -3938,6 +3966,7 @@ unsigned int rlLoadVertexBuffer(const void *buffer, int size, bool dynamic)
 
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     glGenBuffers(1, &id);
+    if (id > 0) RLSharedGpuRegisterObject(RL_SHARED_GPU_OBJECT_BUFFER, id);
     glBindBuffer(GL_ARRAY_BUFFER, id);
     glBufferData(GL_ARRAY_BUFFER, size, buffer, dynamic? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 #endif
@@ -3953,6 +3982,7 @@ unsigned int rlLoadVertexBufferElement(const void *buffer, int size, bool dynami
 
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     glGenBuffers(1, &id);
+    if (id > 0) RLSharedGpuRegisterObject(RL_SHARED_GPU_OBJECT_BUFFER, id);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, id);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, size, buffer, dynamic? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 #endif
@@ -4118,7 +4148,11 @@ unsigned int rlLoadVertexArray(void)
     if (!isGpuReady) { TRACELOG(RL_LOG_WARNING, "GL: GPU is not ready to load data, trying to load before InitWindow()?"); return vaoId; }
 
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
-    if (RLGL.ExtSupported.vao) glGenVertexArrays(1, &vaoId);
+    if (RLGL.ExtSupported.vao)
+    {
+        glGenVertexArrays(1, &vaoId);
+        if (vaoId > 0) RLSharedGpuRegisterObject(RL_SHARED_GPU_OBJECT_VERTEX_ARRAY, vaoId);
+    }
 #endif
 
     return vaoId;
@@ -4153,7 +4187,7 @@ void rlUnloadVertexArray(unsigned int vaoId)
     if (RLGL.ExtSupported.vao)
     {
         glBindVertexArray(0);
-        glDeleteVertexArrays(1, &vaoId);
+        RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_VERTEX_ARRAY, vaoId);
         TRACELOG(RL_LOG_INFO, "VAO: [ID %i] Unloaded vertex array data from VRAM (GPU)", vaoId);
     }
 #endif
@@ -4163,7 +4197,7 @@ void rlUnloadVertexArray(unsigned int vaoId)
 void rlUnloadVertexBuffer(unsigned int vboId)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
-    glDeleteBuffers(1, &vboId);
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_BUFFER, vboId);
     //TRACELOG(RL_LOG_INFO, "VBO: Unloaded vertex data from VRAM (GPU)");
 #endif
 }
@@ -4379,6 +4413,7 @@ unsigned int rlLoadShaderProgram(unsigned int vShaderId, unsigned int fShaderId)
         TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Program shader loaded successfully", programId);
     }
 #endif
+    if (programId > 0) RLSharedGpuRegisterObject(RL_SHARED_GPU_OBJECT_PROGRAM, programId);
     return programId;
 }
 
@@ -4386,11 +4421,39 @@ unsigned int rlLoadShaderProgram(unsigned int vShaderId, unsigned int fShaderId)
 void rlUnloadShaderProgram(unsigned int id)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
-    glDeleteProgram(id);
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_PROGRAM, id);
 
     TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Unloaded shader program data from VRAM (GPU)", id);
 #endif
 }
+
+// Drain deferred share-group deletes for the CURRENT context.
+// NOTE: Must be called on a thread with a current OpenGL context.
+static void rlSharedGpuFlushDeletes(void)
+{
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
+    RLSharedGpuObjectType type;
+    unsigned int id;
+
+    while (RLSharedGpuPopPendingDelete(&type, &id))
+    {
+        switch (type)
+        {
+            case RL_SHARED_GPU_OBJECT_TEXTURE: glDeleteTextures(1, &id); break;
+            case RL_SHARED_GPU_OBJECT_BUFFER: glDeleteBuffers(1, &id); break;
+            case RL_SHARED_GPU_OBJECT_VERTEX_ARRAY:
+            {
+                if (RLGL.ExtSupported.vao) glDeleteVertexArrays(1, &id);
+            } break;
+            case RL_SHARED_GPU_OBJECT_FRAMEBUFFER: glDeleteFramebuffers(1, &id); break;
+            case RL_SHARED_GPU_OBJECT_RENDERBUFFER: glDeleteRenderbuffers(1, &id); break;
+            case RL_SHARED_GPU_OBJECT_PROGRAM: glDeleteProgram(id); break;
+            default: break;
+        }
+    }
+#endif
+}
+
 
 // Get shader location uniform
 // NOTE: First parameter refers to shader program id
@@ -4603,7 +4666,7 @@ unsigned int rlLoadShaderBuffer(unsigned int size, const void *data, int usageHi
 void rlUnloadShaderBuffer(unsigned int ssboId)
 {
 #if defined(GRAPHICS_API_OPENGL_43)
-    glDeleteBuffers(1, &ssboId);
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_BUFFER, ssboId);
 #else
     TRACELOG(RL_LOG_WARNING, "SSBO: SSBO not enabled. Define GRAPHICS_API_OPENGL_43");
 #endif
@@ -5094,16 +5157,27 @@ static void rlUnloadShaderDefault(void)
 {
     glUseProgram(0);
 
+    unsigned int shaderId = RLGL.State.defaultShaderId;
+
     glDetachShader(RLGL.State.defaultShaderId, RLGL.State.defaultVShaderId);
     glDetachShader(RLGL.State.defaultShaderId, RLGL.State.defaultFShaderId);
     glDeleteShader(RLGL.State.defaultVShaderId);
     glDeleteShader(RLGL.State.defaultFShaderId);
+    RLGL.State.defaultVShaderId = 0;
+    RLGL.State.defaultFShaderId = 0;
 
-    glDeleteProgram(RLGL.State.defaultShaderId);
+    // Release default shader program (share-group aware: refcounted + deferred delete).
+    if (RLGL.State.defaultShaderId != 0)
+    {
+        unsigned int progId = RLGL.State.defaultShaderId;
+        rlUnloadShaderProgram(progId);
+        RLGL.State.defaultShaderId = 0;
+    }
 
     RL_FREE(RLGL.State.defaultShaderLocs);
+    RLGL.State.defaultShaderLocs = NULL;
 
-    TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Default shader unloaded successfully", RLGL.State.defaultShaderId);
+    TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Default shader unloaded successfully", shaderId);
 }
 
 #if defined(RLGL_SHOW_GL_DETAILS_INFO)

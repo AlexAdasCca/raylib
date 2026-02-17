@@ -107,6 +107,7 @@
 #include <stddef.h>  // Required for: size_t
 #include <stdint.h>  // Required for: uintptr_t, intptr_t
 #include <rl_context.h>
+#include "rl_shared_gpu.h"
 #include "rglfwglobal.h"
 
 #if defined(_WIN32)
@@ -125,6 +126,8 @@
 //----------------------------------------------------------------------------------
 typedef struct {
     GLFWwindow *handle;                 // GLFW window handle (graphic device)
+    bool glfwAcquired;                // True after RLGlfwGlobalAcquire(), used to balance release
+
 
 #if defined(_WIN32)
     // When enabled, all GLFW event pumping and Win32 message processing happens
@@ -181,6 +184,17 @@ typedef struct {
 } PlatformData;
 
 #if defined(_WIN32)
+// WGL workaround: when creating a shared context on a different thread,
+// some drivers fail if the shared context is current. We coordinate a short
+// cross-thread barrier that temporarily releases the current context on the
+// shared context render thread while the new context is created.
+typedef struct RLGlfwShareCreateBarrier {
+    GLFWwindow* savedCurrent;
+    RLEvent* evtReleased;
+    RLEvent* evtResume;
+    RLEvent* evtDone;
+} RLGlfwShareCreateBarrier;
+
 // ----------------------------------------------------------------------------------
 // Win32: registry of event-thread platforms (for broadcast wake on shutdown)
 // ----------------------------------------------------------------------------------
@@ -565,6 +579,25 @@ static void RLGlfwBarrierSignalTask(void *user)
     if (user) RLEventSignal((RLEvent *)user);
 }
 
+#if defined(_WIN32)
+static void RLGlfwTask_HoldNoCurrentContext(void *user)
+{
+    RLGlfwShareCreateBarrier *b = (RLGlfwShareCreateBarrier *)user;
+    if (!b) return;
+
+    // Save and clear any current context on this thread.
+    b->savedCurrent = glfwGetCurrentContext();
+    if (b->savedCurrent) glfwMakeContextCurrent(NULL);
+
+    if (b->evtReleased) RLEventSignal(b->evtReleased);
+    if (b->evtResume) RLEventWait(b->evtResume);
+
+    // Restore previous current context (if any).
+    if (b->savedCurrent) glfwMakeContextCurrent(b->savedCurrent);
+    if (b->evtDone) RLEventSignal(b->evtDone);
+}
+#endif
+
 static void RLGlfwPumpThreadTasksWithDiag(void)
 {
 #if RL_EVENT_DIAG_STATS
@@ -761,6 +794,14 @@ static void RLGlfwTask_SetWindowSize(void *user);
 static void RLGlfwTask_SetWindowTitle(void *user);
 static void RLGlfwTask_SetWindowAttrib(void *user);
 static void RLGlfwTask_SetWindowRefreshCallback(void *user);
+
+#if defined(_WIN32)
+// WGL workaround: when creating a shared context on a different thread,
+// some drivers fail if the shared context is current. We coordinate a short
+// cross-thread barrier that temporarily releases the current context on the
+// shared context render thread while the new context is created.
+static void RLGlfwTask_HoldNoCurrentContext(void *user);
+#endif
 static void RLGlfwTask_SetWindowSizeLimits(void *user);
 static void RLGlfwTask_SetWindowOpacity(void *user);
 static void RLGlfwTask_SetWindowMonitor(void *user);
@@ -2043,20 +2084,20 @@ typedef struct RLWin32PropTask
 
 static void RLGlfwTask_Win32SetWindowProp(void* user)
 {
-    RLWin32PropTask* t = (RLWin32PropTask*) user;
-    t->ok = glfwWin32SetWindowProp(platform.handle, t->name, t->value);
+    RLWin32PropTask* task = (RLWin32PropTask*) user;
+    task->ok = glfwWin32SetWindowProp(platform.handle, task->name, task->value);
 }
 
 static void RLGlfwTask_Win32GetWindowProp(void* user)
 {
-    RLWin32PropTask* t = (RLWin32PropTask*) user;
-    t->out = glfwWin32GetWindowProp(platform.handle, t->name);
+    RLWin32PropTask* task = (RLWin32PropTask*) user;
+    task->out = glfwWin32GetWindowProp(platform.handle, task->name);
 }
 
 static void RLGlfwTask_Win32RemoveWindowProp(void* user)
 {
-    RLWin32PropTask* t = (RLWin32PropTask*) user;
-    t->out = glfwWin32RemoveWindowProp(platform.handle, t->name);
+    RLWin32PropTask* task = (RLWin32PropTask*) user;
+    task->out = glfwWin32RemoveWindowProp(platform.handle, task->name);
 }
 
 typedef struct RLWin32HookToken
@@ -2294,17 +2335,19 @@ typedef struct RLWin32UserInvokeCall
 static LRESULT RLWin32Dispatch_InvokeUser(GLFWwindow* window, HWND hWnd, void* user)
 {
     (void)window;
-    RLWin32UserInvokeCall* c = (RLWin32UserInvokeCall*)user;
-    if (!c || !c->fn)
+    RLWin32UserInvokeCall* invokeCall = (RLWin32UserInvokeCall*)user;
+    if (!invokeCall || !invokeCall->fn)
     {
-        if (c && c->autoFree) RL_FREE(c);
+        if (invokeCall && invokeCall->autoFree) RL_FREE(invokeCall);
         return (LRESULT)0;
     }
 
-    const intptr_t r = c->fn(c->hwnd ? c->hwnd : (void*)hWnd, c->user);
+    const intptr_t callResult = invokeCall->fn(
+                                    invokeCall->hwnd ? invokeCall->hwnd : (void*)hWnd, 
+                                    invokeCall->user);
 
-    if (c->autoFree) RL_FREE(c);
-    return (LRESULT)r;
+    if (invokeCall->autoFree) RL_FREE(invokeCall);
+    return (LRESULT)callResult;
 }
 
 intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait)
@@ -2358,26 +2401,26 @@ typedef struct RLRenderUserInvokeCall
 
 static void RLGlfwTask_InvokeUserOnRenderThread(void* user)
 {
-    RLRenderUserInvokeCall* c = (RLRenderUserInvokeCall*)user;
-    if (!c || !c->fn)
+    RLRenderUserInvokeCall* invokeCall = (RLRenderUserInvokeCall*)user;
+    if (!invokeCall || !invokeCall->fn)
     {
-        if (c && c->done) RLEventSignal(c->done);
-        if (c && c->autoFree) RL_FREE(c);
+        if (invokeCall && invokeCall->done) RLEventSignal(invokeCall->done);
+        if (invokeCall && invokeCall->autoFree) RL_FREE(invokeCall);
         return;
     }
 
-    c->result = c->fn(c->hwnd, c->user);
+    invokeCall->result = invokeCall->fn(invokeCall->hwnd, invokeCall->user);
 
-    if (c->done) RLEventSignal(c->done);
-    if (c->autoFree) RL_FREE(c);
+    if (invokeCall->done) RLEventSignal(invokeCall->done);
+    if (invokeCall->autoFree) RL_FREE(invokeCall);
 }
 
 intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait)
 {
     if (!hwnd || !fn) return (intptr_t)0;
 
-    HWND h = (HWND)hwnd;
-    PlatformData* pd = RLWin32FindPlatformByHwnd(h);
+    HWND hNativeWindowHandle = (HWND)hwnd;
+    PlatformData* pd = RLWin32FindPlatformByHwnd(hNativeWindowHandle);
     if (!pd || !pd->ownerCtx) return (intptr_t)0;
 
     // Non-event-thread mode: only safe from the thread that currently owns this GL context.
@@ -2394,41 +2437,41 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
 
     if (!pd->renderThread || !pd->renderWakeEvent) return (intptr_t)0;
 
-    RLRenderUserInvokeCall* call = (RLRenderUserInvokeCall*)RL_CALLOC(1, sizeof(RLRenderUserInvokeCall));
-    if (!call) return (intptr_t)0;
+    RLRenderUserInvokeCall* invokeCall = (RLRenderUserInvokeCall*)RL_CALLOC(1, sizeof(RLRenderUserInvokeCall));
+    if (!invokeCall) return (intptr_t)0;
 
-    call->fn = fn;
-    call->hwnd = hwnd;
-    call->user = user;
-    call->done = wait ? RLEventCreate(false) : NULL;
-    call->autoFree = wait ? 0 : 1;
+    invokeCall->fn = fn;
+    invokeCall->hwnd = hwnd;
+    invokeCall->user = user;
+    invokeCall->done = wait ? RLEventCreate(false) : NULL;
+    invokeCall->autoFree = wait ? 0 : 1;
 
-    RLGlfwRenderCall* rc = (RLGlfwRenderCall*)RL_CALLOC(1, sizeof(RLGlfwRenderCall));
+    RLGlfwRenderCall* renderCall = (RLGlfwRenderCall*)RL_CALLOC(1, sizeof(RLGlfwRenderCall));
 
-    if (!rc)
+    if (!renderCall)
     {
-        if (call->done) RLEventDestroy(call->done);
-        RL_FREE(call);
+        if (invokeCall->done) RLEventDestroy(invokeCall->done);
+        RL_FREE(invokeCall);
         return (intptr_t)0;
     }
 
     RL_DIAG_RENDERCALL_ALLOC(sizeof(RLGlfwRenderCall));
     RL_DIAG_TASK_POSTED();
 
-    rc->ctx = pd->ownerCtx;
-    rc->fn = RLGlfwTask_InvokeUserOnRenderThread;
-    rc->user = call;
+    renderCall->ctx = pd->ownerCtx;
+    renderCall->fn = RLGlfwTask_InvokeUserOnRenderThread;
+    renderCall->user = invokeCall;
 
-    glfwPostTask(pd->renderThread, RLGlfwRenderCallTrampoline, rc);
+    glfwPostTask(pd->renderThread, RLGlfwRenderCallTrampoline, renderCall);
     RLGlfwSignalOneRenderWake(pd);
 
     if (wait)
     {
-        RLEventWait(call->done);
-        const intptr_t r = call->result;
-        RLEventDestroy(call->done);
-        RL_FREE(call);
-        return r;
+        RLEventWait(invokeCall->done);
+        const intptr_t result = invokeCall->result;
+        RLEventDestroy(invokeCall->done);
+        RL_FREE(invokeCall);
+        return result;
     }
 
     return (intptr_t)1;
@@ -3202,6 +3245,8 @@ int InitPlatform(void)
     // be configured before the first glfwInit, which becomes hard to coordinate
     // across multiple threads). If you want them back, do it in the Stage-B plan.
     if (!RLGlfwGlobalAcquire()) { TRACELOG(LOG_WARNING, "GLFW: Failed to initialize GLFW"); return -1; }
+    platform.glfwAcquired = true;
+
 
     bool holdGlobalLock = false;
 
@@ -3388,6 +3433,16 @@ int InitPlatform(void)
         // Register this platform so shutdown/close can broadcast-wake sleeping render threads.
         RLGlfwPlatformRegister(&platform);
 
+	    // Bind this context to the correct share-group for deferred GPU deletes.
+	    // In useEventThread mode the window is created on another thread, so we must
+	    // perform the share-group binding here as well (after the GLFWwindow exists).
+	    {
+	        RLContext *ctx = RLGetCurrentContext();
+	        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
+	        RLContext *shareCtx = (shareWindow != NULL)? (RLContext *)glfwGetWindowUserPointer(shareWindow) : NULL;
+	        RLSharedGpuContextBindShareGroup(ctx, shareCtx);
+	    }
+
         RLGlfwEventThreadStart *start = (RLGlfwEventThreadStart *)RL_MALLOC(sizeof(RLGlfwEventThreadStart));
         RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwEventThreadStart));
         start->ctx = RLGetCurrentContext();
@@ -3403,6 +3458,7 @@ int InitPlatform(void)
             RLGlfwPlatformUnregister(&platform);
 	    	platform.win32Hwnd = NULL;
             RLGlfwGlobalRelease();
+        	platform.glfwAcquired = false;
             return -1;
         }
 
@@ -3424,6 +3480,7 @@ int InitPlatform(void)
             RLGlfwPlatformUnregister(&platform);
 
             RLGlfwGlobalRelease();
+        	platform.glfwAcquired = false;
             return -1;
         }
 
@@ -3442,6 +3499,7 @@ int InitPlatform(void)
         {
             TRACELOG(LOG_WARNING, "GLFW: Failed to get primary monitor");
             RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
             RLGlfwGlobalUnlock();
             return -1;
         }
@@ -3478,6 +3536,7 @@ int InitPlatform(void)
         if (!platform.handle)
         {
             RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
             TRACELOG(LOG_WARNING, "GLFW: Failed to initialize Window");
             RLGlfwGlobalUnlock();
             return -1;
@@ -3485,6 +3544,15 @@ int InitPlatform(void)
 
         // Bind this GLFW window to the current raylib context (Route2 multi-window)
         glfwSetWindowUserPointer(platform.handle, (void *)RLGetCurrentContext());
+
+    // Bind this context to a GPU share-group for share-wide lifetime tracking.
+    // shareWindow is the GLFW share context window passed to glfwCreateWindow().
+    {
+        RLContext *ctx = RLGetCurrentContext();
+        RLContext *shareCtx = NULL;
+        if (shareWindow) shareCtx = (RLContext *)glfwGetWindowUserPointer(shareWindow);
+        RLSharedGpuContextBindShareGroup(ctx, shareCtx);
+    }
 
     }
     else
@@ -3499,6 +3567,7 @@ int InitPlatform(void)
         if (!platform.handle)
         {
             RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
             TRACELOG(LOG_WARNING, "GLFW: Failed to initialize Window");
             RLGlfwGlobalUnlock();
             return -1;
@@ -3506,6 +3575,15 @@ int InitPlatform(void)
 
         // Bind this GLFW window to the current raylib context (Route2 multi-window)
         glfwSetWindowUserPointer(platform.handle, (void *)RLGetCurrentContext());
+
+	    // Bind this context to a GPU share-group for share-wide lifetime tracking.
+	    // shareWindow is the GLFW share context window passed to glfwCreateWindow().
+	    {
+	        RLContext *ctx = RLGetCurrentContext();
+	        RLContext *shareCtx = NULL;
+	        if (shareWindow) shareCtx = (RLContext *)glfwGetWindowUserPointer(shareWindow);
+	        RLSharedGpuContextBindShareGroup(ctx, shareCtx);
+	    }
 
         // After the window was created, determine the monitor that the window manager assigned
         // Derive display sizes and, if possible, window size in case it was zero at beginning
@@ -3535,6 +3613,7 @@ int InitPlatform(void)
             glfwDestroyWindow(platform.handle);
             platform.handle = NULL;
             RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
             TRACELOG(LOG_WARNING, "GLFW: Failed to determine Monitor to center Window");
             RLGlfwGlobalUnlock();
             return -1;
@@ -3669,6 +3748,7 @@ _rlglfw_window_created:
             platform.handle = NULL;
         }
         RLGlfwGlobalRelease();
+        platform.glfwAcquired = false;
         RLGlfwGlobalUnlock();
         return -1;
     }
@@ -3823,7 +3903,13 @@ void ClosePlatform(void)
         if (createdEvt) RLEventDestroy(createdEvt);
         if (wakeEvt) RLEventDestroy(wakeEvt);
 
-        RLGlfwGlobalRelease();
+
+        // Release global GLFW init refcount (only if we successfully acquired in InitPlatform).
+        if (platform.glfwAcquired)
+        {
+            RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
+        }
 
 #if defined(_WIN32) && defined(SUPPORT_WINMM_HIGHRES_TIMER) && !defined(SUPPORT_BUSY_WAIT_LOOP)
         timeEndPeriod(1);           // Restore time period
@@ -3852,7 +3938,13 @@ void ClosePlatform(void)
 
     RLGlfwGlobalUnlock();
 
-    RLGlfwGlobalRelease();
+
+    // Release global GLFW init refcount (only if we successfully acquired in InitPlatform).
+    if (platform.glfwAcquired)
+    {
+        RLGlfwGlobalRelease();
+        platform.glfwAcquired = false;
+    }
 
 #if defined(_WIN32) && defined(SUPPORT_WINMM_HIGHRES_TIMER) && !defined(SUPPORT_BUSY_WAIT_LOOP)
     timeEndPeriod(1);           // Restore time period
@@ -5419,10 +5511,60 @@ static void RLGlfwEventThreadMain(void *p)
             CORE.Window.display.height = mode->height;
         }
     }
-
     GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
 
+#if defined(_WIN32)
+    // Win32/WGL workaround: creating a shared context can fail if the shared context is current
+    // on another thread. Coordinate a short barrier with the shared context render thread.
+    RLGlfwShareCreateBarrier *shareBarrier = NULL;
+    PlatformData *sharePd = NULL;
+    if (shareWindow != NULL)
+    {
+        RLContext *shareCtx = (RLContext *)glfwGetWindowUserPointer(shareWindow);
+        if (shareCtx) sharePd = (PlatformData *)shareCtx->platformData;
+    }
+
+    if ((sharePd != NULL) && (sharePd->renderThread != NULL) && (sharePd->renderThread != glfwGetCurrentThread()))
+    {
+        shareBarrier = (RLGlfwShareCreateBarrier *)RL_CALLOC(1, sizeof(RLGlfwShareCreateBarrier));
+        shareBarrier->evtReleased = RLEventCreate(false);
+        shareBarrier->evtResume = RLEventCreate(false);
+        shareBarrier->evtDone = RLEventCreate(false);
+
+        glfwPostTask(sharePd->renderThread, RLGlfwTask_HoldNoCurrentContext, shareBarrier);
+        RLGlfwSignalOneRenderWake(sharePd);
+
+        // Wait until the shared context thread cleared its current context.
+        // Use a bounded wait to avoid deadlocks in broken user setups.
+        bool released = false;
+        for (int i = 0; i < 2000; i++)
+        {
+            if (RLEventWaitTimeout(shareBarrier->evtReleased, 5)) { released = true; break; }
+            RLGlfwSignalOneRenderWake(sharePd);
+        }
+        if (!released)
+        {
+            TRACELOG(LOG_WARNING, "GLFW/WGL: Timed out waiting for shared context release barrier");
+            // Best-effort: proceed anyway, but still resume the render thread.
+        }
+    }
+#endif
+
     platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, CORE.Window.title, monitor, shareWindow);
+
+#if defined(_WIN32)
+    if (shareBarrier != NULL)
+    {
+        // Allow the shared render thread to restore its previous current context.
+        RLEventSignal(shareBarrier->evtResume);
+        RLEventWait(shareBarrier->evtDone);
+        RLEventDestroy(shareBarrier->evtReleased);
+        RLEventDestroy(shareBarrier->evtResume);
+        RLEventDestroy(shareBarrier->evtDone);
+        RL_FREE(shareBarrier);
+        shareBarrier = NULL;
+    }
+#endif
 
     if (platform.handle != NULL)
     {

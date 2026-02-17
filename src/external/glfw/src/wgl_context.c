@@ -558,7 +558,19 @@ GLFWbool _glfwCreateContextWGL(_GLFWwindow* window,
         return GLFW_FALSE;
     }
 
-    pixelFormat = choosePixelFormatWGL(window, ctxconfig, fbconfig);
+    // On Win32/WGL, contexts that share objects must use compatible pixel formats.
+    // Some drivers are sensitive to even minor differences when contexts are created
+    // on different threads. If we are sharing with an existing context, force the
+    // new window to use the same pixel format index as the shared context.
+    int sharePixelFormat = 0;
+    if (ctxconfig->share && ctxconfig->share->context.wgl.dc)
+        sharePixelFormat = GetPixelFormat(ctxconfig->share->context.wgl.dc);
+
+    if (sharePixelFormat)
+        pixelFormat = sharePixelFormat;
+    else
+        pixelFormat = choosePixelFormatWGL(window, ctxconfig, fbconfig);
+
     if (!pixelFormat)
         return GLFW_FALSE;
 
@@ -570,6 +582,19 @@ GLFWbool _glfwCreateContextWGL(_GLFWwindow* window,
         return GLFW_FALSE;
     }
 
+    if (sharePixelFormat)
+    {
+        // Fail early with a clearer message when the shared pixel format is
+        // fundamentally incompatible with the requested framebuffer config.
+        const GLFWbool shareDoubleBuffer = (pfd.dwFlags & PFD_DOUBLEBUFFER) ? GLFW_TRUE : GLFW_FALSE;
+        const GLFWbool shareStereo = (pfd.dwFlags & PFD_STEREO) ? GLFW_TRUE : GLFW_FALSE;
+        if (shareDoubleBuffer != fbconfig->doublebuffer || shareStereo != fbconfig->stereo)
+        {
+            _glfwInputError(GLFW_FORMAT_UNAVAILABLE,
+                            "WGL: Shared context uses incompatible pixel format (doublebuffer/stereo mismatch)");
+            return GLFW_FALSE;
+        }
+    }
     if (!SetPixelFormat(window->context.wgl.dc, pixelFormat, &pfd))
     {
         _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,
