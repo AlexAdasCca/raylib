@@ -71,6 +71,15 @@ unsigned char *Win32GetClipboardImageData(int *width, int *height, unsigned long
 // #include <sdkddkver.h>
 // #include <windows.h>
 // #include <winuser.h>
+
+// If GLFW (or GL headers) were included earlier, they may have defined APIENTRY.
+// Some recent Windows SDKs define APIENTRY unconditionally in <minwindef.h>,
+// which triggers macro redefinition warnings (and can break /WX builds).
+// The calling convention is the same, so it is safe to undefine it here.
+#ifdef APIENTRY
+    #undef APIENTRY
+#endif
+
 #include <minwindef.h>
 // #include <minwinbase.h>
 

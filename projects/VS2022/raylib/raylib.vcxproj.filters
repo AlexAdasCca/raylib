@@ -10,6 +10,15 @@
     <ClCompile Include="..\..\..\src\rglfw.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\rglfwglobal.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\rl_context.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\rl_shared_gpu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\src\rmodels.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -84,10 +93,19 @@
     <ClInclude Include="..\..\..\src\rlgl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\src\rglfwglobal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\rl_context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\rl_shared_gpu.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\src\external\stb_image.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\external\stb_image_resize.h">
+    <ClInclude Include="..\..\..\src\external\stb_image_resize2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\external\stb_image_write.h">
@@ -99,10 +117,7 @@
     <ClInclude Include="..\..\..\src\external\stb_truetype.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\external\stb_vorbis.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\src\utils.h">
+    <ClInclude Include="..\..\..\src\external\stb_vorbis.c">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

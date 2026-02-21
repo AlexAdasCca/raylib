@@ -48,7 +48,14 @@ typedef struct RLEvent  RLEvent;
 
 typedef void (*RLThreadFn)(void* user);
 
+// Best-effort thread naming (primarily for debugging). This only affects the
+// current thread and is a no-op on unsupported platforms.
+void RLThreadSetNameCurrent(const char* nameUtf8);
+
 // Thread
+// NOTE: RLThreadCreateNamed is preferred for internal threads to provide a
+// stable, descriptive name in debuggers and diagnostics.
+RLThread* RLThreadCreateNamed(RLThreadFn fn, void* user, const char* nameUtf8);
 RLThread* RLThreadCreate(RLThreadFn fn, void* user);
 void      RLThreadJoin(RLThread* t);
 void      RLThreadDestroy(RLThread* t);

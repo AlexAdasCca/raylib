@@ -106,7 +106,7 @@
 
 #include <stddef.h>  // Required for: size_t
 #include <stdint.h>  // Required for: uintptr_t, intptr_t
-#include <rl_context.h>
+#include "rl_context.h"
 #include "rl_shared_gpu.h"
 #include "rglfwglobal.h"
 
