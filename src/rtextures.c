@@ -168,7 +168,7 @@
 
     #define RL_GPUTEX_MALLOC RL_MALLOC
     #define RL_GPUTEX_FREE RL_FREE
-    #define RL_GPUTEX_LOG(...) TRACELOG(LOG_WARNING, "IMAGE: " __VA_ARGS__)
+    #define RL_GPUTEX_LOG(...) TRACELOG(RL_E_LOG_WARNING, "IMAGE: " __VA_ARGS__)
     #define RL_GPUTEX_SHOW_LOG_INFO
     #define RL_GPUTEX_IMPLEMENTATION
     #include "external/rl_gputex.h"         // Required for: rl_load_xxx_from_memory()
@@ -352,7 +352,7 @@ RLImage RLLoadImageAnim(const char *fileName, int *frames)
             image.data = stbi_load_gif_from_memory(fileData, dataSize, &delays, &image.width, &image.height, &frameCount, &comp, 4);
 
             image.mipmaps = 1;
-            image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+            image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
             RLUnloadFileData(fileData);
             RL_FREE(delays);        // NOTE: Frames delays are discarded
@@ -394,7 +394,7 @@ RLImage RLLoadImageAnimFromMemory(const char *fileType, const unsigned char *fil
             image.data = stbi_load_gif_from_memory(fileData, dataSize, &delays, &image.width, &image.height, &frameCount, &comp, 4);
 
             image.mipmaps = 1;
-            image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+            image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
             RL_FREE(delays);        // NOTE: Frames delays are discarded
         }
@@ -421,12 +421,12 @@ RLImage RLLoadImageFromMemory(const char *fileType, const unsigned char *fileDat
     // Security checks for input data
     if ((fileData == NULL) || (dataSize == 0))
     {
-        TRACELOG(LOG_WARNING, "IMAGE: Invalid file data");
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Invalid file data");
         return image;
     }
     if (fileType == NULL)
     {
-        TRACELOG(LOG_WARNING, "IMAGE: Missing file extension");
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Missing file extension");
         return image;
     }
 
@@ -471,10 +471,10 @@ RLImage RLLoadImageFromMemory(const char *fileType, const unsigned char *fileDat
             {
                 image.mipmaps = 1;
 
-                if (comp == 1) image.format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
-                else if (comp == 2) image.format = PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA;
-                else if (comp == 3) image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8;
-                else if (comp == 4) image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+                if (comp == 1) image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+                else if (comp == 2) image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA;
+                else if (comp == 3) image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8;
+                else if (comp == 4) image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
             }
         }
 #endif
@@ -490,12 +490,12 @@ RLImage RLLoadImageFromMemory(const char *fileType, const unsigned char *fileDat
 
             image.mipmaps = 1;
 
-            if (comp == 1) image.format = PIXELFORMAT_UNCOMPRESSED_R32;
-            else if (comp == 3) image.format = PIXELFORMAT_UNCOMPRESSED_R32G32B32;
-            else if (comp == 4) image.format = PIXELFORMAT_UNCOMPRESSED_R32G32B32A32;
+            if (comp == 1) image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R32;
+            else if (comp == 3) image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32;
+            else if (comp == 4) image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32;
             else
             {
-                TRACELOG(LOG_WARNING, "IMAGE: HDR file format not supported");
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: HDR file format not supported");
                 RLUnloadImage(image);
             }
         }
@@ -511,7 +511,7 @@ RLImage RLLoadImageFromMemory(const char *fileType, const unsigned char *fileDat
             image.data = qoi_decode(fileData, dataSize, &desc, (int) fileData[12]);
             image.width = desc.width;
             image.height = desc.height;
-            image.format = (desc.channels == 4)? PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 : PIXELFORMAT_UNCOMPRESSED_R8G8B8;
+            image.format = (desc.channels == 4)? RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 : RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8;
             image.mipmaps = 1;
         }
     }
@@ -546,10 +546,10 @@ RLImage RLLoadImageFromMemory(const char *fileType, const unsigned char *fileDat
         image.data = rl_load_astc_from_memory(fileData, dataSize, &image.width, &image.height, &image.format, &image.mipmaps);
     }
 #endif
-    else TRACELOG(LOG_WARNING, "IMAGE: Data format not supported");
+    else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Data format not supported");
 
-    if (image.data != NULL) TRACELOG(LOG_INFO, "IMAGE: Data loaded successfully (%ix%i | %s | %i mipmaps)", image.width, image.height, rlGetPixelFormatName(image.format), image.mipmaps);
-    else TRACELOG(LOG_WARNING, "IMAGE: Failed to load image data");
+    if (image.data != NULL) TRACELOG(RL_E_LOG_INFO, "IMAGE: Data loaded successfully (%ix%i | %s | %i mipmaps)", image.width, image.height, rlGetPixelFormatName(image.format), image.mipmaps);
+    else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to load image data");
 
     return image;
 }
@@ -560,7 +560,7 @@ RLImage RLLoadImageFromTexture(RLTexture2D texture)
 {
     RLImage image = { 0 };
 
-    if (texture.format < PIXELFORMAT_COMPRESSED_DXT1_RGB)
+    if (texture.format < RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB)
     {
         image.data = rlReadTexturePixels(texture.id, texture.width, texture.height, texture.format);
 
@@ -575,13 +575,13 @@ RLImage RLLoadImageFromTexture(RLTexture2D texture)
             // NOTE: Data retrieved on OpenGL ES 2.0 should be RGBA,
             // coming from FBO color buffer attachment, but it seems
             // original texture format is retrieved on RPI...
-            image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+            image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 #endif
-            TRACELOG(LOG_INFO, "TEXTURE: [ID %i] Pixel data retrieved successfully", texture.id);
+            TRACELOG(RL_E_LOG_INFO, "TEXTURE: [ID %i] Pixel data retrieved successfully", texture.id);
         }
-        else TRACELOG(LOG_WARNING, "TEXTURE: [ID %i] Failed to retrieve pixel data", texture.id);
+        else TRACELOG(RL_E_LOG_WARNING, "TEXTURE: [ID %i] Failed to retrieve pixel data", texture.id);
     }
-    else TRACELOG(LOG_WARNING, "TEXTURE: [ID %i] Failed to retrieve compressed pixel data", texture.id);
+    else TRACELOG(RL_E_LOG_WARNING, "TEXTURE: [ID %i] Failed to retrieve compressed pixel data", texture.id);
 
     return image;
 }
@@ -594,7 +594,7 @@ RLImage RLLoadImageFromScreen(void)
     image.width = (int)(RLGetRenderWidth());
     image.height = (int)(RLGetRenderHeight());
     image.mipmaps = 1;
-    image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
     image.data = rlReadScreenPixels(image.width, image.height);
 
     return image;
@@ -634,10 +634,10 @@ bool RLExportImage(RLImage image, const char *fileName)
     bool allocatedData = false;
     unsigned char *imgData = (unsigned char *)image.data;
 
-    if (image.format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) channels = 1;
-    else if (image.format == PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) channels = 2;
-    else if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8) channels = 3;
-    else if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) channels = 4;
+    if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) channels = 1;
+    else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) channels = 2;
+    else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) channels = 3;
+    else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) channels = 4;
     else
     {
         // NOTE: Getting Color array as RGBA unsigned char values
@@ -669,9 +669,9 @@ bool RLExportImage(RLImage image, const char *fileName)
     else if (RLIsFileExtension(fileName, ".qoi"))
     {
         channels = 0;
-        if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8) channels = 3;
-        else if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) channels = 4;
-        else TRACELOG(LOG_WARNING, "IMAGE: Image pixel format must be R8G8B8 or R8G8B8A8");
+        if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) channels = 3;
+        else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) channels = 4;
+        else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Image pixel format must be R8G8B8 or R8G8B8A8");
 
         if ((channels == 3) || (channels == 4))
         {
@@ -697,13 +697,13 @@ bool RLExportImage(RLImage image, const char *fileName)
         // NOTE: It's up to the user to track image parameters
         result = RLSaveFileData(fileName, image.data, RLGetPixelDataSize(image.width, image.height, image.format));
     }
-    else TRACELOG(LOG_WARNING, "IMAGE: Export image format requested not supported");
+    else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Export image format requested not supported");
 
     if (allocatedData) RL_FREE(imgData);
 #endif      // SUPPORT_IMAGE_EXPORT
 
-    if (result != 0) TRACELOG(LOG_INFO, "FILEIO: [%s] Image exported successfully", fileName);
-    else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to export image", fileName);
+    if (result != 0) TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Image exported successfully", fileName);
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to export image", fileName);
 
     return result;
 }
@@ -720,10 +720,10 @@ unsigned char *RLExportImageToMemory(RLImage image, const char *fileType, int *d
 #if defined(SUPPORT_IMAGE_EXPORT)
     int channels = 4;
 
-    if (image.format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) channels = 1;
-    else if (image.format == PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) channels = 2;
-    else if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8) channels = 3;
-    else if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) channels = 4;
+    if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) channels = 1;
+    else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) channels = 2;
+    else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) channels = 3;
+    else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) channels = 4;
 
 #if defined(SUPPORT_FILEFORMAT_PNG)
     if ((strcmp(fileType, ".png") == 0) || (strcmp(fileType, ".PNG") == 0))
@@ -788,8 +788,8 @@ bool RLExportImageAsCode(RLImage image, const char *fileName)
 
 #endif      // SUPPORT_IMAGE_EXPORT
 
-    if (success != 0) TRACELOG(LOG_INFO, "FILEIO: [%s] Image as code exported successfully", fileName);
-    else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to export image as code", fileName);
+    if (success != 0) TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Image as code exported successfully", fileName);
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to export image as code", fileName);
 
     return success;
 }
@@ -809,7 +809,7 @@ RLImage RLGenImageColor(int width, int height, RLColor color)
         .width = width,
         .height = height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     return image;
@@ -861,7 +861,7 @@ RLImage RLGenImageGradientLinear(int width, int height, int direction, RLColor s
         .width = width,
         .height = height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     return image;
@@ -884,7 +884,7 @@ RLImage RLGenImageGradientRadial(int width, int height, float density, RLColor i
             float factor = (dist - radius*density)/(radius*(1.0f - density));
 
             factor = (float)fmax(factor, 0.0f);
-            factor = (float)fmin(factor, 1.f); // dist can be bigger than radius, so we have to check
+            factor = (float)fmin(factor, 1.f); // Distance can be bigger than radius, so it needs to be checked
 
             pixels[y*width + x].r = (int)((float)outer.r*factor + (float)inner.r*(1.0f - factor));
             pixels[y*width + x].g = (int)((float)outer.g*factor + (float)inner.g*(1.0f - factor));
@@ -898,7 +898,7 @@ RLImage RLGenImageGradientRadial(int width, int height, float density, RLColor i
         .width = width,
         .height = height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     return image;
@@ -947,7 +947,7 @@ RLImage RLGenImageGradientSquare(int width, int height, float density, RLColor i
         .width = width,
         .height = height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     return image;
@@ -972,7 +972,7 @@ RLImage RLGenImageChecked(int width, int height, int checksX, int checksY, RLCol
         .width = width,
         .height = height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     return image;
@@ -995,7 +995,7 @@ RLImage RLGenImageWhiteNoise(int width, int height, float factor)
         .width = width,
         .height = height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     return image;
@@ -1033,7 +1033,7 @@ RLImage RLGenImagePerlinNoise(int width, int height, int offsetX, int offsetY, f
             if (p < -1.0f) p = -1.0f;
             if (p > 1.0f) p = 1.0f;
 
-            // We need to normalize the data from [-1..1] to [0..1]
+            // Data needs to be normalized from [-1..1] to [0..1]
             float np = (p + 1.0f)/2.0f;
 
             unsigned char intensity = (unsigned char)(np*255.0f);
@@ -1046,7 +1046,7 @@ RLImage RLGenImagePerlinNoise(int width, int height, int offsetX, int offsetY, f
         .width = width,
         .height = height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     return image;
@@ -1112,7 +1112,7 @@ RLImage RLGenImageCellular(int width, int height, int tileSize)
         .width = width,
         .height = height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     return image;
@@ -1126,7 +1126,7 @@ RLImage RLGenImageText(int width, int height, const char *text)
     int imageSize = width*height;
     image.width = width;
     image.height = height;
-    image.format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+    image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
     image.data = RL_CALLOC(imageSize, 1);
     image.mipmaps = 1;
 
@@ -1215,12 +1215,12 @@ void RLImageCrop(RLImage *image, RLRectangle crop)
     if ((crop.y + crop.height) > image->height) crop.height = image->height - crop.y;
     if ((crop.x > image->width) || (crop.y > image->height))
     {
-        TRACELOG(LOG_WARNING, "IMAGE: Failed to crop, rectangle out of bounds");
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to crop, rectangle out of bounds");
         return;
     }
 
-    if (image->mipmaps > 1) TRACELOG(LOG_WARNING, "Image manipulation only applied to base mipmap level");
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image manipulation not supported for compressed formats");
+    if (image->mipmaps > 1) TRACELOG(RL_E_LOG_WARNING, "Image manipulation only applied to base mipmap level");
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image manipulation not supported for compressed formats");
     else
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
@@ -1261,17 +1261,17 @@ void RLImageFormat(RLImage *image, int newFormat)
 
     if ((newFormat != 0) && (image->format != newFormat))
     {
-        if ((image->format < PIXELFORMAT_COMPRESSED_DXT1_RGB) && (newFormat < PIXELFORMAT_COMPRESSED_DXT1_RGB))
+        if ((image->format < RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) && (newFormat < RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB))
         {
             RLVector4 *pixels = LoadImageDataNormalized(*image);     // Supports 8 to 32 bit per channel
 
-            RL_FREE(image->data);      // WARNING! We loose mipmaps data --> Regenerated at the end...
+            RL_FREE(image->data);      // WARNING! Loosing mipmaps data --> Regenerated at the end
             image->data = NULL;
             image->format = newFormat;
 
             switch (image->format)
             {
-                case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
                 {
                     image->data = (unsigned char *)RL_MALLOC(image->width*image->height*sizeof(unsigned char));
 
@@ -1281,7 +1281,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                     }
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
                 {
                     image->data = (unsigned char *)RL_MALLOC(image->width*image->height*2*sizeof(unsigned char));
 
@@ -1292,7 +1292,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                     }
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
                 {
                     image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
 
@@ -1310,7 +1310,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                     }
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
                 {
                     image->data = (unsigned char *)RL_MALLOC(image->width*image->height*3*sizeof(unsigned char));
 
@@ -1321,7 +1321,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                         ((unsigned char *)image->data)[i + 2] = (unsigned char)(pixels[k].z*255.0f);
                     }
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
                 {
                     image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
 
@@ -1341,7 +1341,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                     }
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
                 {
                     image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
 
@@ -1361,7 +1361,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                     }
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
                 {
                     image->data = (unsigned char *)RL_MALLOC(image->width*image->height*4*sizeof(unsigned char));
 
@@ -1373,7 +1373,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                         ((unsigned char *)image->data)[i + 3] = (unsigned char)(pixels[k].w*255.0f);
                     }
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
                 {
                     // WARNING: Image is converted to GRAYSCALE equivalent 32bit
 
@@ -1384,7 +1384,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                         ((float *)image->data)[i] = (float)(pixels[i].x*0.299f + pixels[i].y*0.587f + pixels[i].z*0.114f);
                     }
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
                 {
                     image->data = (float *)RL_MALLOC(image->width*image->height*3*sizeof(float));
 
@@ -1395,7 +1395,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                         ((float *)image->data)[i + 2] = pixels[k].z;
                     }
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
                 {
                     image->data = (float *)RL_MALLOC(image->width*image->height*4*sizeof(float));
 
@@ -1407,7 +1407,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                         ((float *)image->data)[i + 3] = pixels[k].w;
                     }
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
                 {
                     // WARNING: Image is converted to GRAYSCALE equivalent 16bit
 
@@ -1418,7 +1418,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                         ((unsigned short *)image->data)[i] = FloatToHalf((float)(pixels[i].x*0.299f + pixels[i].y*0.587f + pixels[i].z*0.114f));
                     }
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
                 {
                     image->data = (unsigned short *)RL_MALLOC(image->width*image->height*3*sizeof(unsigned short));
 
@@ -1429,7 +1429,7 @@ void RLImageFormat(RLImage *image, int newFormat)
                         ((unsigned short *)image->data)[i + 2] = FloatToHalf(pixels[k].z);
                     }
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
                 {
                     image->data = (unsigned short *)RL_MALLOC(image->width*image->height*4*sizeof(unsigned short));
 
@@ -1457,7 +1457,7 @@ void RLImageFormat(RLImage *image, int newFormat)
             #endif
             }
         }
-        else TRACELOG(LOG_WARNING, "IMAGE: Data format is compressed, can not be converted");
+        else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Data format is compressed, can not be converted");
     }
 }
 
@@ -1472,7 +1472,7 @@ RLImage RLImageText(const char *text, int fontSize, RLColor color)
     imText = RLImageTextEx(RLGetFontDefault(), text, (float)fontSize, (float)spacing, color);   // WARNING: Module required: rtext
 #else
     imText = RLGenImageColor(200, 60, BLACK);     // Generating placeholder black image rectangle
-    TRACELOG(LOG_WARNING, "IMAGE: ImageTextEx() requires module: rtext");
+    TRACELOG(RL_E_LOG_WARNING, "IMAGE: ImageTextEx() requires module: rtext");
 #endif
     return imText;
 }
@@ -1529,7 +1529,7 @@ RLImage RLImageTextEx(RLFont font, const char *text, float fontSize, float spaci
     if (textSize.y != imSize.y)
     {
         float scaleFactor = textSize.y/imSize.y;
-        TRACELOG(LOG_INFO, "IMAGE: Text scaled by factor: %f", scaleFactor);
+        TRACELOG(RL_E_LOG_INFO, "IMAGE: Text scaled by factor: %f", scaleFactor);
 
         // Using nearest-neighbor scaling algorithm for default font
         // TODO: Allow defining the preferred scaling mechanism externally
@@ -1538,7 +1538,7 @@ RLImage RLImageTextEx(RLFont font, const char *text, float fontSize, float spaci
     }
 #else
     imText = RLGenImageColor(200, 60, BLACK);     // Generating placeholder black image rectangle
-    TRACELOG(LOG_WARNING, "IMAGE: ImageTextEx() requires module: rtext");
+    TRACELOG(RL_E_LOG_WARNING, "IMAGE: ImageTextEx() requires module: rtext");
 #endif
     return imText;
 }
@@ -1554,36 +1554,36 @@ RLImage RLImageFromChannel(RLImage image, int selectedChannel)
     // Check selected channel is valid
     if (selectedChannel < 0)
     {
-        TRACELOG(LOG_WARNING, "Channel cannot be negative. Setting channel to 0.");
+        TRACELOG(RL_E_LOG_WARNING, "Channel cannot be negative. Setting channel to 0.");
         selectedChannel = 0;
     }
 
-    if (image.format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE ||
-        image.format == PIXELFORMAT_UNCOMPRESSED_R32 ||
-        image.format == PIXELFORMAT_UNCOMPRESSED_R16)
+    if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE ||
+        image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R32 ||
+        image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R16)
     {
         if (selectedChannel > 0)
         {
-            TRACELOG(LOG_WARNING, "This image has only 1 channel. Setting channel to it.");
+            TRACELOG(RL_E_LOG_WARNING, "This image has only 1 channel. Setting channel to it.");
             selectedChannel = 0;
         }
     }
-    else if (image.format == PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA)
+    else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA)
     {
         if (selectedChannel > 1)
         {
-            TRACELOG(LOG_WARNING, "This image has only 2 channels. Setting channel to alpha.");
+            TRACELOG(RL_E_LOG_WARNING, "This image has only 2 channels. Setting channel to alpha.");
             selectedChannel = 1;
         }
     }
-    else if (image.format == PIXELFORMAT_UNCOMPRESSED_R5G6B5 ||
-             image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8 ||
-             image.format == PIXELFORMAT_UNCOMPRESSED_R32G32B32 ||
-             image.format == PIXELFORMAT_UNCOMPRESSED_R16G16B16)
+    else if (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5 ||
+             image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8 ||
+             image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32 ||
+             image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16)
     {
         if (selectedChannel > 2)
         {
-            TRACELOG(LOG_WARNING, "This image has only 3 channels. Setting channel to red.");
+            TRACELOG(RL_E_LOG_WARNING, "This image has only 3 channels. Setting channel to red.");
             selectedChannel = 0;
         }
     }
@@ -1591,19 +1591,19 @@ RLImage RLImageFromChannel(RLImage image, int selectedChannel)
     // Check for RGBA formats
     if (selectedChannel > 3)
     {
-        TRACELOG(LOG_WARNING, "ImageFromChannel supports channels 0 to 3 (rgba). Setting channel to alpha.");
+        TRACELOG(RL_E_LOG_WARNING, "ImageFromChannel supports channels 0 to 3 (rgba). Setting channel to alpha.");
         selectedChannel = 3;
     }
 
     // TODO: Consider other one-channel formats: R16, R32
-    result.format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+    result.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
     result.height = image.height;
     result.width = image.width;
     result.mipmaps = 1;
 
     unsigned char *pixels = (unsigned char *)RL_CALLOC(image.width*image.height, sizeof(unsigned char)); // Values from 0 to 255
 
-    if (image.format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
+    if (image.format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
     else
     {
         for (int i = 0, k = 0; i < image.width*image.height; i++)
@@ -1611,18 +1611,18 @@ RLImage RLImageFromChannel(RLImage image, int selectedChannel)
             float pixelValue = -1;
             switch (image.format)
             {
-                case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
                 {
                     pixelValue = (float)((unsigned char *)image.data)[i + selectedChannel]/255.0f;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
                 {
                     pixelValue = (float)((unsigned char *)image.data)[k + selectedChannel]/255.0f;
                     k += 2;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -1632,7 +1632,7 @@ RLImage RLImageFromChannel(RLImage image, int selectedChannel)
                     else if (selectedChannel == 3) pixelValue = ((pixel & 0b0000000000000001) == 0)? 0.0f : 1.0f;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -1641,7 +1641,7 @@ RLImage RLImageFromChannel(RLImage image, int selectedChannel)
                     else if (selectedChannel == 2) pixelValue = (float)(pixel & 0b0000000000011111)*(1.0f/31);
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -1651,49 +1651,49 @@ RLImage RLImageFromChannel(RLImage image, int selectedChannel)
                     else if (selectedChannel == 3) pixelValue = (float)(pixel & 0b0000000000001111)*(1.0f/15);
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
                 {
                     pixelValue = (float)((unsigned char *)image.data)[k + selectedChannel]/255.0f;
                     k += 4;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
                 {
                     pixelValue = (float)((unsigned char *)image.data)[k + selectedChannel]/255.0f;
                     k += 3;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
                 {
                     pixelValue = ((float *)image.data)[k];
                     k += 1;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
                 {
                     pixelValue = ((float *)image.data)[k + selectedChannel];
                     k += 3;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
                 {
                     pixelValue = ((float *)image.data)[k + selectedChannel];
                     k += 4;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
                 {
                     pixelValue = HalfToFloat(((unsigned short *)image.data)[k]);
                     k += 1;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
                 {
                     pixelValue = HalfToFloat(((unsigned short *)image.data)[k+selectedChannel]);
                     k += 3;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
                 {
                     pixelValue = HalfToFloat(((unsigned short *)image.data)[k + selectedChannel]);
                     k += 4;
@@ -1744,7 +1744,7 @@ void RLImageResizeNN(RLImage *image, int newWidth, int newHeight)
     image->data = output;
     image->width = newWidth;
     image->height = newHeight;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     RLImageFormat(image, format);  // Reformat 32bit RGBA image to original format
 
@@ -1760,22 +1760,22 @@ void RLImageResize(RLImage *image, int newWidth, int newHeight)
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    // Check if we can use a fast path on image scaling
+    // Check if a fast path can be used on image scaling
     // It can be for 8 bit per channel images with 1 to 4 channels per pixel
-    if ((image->format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) ||
-        (image->format == PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) ||
-        (image->format == PIXELFORMAT_UNCOMPRESSED_R8G8B8) ||
-        (image->format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8))
+    if ((image->format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) ||
+        (image->format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) ||
+        (image->format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) ||
+        (image->format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8))
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
         unsigned char *output = (unsigned char *)RL_MALLOC(newWidth*newHeight*bytesPerPixel);
 
         switch (image->format)
         {
-            case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE: stbir_resize_uint8_linear((unsigned char *)image->data, image->width, image->height, 0, output, newWidth, newHeight, 0, (stbir_pixel_layout)1); break;
-            case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: stbir_resize_uint8_linear((unsigned char *)image->data, image->width, image->height, 0, output, newWidth, newHeight, 0, (stbir_pixel_layout)2); break;
-            case PIXELFORMAT_UNCOMPRESSED_R8G8B8: stbir_resize_uint8_linear((unsigned char *)image->data, image->width, image->height, 0, output, newWidth, newHeight, 0, (stbir_pixel_layout)3); break;
-            case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: stbir_resize_uint8_linear((unsigned char *)image->data, image->width, image->height, 0, output, newWidth, newHeight, 0, (stbir_pixel_layout)4); break;
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE: stbir_resize_uint8_linear((unsigned char *)image->data, image->width, image->height, 0, output, newWidth, newHeight, 0, (stbir_pixel_layout)1); break;
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: stbir_resize_uint8_linear((unsigned char *)image->data, image->width, image->height, 0, output, newWidth, newHeight, 0, (stbir_pixel_layout)2); break;
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8: stbir_resize_uint8_linear((unsigned char *)image->data, image->width, image->height, 0, output, newWidth, newHeight, 0, (stbir_pixel_layout)3); break;
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: stbir_resize_uint8_linear((unsigned char *)image->data, image->width, image->height, 0, output, newWidth, newHeight, 0, (stbir_pixel_layout)4); break;
             default: break;
         }
 
@@ -1801,7 +1801,7 @@ void RLImageResize(RLImage *image, int newWidth, int newHeight)
         image->data = output;
         image->width = newWidth;
         image->height = newHeight;
-        image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
         RLImageFormat(image, format);  // Reformat 32bit RGBA image to original format
     }
@@ -1814,8 +1814,8 @@ void RLImageResizeCanvas(RLImage *image, int newWidth, int newHeight, int offset
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    if (image->mipmaps > 1) TRACELOG(LOG_WARNING, "Image manipulation only applied to base mipmap level");
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image manipulation not supported for compressed formats");
+    if (image->mipmaps > 1) TRACELOG(RL_E_LOG_WARNING, "Image manipulation only applied to base mipmap level");
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image manipulation not supported for compressed formats");
     else if ((newWidth != image->width) || (newHeight != image->height))
     {
         RLRectangle srcRec = { 0, 0, (float)image->width, (float)image->height };
@@ -1911,13 +1911,13 @@ void RLImageAlphaClear(RLImage *image, RLColor color, float threshold)
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    if (image->mipmaps > 1) TRACELOG(LOG_WARNING, "Image manipulation only applied to base mipmap level");
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image manipulation not supported for compressed formats");
+    if (image->mipmaps > 1) TRACELOG(RL_E_LOG_WARNING, "Image manipulation only applied to base mipmap level");
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image manipulation not supported for compressed formats");
     else
     {
         switch (image->format)
         {
-            case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
             {
                 unsigned char thresholdValue = (unsigned char)(threshold*255.0f);
                 for (int i = 1; i < image->width*image->height*2; i += 2)
@@ -1929,7 +1929,7 @@ void RLImageAlphaClear(RLImage *image, RLColor color, float threshold)
                     }
                 }
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
             {
                 unsigned char thresholdValue = ((threshold < 0.5f)? 0 : 1);
 
@@ -1946,7 +1946,7 @@ void RLImageAlphaClear(RLImage *image, RLColor color, float threshold)
                     }
                 }
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
             {
                 unsigned char thresholdValue = (unsigned char)(threshold*15.0f);
 
@@ -1963,7 +1963,7 @@ void RLImageAlphaClear(RLImage *image, RLColor color, float threshold)
                     }
                 }
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
             {
                 unsigned char thresholdValue = (unsigned char)(threshold*255.0f);
                 for (int i = 3; i < image->width*image->height*4; i += 4)
@@ -1977,7 +1977,7 @@ void RLImageAlphaClear(RLImage *image, RLColor color, float threshold)
                     }
                 }
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
             {
                 for (int i = 3; i < image->width*image->height*4; i += 4)
                 {
@@ -1990,7 +1990,7 @@ void RLImageAlphaClear(RLImage *image, RLColor color, float threshold)
                     }
                 }
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
             {
                 for (int i = 3; i < image->width*image->height*4; i += 4)
                 {
@@ -2015,20 +2015,20 @@ void RLImageAlphaMask(RLImage *image, RLImage alphaMask)
 {
     if ((image->width != alphaMask.width) || (image->height != alphaMask.height))
     {
-        TRACELOG(LOG_WARNING, "IMAGE: Alpha mask must be same size as image");
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Alpha mask must be same size as image");
     }
-    else if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB)
+    else if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB)
     {
-        TRACELOG(LOG_WARNING, "IMAGE: Alpha mask can not be applied to compressed data formats");
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Alpha mask can not be applied to compressed data formats");
     }
     else
     {
         // Force mask to be Grayscale
         RLImage mask = RLImageCopy(alphaMask);
-        if (mask.format != PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) RLImageFormat(&mask, PIXELFORMAT_UNCOMPRESSED_GRAYSCALE);
+        if (mask.format != RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) RLImageFormat(&mask, RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE);
 
-        // In case image is only grayscale, we just add alpha channel
-        if (image->format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE)
+        // In case image is only grayscale, just add alpha channel
+        if (image->format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE)
         {
             unsigned char *data = (unsigned char *)RL_MALLOC(image->width*image->height*2);
 
@@ -2041,12 +2041,12 @@ void RLImageAlphaMask(RLImage *image, RLImage alphaMask)
 
             RL_FREE(image->data);
             image->data = data;
-            image->format = PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA;
+            image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA;
         }
         else
         {
             // Convert image to RGBA
-            if (image->format != PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) RLImageFormat(image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+            if (image->format != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) RLImageFormat(image, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
 
             // Apply alpha mask to alpha channel
             for (int i = 0, k = 3; (i < mask.width*mask.height) || (i < image->width*image->height); i++, k += 4)
@@ -2089,7 +2089,7 @@ void RLImageAlphaPremultiply(RLImage *image)
 
     int format = image->format;
     image->data = pixels;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     RLImageFormat(image, format);
 }
@@ -2233,7 +2233,7 @@ void RLImageBlurGaussian(RLImage *image, int blurSize)
     RL_FREE(pixelsCopy2);
 
     image->data = pixels;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     RLImageFormat(image, format);
 }
@@ -2248,7 +2248,7 @@ void RLImageKernelConvolution(RLImage *image, const float *kernel, int kernelSiz
 
     if (kernelWidth*kernelWidth != kernelSize)
     {
-        TRACELOG(LOG_WARNING, "IMAGE: Convolution kernel must be square to be applied");
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Convolution kernel must be square to be applied");
         return;
     }
 
@@ -2364,7 +2364,7 @@ void RLImageKernelConvolution(RLImage *image, const float *kernel, int kernelSiz
     RL_FREE(temp);
 
     image->data = pixels;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
     RLImageFormat(image, format);
 }
 
@@ -2392,7 +2392,7 @@ void RLImageMipmaps(RLImage *image)
         if (mipWidth < 1) mipWidth = 1;
         if (mipHeight < 1) mipHeight = 1;
 
-        TRACELOG(LOG_DEBUG, "IMAGE: Next mipmap level: %i x %i - current size %i", mipWidth, mipHeight, mipSize);
+        TRACELOG(RL_E_LOG_DEBUG, "IMAGE: Next mipmap level: %i x %i - current size %i", mipWidth, mipHeight, mipSize);
 
         mipCount++;
         mipSize += RLGetPixelDataSize(mipWidth, mipHeight, image->format);       // Add mipmap size (in bytes)
@@ -2429,7 +2429,7 @@ void RLImageMipmaps(RLImage *image)
 
             if (i < image->mipmaps) continue;
 
-            TRACELOG(LOG_DEBUG, "IMAGE: Generating mipmap level: %i (%i x %i) - size: %i - offset: 0x%x", i, mipWidth, mipHeight, mipSize, nextmip);
+            TRACELOG(RL_E_LOG_DEBUG, "IMAGE: Generating mipmap level: %i (%i x %i) - size: %i - offset: 0x%x", i, mipWidth, mipHeight, mipSize, nextmip);
             RLImageResize(&imCopy, mipWidth, mipHeight); // Uses internally Mitchell cubic downscale filter
             memcpy(nextmip, imCopy.data, mipSize);
         }
@@ -2438,7 +2438,7 @@ void RLImageMipmaps(RLImage *image)
 
         image->mipmaps = mipCount;
     }
-    else TRACELOG(LOG_WARNING, "IMAGE: Mipmaps already available");
+    else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Mipmaps already available");
 }
 
 // Dither image data to 16bpp or lower (Floyd-Steinberg dithering)
@@ -2449,15 +2449,15 @@ void RLImageDither(RLImage *image, int rBpp, int gBpp, int bBpp, int aBpp)
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB)
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB)
     {
-        TRACELOG(LOG_WARNING, "IMAGE: Compressed data formats can not be dithered");
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Compressed data formats can not be dithered");
         return;
     }
 
     if ((rBpp + gBpp + bBpp + aBpp) > 16)
     {
-        TRACELOG(LOG_WARNING, "IMAGE: Unsupported dithering bpps (%ibpp), only 16bpp or lower modes supported", (rBpp+gBpp+bBpp+aBpp));
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Unsupported dithering bpps (%ibpp), only 16bpp or lower modes supported", (rBpp+gBpp+bBpp+aBpp));
     }
     else
     {
@@ -2465,22 +2465,22 @@ void RLImageDither(RLImage *image, int rBpp, int gBpp, int bBpp, int aBpp)
 
         RL_FREE(image->data);      // free old image data
 
-        if ((image->format != PIXELFORMAT_UNCOMPRESSED_R8G8B8) && (image->format != PIXELFORMAT_UNCOMPRESSED_R8G8B8A8))
+        if ((image->format != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) && (image->format != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8))
         {
-            TRACELOG(LOG_WARNING, "IMAGE: Format is already 16bpp or lower, dithering could have no effect");
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Format is already 16bpp or lower, dithering could have no effect");
         }
 
         // Define new image format, check if desired bpp match internal known format
-        if ((rBpp == 5) && (gBpp == 6) && (bBpp == 5) && (aBpp == 0)) image->format = PIXELFORMAT_UNCOMPRESSED_R5G6B5;
-        else if ((rBpp == 5) && (gBpp == 5) && (bBpp == 5) && (aBpp == 1)) image->format = PIXELFORMAT_UNCOMPRESSED_R5G5B5A1;
-        else if ((rBpp == 4) && (gBpp == 4) && (bBpp == 4) && (aBpp == 4)) image->format = PIXELFORMAT_UNCOMPRESSED_R4G4B4A4;
+        if ((rBpp == 5) && (gBpp == 6) && (bBpp == 5) && (aBpp == 0)) image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5;
+        else if ((rBpp == 5) && (gBpp == 5) && (bBpp == 5) && (aBpp == 1)) image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1;
+        else if ((rBpp == 4) && (gBpp == 4) && (bBpp == 4) && (aBpp == 4)) image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4;
         else
         {
             image->format = 0;
-            TRACELOG(LOG_WARNING, "IMAGE: Unsupported dithered OpenGL internal format: %ibpp (R%iG%iB%iA%i)", (rBpp+gBpp+bBpp+aBpp), rBpp, gBpp, bBpp, aBpp);
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Unsupported dithered OpenGL internal format: %ibpp (R%iG%iB%iA%i)", (rBpp+gBpp+bBpp+aBpp), rBpp, gBpp, bBpp, aBpp);
         }
 
-        // NOTE: We will store the dithered data as unsigned short (16bpp)
+        // NOTE: Storing the dithered data as unsigned short (16bpp)
         image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
 
         RLColor oldPixel = WHITE;
@@ -2508,8 +2508,8 @@ void RLImageDither(RLImage *image, int rBpp, int gBpp, int bBpp, int aBpp)
                 newPixel.b = oldPixel.b >> (8 - bBpp);     // B bits
                 newPixel.a = oldPixel.a >> (8 - aBpp);     // A bits (not used on dithering)
 
-                // NOTE: Error must be computed between new and old pixel but using same number of bits!
-                // We want to know how much color precision we have lost...
+                // NOTE: Error must be computed between new and old pixel but using same number of bits,
+                // to know how much color precision has been lost
                 rError = (int)oldPixel.r - (int)(newPixel.r << (8 - rBpp));
                 gError = (int)oldPixel.g - (int)(newPixel.g << (8 - gBpp));
                 bError = (int)oldPixel.b - (int)(newPixel.b << (8 - bBpp));
@@ -2564,8 +2564,8 @@ void RLImageFlipVertical(RLImage *image)
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    if (image->mipmaps > 1) TRACELOG(LOG_WARNING, "Image manipulation only applied to base mipmap level");
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image manipulation not supported for compressed formats");
+    if (image->mipmaps > 1) TRACELOG(RL_E_LOG_WARNING, "Image manipulation only applied to base mipmap level");
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image manipulation not supported for compressed formats");
     else
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
@@ -2588,8 +2588,8 @@ void RLImageFlipHorizontal(RLImage *image)
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    if (image->mipmaps > 1) TRACELOG(LOG_WARNING, "Image manipulation only applied to base mipmap level");
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image manipulation not supported for compressed formats");
+    if (image->mipmaps > 1) TRACELOG(RL_E_LOG_WARNING, "Image manipulation only applied to base mipmap level");
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image manipulation not supported for compressed formats");
     else
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
@@ -2633,8 +2633,8 @@ void RLImageRotate(RLImage *image, int degrees)
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    if (image->mipmaps > 1) TRACELOG(LOG_WARNING, "Image manipulation only applied to base mipmap level");
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image manipulation not supported for compressed formats");
+    if (image->mipmaps > 1) TRACELOG(RL_E_LOG_WARNING, "Image manipulation only applied to base mipmap level");
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image manipulation not supported for compressed formats");
     else
     {
         float rad = degrees*PI/180.0f;
@@ -2692,8 +2692,8 @@ void RLImageRotateCW(RLImage *image)
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    if (image->mipmaps > 1) TRACELOG(LOG_WARNING, "Image manipulation only applied to base mipmap level");
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image manipulation not supported for compressed formats");
+    if (image->mipmaps > 1) TRACELOG(RL_E_LOG_WARNING, "Image manipulation only applied to base mipmap level");
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image manipulation not supported for compressed formats");
     else
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
@@ -2724,8 +2724,8 @@ void RLImageRotateCCW(RLImage *image)
     // Security check to avoid program crash
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
-    if (image->mipmaps > 1) TRACELOG(LOG_WARNING, "Image manipulation only applied to base mipmap level");
-    if (image->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image manipulation not supported for compressed formats");
+    if (image->mipmaps > 1) TRACELOG(RL_E_LOG_WARNING, "Image manipulation only applied to base mipmap level");
+    if (image->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image manipulation not supported for compressed formats");
     else
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
@@ -2775,7 +2775,7 @@ void RLImageColorTint(RLImage *image, RLColor color)
     RL_FREE(image->data);
 
     image->data = pixels;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     RLImageFormat(image, format);
 }
@@ -2799,7 +2799,7 @@ void RLImageColorInvert(RLImage *image)
     RL_FREE(image->data);
 
     image->data = pixels;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     RLImageFormat(image, format);
 }
@@ -2807,7 +2807,7 @@ void RLImageColorInvert(RLImage *image)
 // Modify image color: grayscale
 void RLImageColorGrayscale(RLImage *image)
 {
-    RLImageFormat(image, PIXELFORMAT_UNCOMPRESSED_GRAYSCALE);
+    RLImageFormat(image, RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE);
 }
 
 // Modify image color: contrast
@@ -2860,7 +2860,7 @@ void RLImageColorContrast(RLImage *image, float contrast)
     RL_FREE(image->data);
 
     image->data = pixels;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     RLImageFormat(image, format);
 }
@@ -2901,7 +2901,7 @@ void RLImageColorBrightness(RLImage *image, int brightness)
     RL_FREE(image->data);
 
     image->data = pixels;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     RLImageFormat(image, format);
 }
@@ -2932,18 +2932,18 @@ void RLImageColorReplace(RLImage *image, RLColor color, RLColor replace)
     RL_FREE(image->data);
 
     image->data = pixels;
-    image->format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     // Only convert back to original format if it supported alpha
-    if ((format == PIXELFORMAT_UNCOMPRESSED_R8G8B8) ||
-        (format == PIXELFORMAT_UNCOMPRESSED_R5G6B5) ||
-        (format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) ||
-        (format == PIXELFORMAT_UNCOMPRESSED_R32G32B32) ||
-        (format == PIXELFORMAT_UNCOMPRESSED_R16G16B16) ||
-        (format == PIXELFORMAT_COMPRESSED_DXT1_RGB) ||
-        (format == PIXELFORMAT_COMPRESSED_ETC1_RGB) ||
-        (format == PIXELFORMAT_COMPRESSED_ETC2_RGB) ||
-        (format == PIXELFORMAT_COMPRESSED_PVRT_RGB)) RLImageFormat(image, format);
+    if ((format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) ||
+        (format == RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5) ||
+        (format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) ||
+        (format == RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32) ||
+        (format == RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16) ||
+        (format == RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) ||
+        (format == RL_E_PIXELFORMAT_COMPRESSED_ETC1_RGB) ||
+        (format == RL_E_PIXELFORMAT_COMPRESSED_ETC2_RGB) ||
+        (format == RL_E_PIXELFORMAT_COMPRESSED_PVRT_RGB)) RLImageFormat(image, format);
 }
 #endif      // SUPPORT_IMAGE_MANIPULATION
 
@@ -2955,22 +2955,22 @@ RLColor *RLLoadImageColors(RLImage image)
 
     RLColor *pixels = (RLColor *)RL_MALLOC(image.width*image.height*sizeof(RLColor));
 
-    if (image.format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
+    if (image.format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
     else
     {
-        if ((image.format == PIXELFORMAT_UNCOMPRESSED_R32) ||
-            (image.format == PIXELFORMAT_UNCOMPRESSED_R32G32B32) ||
-            (image.format == PIXELFORMAT_UNCOMPRESSED_R32G32B32A32)) TRACELOG(LOG_WARNING, "IMAGE: Pixel format converted from 32bit to 8bit per channel");
+        if ((image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R32) ||
+            (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32) ||
+            (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32)) TRACELOG(RL_E_LOG_WARNING, "IMAGE: Pixel format converted from 32bit to 8bit per channel");
 
-        if ((image.format == PIXELFORMAT_UNCOMPRESSED_R16) ||
-            (image.format == PIXELFORMAT_UNCOMPRESSED_R16G16B16) ||
-            (image.format == PIXELFORMAT_UNCOMPRESSED_R16G16B16A16)) TRACELOG(LOG_WARNING, "IMAGE: Pixel format converted from 16bit to 8bit per channel");
+        if ((image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R16) ||
+            (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16) ||
+            (image.format == RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16)) TRACELOG(RL_E_LOG_WARNING, "IMAGE: Pixel format converted from 16bit to 8bit per channel");
 
         for (int i = 0, k = 0; i < image.width*image.height; i++)
         {
             switch (image.format)
             {
-                case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
                 {
                     pixels[i].r = ((unsigned char *)image.data)[i];
                     pixels[i].g = ((unsigned char *)image.data)[i];
@@ -2978,7 +2978,7 @@ RLColor *RLLoadImageColors(RLImage image)
                     pixels[i].a = 255;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
                 {
                     pixels[i].r = ((unsigned char *)image.data)[k];
                     pixels[i].g = ((unsigned char *)image.data)[k];
@@ -2987,7 +2987,7 @@ RLColor *RLLoadImageColors(RLImage image)
 
                     k += 2;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -2997,7 +2997,7 @@ RLColor *RLLoadImageColors(RLImage image)
                     pixels[i].a = (unsigned char)((pixel & 0b0000000000000001)*255);
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -3007,7 +3007,7 @@ RLColor *RLLoadImageColors(RLImage image)
                     pixels[i].a = 255;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -3017,7 +3017,7 @@ RLColor *RLLoadImageColors(RLImage image)
                     pixels[i].a = (unsigned char)((float)(pixel & 0b0000000000001111)*(255/15));
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
                 {
                     pixels[i].r = ((unsigned char *)image.data)[k];
                     pixels[i].g = ((unsigned char *)image.data)[k + 1];
@@ -3026,7 +3026,7 @@ RLColor *RLLoadImageColors(RLImage image)
 
                     k += 4;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
                 {
                     pixels[i].r = (unsigned char)((unsigned char *)image.data)[k];
                     pixels[i].g = (unsigned char)((unsigned char *)image.data)[k + 1];
@@ -3035,7 +3035,7 @@ RLColor *RLLoadImageColors(RLImage image)
 
                     k += 3;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
                 {
                     pixels[i].r = (unsigned char)(((float *)image.data)[k]*255.0f);
                     pixels[i].g = 0;
@@ -3044,7 +3044,7 @@ RLColor *RLLoadImageColors(RLImage image)
 
                     k += 1;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
                 {
                     pixels[i].r = (unsigned char)(((float *)image.data)[k]*255.0f);
                     pixels[i].g = (unsigned char)(((float *)image.data)[k + 1]*255.0f);
@@ -3053,7 +3053,7 @@ RLColor *RLLoadImageColors(RLImage image)
 
                     k += 3;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
                 {
                     pixels[i].r = (unsigned char)(((float *)image.data)[k]*255.0f);
                     pixels[i].g = (unsigned char)(((float *)image.data)[k + 1]*255.0f);
@@ -3062,7 +3062,7 @@ RLColor *RLLoadImageColors(RLImage image)
 
                     k += 4;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
                 {
                     pixels[i].r = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[k])*255.0f);
                     pixels[i].g = 0;
@@ -3071,7 +3071,7 @@ RLColor *RLLoadImageColors(RLImage image)
 
                     k += 1;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
                 {
                     pixels[i].r = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[k])*255.0f);
                     pixels[i].g = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[k + 1])*255.0f);
@@ -3080,7 +3080,7 @@ RLColor *RLLoadImageColors(RLImage image)
 
                     k += 3;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
                 {
                     pixels[i].r = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[k])*255.0f);
                     pixels[i].g = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[k + 1])*255.0f);
@@ -3135,11 +3135,11 @@ RLColor *RLLoadImagePalette(RLImage image, int maxPaletteSize, int *colorCount)
                     palette[palCount] = pixels[i];      // Add pixels[i] to palette
                     palCount++;
 
-                    // We reached the limit of colors supported by palette
+                    // Reached the limit of colors supported by palette
                     if (palCount >= maxPaletteSize)
                     {
                         i = image.width*image.height;   // Finish palette get
-                        TRACELOG(LOG_WARNING, "IMAGE: Palette is greater than %i colors", maxPaletteSize);
+                        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Palette is greater than %i colors", maxPaletteSize);
                     }
                 }
             }
@@ -3215,7 +3215,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
     {
         switch (image.format)
         {
-            case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
             {
                 color.r = ((unsigned char *)image.data)[y*image.width + x];
                 color.g = ((unsigned char *)image.data)[y*image.width + x];
@@ -3223,7 +3223,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = 255;
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
             {
                 color.r = ((unsigned char *)image.data)[(y*image.width + x)*2];
                 color.g = ((unsigned char *)image.data)[(y*image.width + x)*2];
@@ -3231,7 +3231,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = ((unsigned char *)image.data)[(y*image.width + x)*2 + 1];
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
             {
                 unsigned short pixel = ((unsigned short *)image.data)[y*image.width + x];
 
@@ -3241,7 +3241,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = (unsigned char)((pixel & 0b0000000000000001)*255);
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
             {
                 unsigned short pixel = ((unsigned short *)image.data)[y*image.width + x];
 
@@ -3251,7 +3251,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = 255;
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
             {
                 unsigned short pixel = ((unsigned short *)image.data)[y*image.width + x];
 
@@ -3261,7 +3261,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = (unsigned char)((float)(pixel & 0b0000000000001111)*(255/15));
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
             {
                 color.r = ((unsigned char *)image.data)[(y*image.width + x)*4];
                 color.g = ((unsigned char *)image.data)[(y*image.width + x)*4 + 1];
@@ -3269,7 +3269,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = ((unsigned char *)image.data)[(y*image.width + x)*4 + 3];
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
             {
                 color.r = (unsigned char)((unsigned char *)image.data)[(y*image.width + x)*3];
                 color.g = (unsigned char)((unsigned char *)image.data)[(y*image.width + x)*3 + 1];
@@ -3277,7 +3277,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = 255;
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R32:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
             {
                 color.r = (unsigned char)(((float *)image.data)[y*image.width + x]*255.0f);
                 color.g = 0;
@@ -3285,7 +3285,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = 255;
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
             {
                 color.r = (unsigned char)(((float *)image.data)[(y*image.width + x)*3]*255.0f);
                 color.g = (unsigned char)(((float *)image.data)[(y*image.width + x)*3 + 1]*255.0f);
@@ -3293,7 +3293,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = 255;
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
             {
                 color.r = (unsigned char)(((float *)image.data)[(y*image.width + x)*4]*255.0f);
                 color.g = (unsigned char)(((float *)image.data)[(y*image.width + x)*4]*255.0f);
@@ -3301,7 +3301,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = (unsigned char)(((float *)image.data)[(y*image.width + x)*4]*255.0f);
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R16:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
             {
                 color.r = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[y*image.width + x])*255.0f);
                 color.g = 0;
@@ -3309,7 +3309,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = 255;
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
             {
                 color.r = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[(y*image.width + x)*3])*255.0f);
                 color.g = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[(y*image.width + x)*3 + 1])*255.0f);
@@ -3317,7 +3317,7 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = 255;
 
             } break;
-            case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+            case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
             {
                 color.r = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[(y*image.width + x)*4])*255.0f);
                 color.g = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[(y*image.width + x)*4])*255.0f);
@@ -3325,10 +3325,10 @@ RLColor RLGetImageColor(RLImage image, int x, int y)
                 color.a = (unsigned char)(HalfToFloat(((unsigned short *)image.data)[(y*image.width + x)*4])*255.0f);
 
             } break;
-            default: TRACELOG(LOG_WARNING, "Compressed image format does not support color reading"); break;
+            default: TRACELOG(RL_E_LOG_WARNING, "Compressed image format does not support color reading"); break;
         }
     }
-    else TRACELOG(LOG_WARNING, "Requested image pixel (%i, %i) out of bounds", x, y);
+    else TRACELOG(RL_E_LOG_WARNING, "Requested image pixel (%i, %i) out of bounds", x, y);
 
     return color;
 }
@@ -3367,7 +3367,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
 
     switch (dst->format)
     {
-        case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
         {
             // NOTE: Calculate grayscale equivalent color
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -3376,7 +3376,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((unsigned char *)dst->data)[y*dst->width + x] = gray;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
         {
             // NOTE: Calculate grayscale equivalent color
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -3386,7 +3386,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((unsigned char *)dst->data)[(y*dst->width + x)*2 + 1] = color.a;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
         {
             // NOTE: Calculate R5G6B5 equivalent color
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -3398,7 +3398,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((unsigned short *)dst->data)[y*dst->width + x] = (unsigned short)r << 11 | (unsigned short)g << 5 | (unsigned short)b;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
         {
             // NOTE: Calculate R5G5B5A1 equivalent color
             RLVector4 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f, (float)color.a/255.0f };
@@ -3411,7 +3411,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((unsigned short *)dst->data)[y*dst->width + x] = (unsigned short)r << 11 | (unsigned short)g << 6 | (unsigned short)b << 1 | (unsigned short)a;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
         {
             // NOTE: Calculate R5G5B5A1 equivalent color
             RLVector4 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f, (float)color.a/255.0f };
@@ -3424,14 +3424,14 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((unsigned short *)dst->data)[y*dst->width + x] = (unsigned short)r << 12 | (unsigned short)g << 8 | (unsigned short)b << 4 | (unsigned short)a;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
         {
             ((unsigned char *)dst->data)[(y*dst->width + x)*3] = color.r;
             ((unsigned char *)dst->data)[(y*dst->width + x)*3 + 1] = color.g;
             ((unsigned char *)dst->data)[(y*dst->width + x)*3 + 2] = color.b;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
         {
             ((unsigned char *)dst->data)[(y*dst->width + x)*4] = color.r;
             ((unsigned char *)dst->data)[(y*dst->width + x)*4 + 1] = color.g;
@@ -3439,7 +3439,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((unsigned char *)dst->data)[(y*dst->width + x)*4 + 3] = color.a;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
         {
             // NOTE: Calculate grayscale equivalent color (normalized to 32bit)
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -3447,7 +3447,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((float *)dst->data)[y*dst->width + x] = coln.x*0.299f + coln.y*0.587f + coln.z*0.114f;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
         {
             // NOTE: Calculate R32G32B32 equivalent color (normalized to 32bit)
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -3456,7 +3456,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((float *)dst->data)[(y*dst->width + x)*3 + 1] = coln.y;
             ((float *)dst->data)[(y*dst->width + x)*3 + 2] = coln.z;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
         {
             // NOTE: Calculate R32G32B32A32 equivalent color (normalized to 32bit)
             RLVector4 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f, (float)color.a/255.0f };
@@ -3467,7 +3467,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((float *)dst->data)[(y*dst->width + x)*4 + 3] = coln.w;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
         {
             // NOTE: Calculate grayscale equivalent color (normalized to 32bit)
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -3475,7 +3475,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((unsigned short*)dst->data)[y*dst->width + x] = FloatToHalf(coln.x*0.299f + coln.y*0.587f + coln.z*0.114f);
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
         {
             // NOTE: Calculate R32G32B32 equivalent color (normalized to 32bit)
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -3484,7 +3484,7 @@ void RLImageDrawPixel(RLImage *dst, int x, int y, RLColor color)
             ((unsigned short *)dst->data)[(y*dst->width + x)*3 + 1] = FloatToHalf(coln.y);
             ((unsigned short *)dst->data)[(y*dst->width + x)*3 + 2] = FloatToHalf(coln.z);
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
         {
             // NOTE: Calculate R32G32B32A32 equivalent color (normalized to 32bit)
             RLVector4 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f, (float)color.a/255.0f };
@@ -3807,7 +3807,7 @@ void RLImageDrawTriangle(RLImage *dst, RLVector2 v1, RLVector2 v2, RLVector2 v3,
         for (int x = xMin; x <= xMax; x++)
         {
             // Check if the pixel is inside the triangle using barycentric coordinates
-            // If it is then we can draw the pixel with the given color
+            // If it is, the pixel can be drawn with the given color
             if ((w1 | w2 | w3) >= 0) RLImageDrawPixel(dst, x, y, color);
 
             // Increment the barycentric coordinates for the next pixel
@@ -3864,9 +3864,6 @@ void RLImageDrawTriangleEx(RLImage *dst, RLVector2 v1, RLVector2 v2, RLVector2 v
     int w3Row = (int)((xMin - v1.x)*w3XStep + w3YStep*(yMin - v1.y));
 
     // Calculate the inverse of the sum of the barycentric coordinates for normalization
-    // NOTE 1: Here, we act as if we multiply by 255 the reciprocal, which avoids additional
-    //         calculations in the loop. This is acceptable because we are only interpolating colors
-    // NOTE 2: This sum remains constant throughout the triangle
     float wInvSum = 255.0f/(w1Row + w2Row + w3Row);
 
     // Rasterization loop
@@ -3952,7 +3949,7 @@ void RLImageDraw(RLImage *dst, RLImage src, RLRectangle srcRec, RLRectangle dstR
     if ((dst->data == NULL) || (dst->width == 0) || (dst->height == 0) ||
         (src.data == NULL) || (src.width == 0) || (src.height == 0)) return;
 
-    if (dst->format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "Image drawing not supported for compressed formats");
+    if (dst->format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "Image drawing not supported for compressed formats");
     else
     {
         RLImage srcMod = { 0 };       // Source copy (in case it was required)
@@ -3966,11 +3963,11 @@ void RLImageDraw(RLImage *dst, RLImage src, RLRectangle srcRec, RLRectangle dstR
         if ((srcRec.y + srcRec.height) > src.height) srcRec.height = src.height - srcRec.y;
 
         // Check if source rectangle needs to be resized to destination rectangle
-        // In that case, we make a copy of source, and we apply all required transform
+        // In that case, make a copy of source, and apply all required transform
         if (((int)srcRec.width != (int)dstRec.width) || ((int)srcRec.height != (int)dstRec.height))
         {
-            srcMod = RLImageFromImage(src, srcRec);   // Create image from another image
-            RLImageResize(&srcMod, (int)dstRec.width, (int)dstRec.height);   // Resize to destination rectangle
+            srcMod = RLImageFromImage(src, srcRec); // Create image from another image
+            RLImageResize(&srcMod, (int)dstRec.width, (int)dstRec.height); // Resize to destination rectangle
             srcRec = (RLRectangle){ 0, 0, (float)srcMod.width, (float)srcMod.height };
 
             srcPtr = &srcMod;
@@ -4016,13 +4013,13 @@ void RLImageDraw(RLImage *dst, RLImage src, RLRectangle srcRec, RLRectangle dstR
 
         // Fast path: Avoid blend if source has no alpha to blend
         if ((tint.a == 255) &&
-            ((srcPtr->format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) ||
-            (srcPtr->format == PIXELFORMAT_UNCOMPRESSED_R5G6B5) ||
-            (srcPtr->format == PIXELFORMAT_UNCOMPRESSED_R8G8B8) ||
-            (srcPtr->format == PIXELFORMAT_UNCOMPRESSED_R32) ||
-            (srcPtr->format == PIXELFORMAT_UNCOMPRESSED_R32G32B32) ||
-            (srcPtr->format == PIXELFORMAT_UNCOMPRESSED_R16) ||
-            (srcPtr->format == PIXELFORMAT_UNCOMPRESSED_R16G16B16)))
+            ((srcPtr->format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) ||
+            (srcPtr->format == RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5) ||
+            (srcPtr->format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) ||
+            (srcPtr->format == RL_E_PIXELFORMAT_UNCOMPRESSED_R32) ||
+            (srcPtr->format == RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32) ||
+            (srcPtr->format == RL_E_PIXELFORMAT_UNCOMPRESSED_R16) ||
+            (srcPtr->format == RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16)))
             blendRequired = false;
 
         int strideDst = RLGetPixelDataSize(dst->width, 1, dst->format);
@@ -4106,7 +4103,7 @@ void RLImageDrawText(RLImage *dst, const char *text, int posX, int posY, int fon
     RLVector2 position = { (float)posX, (float)posY };
     RLImageDrawTextEx(dst, RLGetFontDefault(), text, position, (float)fontSize, 1.0f, color);   // WARNING: Module required: rtext
 #else
-    TRACELOG(LOG_WARNING, "IMAGE: ImageDrawText() requires module: rtext");
+    TRACELOG(RL_E_LOG_WARNING, "IMAGE: ImageDrawText() requires module: rtext");
 #endif
 }
 
@@ -4152,7 +4149,7 @@ RLTexture2D RLLoadTextureFromImage(RLImage image)
     {
         texture.id = rlLoadTexture(image.data, image.width, image.height, image.format, image.mipmaps);
     }
-    else TRACELOG(LOG_WARNING, "IMAGE: Data is not valid to load texture");
+    else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Data is not valid to load texture");
 
     texture.width = image.width;
     texture.height = image.height;
@@ -4167,32 +4164,32 @@ RLTextureCubemap RLLoadTextureCubemap(RLImage image, int layout)
 {
     RLTextureCubemap cubemap = { 0 };
 
-    if (layout == CUBEMAP_LAYOUT_AUTO_DETECT)      // Try to automatically guess layout type
+    if (layout == RL_E_CUBEMAP_LAYOUT_AUTO_DETECT)      // Try to automatically guess layout type
     {
         // Check image width/height to determine the type of cubemap provided
         if (image.width > image.height)
         {
-            if ((image.width/6) == image.height) { layout = CUBEMAP_LAYOUT_LINE_HORIZONTAL; cubemap.width = image.width/6; }
-            else if ((image.width/4) == (image.height/3)) { layout = CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE; cubemap.width = image.width/4; }
+            if ((image.width/6) == image.height) { layout = RL_E_CUBEMAP_LAYOUT_LINE_HORIZONTAL; cubemap.width = image.width/6; }
+            else if ((image.width/4) == (image.height/3)) { layout = RL_E_CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE; cubemap.width = image.width/4; }
         }
         else if (image.height > image.width)
         {
-            if ((image.height/6) == image.width) { layout = CUBEMAP_LAYOUT_LINE_VERTICAL; cubemap.width = image.height/6; }
-            else if ((image.width/3) == (image.height/4)) { layout = CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR; cubemap.width = image.width/3; }
+            if ((image.height/6) == image.width) { layout = RL_E_CUBEMAP_LAYOUT_LINE_VERTICAL; cubemap.width = image.height/6; }
+            else if ((image.width/3) == (image.height/4)) { layout = RL_E_CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR; cubemap.width = image.width/3; }
         }
     }
     else
     {
-        if (layout == CUBEMAP_LAYOUT_LINE_VERTICAL) cubemap.width = image.height/6;
-        if (layout == CUBEMAP_LAYOUT_LINE_HORIZONTAL) cubemap.width = image.width/6;
-        if (layout == CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR) cubemap.width = image.width/3;
-        if (layout == CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE) cubemap.width = image.width/4;
+        if (layout == RL_E_CUBEMAP_LAYOUT_LINE_VERTICAL) cubemap.width = image.height/6;
+        if (layout == RL_E_CUBEMAP_LAYOUT_LINE_HORIZONTAL) cubemap.width = image.width/6;
+        if (layout == RL_E_CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR) cubemap.width = image.width/3;
+        if (layout == RL_E_CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE) cubemap.width = image.width/4;
     }
 
     cubemap.height = cubemap.width;
 
     // Layout provided or already auto-detected
-    if (layout != CUBEMAP_LAYOUT_AUTO_DETECT)
+    if (layout != RL_E_CUBEMAP_LAYOUT_AUTO_DETECT)
     {
         int size = cubemap.width;
 
@@ -4201,7 +4198,7 @@ RLTextureCubemap RLLoadTextureCubemap(RLImage image, int layout)
 
         for (int i = 0; i < 6; i++) faceRecs[i] = (RLRectangle){ 0, 0, (float)size, (float)size };
 
-        if (layout == CUBEMAP_LAYOUT_LINE_VERTICAL)
+        if (layout == RL_E_CUBEMAP_LAYOUT_LINE_VERTICAL)
         {
             faces = RLImageCopy(image);       // Image data already follows expected convention
         }
@@ -4212,8 +4209,8 @@ RLTextureCubemap RLLoadTextureCubemap(RLImage image, int layout)
         } */
         else
         {
-            if (layout == CUBEMAP_LAYOUT_LINE_HORIZONTAL) for (int i = 0; i < 6; i++) faceRecs[i].x = (float)size*i;
-            else if (layout == CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR)
+            if (layout == RL_E_CUBEMAP_LAYOUT_LINE_HORIZONTAL) for (int i = 0; i < 6; i++) faceRecs[i].x = (float)size*i;
+            else if (layout == RL_E_CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR)
             {
                 faceRecs[0].x = (float)size; faceRecs[0].y = (float)size;
                 faceRecs[1].x = (float)size; faceRecs[1].y = (float)size*3;
@@ -4222,7 +4219,7 @@ RLTextureCubemap RLLoadTextureCubemap(RLImage image, int layout)
                 faceRecs[4].x = 0; faceRecs[4].y = (float)size;
                 faceRecs[5].x = (float)size*2; faceRecs[5].y = (float)size;
             }
-            else if (layout == CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE)
+            else if (layout == RL_E_CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE)
             {
                 faceRecs[0].x = (float)size*2; faceRecs[0].y = (float)size;
                 faceRecs[1].x = 0; faceRecs[1].y = (float)size;
@@ -4260,11 +4257,11 @@ RLTextureCubemap RLLoadTextureCubemap(RLImage image, int layout)
             cubemap.format = faces.format;
             cubemap.mipmaps = faces.mipmaps;
         }
-        else TRACELOG(LOG_WARNING, "IMAGE: Failed to load cubemap image");
+        else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to load cubemap image");
 
         RLUnloadImage(faces);
     }
-    else TRACELOG(LOG_WARNING, "IMAGE: Failed to detect cubemap image layout");
+    else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to detect cubemap image layout");
 
     return cubemap;
 }
@@ -4282,10 +4279,10 @@ RLRenderTexture2D RLLoadRenderTexture(int width, int height)
         rlEnableFramebuffer(target.id);
 
         // Create color texture (default to RGBA)
-        target.texture.id = rlLoadTexture(NULL, width, height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+        target.texture.id = rlLoadTexture(NULL, width, height, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
         target.texture.width = width;
         target.texture.height = height;
-        target.texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        target.texture.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
         target.texture.mipmaps = 1;
 
         // Create depth renderbuffer/texture
@@ -4300,11 +4297,11 @@ RLRenderTexture2D RLLoadRenderTexture(int width, int height)
         rlFramebufferAttach(target.id, target.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_RENDERBUFFER, 0);
 
         // Check if fbo is complete with attachments (valid)
-        if (rlFramebufferComplete(target.id)) TRACELOG(LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
+        if (rlFramebufferComplete(target.id)) TRACELOG(RL_E_LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
 
         rlDisableFramebuffer();
     }
-    else TRACELOG(LOG_WARNING, "FBO: Framebuffer object can not be created");
+    else TRACELOG(RL_E_LOG_WARNING, "FBO: Framebuffer object can not be created");
 
     return target;
 }
@@ -4330,7 +4327,7 @@ void RLUnloadTexture(RLTexture2D texture)
     {
         rlUnloadTexture(texture.id);
 
-        TRACELOG(LOG_INFO, "TEXTURE: [ID %i] Unloaded texture data from VRAM (GPU)", texture.id);
+        TRACELOG(RL_E_LOG_INFO, "TEXTURE: [ID %i] Unloaded texture data from VRAM (GPU)", texture.id);
     }
 }
 
@@ -4430,7 +4427,7 @@ void RLSetTextureFilter(RLTexture2D texture, int filter)
 {
     switch (filter)
     {
-        case TEXTURE_FILTER_POINT:
+        case RL_E_TEXTURE_FILTER_POINT:
         {
             if (texture.mipmaps > 1)
             {
@@ -4447,7 +4444,7 @@ void RLSetTextureFilter(RLTexture2D texture, int filter)
                 rlTextureParameters(texture.id, RL_TEXTURE_MAG_FILTER, RL_TEXTURE_FILTER_NEAREST);
             }
         } break;
-        case TEXTURE_FILTER_BILINEAR:
+        case RL_E_TEXTURE_FILTER_BILINEAR:
         {
             if (texture.mipmaps > 1)
             {
@@ -4465,7 +4462,7 @@ void RLSetTextureFilter(RLTexture2D texture, int filter)
                 rlTextureParameters(texture.id, RL_TEXTURE_MAG_FILTER, RL_TEXTURE_FILTER_LINEAR);
             }
         } break;
-        case TEXTURE_FILTER_TRILINEAR:
+        case RL_E_TEXTURE_FILTER_TRILINEAR:
         {
             if (texture.mipmaps > 1)
             {
@@ -4477,16 +4474,16 @@ void RLSetTextureFilter(RLTexture2D texture, int filter)
             }
             else
             {
-                TRACELOG(LOG_WARNING, "TEXTURE: [ID %i] No mipmaps available for TRILINEAR texture filtering", texture.id);
+                TRACELOG(RL_E_LOG_WARNING, "TEXTURE: [ID %i] No mipmaps available for TRILINEAR texture filtering", texture.id);
 
                 // RL_TEXTURE_FILTER_LINEAR - tex filter: BILINEAR, no mipmaps
                 rlTextureParameters(texture.id, RL_TEXTURE_MIN_FILTER, RL_TEXTURE_FILTER_LINEAR);
                 rlTextureParameters(texture.id, RL_TEXTURE_MAG_FILTER, RL_TEXTURE_FILTER_LINEAR);
             }
         } break;
-        case TEXTURE_FILTER_ANISOTROPIC_4X: rlTextureParameters(texture.id, RL_TEXTURE_FILTER_ANISOTROPIC, 4); break;
-        case TEXTURE_FILTER_ANISOTROPIC_8X: rlTextureParameters(texture.id, RL_TEXTURE_FILTER_ANISOTROPIC, 8); break;
-        case TEXTURE_FILTER_ANISOTROPIC_16X: rlTextureParameters(texture.id, RL_TEXTURE_FILTER_ANISOTROPIC, 16); break;
+        case RL_E_TEXTURE_FILTER_ANISOTROPIC_4X: rlTextureParameters(texture.id, RL_TEXTURE_FILTER_ANISOTROPIC, 4); break;
+        case RL_E_TEXTURE_FILTER_ANISOTROPIC_8X: rlTextureParameters(texture.id, RL_TEXTURE_FILTER_ANISOTROPIC, 8); break;
+        case RL_E_TEXTURE_FILTER_ANISOTROPIC_16X: rlTextureParameters(texture.id, RL_TEXTURE_FILTER_ANISOTROPIC, 16); break;
         default: break;
     }
 }
@@ -4496,23 +4493,23 @@ void RLSetTextureWrap(RLTexture2D texture, int wrap)
 {
     switch (wrap)
     {
-        case TEXTURE_WRAP_REPEAT:
+        case RL_E_TEXTURE_WRAP_REPEAT:
         {
             // NOTE: It only works if NPOT textures are supported, i.e. OpenGL ES 2.0 could not support it
             rlTextureParameters(texture.id, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_REPEAT);
             rlTextureParameters(texture.id, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_REPEAT);
         } break;
-        case TEXTURE_WRAP_CLAMP:
+        case RL_E_TEXTURE_WRAP_CLAMP:
         {
             rlTextureParameters(texture.id, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_CLAMP);
             rlTextureParameters(texture.id, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_CLAMP);
         } break;
-        case TEXTURE_WRAP_MIRROR_REPEAT:
+        case RL_E_TEXTURE_WRAP_MIRROR_REPEAT:
         {
             rlTextureParameters(texture.id, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_MIRROR_REPEAT);
             rlTextureParameters(texture.id, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_MIRROR_REPEAT);
         } break;
-        case TEXTURE_WRAP_MIRROR_CLAMP:
+        case RL_E_TEXTURE_WRAP_MIRROR_CLAMP:
         {
             rlTextureParameters(texture.id, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_MIRROR_CLAMP);
             rlTextureParameters(texture.id, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_MIRROR_CLAMP);
@@ -4694,8 +4691,8 @@ void RLDrawTextureNPatch(RLTexture2D texture, RLNPatchInfo nPatchInfo, RLRectang
 
         if (nPatchInfo.source.width < 0) nPatchInfo.source.x -= nPatchInfo.source.width;
         if (nPatchInfo.source.height < 0) nPatchInfo.source.y -= nPatchInfo.source.height;
-        if (nPatchInfo.layout == NPATCH_THREE_PATCH_HORIZONTAL) patchHeight = nPatchInfo.source.height;
-        if (nPatchInfo.layout == NPATCH_THREE_PATCH_VERTICAL) patchWidth = nPatchInfo.source.width;
+        if (nPatchInfo.layout == RL_E_NPATCH_THREE_PATCH_HORIZONTAL) patchHeight = nPatchInfo.source.height;
+        if (nPatchInfo.layout == RL_E_NPATCH_THREE_PATCH_VERTICAL) patchWidth = nPatchInfo.source.width;
 
         bool drawCenter = true;
         bool drawMiddle = true;
@@ -4705,7 +4702,7 @@ void RLDrawTextureNPatch(RLTexture2D texture, RLNPatchInfo nPatchInfo, RLRectang
         float bottomBorder = (float)nPatchInfo.bottom;
 
         // Adjust the lateral (left and right) border widths in case patchWidth < texture.width
-        if (patchWidth <= (leftBorder + rightBorder) && nPatchInfo.layout != NPATCH_THREE_PATCH_VERTICAL)
+        if (patchWidth <= (leftBorder + rightBorder) && nPatchInfo.layout != RL_E_NPATCH_THREE_PATCH_VERTICAL)
         {
             drawCenter = false;
             leftBorder = (leftBorder/(leftBorder + rightBorder))*patchWidth;
@@ -4713,7 +4710,7 @@ void RLDrawTextureNPatch(RLTexture2D texture, RLNPatchInfo nPatchInfo, RLRectang
         }
 
         // Adjust the lateral (top and bottom) border heights in case patchHeight < texture.height
-        if (patchHeight <= (topBorder + bottomBorder) && nPatchInfo.layout != NPATCH_THREE_PATCH_HORIZONTAL)
+        if (patchHeight <= (topBorder + bottomBorder) && nPatchInfo.layout != RL_E_NPATCH_THREE_PATCH_HORIZONTAL)
         {
             drawMiddle = false;
             topBorder = (topBorder/(topBorder + bottomBorder))*patchHeight;
@@ -4757,7 +4754,7 @@ void RLDrawTextureNPatch(RLTexture2D texture, RLNPatchInfo nPatchInfo, RLRectang
                 rlColor4ub(tint.r, tint.g, tint.b, tint.a);
                 rlNormal3f(0.0f, 0.0f, 1.0f);               // Normal vector pointing towards viewer
 
-                if (nPatchInfo.layout == NPATCH_NINE_PATCH)
+                if (nPatchInfo.layout == RL_E_NPATCH_NINE_PATCH)
                 {
                     // ------------------------------------------------------------
                     // TOP-LEFT QUAD
@@ -4823,7 +4820,7 @@ void RLDrawTextureNPatch(RLTexture2D texture, RLNPatchInfo nPatchInfo, RLRectang
                     rlTexCoord2f(coordD.x, coordC.y); rlVertex2f(vertD.x, vertC.y);  // Top-right corner for texture and quad
                     rlTexCoord2f(coordC.x, coordC.y); rlVertex2f(vertC.x, vertC.y);  // Top-left corner for texture and quad
                 }
-                else if (nPatchInfo.layout == NPATCH_THREE_PATCH_VERTICAL)
+                else if (nPatchInfo.layout == RL_E_NPATCH_THREE_PATCH_VERTICAL)
                 {
                     // TOP QUAD
                     // -----------------------------------------------------------
@@ -4850,7 +4847,7 @@ void RLDrawTextureNPatch(RLTexture2D texture, RLNPatchInfo nPatchInfo, RLRectang
                     rlTexCoord2f(coordD.x, coordC.y); rlVertex2f(vertD.x, vertC.y);  // Top-right corner for texture and quad
                     rlTexCoord2f(coordA.x, coordC.y); rlVertex2f(vertA.x, vertC.y);  // Top-left corner for texture and quad
                 }
-                else if (nPatchInfo.layout == NPATCH_THREE_PATCH_HORIZONTAL)
+                else if (nPatchInfo.layout == RL_E_NPATCH_THREE_PATCH_HORIZONTAL)
                 {
                     // LEFT QUAD
                     // -----------------------------------------------------------
@@ -5161,7 +5158,7 @@ RLColor RLColorAlphaBlend(RLColor dst, RLColor src, RLColor tint)
     else if (src.a == 255) out = src;
     else
     {
-        unsigned int alpha = (unsigned int)src.a + 1;     // We are shifting by 8 (dividing by 256), so we need to take that excess into account
+        unsigned int alpha = (unsigned int)src.a + 1; // Shifting by 8 (dividing by 256), so need to take that excess into account
         out.a = (unsigned char)(((unsigned int)alpha*256 + (unsigned int)dst.a*(256 - alpha)) >> 8);
 
         if (out.a > 0)
@@ -5234,9 +5231,9 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
 
     switch (format)
     {
-        case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE: color = (RLColor){ ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[0], 255 }; break;
-        case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: color = (RLColor){ ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[1] }; break;
-        case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE: color = (RLColor){ ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[0], 255 }; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: color = (RLColor){ ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[1] }; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
         {
             color.r = (unsigned char)((((unsigned short *)srcPtr)[0] >> 11)*255/31);
             color.g = (unsigned char)(((((unsigned short *)srcPtr)[0] >> 5) & 0b0000000000111111)*255/63);
@@ -5244,7 +5241,7 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
             color.a = 255;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
         {
             color.r = (unsigned char)((((unsigned short *)srcPtr)[0] >> 11)*255/31);
             color.g = (unsigned char)(((((unsigned short *)srcPtr)[0] >> 6) & 0b0000000000011111)*255/31);
@@ -5252,7 +5249,7 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
             color.a = (((unsigned short *)srcPtr)[0] & 0b0000000000000001)? 255 : 0;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
         {
             color.r = (unsigned char)((((unsigned short *)srcPtr)[0] >> 12)*255/15);
             color.g = (unsigned char)(((((unsigned short *)srcPtr)[0] >> 8) & 0b0000000000001111)*255/15);
@@ -5260,9 +5257,9 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
             color.a = (unsigned char)((((unsigned short *)srcPtr)[0] & 0b0000000000001111)*255/15);
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: color = (RLColor){ ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[1], ((unsigned char *)srcPtr)[2], ((unsigned char *)srcPtr)[3] }; break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8: color = (RLColor){ ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[1], ((unsigned char *)srcPtr)[2], 255 }; break;
-        case PIXELFORMAT_UNCOMPRESSED_R32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: color = (RLColor){ ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[1], ((unsigned char *)srcPtr)[2], ((unsigned char *)srcPtr)[3] }; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8: color = (RLColor){ ((unsigned char *)srcPtr)[0], ((unsigned char *)srcPtr)[1], ((unsigned char *)srcPtr)[2], 255 }; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
         {
             // NOTE: Pixel normalized float value is converted to [0..255]
             color.r = (unsigned char)(((float *)srcPtr)[0]*255.0f);
@@ -5271,7 +5268,7 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
             color.a = 255;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
         {
             // NOTE: Pixel normalized float value is converted to [0..255]
             color.r = (unsigned char)(((float *)srcPtr)[0]*255.0f);
@@ -5280,7 +5277,7 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
             color.a = 255;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
         {
             // NOTE: Pixel normalized float value is converted to [0..255]
             color.r = (unsigned char)(((float *)srcPtr)[0]*255.0f);
@@ -5289,7 +5286,7 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
             color.a = (unsigned char)(((float *)srcPtr)[3]*255.0f);
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
         {
             // NOTE: Pixel normalized float value is converted to [0..255]
             color.r = (unsigned char)(HalfToFloat(((unsigned short *)srcPtr)[0])*255.0f);
@@ -5298,7 +5295,7 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
             color.a = 255;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
         {
             // NOTE: Pixel normalized float value is converted to [0..255]
             color.r = (unsigned char)(HalfToFloat(((unsigned short *)srcPtr)[0])*255.0f);
@@ -5307,7 +5304,7 @@ RLColor RLGetPixelColor(void *srcPtr, int format)
             color.a = 255;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
         {
             // NOTE: Pixel normalized float value is converted to [0..255]
             color.r = (unsigned char)(HalfToFloat(((unsigned short *)srcPtr)[0])*255.0f);
@@ -5327,7 +5324,7 @@ void RLSetPixelColor(void *dstPtr, RLColor color, int format)
 {
     switch (format)
     {
-        case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
         {
             // NOTE: Calculate grayscale equivalent color
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -5336,7 +5333,7 @@ void RLSetPixelColor(void *dstPtr, RLColor color, int format)
             ((unsigned char *)dstPtr)[0] = gray;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
         {
             // NOTE: Calculate grayscale equivalent color
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -5346,7 +5343,7 @@ void RLSetPixelColor(void *dstPtr, RLColor color, int format)
             ((unsigned char *)dstPtr)[1] = color.a;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
         {
             // NOTE: Calculate R5G6B5 equivalent color
             RLVector3 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f };
@@ -5358,7 +5355,7 @@ void RLSetPixelColor(void *dstPtr, RLColor color, int format)
             ((unsigned short *)dstPtr)[0] = (unsigned short)r << 11 | (unsigned short)g << 5 | (unsigned short)b;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
         {
             // NOTE: Calculate R5G5B5A1 equivalent color
             RLVector4 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f, (float)color.a/255.0f };
@@ -5371,7 +5368,7 @@ void RLSetPixelColor(void *dstPtr, RLColor color, int format)
             ((unsigned short *)dstPtr)[0] = (unsigned short)r << 11 | (unsigned short)g << 6 | (unsigned short)b << 1 | (unsigned short)a;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
         {
             // NOTE: Calculate R5G5B5A1 equivalent color
             RLVector4 coln = { (float)color.r/255.0f, (float)color.g/255.0f, (float)color.b/255.0f, (float)color.a/255.0f };
@@ -5384,14 +5381,14 @@ void RLSetPixelColor(void *dstPtr, RLColor color, int format)
             ((unsigned short *)dstPtr)[0] = (unsigned short)r << 12 | (unsigned short)g << 8 | (unsigned short)b << 4 | (unsigned short)a;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
         {
             ((unsigned char *)dstPtr)[0] = color.r;
             ((unsigned char *)dstPtr)[1] = color.g;
             ((unsigned char *)dstPtr)[2] = color.b;
 
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
         {
             ((unsigned char *)dstPtr)[0] = color.r;
             ((unsigned char *)dstPtr)[1] = color.g;
@@ -5412,30 +5409,30 @@ int RLGetPixelDataSize(int width, int height, int format)
 
     switch (format)
     {
-        case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE: bpp = 8; break;
-        case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
-        case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
-        case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
-        case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4: bpp = 16; break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: bpp = 32; break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8: bpp = 24; break;
-        case PIXELFORMAT_UNCOMPRESSED_R32: bpp = 32; break;
-        case PIXELFORMAT_UNCOMPRESSED_R32G32B32: bpp = 32*3; break;
-        case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32: bpp = 32*4; break;
-        case PIXELFORMAT_UNCOMPRESSED_R16: bpp = 16; break;
-        case PIXELFORMAT_UNCOMPRESSED_R16G16B16: bpp = 16*3; break;
-        case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16: bpp = 16*4; break;
-        case PIXELFORMAT_COMPRESSED_DXT1_RGB:
-        case PIXELFORMAT_COMPRESSED_DXT1_RGBA:
-        case PIXELFORMAT_COMPRESSED_ETC1_RGB:
-        case PIXELFORMAT_COMPRESSED_ETC2_RGB:
-        case PIXELFORMAT_COMPRESSED_PVRT_RGB:
-        case PIXELFORMAT_COMPRESSED_PVRT_RGBA: bpp = 4; break;
-        case PIXELFORMAT_COMPRESSED_DXT3_RGBA:
-        case PIXELFORMAT_COMPRESSED_DXT5_RGBA:
-        case PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA:
-        case PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA: bpp = 8; break;
-        case PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA: bpp = 2; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE: bpp = 8; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4: bpp = 16; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: bpp = 32; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8: bpp = 24; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32: bpp = 32; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32: bpp = 32*3; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32: bpp = 32*4; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16: bpp = 16; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16: bpp = 16*3; break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16: bpp = 16*4; break;
+        case RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB:
+        case RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGBA:
+        case RL_E_PIXELFORMAT_COMPRESSED_ETC1_RGB:
+        case RL_E_PIXELFORMAT_COMPRESSED_ETC2_RGB:
+        case RL_E_PIXELFORMAT_COMPRESSED_PVRT_RGB:
+        case RL_E_PIXELFORMAT_COMPRESSED_PVRT_RGBA: bpp = 4; break;
+        case RL_E_PIXELFORMAT_COMPRESSED_DXT3_RGBA:
+        case RL_E_PIXELFORMAT_COMPRESSED_DXT5_RGBA:
+        case RL_E_PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA:
+        case RL_E_PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA: bpp = 8; break;
+        case RL_E_PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA: bpp = 2; break;
         default: break;
     }
 
@@ -5446,8 +5443,8 @@ int RLGetPixelDataSize(int width, int height, int format)
     // if texture is smaller, minimum dataSize is 8 or 16
     if ((width < 4) && (height < 4))
     {
-        if ((format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) && (format < PIXELFORMAT_COMPRESSED_DXT3_RGBA)) dataSize = 8;
-        else if ((format >= PIXELFORMAT_COMPRESSED_DXT3_RGBA) && (format < PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA)) dataSize = 16;
+        if ((format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) && (format < RL_E_PIXELFORMAT_COMPRESSED_DXT3_RGBA)) dataSize = 8;
+        else if ((format >= RL_E_PIXELFORMAT_COMPRESSED_DXT3_RGBA) && (format < RL_E_PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA)) dataSize = 16;
     }
 
     return dataSize;
@@ -5503,14 +5500,14 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 {
     RLVector4 *pixels = (RLVector4 *)RL_MALLOC(image.width*image.height*sizeof(RLVector4));
 
-    if (image.format >= PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
+    if (image.format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
     else
     {
         for (int i = 0, k = 0; i < image.width*image.height; i++)
         {
             switch (image.format)
             {
-                case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
                 {
                     pixels[i].x = (float)((unsigned char *)image.data)[i]/255.0f;
                     pixels[i].y = (float)((unsigned char *)image.data)[i]/255.0f;
@@ -5518,7 +5515,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
                     pixels[i].w = 1.0f;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
                 {
                     pixels[i].x = (float)((unsigned char *)image.data)[k]/255.0f;
                     pixels[i].y = (float)((unsigned char *)image.data)[k]/255.0f;
@@ -5527,7 +5524,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 
                     k += 2;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -5537,7 +5534,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
                     pixels[i].w = ((pixel & 0b0000000000000001) == 0)? 0.0f : 1.0f;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -5547,7 +5544,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
                     pixels[i].w = 1.0f;
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
                 {
                     unsigned short pixel = ((unsigned short *)image.data)[i];
 
@@ -5557,7 +5554,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
                     pixels[i].w = (float)(pixel & 0b0000000000001111)*(1.0f/15);
 
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
                 {
                     pixels[i].x = (float)((unsigned char *)image.data)[k]/255.0f;
                     pixels[i].y = (float)((unsigned char *)image.data)[k + 1]/255.0f;
@@ -5566,7 +5563,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 
                     k += 4;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
                 {
                     pixels[i].x = (float)((unsigned char *)image.data)[k]/255.0f;
                     pixels[i].y = (float)((unsigned char *)image.data)[k + 1]/255.0f;
@@ -5575,7 +5572,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 
                     k += 3;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
                 {
                     pixels[i].x = ((float *)image.data)[k];
                     pixels[i].y = 0.0f;
@@ -5584,7 +5581,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 
                     k += 1;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
                 {
                     pixels[i].x = ((float *)image.data)[k];
                     pixels[i].y = ((float *)image.data)[k + 1];
@@ -5593,7 +5590,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 
                     k += 3;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
                 {
                     pixels[i].x = ((float *)image.data)[k];
                     pixels[i].y = ((float *)image.data)[k + 1];
@@ -5602,7 +5599,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 
                     k += 4;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
                 {
                     pixels[i].x = HalfToFloat(((unsigned short *)image.data)[k]);
                     pixels[i].y = 0.0f;
@@ -5611,7 +5608,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 
                     k += 1;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
                 {
                     pixels[i].x = HalfToFloat(((unsigned short *)image.data)[k]);
                     pixels[i].y = HalfToFloat(((unsigned short *)image.data)[k + 1]);
@@ -5620,7 +5617,7 @@ static RLVector4 *LoadImageDataNormalized(RLImage image)
 
                     k += 3;
                 } break;
-                case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
                 {
                     pixels[i].x = HalfToFloat(((unsigned short *)image.data)[k]);
                     pixels[i].y = HalfToFloat(((unsigned short *)image.data)[k + 1]);

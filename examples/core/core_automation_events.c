@@ -128,9 +128,9 @@ int main(void)
 
         // Update player
         //----------------------------------------------------------------------------------
-        if (RLIsKeyDown(KEY_LEFT)) player.position.x -= PLAYER_HOR_SPD*deltaTime;
-        if (RLIsKeyDown(KEY_RIGHT)) player.position.x += PLAYER_HOR_SPD*deltaTime;
-        if (RLIsKeyDown(KEY_SPACE) && player.canJump)
+        if (RLIsKeyDown(RL_E_KEY_LEFT)) player.position.x -= PLAYER_HOR_SPD*deltaTime;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT)) player.position.x += PLAYER_HOR_SPD*deltaTime;
+        if (RLIsKeyDown(RL_E_KEY_SPACE) && player.canJump)
         {
             player.speed = -PLAYER_JUMP_SPD;
             player.canJump = false;
@@ -161,7 +161,7 @@ int main(void)
         }
         else player.canJump = true;
 
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
             // Reset game state
             player.position = (RLVector2){ 400, 280 };
@@ -193,7 +193,7 @@ int main(void)
                     currentPlayFrame = 0;
                     playFrameCounter = 0;
 
-                    RLTraceLog(LOG_INFO, "FINISH PLAYING!");
+                    RLTraceLog(RL_E_LOG_INFO, "FINISH PLAYING!");
                     break;
                 }
             }
@@ -232,7 +232,7 @@ int main(void)
         //----------------------------------------------------------------------------------
 
         // Events management
-        if (RLIsKeyPressed(KEY_S))    // Toggle events recording
+        if (RLIsKeyPressed(RL_E_KEY_S))    // Toggle events recording
         {
             if (!eventPlaying)
             {
@@ -243,7 +243,7 @@ int main(void)
 
                     RLExportAutomationEventList(aelist, "automation.rae");
 
-                    RLTraceLog(LOG_INFO, "RECORDED FRAMES: %i", aelist.count);
+                    RLTraceLog(RL_E_LOG_INFO, "RECORDED FRAMES: %i", aelist.count);
                 }
                 else
                 {
@@ -253,7 +253,7 @@ int main(void)
                 }
             }
         }
-        else if (RLIsKeyPressed(KEY_A)) // Toggle events playing (WARNING: Starts next frame)
+        else if (RLIsKeyPressed(RL_E_KEY_A)) // Toggle events playing (WARNING: Starts next frame)
         {
             if (!eventRecording && (aelist.count > 0))
             {

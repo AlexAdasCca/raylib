@@ -55,7 +55,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load MagicaVoxel files
     RLModel models[MAX_VOX_FILES] = { 0 };
@@ -67,7 +67,7 @@ int main(void)
         models[i] = RLLoadModel(voxFileNames[i]);
         double t1 = RLGetTime()*1000.0;
 
-        RLTraceLog(LOG_INFO, RLTextFormat("[%s] Model file loaded in %.3f ms", voxFileNames[i], t1 - t0));
+        RLTraceLog(RL_E_LOG_INFO, RLTextFormat("[%s] Model file loaded in %.3f ms", voxFileNames[i], t1 - t0));
 
         // Compute model translation matrix to center model on draw position (0, 0 , 0)
         RLBoundingBox bb = RLGetModelBoundingBox(models[i]);
@@ -75,7 +75,7 @@ int main(void)
         center.x = bb.min.x + (((bb.max.x - bb.min.x)/2));
         center.z = bb.min.z + (((bb.max.z - bb.min.z)/2));
 
-        RLMatrix matTranslate = MatrixTranslate(-center.x, 0, -center.z);
+        RLMatrix matTranslate = RLMatrixTranslate(-center.x, 0, -center.z);
         models[i].transform = matTranslate;
     }
 
@@ -88,14 +88,14 @@ int main(void)
         RLTextFormat("resources/shaders/glsl%i/voxel_lighting.fs", GLSL_VERSION));
 
     // Get some required shader locations
-    shader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
+    shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
     // NOTE: "matModel" location name is automatically assigned on shader loading,
     // no need to get the location again if using that uniform name
     //shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(shader, "matModel");
 
     // Ambient light level (some basic lighting)
     int ambientLoc = RLGetShaderLocation(shader, "ambient");
-    RLSetShaderValue(shader, ambientLoc, (float[4]) { 0.1f, 0.1f, 0.1f, 1.0f }, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shader, ambientLoc, (float[4]) { 0.1f, 0.1f, 0.1f, 1.0f }, RL_E_SHADER_UNIFORM_VEC4);
 
     // Assign out lighting shader to model
     for (int i = 0; i < MAX_VOX_FILES; i++)
@@ -105,10 +105,10 @@ int main(void)
 
     // Create lights
     Light lights[MAX_LIGHTS] = { 0 };
-    lights[0] = CreateLight(LIGHT_POINT, (RLVector3) { -20, 20, -20 }, Vector3Zero(), GRAY, shader);
-    lights[1] = CreateLight(LIGHT_POINT, (RLVector3) { 20, -20, 20 }, Vector3Zero(), GRAY, shader);
-    lights[2] = CreateLight(LIGHT_POINT, (RLVector3) { -20, 20, 20 }, Vector3Zero(), GRAY, shader);
-    lights[3] = CreateLight(LIGHT_POINT, (RLVector3) { 20, -20, -20 }, Vector3Zero(), GRAY, shader);
+    lights[0] = CreateLight(LIGHT_POINT, (RLVector3) { -20, 20, -20 }, RLVector3Zero(), GRAY, shader);
+    lights[1] = CreateLight(LIGHT_POINT, (RLVector3) { 20, -20, 20 }, RLVector3Zero(), GRAY, shader);
+    lights[2] = CreateLight(LIGHT_POINT, (RLVector3) { -20, 20, 20 }, RLVector3Zero(), GRAY, shader);
+    lights[3] = CreateLight(LIGHT_POINT, (RLVector3) { 20, -20, -20 }, RLVector3Zero(), GRAY, shader);
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_MIDDLE))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_MIDDLE))
         {
             const RLVector2 mouseDelta = RLGetMouseDelta();
             camerarot.x = mouseDelta.x*0.05f;
@@ -131,18 +131,18 @@ int main(void)
         }
 
         RLUpdateCameraPro(&camera,
-            (RLVector3){ (RLIsKeyDown(KEY_W) || RLIsKeyDown(KEY_UP))*0.1f - (RLIsKeyDown(KEY_S) || RLIsKeyDown(KEY_DOWN))*0.1f, // Move forward-backward
-                       (RLIsKeyDown(KEY_D) || RLIsKeyDown(KEY_RIGHT))*0.1f - (RLIsKeyDown(KEY_A) || RLIsKeyDown(KEY_LEFT))*0.1f, // Move right-left
+            (RLVector3){ (RLIsKeyDown(RL_E_KEY_W) || RLIsKeyDown(RL_E_KEY_UP))*0.1f - (RLIsKeyDown(RL_E_KEY_S) || RLIsKeyDown(RL_E_KEY_DOWN))*0.1f, // Move forward-backward
+                       (RLIsKeyDown(RL_E_KEY_D) || RLIsKeyDown(RL_E_KEY_RIGHT))*0.1f - (RLIsKeyDown(RL_E_KEY_A) || RLIsKeyDown(RL_E_KEY_LEFT))*0.1f, // Move right-left
                        0.0f }, // Move up-down
             camerarot, // Camera rotation
             RLGetMouseWheelMove()*-2.0f); // Move to target (zoom)
 
         // Cycle between models on mouse click
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) currentModel = (currentModel + 1)%MAX_VOX_FILES;
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT)) currentModel = (currentModel + 1)%MAX_VOX_FILES;
 
         // Update the shader with the camera view vector (points towards { 0.0f, 0.0f, 0.0f })
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
-        RLSetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], cameraPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW], cameraPos, RL_E_SHADER_UNIFORM_VEC3);
 
         // Update light values (actually, only enable/disable them)
         for (int i = 0; i < MAX_LIGHTS; i++) UpdateLightValues(shader, lights[i]);

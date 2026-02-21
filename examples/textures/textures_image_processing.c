@@ -60,7 +60,7 @@ int main(void)
     // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
 
     RLImage imOrigin = RLLoadImage("resources/parrots.png");   // Loaded in CPU memory (RAM)
-    RLImageFormat(&imOrigin, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);         // Format image to RGBA 32bit (required for texture update) <-- ISSUE
+    RLImageFormat(&imOrigin, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);         // Format image to RGBA 32bit (required for texture update) <-- ISSUE
     RLTexture2D texture = RLLoadTextureFromImage(imOrigin);    // Image converted to texture, GPU memory (VRAM)
 
     RLImage imCopy = RLImageCopy(imOrigin);
@@ -89,7 +89,7 @@ int main(void)
             {
                 mouseHoverRec = i;
 
-                if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+                if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT))
                 {
                     currentProcess = i;
                     textureReload = true;
@@ -100,13 +100,13 @@ int main(void)
         }
 
         // Keyboard toggle group logic
-        if (RLIsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(RL_E_KEY_DOWN))
         {
             currentProcess++;
             if (currentProcess > (NUM_PROCESSES - 1)) currentProcess = 0;
             textureReload = true;
         }
-        else if (RLIsKeyPressed(KEY_UP))
+        else if (RLIsKeyPressed(RL_E_KEY_UP))
         {
             currentProcess--;
             if (currentProcess < 0) currentProcess = 7;

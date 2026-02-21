@@ -97,10 +97,10 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Player movement logic
-        if (RLIsKeyPressed(KEY_RIGHT)) player.cell.x++;
-        else if (RLIsKeyPressed(KEY_LEFT)) player.cell.x--;
-        else if (RLIsKeyPressed(KEY_UP)) player.cell.y--;
-        else if (RLIsKeyPressed(KEY_DOWN)) player.cell.y++;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) player.cell.x++;
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT)) player.cell.x--;
+        else if (RLIsKeyPressed(RL_E_KEY_UP)) player.cell.y--;
+        else if (RLIsKeyPressed(RL_E_KEY_DOWN)) player.cell.y++;
 
         // Make sure player does not go out of bounds
         if (player.cell.x < 0) player.cell.x = 0;
@@ -109,7 +109,7 @@ int main(void)
         else if (player.cell.y >= MAX_GRID_CELLS_Y) player.cell.y = MAX_GRID_CELLS_Y - 1;
 
         // Player color change logic
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             player.color.r = (unsigned char)RLGetRandomValue(20, 255);
             player.color.g = (unsigned char)RLGetRandomValue(20, 220);
@@ -138,7 +138,7 @@ int main(void)
         }
 
         // Recover previous state from buffer: CTRL+Z
-        if (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsKeyPressed(KEY_Z))
+        if (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) && RLIsKeyPressed(RL_E_KEY_Z))
         {
             if (currentUndoIndex != firstUndoIndex)
             {
@@ -153,7 +153,7 @@ int main(void)
         }
 
         // Recover next state from buffer: CTRL+Y
-        if (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsKeyPressed(KEY_Y))
+        if (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) && RLIsKeyPressed(RL_E_KEY_Y))
         {
             if (currentUndoIndex != lastUndoIndex)
             {

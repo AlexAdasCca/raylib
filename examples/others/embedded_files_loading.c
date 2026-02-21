@@ -78,7 +78,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE)) RLPlaySound(sound);      // Play sound
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) RLPlaySound(sound);      // Play sound
         //----------------------------------------------------------------------------------
 
         // Draw

@@ -55,18 +55,18 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
             score = RLGetRandomValue(1000, 2000);
             hiscore = RLGetRandomValue(2000, 4000);
         }
 
-        if (RLIsKeyPressed(KEY_ENTER))
+        if (RLIsKeyPressed(RL_E_KEY_ENTER))
         {
             SaveStorageValue(STORAGE_POSITION_SCORE, score);
             SaveStorageValue(STORAGE_POSITION_HISCORE, hiscore);
         }
-        else if (RLIsKeyPressed(KEY_SPACE))
+        else if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             // NOTE: If requested position could not be found, value 0 is returned
             score = LoadStorageValue(STORAGE_POSITION_SCORE);
@@ -133,7 +133,7 @@ bool SaveStorageValue(unsigned int position, int value)
             else
             {
                 // RL_REALLOC failed
-                RLTraceLog(LOG_WARNING, "FILEIO: [%s] Failed to realloc data (%u), position in bytes (%u) bigger than actual file size", STORAGE_DATA_FILE, dataSize, position*sizeof(int));
+                RLTraceLog(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to realloc data (%u), position in bytes (%u) bigger than actual file size", STORAGE_DATA_FILE, dataSize, position*sizeof(int));
 
                 // We store the old size of the file
                 newFileData = fileData;
@@ -154,11 +154,11 @@ bool SaveStorageValue(unsigned int position, int value)
         success = RLSaveFileData(STORAGE_DATA_FILE, newFileData, newDataSize);
         RL_FREE(newFileData);
 
-        RLTraceLog(LOG_INFO, "FILEIO: [%s] Saved storage value: %i", STORAGE_DATA_FILE, value);
+        RLTraceLog(RL_E_LOG_INFO, "FILEIO: [%s] Saved storage value: %i", STORAGE_DATA_FILE, value);
     }
     else
     {
-        RLTraceLog(LOG_INFO, "FILEIO: [%s] File created successfully", STORAGE_DATA_FILE);
+        RLTraceLog(RL_E_LOG_INFO, "FILEIO: [%s] File created successfully", STORAGE_DATA_FILE);
 
         dataSize = (position + 1)*sizeof(int);
         fileData = (unsigned char *)RL_MALLOC(dataSize);
@@ -168,7 +168,7 @@ bool SaveStorageValue(unsigned int position, int value)
         success = RLSaveFileData(STORAGE_DATA_FILE, fileData, dataSize);
         RLUnloadFileData(fileData);
 
-        RLTraceLog(LOG_INFO, "FILEIO: [%s] Saved storage value: %i", STORAGE_DATA_FILE, value);
+        RLTraceLog(RL_E_LOG_INFO, "FILEIO: [%s] Saved storage value: %i", STORAGE_DATA_FILE, value);
     }
 
     return success;
@@ -184,7 +184,7 @@ int LoadStorageValue(unsigned int position)
 
     if (fileData != NULL)
     {
-        if (dataSize < ((int)(position*4))) RLTraceLog(LOG_WARNING, "FILEIO: [%s] Failed to find storage position: %i", STORAGE_DATA_FILE, position);
+        if (dataSize < ((int)(position*4))) RLTraceLog(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to find storage position: %i", STORAGE_DATA_FILE, position);
         else
         {
             int *dataPtr = (int *)fileData;
@@ -193,7 +193,7 @@ int LoadStorageValue(unsigned int position)
 
         RLUnloadFileData(fileData);
 
-        RLTraceLog(LOG_INFO, "FILEIO: [%s] Loaded storage value: %i", STORAGE_DATA_FILE, value);
+        RLTraceLog(RL_E_LOG_INFO, "FILEIO: [%s] Loaded storage value: %i", STORAGE_DATA_FILE, value);
     }
 
     return value;

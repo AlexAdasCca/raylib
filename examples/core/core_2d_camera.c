@@ -67,15 +67,15 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Player movement
-        if (RLIsKeyDown(KEY_RIGHT)) player.x += 2;
-        else if (RLIsKeyDown(KEY_LEFT)) player.x -= 2;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT)) player.x += 2;
+        else if (RLIsKeyDown(RL_E_KEY_LEFT)) player.x -= 2;
 
         // Camera target follows player
         camera.target = (RLVector2){ player.x + 20, player.y + 20 };
 
         // Camera rotation controls
-        if (RLIsKeyDown(KEY_A)) camera.rotation--;
-        else if (RLIsKeyDown(KEY_S)) camera.rotation++;
+        if (RLIsKeyDown(RL_E_KEY_A)) camera.rotation--;
+        else if (RLIsKeyDown(RL_E_KEY_S)) camera.rotation++;
 
         // Limit camera rotation to 80 degrees (-40 to 40)
         if (camera.rotation > 40) camera.rotation = 40;
@@ -89,7 +89,7 @@ int main(void)
         else if (camera.zoom < 0.1f) camera.zoom = 0.1f;
 
         // Camera reset (zoom and rotation)
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
             camera.zoom = 1.0f;
             camera.rotation = 0.0f;

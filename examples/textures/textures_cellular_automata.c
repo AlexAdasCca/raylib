@@ -122,7 +122,7 @@ int main(void)
             }
         }
 
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) && (mouseInCell >= 0))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT) && (mouseInCell >= 0))
         {
             // Rule changed both by selecting a preset or toggling a bit
             if (mouseInCell < 8)

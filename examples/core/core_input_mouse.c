@@ -38,7 +38,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_H))
+        if (RLIsKeyPressed(RL_E_KEY_H))
         {
             if (RLIsCursorHidden()) RLShowCursor();
             else RLHideCursor();
@@ -46,13 +46,13 @@ int main(void)
 
         ballPosition = RLGetMousePosition();
 
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) ballColor = MAROON;
-        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) ballColor = LIME;
-        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) ballColor = DARKBLUE;
-        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_SIDE)) ballColor = PURPLE;
-        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_EXTRA)) ballColor = YELLOW;
-        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_FORWARD)) ballColor = ORANGE;
-        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_BACK)) ballColor = BEIGE;
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT)) ballColor = MAROON;
+        else if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_MIDDLE)) ballColor = LIME;
+        else if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT)) ballColor = DARKBLUE;
+        else if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_SIDE)) ballColor = PURPLE;
+        else if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_EXTRA)) ballColor = YELLOW;
+        else if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_FORWARD)) ballColor = ORANGE;
+        else if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_BACK)) ballColor = BEIGE;
         //----------------------------------------------------------------------------------
 
         // Draw

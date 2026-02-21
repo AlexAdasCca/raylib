@@ -50,7 +50,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - splines drawing");
 
     RLVector2 points[MAX_SPLINE_POINTS] = {
@@ -157,13 +157,13 @@ int main(void)
         }
 
         // Spline selection logic
-        if (RLIsKeyPressed(KEY_ONE)) splineTypeActive = 0;
-        else if (RLIsKeyPressed(KEY_TWO)) splineTypeActive = 1;
-        else if (RLIsKeyPressed(KEY_THREE)) splineTypeActive = 2;
-        else if (RLIsKeyPressed(KEY_FOUR)) splineTypeActive = 3;
+        if (RLIsKeyPressed(RL_E_KEY_ONE)) splineTypeActive = 0;
+        else if (RLIsKeyPressed(RL_E_KEY_TWO)) splineTypeActive = 1;
+        else if (RLIsKeyPressed(RL_E_KEY_THREE)) splineTypeActive = 2;
+        else if (RLIsKeyPressed(RL_E_KEY_FOUR)) splineTypeActive = 3;
 
         // Clear selection when changing to a spline without control points
-        if (RLIsKeyPressed(KEY_ONE) || RLIsKeyPressed(KEY_TWO) || RLIsKeyPressed(KEY_THREE)) selectedControlPoint = NULL;
+        if (RLIsKeyPressed(RL_E_KEY_ONE) || RLIsKeyPressed(RL_E_KEY_TWO) || RLIsKeyPressed(RL_E_KEY_THREE)) selectedControlPoint = NULL;
         //----------------------------------------------------------------------------------
 
         // Draw

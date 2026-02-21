@@ -436,7 +436,7 @@ void RLContextOnDestroy(RLContext *ctx)
     if (ctx->core) { RL_FREE(ctx->core); ctx->core = NULL; }
 }
 
-static int logTypeLevel = LOG_INFO;                 // Minimum log type level
+static int logTypeLevel = RL_E_LOG_INFO;                 // Minimum log type level
 
 static RLTraceLogCallback traceLog = NULL;            // TraceLog callback function pointer
 static RLLoadFileDataCallback loadFileData = NULL;    // LoadFileData callback function pointer
@@ -941,7 +941,7 @@ void RLResetEventThreadDiagStats(void)
 // Initialize window and OpenGL context
 void RLInitWindow(int width, int height, const char *title)
 {
-    TRACELOG(LOG_INFO, "Initializing raylib %s", RAYLIB_VERSION);
+    TRACELOG(RL_E_LOG_INFO, "Initializing raylib %s", RAYLIB_VERSION);
 
     // Route2 Stage-A: ensure current context owns its own rlgl state
     RLContext *ctx = RLGetCurrentContext();
@@ -961,56 +961,56 @@ void RLInitWindow(int width, int height, const char *title)
     }
 
 #if defined(PLATFORM_DESKTOP_GLFW)
-    TRACELOG(LOG_INFO, "Platform backend: DESKTOP (GLFW)");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: DESKTOP (GLFW)");
 #elif defined(PLATFORM_DESKTOP_SDL)
-    TRACELOG(LOG_INFO, "Platform backend: DESKTOP (SDL)");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: DESKTOP (SDL)");
 #elif defined(PLATFORM_DESKTOP_RGFW)
-    TRACELOG(LOG_INFO, "Platform backend: DESKTOP (RGFW)");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: DESKTOP (RGFW)");
 #elif defined(PLATFORM_DESKTOP_WIN32)
-    TRACELOG(LOG_INFO, "Platform backend: DESKTOP (WIN32)");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: DESKTOP (WIN32)");
 #elif defined(PLATFORM_WEB_RGFW)
-    TRACELOG(LOG_INFO, "Platform backend: WEB (RGFW) (HTML5)");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: WEB (RGFW) (HTML5)");
 #elif defined(PLATFORM_WEB)
-    TRACELOG(LOG_INFO, "Platform backend: WEB (HTML5)");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: WEB (HTML5)");
 #elif defined(PLATFORM_DRM)
-    TRACELOG(LOG_INFO, "Platform backend: NATIVE DRM");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: NATIVE DRM");
 #elif defined(PLATFORM_ANDROID)
-    TRACELOG(LOG_INFO, "Platform backend: ANDROID");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: ANDROID");
 #elif defined(PLATFORM_MEMORY)
-    TRACELOG(LOG_INFO, "Platform backend: MEMORY (No OS)");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: MEMORY (No OS)");
 #else
     // TODO: Include your custom platform backend!
     // i.e software rendering backend or console backend!
-    TRACELOG(LOG_INFO, "Platform backend: CUSTOM");
+    TRACELOG(RL_E_LOG_INFO, "Platform backend: CUSTOM");
 #endif
 
-    TRACELOG(LOG_INFO, "Supported raylib modules:");
-    TRACELOG(LOG_INFO, "    > rcore:..... loaded (mandatory)");
-    TRACELOG(LOG_INFO, "    > rlgl:...... loaded (mandatory)");
+    TRACELOG(RL_E_LOG_INFO, "Supported raylib modules:");
+    TRACELOG(RL_E_LOG_INFO, "    > rcore:..... loaded (mandatory)");
+    TRACELOG(RL_E_LOG_INFO, "    > rlgl:...... loaded (mandatory)");
 #if defined(SUPPORT_MODULE_RSHAPES)
-    TRACELOG(LOG_INFO, "    > rshapes:... loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > rshapes:... loaded (optional)");
 #else
-    TRACELOG(LOG_INFO, "    > rshapes:... not loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > rshapes:... not loaded (optional)");
 #endif
 #if defined(SUPPORT_MODULE_RTEXTURES)
-    TRACELOG(LOG_INFO, "    > rtextures:. loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > rtextures:. loaded (optional)");
 #else
-    TRACELOG(LOG_INFO, "    > rtextures:. not loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > rtextures:. not loaded (optional)");
 #endif
 #if defined(SUPPORT_MODULE_RTEXT)
-    TRACELOG(LOG_INFO, "    > rtext:..... loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > rtext:..... loaded (optional)");
 #else
-    TRACELOG(LOG_INFO, "    > rtext:..... not loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > rtext:..... not loaded (optional)");
 #endif
 #if defined(SUPPORT_MODULE_RMODELS)
-    TRACELOG(LOG_INFO, "    > rmodels:... loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > rmodels:... loaded (optional)");
 #else
-    TRACELOG(LOG_INFO, "    > rmodels:... not loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > rmodels:... not loaded (optional)");
 #endif
 #if defined(SUPPORT_MODULE_RAUDIO)
-    TRACELOG(LOG_INFO, "    > raudio:.... loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > raudio:.... loaded (optional)");
 #else
-    TRACELOG(LOG_INFO, "    > raudio:.... not loaded (optional)");
+    TRACELOG(RL_E_LOG_INFO, "    > raudio:.... not loaded (optional)");
 #endif
 
     // Initialize window data
@@ -1020,15 +1020,15 @@ void RLInitWindow(int width, int height, const char *title)
     CORE.Window.currentFbo.height = CORE.Window.screen.height;
 
     CORE.Window.eventWaiting = false;
-    CORE.Window.screenScale = MatrixIdentity(); // No draw scaling required by default
+    CORE.Window.screenScale = RLMatrixIdentity(); // No draw scaling required by default
     if ((title != NULL) && (title[0] != 0)) CORE.Window.title = title;
 
     // Initialize global input state
     memset(&CORE.Input, 0, sizeof(CORE.Input)); // Reset CORE.Input structure to 0
-    CORE.Input.Keyboard.exitKey = KEY_ESCAPE;
+    CORE.Input.Keyboard.exitKey = RL_E_KEY_ESCAPE;
     CORE.Input.Mouse.scale = (RLVector2){ 1.0f, 1.0f };
-    CORE.Input.Mouse.cursor = MOUSE_CURSOR_ARROW;
-    CORE.Input.Gamepad.lastButtonPressed = GAMEPAD_BUTTON_UNKNOWN;
+    CORE.Input.Mouse.cursor = RL_E_MOUSE_CURSOR_ARROW;
+    CORE.Input.Gamepad.lastButtonPressed = RL_E_GAMEPAD_BUTTON_UNKNOWN;
 
     // Initialize platform
     //--------------------------------------------------------------
@@ -1036,7 +1036,7 @@ void RLInitWindow(int width, int height, const char *title)
 
     if (result != 0)
     {
-        TRACELOG(LOG_WARNING, "SYSTEM: Failed to initialize platform");
+        TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to initialize platform");
         return;
     }
     //--------------------------------------------------------------
@@ -1057,7 +1057,7 @@ void RLInitWindow(int width, int height, const char *title)
         // Set font white rectangle for shapes drawing, so shapes and text can be batched together
         // WARNING: rshapes module is required, if not available, default internal white rectangle is used
         RLRectangle rec = RLGetFontDefault().recs[95];
-        if (FLAG_IS_SET(CORE.Window.flags, FLAG_MSAA_4X_HINT))
+        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_MSAA_4X_HINT))
         {
             // NOTE: We try to maxime rec padding to avoid pixel bleeding on MSAA filtering
             RLSetShapesTexture(RLGetFontDefault().texture, (RLRectangle){ rec.x + 2, rec.y + 2, 1, 1 });
@@ -1073,7 +1073,7 @@ void RLInitWindow(int width, int height, const char *title)
     #if defined(SUPPORT_MODULE_RSHAPES)
     // Set default texture and rectangle to be used for shapes drawing
     // NOTE: rlgl default texture is a 1x1 pixel UNCOMPRESSED_R8G8B8A8
-    RLTexture2D texture = { rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
+    RLTexture2D texture = { rlGetTextureIdDefault(), 1, 1, 1, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
     RLSetShapesTexture(texture, (RLRectangle){ 0.0f, 0.0f, 1.0f, 1.0f });    // WARNING: Module required: rshapes
     #endif
 #endif
@@ -1084,7 +1084,7 @@ void RLInitWindow(int width, int height, const char *title)
     // Initialize random seed
     RLSetRandomSeed((unsigned int)time(NULL));
 
-    TRACELOG(LOG_INFO, "SYSTEM: Working Directory: %s", RLGetWorkingDirectory());
+    TRACELOG(RL_E_LOG_INFO, "SYSTEM: Working Directory: %s", RLGetWorkingDirectory());
 }
 
 // Set one-shot Win32 class name for the next window creation.
@@ -1138,7 +1138,7 @@ void RLCloseWindow(void)
     //--------------------------------------------------------------
 
     CORE.Window.ready = false;
-    TRACELOG(LOG_INFO, "Window closed successfully");
+    TRACELOG(RL_E_LOG_INFO, "Window closed successfully");
 }
 
 void RLFlushSharedGpuDeletes(void)
@@ -1156,31 +1156,31 @@ bool RLIsWindowReady(void)
 // Check if window is currently fullscreen
 bool RLIsWindowFullscreen(void)
 {
-    return FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
+    return FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
 }
 
 // Check if window is currently hidden
 bool RLIsWindowHidden(void)
 {
-    return FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIDDEN);
+    return FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN);
 }
 
 // Check if window has been minimized
 bool RLIsWindowMinimized(void)
 {
-    return FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
+    return FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
 }
 
 // Check if window has been maximized
 bool RLIsWindowMaximized(void)
 {
-    return FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+    return FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
 }
 
 // Check if window has the focus
 bool RLIsWindowFocused(void)
 {
-    return !FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED);
+    return !FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
 }
 
 // Check if window has been resizedLastFrame
@@ -1325,7 +1325,7 @@ void RLEndDrawing(void)
 #endif
 
 #if defined(SUPPORT_SCREEN_CAPTURE)
-    if (RLIsKeyPressed(KEY_F12))
+    if (RLIsKeyPressed(RL_E_KEY_F12))
     {
         RLTakeScreenshot(RLTextFormat("screenshot%03i.png", screenshotCounter));
         screenshotCounter++;
@@ -1368,7 +1368,7 @@ void RLBeginMode3D(RLCamera camera)
     float aspect = (float)CORE.Window.currentFbo.width/(float)CORE.Window.currentFbo.height;
 
     // NOTE: zNear and zFar values are important when computing depth buffer values
-    if (camera.projection == CAMERA_PERSPECTIVE)
+    if (camera.projection == RL_E_CAMERA_PERSPECTIVE)
     {
         // Setup perspective projection
         double top = rlGetCullDistanceNear()*tan(camera.fovy*0.5*DEG2RAD);
@@ -1376,7 +1376,7 @@ void RLBeginMode3D(RLCamera camera)
 
         rlFrustum(-right, right, -top, top, rlGetCullDistanceNear(), rlGetCullDistanceFar());
     }
-    else if (camera.projection == CAMERA_ORTHOGRAPHIC)
+    else if (camera.projection == RL_E_CAMERA_ORTHOGRAPHIC)
     {
         // Setup orthographic projection
         double top = camera.fovy/2.0;
@@ -1389,7 +1389,7 @@ void RLBeginMode3D(RLCamera camera)
     rlLoadIdentity();               // Reset current matrix (modelview)
 
     // Setup Camera view
-    RLMatrix matView = MatrixLookAt(camera.position, camera.target, camera.up);
+    RLMatrix matView = RLMatrixLookAt(camera.position, camera.target, camera.up);
     rlMultMatrixf(MatrixToFloat(matView));      // Multiply modelview matrix by view matrix (camera)
 
     rlEnableDepthTest();            // Enable DEPTH_TEST for 3D
@@ -1485,7 +1485,7 @@ void RLBeginBlendMode(int mode)
 // End blending mode (reset to default: alpha blending)
 void RLEndBlendMode(void)
 {
-    rlSetBlendMode(BLEND_ALPHA);
+    rlSetBlendMode(RL_E_BLEND_ALPHA);
 }
 
 // Begin scissor mode (define screen area for following drawing)
@@ -1503,7 +1503,7 @@ void RLBeginScissorMode(int x, int y, int width, int height)
         rlScissor((int)(x*scale.x), (int)(RLGetScreenHeight()*scale.y - (((y + height)*scale.y))), (int)(width*scale.x), (int)(height*scale.y));
     }
 #else
-    if (!CORE.Window.usingFbo && FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI))
+    if (!CORE.Window.usingFbo && FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
         RLVector2 scale = RLGetWindowScaleDPI();
         rlScissor((int)(x*scale.x), (int)(CORE.Window.currentFbo.height - (y + height)*scale.y), (int)(width*scale.x), (int)(height*scale.y));
@@ -1586,17 +1586,17 @@ RLVrStereoConfig RLLoadVrStereoConfig(RLVrDeviceInfo device)
 
         // Compute camera projection matrices
         float projOffset = 4.0f*lensShift;      // Scaled to projection space coordinates [-1..1]
-        RLMatrix proj = MatrixPerspective(fovy, aspect, rlGetCullDistanceNear(), rlGetCullDistanceFar());
+        RLMatrix proj = RLMatrixPerspective(fovy, aspect, rlGetCullDistanceNear(), rlGetCullDistanceFar());
 
-        config.projection[0] = MatrixMultiply(proj, MatrixTranslate(projOffset, 0.0f, 0.0f));
-        config.projection[1] = MatrixMultiply(proj, MatrixTranslate(-projOffset, 0.0f, 0.0f));
+        config.projection[0] = RLMatrixMultiply(proj, RLMatrixTranslate(projOffset, 0.0f, 0.0f));
+        config.projection[1] = RLMatrixMultiply(proj, RLMatrixTranslate(-projOffset, 0.0f, 0.0f));
 
         // Compute camera transformation matrices
         // NOTE: Camera movement might seem more natural if we model the head
         // Our axis of rotation is the base of our head, so we might want to add
         // some y (base of head to eye level) and -z (center of head to eye protrusion) to the camera positions
-        config.viewOffset[0] = MatrixTranslate(device.interpupillaryDistance*0.5f, 0.075f, 0.045f);
-        config.viewOffset[1] = MatrixTranslate(-device.interpupillaryDistance*0.5f, 0.075f, 0.045f);
+        config.viewOffset[0] = RLMatrixTranslate(device.interpupillaryDistance*0.5f, 0.075f, 0.045f);
+        config.viewOffset[1] = RLMatrixTranslate(-device.interpupillaryDistance*0.5f, 0.075f, 0.045f);
 
         // Compute eyes Viewports
         /*
@@ -1611,7 +1611,7 @@ RLVrStereoConfig RLLoadVrStereoConfig(RLVrDeviceInfo device)
         config.eyeViewportLeft[3] = device.vResolution;
         */
     }
-    else TRACELOG(LOG_WARNING, "RLGL: VR Simulator not supported on OpenGL 1.1");
+    else TRACELOG(RL_E_LOG_WARNING, "RLGL: VR Simulator not supported on OpenGL 1.1");
 
     return config;
 }
@@ -1619,7 +1619,7 @@ RLVrStereoConfig RLLoadVrStereoConfig(RLVrDeviceInfo device)
 // Unload VR stereo config properties
 void RLUnloadVrStereoConfig(RLVrStereoConfig config)
 {
-    TRACELOG(LOG_INFO, "UnloadVrStereoConfig not implemented in rcore.c");
+    TRACELOG(RL_E_LOG_INFO, "UnloadVrStereoConfig not implemented in rcore.c");
 }
 
 //----------------------------------------------------------------------------------
@@ -1638,7 +1638,7 @@ RLShader RLLoadShader(const char *vsFileName, const char *fsFileName)
     if (vsFileName != NULL) vShaderStr = RLLoadFileText(vsFileName);
     if (fsFileName != NULL) fShaderStr = RLLoadFileText(fsFileName);
 
-    if ((vShaderStr == NULL) && (fShaderStr == NULL)) TRACELOG(LOG_WARNING, "SHADER: Shader files provided are not valid, using default shader");
+    if ((vShaderStr == NULL) && (fShaderStr == NULL)) TRACELOG(RL_E_LOG_WARNING, "SHADER: Shader files provided are not valid, using default shader");
 
     shader = RLLoadShaderFromMemory(vShaderStr, fShaderStr);
 
@@ -1684,29 +1684,29 @@ RLShader RLLoadShaderFromMemory(const char *vsCode, const char *fsCode)
         for (int i = 0; i < RL_MAX_SHADER_LOCATIONS; i++) shader.locs[i] = -1;
 
         // Get handles to GLSL input attribute locations
-        shader.locs[SHADER_LOC_VERTEX_POSITION] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_POSITION);
-        shader.locs[SHADER_LOC_VERTEX_TEXCOORD01] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD);
-        shader.locs[SHADER_LOC_VERTEX_TEXCOORD02] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD2);
-        shader.locs[SHADER_LOC_VERTEX_NORMAL] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_NORMAL);
-        shader.locs[SHADER_LOC_VERTEX_TANGENT] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TANGENT);
-        shader.locs[SHADER_LOC_VERTEX_COLOR] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_COLOR);
-        shader.locs[SHADER_LOC_VERTEX_BONEIDS] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_BONEIDS);
-        shader.locs[SHADER_LOC_VERTEX_BONEWEIGHTS] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_BONEWEIGHTS);
-        shader.locs[SHADER_LOC_VERTEX_INSTANCE_TX] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_INSTANCE_TX);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_POSITION] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_POSITION);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_TEXCOORD01] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_TEXCOORD02] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD2);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_NORMAL] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_NORMAL);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_TANGENT] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TANGENT);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_COLOR] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_COLOR);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_BONEIDS] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_BONEIDS);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_BONEWEIGHTS] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_BONEWEIGHTS);
+        shader.locs[RL_E_SHADER_LOC_VERTEX_INSTANCE_TX] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_INSTANCE_TX);
 
         // Get handles to GLSL uniform locations (vertex shader)
-        shader.locs[SHADER_LOC_MATRIX_MVP] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_MVP);
-        shader.locs[SHADER_LOC_MATRIX_VIEW] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_VIEW);
-        shader.locs[SHADER_LOC_MATRIX_PROJECTION] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_PROJECTION);
-        shader.locs[SHADER_LOC_MATRIX_MODEL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_MODEL);
-        shader.locs[SHADER_LOC_MATRIX_NORMAL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_NORMAL);
-        shader.locs[SHADER_LOC_BONE_MATRICES] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_BONE_MATRICES);
+        shader.locs[RL_E_SHADER_LOC_MATRIX_MVP] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_MVP);
+        shader.locs[RL_E_SHADER_LOC_MATRIX_VIEW] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_VIEW);
+        shader.locs[RL_E_SHADER_LOC_MATRIX_PROJECTION] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_PROJECTION);
+        shader.locs[RL_E_SHADER_LOC_MATRIX_MODEL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_MODEL);
+        shader.locs[RL_E_SHADER_LOC_MATRIX_NORMAL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_NORMAL);
+        shader.locs[RL_E_SHADER_LOC_BONE_MATRICES] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_BONE_MATRICES);
 
         // Get handles to GLSL uniform locations (fragment shader)
-        shader.locs[SHADER_LOC_COLOR_DIFFUSE] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_COLOR);
+        shader.locs[RL_E_SHADER_LOC_COLOR_DIFFUSE] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_COLOR);
         shader.locs[SHADER_LOC_MAP_DIFFUSE] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE0);  // SHADER_LOC_MAP_ALBEDO
         shader.locs[SHADER_LOC_MAP_SPECULAR] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE1); // SHADER_LOC_MAP_METALNESS
-        shader.locs[SHADER_LOC_MAP_NORMAL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE2);
+        shader.locs[RL_E_SHADER_LOC_MAP_NORMAL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE2);
 
         // Tie CPU-side shader locations to the shared program lifetime
         RLSharedGpuRegisterProgramLocs(shader.id, shader.locs);
@@ -1856,40 +1856,40 @@ RLRay RLGetScreenToWorldRayEx(RLVector2 position, RLCamera camera, int width, in
     RLVector3 deviceCoords = { x, y, z };
 
     // Calculate view matrix from camera look at
-    RLMatrix matView = MatrixLookAt(camera.position, camera.target, camera.up);
+    RLMatrix matView = RLMatrixLookAt(camera.position, camera.target, camera.up);
 
-    RLMatrix matProj = MatrixIdentity();
+    RLMatrix matProj = RLMatrixIdentity();
 
-    if (camera.projection == CAMERA_PERSPECTIVE)
+    if (camera.projection == RL_E_CAMERA_PERSPECTIVE)
     {
         // Calculate projection matrix from perspective
-        matProj = MatrixPerspective(camera.fovy*DEG2RAD, ((double)width/(double)height), rlGetCullDistanceNear(), rlGetCullDistanceFar());
+        matProj = RLMatrixPerspective(camera.fovy*DEG2RAD, ((double)width/(double)height), rlGetCullDistanceNear(), rlGetCullDistanceFar());
     }
-    else if (camera.projection == CAMERA_ORTHOGRAPHIC)
+    else if (camera.projection == RL_E_CAMERA_ORTHOGRAPHIC)
     {
         double aspect = (double)width/(double)height;
         double top = camera.fovy/2.0;
         double right = top*aspect;
 
         // Calculate projection matrix from orthographic
-        matProj = MatrixOrtho(-right, right, -top, top, rlGetCullDistanceNear(), rlGetCullDistanceFar());
+        matProj = RLMatrixOrtho(-right, right, -top, top, rlGetCullDistanceNear(), rlGetCullDistanceFar());
     }
 
     // Unproject far/near points
-    RLVector3 nearPoint = Vector3Unproject((RLVector3){ deviceCoords.x, deviceCoords.y, 0.0f }, matProj, matView);
-    RLVector3 farPoint = Vector3Unproject((RLVector3){ deviceCoords.x, deviceCoords.y, 1.0f }, matProj, matView);
+    RLVector3 nearPoint = RLVector3Unproject((RLVector3){ deviceCoords.x, deviceCoords.y, 0.0f }, matProj, matView);
+    RLVector3 farPoint = RLVector3Unproject((RLVector3){ deviceCoords.x, deviceCoords.y, 1.0f }, matProj, matView);
 
     // Unproject the mouse cursor in the near plane
     // We need this as the source position because orthographic projects,
     // compared to perspective doesn't have a convergence point,
     // meaning that the "eye" of the camera is more like a plane than a point
-    RLVector3 cameraPlanePointerPos = Vector3Unproject((RLVector3){ deviceCoords.x, deviceCoords.y, -1.0f }, matProj, matView);
+    RLVector3 cameraPlanePointerPos = RLVector3Unproject((RLVector3){ deviceCoords.x, deviceCoords.y, -1.0f }, matProj, matView);
 
     // Calculate normalized direction vector
-    RLVector3 direction = Vector3Normalize(Vector3Subtract(farPoint, nearPoint));
+    RLVector3 direction = RLVector3Normalize(RLVector3Subtract(farPoint, nearPoint));
 
-    if (camera.projection == CAMERA_PERSPECTIVE) ray.position = camera.position;
-    else if (camera.projection == CAMERA_ORTHOGRAPHIC) ray.position = cameraPlanePointerPos;
+    if (camera.projection == RL_E_CAMERA_PERSPECTIVE) ray.position = camera.position;
+    else if (camera.projection == RL_E_CAMERA_ORTHOGRAPHIC) ray.position = cameraPlanePointerPos;
 
     // Apply calculated vectors to ray
     ray.direction = direction;
@@ -1900,7 +1900,7 @@ RLRay RLGetScreenToWorldRayEx(RLVector2 position, RLCamera camera, int width, in
 // Get transform matrix for camera
 RLMatrix RLGetCameraMatrix(RLCamera camera)
 {
-    RLMatrix mat = MatrixLookAt(camera.position, camera.target, camera.up);
+    RLMatrix mat = RLMatrixLookAt(camera.position, camera.target, camera.up);
 
     return mat;
 }
@@ -1923,12 +1923,12 @@ RLMatrix RLGetCameraMatrix2D(RLCamera2D camera)
     //   1. Move to offset
     //   2. Rotate and Scale
     //   3. Move by -target
-    RLMatrix matOrigin = MatrixTranslate(-camera.target.x, -camera.target.y, 0.0f);
-    RLMatrix matRotation = MatrixRotate((RLVector3){ 0.0f, 0.0f, 1.0f }, camera.rotation*DEG2RAD);
-    RLMatrix matScale = MatrixScale(camera.zoom, camera.zoom, 1.0f);
-    RLMatrix matTranslation = MatrixTranslate(camera.offset.x, camera.offset.y, 0.0f);
+    RLMatrix matOrigin = RLMatrixTranslate(-camera.target.x, -camera.target.y, 0.0f);
+    RLMatrix matRotation = RLMatrixRotate((RLVector3){ 0.0f, 0.0f, 1.0f }, camera.rotation*DEG2RAD);
+    RLMatrix matScale = RLMatrixScale(camera.zoom, camera.zoom, 1.0f);
+    RLMatrix matTranslation = RLMatrixTranslate(camera.offset.x, camera.offset.y, 0.0f);
 
-    matTransform = MatrixMultiply(MatrixMultiply(matOrigin, MatrixMultiply(matScale, matRotation)), matTranslation);
+    matTransform = RLMatrixMultiply(RLMatrixMultiply(matOrigin, RLMatrixMultiply(matScale, matRotation)), matTranslation);
 
     return matTransform;
 }
@@ -1945,34 +1945,34 @@ RLVector2 RLGetWorldToScreen(RLVector3 position, RLCamera camera)
 RLVector2 RLGetWorldToScreenEx(RLVector3 position, RLCamera camera, int width, int height)
 {
     // Calculate projection matrix (from perspective instead of frustum
-    RLMatrix matProj = MatrixIdentity();
+    RLMatrix matProj = RLMatrixIdentity();
 
-    if (camera.projection == CAMERA_PERSPECTIVE)
+    if (camera.projection == RL_E_CAMERA_PERSPECTIVE)
     {
         // Calculate projection matrix from perspective
-        matProj = MatrixPerspective(camera.fovy*DEG2RAD, ((double)width/(double)height), rlGetCullDistanceNear(), rlGetCullDistanceFar());
+        matProj = RLMatrixPerspective(camera.fovy*DEG2RAD, ((double)width/(double)height), rlGetCullDistanceNear(), rlGetCullDistanceFar());
     }
-    else if (camera.projection == CAMERA_ORTHOGRAPHIC)
+    else if (camera.projection == RL_E_CAMERA_ORTHOGRAPHIC)
     {
         double aspect = (double)width/(double)height;
         double top = camera.fovy/2.0;
         double right = top*aspect;
 
         // Calculate projection matrix from orthographic
-        matProj = MatrixOrtho(-right, right, -top, top, rlGetCullDistanceNear(), rlGetCullDistanceFar());
+        matProj = RLMatrixOrtho(-right, right, -top, top, rlGetCullDistanceNear(), rlGetCullDistanceFar());
     }
 
     // Calculate view matrix from camera look at (and transpose it)
-    RLMatrix matView = MatrixLookAt(camera.position, camera.target, camera.up);
+    RLMatrix matView = RLMatrixLookAt(camera.position, camera.target, camera.up);
 
     // Convert world position vector to quaternion
     RLQuaternion worldPos = { position.x, position.y, position.z, 1.0f };
 
     // Transform world position to view
-    worldPos = QuaternionTransform(worldPos, matView);
+    worldPos = RLQuaternionTransform(worldPos, matView);
 
     // Transform result to projection (clip space position)
-    worldPos = QuaternionTransform(worldPos, matProj);
+    worldPos = RLQuaternionTransform(worldPos, matProj);
 
     // Calculate normalized device coordinates (inverted y)
     RLVector3 ndcPos = { worldPos.x/worldPos.w, -worldPos.y/worldPos.w, worldPos.z/worldPos.w };
@@ -1987,7 +1987,7 @@ RLVector2 RLGetWorldToScreenEx(RLVector3 position, RLCamera camera, int width, i
 RLVector2 RLGetWorldToScreen2D(RLVector2 position, RLCamera2D camera)
 {
     RLMatrix matCamera = RLGetCameraMatrix2D(camera);
-    RLVector3 transform = Vector3Transform((RLVector3){ position.x, position.y, 0 }, matCamera);
+    RLVector3 transform = RLVector3Transform((RLVector3){ position.x, position.y, 0 }, matCamera);
 
     return (RLVector2){ transform.x, transform.y };
 }
@@ -1995,8 +1995,8 @@ RLVector2 RLGetWorldToScreen2D(RLVector2 position, RLCamera2D camera)
 // Get the world space position for a 2d camera screen space position
 RLVector2 RLGetScreenToWorld2D(RLVector2 position, RLCamera2D camera)
 {
-    RLMatrix invMatCamera = MatrixInvert(RLGetCameraMatrix2D(camera));
-    RLVector3 transform = Vector3Transform((RLVector3){ position.x, position.y, 0 }, invMatCamera);
+    RLMatrix invMatCamera = RLMatrixInvert(RLGetCameraMatrix2D(camera));
+    RLVector3 transform = RLVector3Transform((RLVector3){ position.x, position.y, 0 }, invMatCamera);
 
     return (RLVector2){ transform.x, transform.y };
 }
@@ -2014,7 +2014,7 @@ void RLSetTargetFPS(int fps)
     if (fps < 1) CORE.Time.target = 0.0;
     else CORE.Time.target = 1.0/(double)fps;
 
-    TRACELOG(LOG_INFO, "TIMER: Target time per frame: %02.03f milliseconds", (float)CORE.Time.target*1000.0f);
+    TRACELOG(RL_E_LOG_INFO, "TIMER: Target time per frame: %02.03f milliseconds", (float)CORE.Time.target*1000.0f);
 }
 
 // Get current FPS
@@ -2158,7 +2158,7 @@ int RLGetRandomValue(int min, int max)
     // NOTE: Depending on the library it can be as low as 32767
     if ((unsigned int)(max - min) > (unsigned int)RAND_MAX)
     {
-        TRACELOG(LOG_WARNING, "Invalid GetRandomValue() arguments, range should not be higher than %i", RAND_MAX);
+        TRACELOG(RL_E_LOG_WARNING, "Invalid GetRandomValue() arguments, range should not be higher than %i", RAND_MAX);
     }
 
     // NOTE: This one-line approach produces a non-uniform distribution,
@@ -2246,14 +2246,14 @@ void RLTakeScreenshot(const char *fileName)
 {
 #if defined(SUPPORT_MODULE_RTEXTURES)
     // Security check to (partially) avoid malicious code
-    if (strchr(fileName, '\'') != NULL) { TRACELOG(LOG_WARNING, "SYSTEM: Provided fileName could be potentially malicious, avoid [\'] character"); return; }
+    if (strchr(fileName, '\'') != NULL) { TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Provided fileName could be potentially malicious, avoid [\'] character"); return; }
 
     // Apply a scale if we are doing HIGHDPI auto-scaling
     RLVector2 scale = { 1.0f, 1.0f };
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI)) scale = RLGetWindowScaleDPI();
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI)) scale = RLGetWindowScaleDPI();
 
     unsigned char *imgData = rlReadScreenPixels((int)((float)CORE.Window.render.width*scale.x), (int)((float)CORE.Window.render.height*scale.y));
-    RLImage image = { imgData, (int)((float)CORE.Window.render.width*scale.x), (int)((float)CORE.Window.render.height*scale.y), 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
+    RLImage image = { imgData, (int)((float)CORE.Window.render.width*scale.x), (int)((float)CORE.Window.render.height*scale.y), 1, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
 
     char path[MAX_FILEPATH_LENGTH] = { 0 };
     strncpy(path, RLTextFormat("%s/%s", CORE.Storage.basePath, fileName), MAX_FILEPATH_LENGTH - 1);
@@ -2261,10 +2261,10 @@ void RLTakeScreenshot(const char *fileName)
     RLExportImage(image, path); // WARNING: Module required: rtextures
     RL_FREE(imgData);
 
-    if (RLFileExists(path)) TRACELOG(LOG_INFO, "SYSTEM: [%s] Screenshot taken successfully", path);
-    else TRACELOG(LOG_WARNING, "SYSTEM: [%s] Screenshot could not be saved", path);
+    if (RLFileExists(path)) TRACELOG(RL_E_LOG_INFO, "SYSTEM: [%s] Screenshot taken successfully", path);
+    else TRACELOG(RL_E_LOG_WARNING, "SYSTEM: [%s] Screenshot could not be saved", path);
 #else
-    TRACELOG(LOG_WARNING,"IMAGE: ExportImage() requires module: rtextures");
+    TRACELOG(RL_E_LOG_WARNING,"IMAGE: ExportImage() requires module: rtextures");
 #endif
 }
 
@@ -2274,7 +2274,7 @@ void RLTakeScreenshot(const char *fileName)
 // To configure window states after creation, just use SetWindowState()
 void RLSetConfigFlags(unsigned int flags)
 {
-    if (CORE.Window.ready) TRACELOG(LOG_WARNING, "WINDOW: SetConfigFlags called after window initialization, Use \"SetWindowState\" to set flags instead");
+    if (CORE.Window.ready) TRACELOG(RL_E_LOG_WARNING, "WINDOW: SetConfigFlags called after window initialization, Use \"SetWindowState\" to set flags instead");
 
     // Selected flags are set but not evaluated at this point,
     // flag evaluation happens at InitWindow() or SetWindowState()
@@ -2315,12 +2315,12 @@ void RLTraceLog(int logType, const char *text, ...)
 #if defined(PLATFORM_ANDROID)
     switch (logType)
     {
-        case LOG_TRACE: __android_log_vprint(ANDROID_LOG_VERBOSE, "raylib", text, args); break;
-        case LOG_DEBUG: __android_log_vprint(ANDROID_LOG_DEBUG, "raylib", text, args); break;
-        case LOG_INFO: __android_log_vprint(ANDROID_LOG_INFO, "raylib", text, args); break;
-        case LOG_WARNING: __android_log_vprint(ANDROID_LOG_WARN, "raylib", text, args); break;
-        case LOG_ERROR: __android_log_vprint(ANDROID_LOG_ERROR, "raylib", text, args); break;
-        case LOG_FATAL: __android_log_vprint(ANDROID_LOG_FATAL, "raylib", text, args); break;
+        case RL_E_LOG_TRACE: __android_log_vprint(ANDROID_LOG_VERBOSE, "raylib", text, args); break;
+        case RL_E_LOG_DEBUG: __android_log_vprint(ANDROID_LOG_DEBUG, "raylib", text, args); break;
+        case RL_E_LOG_INFO: __android_log_vprint(ANDROID_LOG_INFO, "raylib", text, args); break;
+        case RL_E_LOG_WARNING: __android_log_vprint(ANDROID_LOG_WARN, "raylib", text, args); break;
+        case RL_E_LOG_ERROR: __android_log_vprint(ANDROID_LOG_ERROR, "raylib", text, args); break;
+        case RL_E_LOG_FATAL: __android_log_vprint(ANDROID_LOG_FATAL, "raylib", text, args); break;
         default: break;
     }
 #else
@@ -2328,12 +2328,12 @@ void RLTraceLog(int logType, const char *text, ...)
 
     switch (logType)
     {
-        case LOG_TRACE: strncpy(buffer, "TRACE: ", 8); break;
-        case LOG_DEBUG: strncpy(buffer, "DEBUG: ", 8); break;
-        case LOG_INFO: strncpy(buffer, "INFO: ", 7); break;
-        case LOG_WARNING: strncpy(buffer, "WARNING: ", 10); break;
-        case LOG_ERROR: strncpy(buffer, "ERROR: ", 8); break;
-        case LOG_FATAL: strncpy(buffer, "FATAL: ", 8); break;
+        case RL_E_LOG_TRACE: strncpy(buffer, "TRACE: ", 8); break;
+        case RL_E_LOG_DEBUG: strncpy(buffer, "DEBUG: ", 8); break;
+        case RL_E_LOG_INFO: strncpy(buffer, "INFO: ", 7); break;
+        case RL_E_LOG_WARNING: strncpy(buffer, "WARNING: ", 10); break;
+        case RL_E_LOG_ERROR: strncpy(buffer, "ERROR: ", 8); break;
+        case RL_E_LOG_FATAL: strncpy(buffer, "FATAL: ", 8); break;
         default: break;
     }
 
@@ -2346,7 +2346,7 @@ void RLTraceLog(int logType, const char *text, ...)
 
     va_end(args);
 
-    if (logType == LOG_FATAL) exit(EXIT_FAILURE);  // If fatal logging, exit program
+    if (logType == RL_E_LOG_FATAL) exit(EXIT_FAILURE);  // If fatal logging, exit program
 
 #endif  // SUPPORT_TRACELOG
 }
@@ -2421,7 +2421,7 @@ unsigned char *RLLoadFileData(const char *fileName, int *dataSize)
                     // dataSize is unified along raylib as a 'int' type, so, for file-sizes > INT_MAX (2147483647 bytes) we have a limitation
                     if (count > 2147483647)
                     {
-                        TRACELOG(LOG_WARNING, "FILEIO: [%s] File is bigger than 2147483647 bytes, avoid using LoadFileData()", fileName);
+                        TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File is bigger than 2147483647 bytes, avoid using LoadFileData()", fileName);
 
                         RL_FREE(data);
                         data = NULL;
@@ -2430,22 +2430,22 @@ unsigned char *RLLoadFileData(const char *fileName, int *dataSize)
                     {
                         *dataSize = (int)count;
 
-                        if ((*dataSize) != size) TRACELOG(LOG_WARNING, "FILEIO: [%s] File partially loaded (%i bytes out of %i)", fileName, dataSize, count);
-                        else TRACELOG(LOG_INFO, "FILEIO: [%s] File loaded successfully", fileName);
+                        if ((*dataSize) != size) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File partially loaded (%i bytes out of %i)", fileName, dataSize, count);
+                        else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File loaded successfully", fileName);
                     }
                 }
-                else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to allocated memory for file reading", fileName);
+                else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to allocated memory for file reading", fileName);
             }
-            else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to read file", fileName);
+            else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to read file", fileName);
 
             fclose(file);
         }
-        else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
+        else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
 #else
-    TRACELOG(LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
+    TRACELOG(RL_E_LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
 #endif
     }
-    else TRACELOG(LOG_WARNING, "FILEIO: File name provided is not valid");
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
 
     return data;
 }
@@ -2476,19 +2476,19 @@ bool RLSaveFileData(const char *fileName, void *data, int dataSize)
             // and expects a size_t input value but as dataSize is limited to INT_MAX (2147483647 bytes), there shouldn't be a problem
             int count = (int)fwrite(data, sizeof(unsigned char), dataSize, file);
 
-            if (count == 0) TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to write file", fileName);
-            else if (count != dataSize) TRACELOG(LOG_WARNING, "FILEIO: [%s] File partially written", fileName);
-            else TRACELOG(LOG_INFO, "FILEIO: [%s] File saved successfully", fileName);
+            if (count == 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write file", fileName);
+            else if (count != dataSize) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File partially written", fileName);
+            else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File saved successfully", fileName);
 
             int result = fclose(file);
             if (result == 0) success = true;
         }
-        else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
+        else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
 #else
-    TRACELOG(LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
+    TRACELOG(RL_E_LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
 #endif
     }
-    else TRACELOG(LOG_WARNING, "FILEIO: File name provided is not valid");
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
 
     return success;
 }
@@ -2540,8 +2540,8 @@ bool RLExportDataAsCode(const unsigned char *data, int dataSize, const char *fil
 
     RL_FREE(txtData);
 
-    if (success != 0) TRACELOG(LOG_INFO, "FILEIO: [%s] Data as code exported successfully", fileName);
-    else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to export data as code", fileName);
+    if (success != 0) TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Data as code exported successfully", fileName);
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to export data as code", fileName);
 
     return success;
 }
@@ -2586,20 +2586,20 @@ char *RLLoadFileText(const char *fileName)
                     // Zero-terminate the string
                     text[count] = '\0';
 
-                    TRACELOG(LOG_INFO, "FILEIO: [%s] Text file loaded successfully", fileName);
+                    TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Text file loaded successfully", fileName);
                 }
-                else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to allocated memory for file reading", fileName);
+                else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to allocated memory for file reading", fileName);
             }
-            else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to read text file", fileName);
+            else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to read text file", fileName);
 
             fclose(file);
         }
-        else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to open text file", fileName);
+        else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open text file", fileName);
 #else
-    TRACELOG(LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
+    TRACELOG(RL_E_LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
 #endif
     }
-    else TRACELOG(LOG_WARNING, "FILEIO: File name provided is not valid");
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
 
     return text;
 }
@@ -2628,18 +2628,18 @@ bool RLSaveFileText(const char *fileName, const char *text)
         {
             int count = fprintf(file, "%s", text);
 
-            if (count < 0) TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to write text file", fileName);
-            else TRACELOG(LOG_INFO, "FILEIO: [%s] Text file saved successfully", fileName);
+            if (count < 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write text file", fileName);
+            else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Text file saved successfully", fileName);
 
             int result = fclose(file);
             if (result == 0) success = true;
         }
-        else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to open text file", fileName);
+        else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open text file", fileName);
 #else
-    TRACELOG(LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
+    TRACELOG(RL_E_LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
 #endif
     }
-    else TRACELOG(LOG_WARNING, "FILEIO: File name provided is not valid");
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
 
     return success;
 }
@@ -2757,7 +2757,7 @@ int RLFileTextReplace(const char *fileName, const char *search, const char *repl
         RLUnloadFileText(fileText);
     }
 #else
-    TRACELOG(LOG_WARNING, "FILE: File text replace requires [rtext] module");
+    TRACELOG(RL_E_LOG_WARNING, "FILE: File text replace requires [rtext] module");
 #endif
 
     return result;
@@ -2894,7 +2894,7 @@ int RLGetFileLength(const char *fileName)
         long int fileSize = ftell(file);
 
         // Check for size overflow (INT_MAX)
-        if (fileSize > 2147483647) TRACELOG(LOG_WARNING, "[%s] File size overflows expected limit, do not use GetFileLength()", fileName);
+        if (fileSize > 2147483647) TRACELOG(RL_E_LOG_WARNING, "[%s] File size overflows expected limit, do not use GetFileLength()", fileName);
         else size = (int)fileSize;
 
         fclose(file);
@@ -3202,11 +3202,11 @@ RLFilePathList RLLoadDirectoryFilesEx(const char *basePath, const char *filter, 
         // Security check: read files.count should match fileCounter
         if (files.count != fileCounter)
         {
-            TRACELOG(LOG_WARNING, "FILEIO: Read files count (%u) does not match capacity allocated (%u)", files.count, fileCounter);
+            TRACELOG(RL_E_LOG_WARNING, "FILEIO: Read files count (%u) does not match capacity allocated (%u)", files.count, fileCounter);
             files.count = fileCounter; // Avoid memory leak when unloading this FilePathList
         }
     }
-    else TRACELOG(LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
 
     return files;
 }
@@ -3265,8 +3265,8 @@ bool RLChangeDirectory(const char *dirPath)
 {
     bool result = CHDIR(dirPath);
 
-    if (result != 0) TRACELOG(LOG_WARNING, "SYSTEM: Failed to change to directory: %s", dirPath);
-    else TRACELOG(LOG_INFO, "SYSTEM: Working Directory: %s", dirPath);
+    if (result != 0) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to change to directory: %s", dirPath);
+    else TRACELOG(RL_E_LOG_INFO, "SYSTEM: Working Directory: %s", dirPath);
 
     return (result == 0);
 }
@@ -3407,7 +3407,7 @@ unsigned int RLGetDirectoryFileCountEx(const char *basePath, const char *filter,
                 // Don't add to count if path too long
                 if ((pathLength < 0) || (pathLength >= MAX_FILEPATH_LENGTH))
                 {
-                    TRACELOG(LOG_WARNING, "FILEIO: Path longer than %d characters (%s...)", MAX_FILEPATH_LENGTH, basePath);
+                    TRACELOG(RL_E_LOG_WARNING, "FILEIO: Path longer than %d characters (%s...)", MAX_FILEPATH_LENGTH, basePath);
                 }
                 else if (RLIsPathFile(path))
                 {
@@ -3423,7 +3423,7 @@ unsigned int RLGetDirectoryFileCountEx(const char *basePath, const char *filter,
         }
         closedir(dir);
     }
-    else TRACELOG(LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
     return fileCounter;
 }
 
@@ -3447,7 +3447,7 @@ unsigned char *RLCompressData(const unsigned char *data, int dataSize, int *comp
     *compDataSize = sdeflate(sdefl, compData, data, dataSize, COMPRESSION_QUALITY_DEFLATE);   // Compression level 8, same as stbiw
     RL_FREE(sdefl);
 
-    TRACELOG(LOG_INFO, "SYSTEM: Compress data: Original size: %i -> Comp. size: %i", dataSize, *compDataSize);
+    TRACELOG(RL_E_LOG_INFO, "SYSTEM: Compress data: Original size: %i -> Comp. size: %i", dataSize, *compDataSize);
 #endif
 
     return compData;
@@ -3471,7 +3471,7 @@ unsigned char *RLDecompressData(const unsigned char *compData, int compDataSize,
     memset(data0, 0, MAX_DECOMPRESSION_SIZE*1024*1024); // Wipe memory, is memset() safe?
     RL_FREE(data0);
 
-    TRACELOG(LOG_INFO, "SYSTEM: Decompress data: Comp. size: %i -> Original size: %i", compDataSize, size);
+    TRACELOG(RL_E_LOG_INFO, "SYSTEM: Decompress data: Comp. size: %i -> Original size: %i", compDataSize, size);
 
     *dataSize = size;
 #endif
@@ -3529,7 +3529,7 @@ char *RLEncodeDataBase64(const unsigned char *data, int dataSize, int *outputSiz
     encodedData[outputCount] = '\0';
     outputCount++;
 
-    if (outputCount != estimatedOutputSize) TRACELOG(LOG_WARNING, "BASE64: Output size differs from estimation");
+    if (outputCount != estimatedOutputSize) TRACELOG(RL_E_LOG_WARNING, "BASE64: Output size differs from estimation");
 
     *outputSize = estimatedOutputSize;
     return encodedData;
@@ -3574,7 +3574,7 @@ unsigned char *RLDecodeDataBase64(const char *text, int *outputSize)
         // Every 4 sixtets must generate 3 octets
         if ((i + 2) >= dataSize)
         {
-            TRACELOG(LOG_WARNING, "BASE64: Decoding error: Input data size is not valid");
+            TRACELOG(RL_E_LOG_WARNING, "BASE64: Decoding error: Input data size is not valid");
             break;
         }
 
@@ -3587,7 +3587,7 @@ unsigned char *RLDecodeDataBase64(const char *text, int *outputSize)
 
         if ((outputCount + 3) > maxOutputSize)
         {
-            TRACELOG(LOG_WARNING, "BASE64: Decoding error: Output data size is too small");
+            TRACELOG(RL_E_LOG_WARNING, "BASE64: Decoding error: Output data size is too small");
             break;
         }
 
@@ -3598,7 +3598,7 @@ unsigned char *RLDecodeDataBase64(const char *text, int *outputSize)
         i += 4;
     }
 
-    if (estimatedOutputSize != (outputCount - padding)) TRACELOG(LOG_WARNING, "BASE64: Decoded size differs from estimation");
+    if (estimatedOutputSize != (outputCount - padding)) TRACELOG(RL_E_LOG_WARNING, "BASE64: Decoded size differs from estimation");
 
     *outputSize = estimatedOutputSize;
     return decodedData;
@@ -3996,7 +3996,7 @@ RLAutomationEventList RLLoadAutomationEventList(const char *fileName)
     list.capacity = MAX_AUTOMATION_EVENTS;
 
 #if defined(SUPPORT_AUTOMATION_EVENTS)
-    if (fileName == NULL) TRACELOG(LOG_INFO, "AUTOMATION: New empty events list loaded successfully");
+    if (fileName == NULL) TRACELOG(RL_E_LOG_INFO, "AUTOMATION: New empty events list loaded successfully");
     else
     {
         // Load automation events file (binary)
@@ -4030,7 +4030,7 @@ RLAutomationEventList RLLoadAutomationEventList(const char *fileName)
             char eventDesc[64] = { 0 };
 
             char *result = fgets(buffer, 256, raeFile);
-            if (result != buffer) TRACELOG(LOG_WARNING, "AUTOMATION: [%s] Issue reading line to buffer", fileName);
+            if (result != buffer) TRACELOG(RL_E_LOG_WARNING, "AUTOMATION: [%s] Issue reading line to buffer", fileName);
 
             while (!feof(raeFile))
             {
@@ -4048,21 +4048,21 @@ RLAutomationEventList RLLoadAutomationEventList(const char *fileName)
                 }
 
                 result = fgets(buffer, 256, raeFile);
-                if (result != buffer) TRACELOG(LOG_WARNING, "AUTOMATION: [%s] Issue reading line to buffer", fileName);
+                if (result != buffer) TRACELOG(RL_E_LOG_WARNING, "AUTOMATION: [%s] Issue reading line to buffer", fileName);
             }
 
             if (counter != list.count)
             {
-                TRACELOG(LOG_WARNING, "AUTOMATION: Events read from file [%i] do not mach event count specified [%i]", counter, list.count);
+                TRACELOG(RL_E_LOG_WARNING, "AUTOMATION: Events read from file [%i] do not mach event count specified [%i]", counter, list.count);
                 list.count = counter;
             }
 
             fclose(raeFile);
 
-            TRACELOG(LOG_INFO, "AUTOMATION: Events file loaded successfully");
+            TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Events file loaded successfully");
         }
 
-        TRACELOG(LOG_INFO, "AUTOMATION: Events loaded from file: %i", list.count);
+        TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Events loaded from file: %i", list.count);
     }
 #endif
     return list;
@@ -4239,7 +4239,7 @@ void RLPlayAutomationEvent(RLAutomationEvent event)
             default: break;
         }
 
-        TRACELOG(LOG_INFO, "AUTOMATION PLAY: Frame: %i | Event type: %i | Event parameters: %i, %i, %i", event.frame, event.type, event.params[0], event.params[1], event.params[2]);
+        TRACELOG(RL_E_LOG_INFO, "AUTOMATION PLAY: Frame: %i | Event type: %i | Event parameters: %i, %i, %i", event.frame, event.type, event.params[0], event.params[1], event.params[2]);
     }
 #endif
 }
@@ -4455,7 +4455,7 @@ int RLGetGamepadAxisCount(int gamepad)
 // Get axis movement vector for a gamepad
 float RLGetGamepadAxisMovement(int gamepad, int axis)
 {
-    float value = ((axis == GAMEPAD_AXIS_LEFT_TRIGGER) || (axis == GAMEPAD_AXIS_RIGHT_TRIGGER))? -1.0f : 0.0f;
+    float value = ((axis == RL_E_GAMEPAD_AXIS_LEFT_TRIGGER) || (axis == RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER))? -1.0f : 0.0f;
 
     if ((gamepad < MAX_GAMEPADS) && CORE.Input.Gamepad.ready[gamepad] && (axis < MAX_GAMEPAD_AXES))
     {
@@ -4480,7 +4480,7 @@ bool RLIsMouseButtonPressed(int button)
 {
     bool pressed = false;
 
-    if ((button >= 0) && (button <= MOUSE_BUTTON_BACK))
+    if ((button >= 0) && (button <= RL_E_MOUSE_BUTTON_BACK))
     {
         if ((CORE.Input.Mouse.currentButtonState[button] == 1) && (CORE.Input.Mouse.previousButtonState[button] == 0)) pressed = true;
 
@@ -4496,7 +4496,7 @@ bool RLIsMouseButtonDown(int button)
 {
     bool down = false;
 
-    if ((button >= 0) && (button <= MOUSE_BUTTON_BACK))
+    if ((button >= 0) && (button <= RL_E_MOUSE_BUTTON_BACK))
     {
         if (CORE.Input.Mouse.currentButtonState[button] == 1) down = true;
 
@@ -4512,7 +4512,7 @@ bool RLIsMouseButtonReleased(int button)
 {
     bool released = false;
 
-    if ((button >= 0) && (button <= MOUSE_BUTTON_BACK))
+    if ((button >= 0) && (button <= RL_E_MOUSE_BUTTON_BACK))
     {
         if ((CORE.Input.Mouse.currentButtonState[button] == 0) && (CORE.Input.Mouse.previousButtonState[button] == 1)) released = true;
 
@@ -4528,7 +4528,7 @@ bool RLIsMouseButtonUp(int button)
 {
     bool up = false;
 
-    if ((button >= 0) && (button <= MOUSE_BUTTON_BACK))
+    if ((button >= 0) && (button <= RL_E_MOUSE_BUTTON_BACK))
     {
         if (CORE.Input.Mouse.currentButtonState[button] == 0) up = true;
 
@@ -4636,7 +4636,7 @@ RLVector2 RLGetTouchPosition(int index)
     RLVector2 position = { -1.0f, -1.0f };
 
     if (index < MAX_TOUCH_POINTS) position = CORE.Input.Touch.position[index];
-    else TRACELOG(LOG_WARNING, "INPUT: Required touch point out of range (Max touch points: %i)", MAX_TOUCH_POINTS);
+    else TRACELOG(RL_E_LOG_WARNING, "INPUT: Required touch point out of range (Max touch points: %i)", MAX_TOUCH_POINTS);
 
     return position;
 }
@@ -4683,7 +4683,7 @@ void InitTimer(void)
     {
         CORE.Time.base = (unsigned long long int)now.tv_sec*1000000000LLU + (unsigned long long int)now.tv_nsec;
     }
-    else TRACELOG(LOG_WARNING, "TIMER: Hi-resolution timer not available");
+    else TRACELOG(RL_E_LOG_WARNING, "TIMER: Hi-resolution timer not available");
 #endif
 
     CORE.Time.previous = RLGetTime(); // Get time as double
@@ -4736,7 +4736,7 @@ static void ScanDirectoryFiles(const char *basePath, RLFilePathList *files, cons
 
                 if ((pathLength < 0) || (pathLength >= MAX_FILEPATH_LENGTH))
                 {
-                    TRACELOG(LOG_WARNING, "FILEIO: Path longer than %d characters (%s...)", MAX_FILEPATH_LENGTH, basePath);
+                    TRACELOG(RL_E_LOG_WARNING, "FILEIO: Path longer than %d characters (%s...)", MAX_FILEPATH_LENGTH, basePath);
                 }
                 else if (RLIsPathFile(path))
                 {
@@ -4762,7 +4762,7 @@ static void ScanDirectoryFiles(const char *basePath, RLFilePathList *files, cons
 
         closedir(dir);
     }
-    else TRACELOG(LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
 }
 
 #if defined(SUPPORT_AUTOMATION_EVENTS)
@@ -4786,7 +4786,7 @@ static void RecordAutomationEvent(void)
             currentEventList->events[currentEventList->count].params[1] = 0;
             currentEventList->events[currentEventList->count].params[2] = 0;
 
-            TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_KEY_UP | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+            TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_KEY_UP | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
             currentEventList->count++;
         }
 
@@ -4801,7 +4801,7 @@ static void RecordAutomationEvent(void)
             currentEventList->events[currentEventList->count].params[1] = 0;
             currentEventList->events[currentEventList->count].params[2] = 0;
 
-            TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_KEY_DOWN | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+            TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_KEY_DOWN | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
             currentEventList->count++;
         }
 
@@ -4822,7 +4822,7 @@ static void RecordAutomationEvent(void)
             currentEventList->events[currentEventList->count].params[1] = 0;
             currentEventList->events[currentEventList->count].params[2] = 0;
 
-            TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_MOUSE_BUTTON_UP | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+            TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_MOUSE_BUTTON_UP | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
             currentEventList->count++;
         }
 
@@ -4837,7 +4837,7 @@ static void RecordAutomationEvent(void)
             currentEventList->events[currentEventList->count].params[1] = 0;
             currentEventList->events[currentEventList->count].params[2] = 0;
 
-            TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_MOUSE_BUTTON_DOWN | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+            TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_MOUSE_BUTTON_DOWN | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
             currentEventList->count++;
         }
 
@@ -4854,7 +4854,7 @@ static void RecordAutomationEvent(void)
         currentEventList->events[currentEventList->count].params[1] = (int)CORE.Input.Mouse.currentPosition.y;
         currentEventList->events[currentEventList->count].params[2] = 0;
 
-        TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_MOUSE_POSITION | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+        TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_MOUSE_POSITION | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
         currentEventList->count++;
 
         if (currentEventList->count == currentEventList->capacity) return;    // Security check
@@ -4870,7 +4870,7 @@ static void RecordAutomationEvent(void)
         currentEventList->events[currentEventList->count].params[1] = (int)CORE.Input.Mouse.currentWheelMove.y;
         currentEventList->events[currentEventList->count].params[2] = 0;
 
-        TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_MOUSE_WHEEL_MOTION | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+        TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_MOUSE_WHEEL_MOTION | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
         currentEventList->count++;
 
         if (currentEventList->count == currentEventList->capacity) return;    // Security check
@@ -4890,7 +4890,7 @@ static void RecordAutomationEvent(void)
             currentEventList->events[currentEventList->count].params[1] = 0;
             currentEventList->events[currentEventList->count].params[2] = 0;
 
-            TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_TOUCH_UP | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+            TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_TOUCH_UP | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
             currentEventList->count++;
         }
 
@@ -4905,7 +4905,7 @@ static void RecordAutomationEvent(void)
             currentEventList->events[currentEventList->count].params[1] = 0;
             currentEventList->events[currentEventList->count].params[2] = 0;
 
-            TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_TOUCH_DOWN | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+            TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_TOUCH_DOWN | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
             currentEventList->count++;
         }
 
@@ -4921,7 +4921,7 @@ static void RecordAutomationEvent(void)
             currentEventList->events[currentEventList->count].params[1] = (int)CORE.Input.Touch.position[id].x;
             currentEventList->events[currentEventList->count].params[2] = (int)CORE.Input.Touch.position[id].y;
 
-            TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_TOUCH_POSITION | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+            TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_TOUCH_POSITION | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
             currentEventList->count++;
         }
 
@@ -4963,7 +4963,7 @@ static void RecordAutomationEvent(void)
                 currentEventList->events[currentEventList->count].params[1] = button;
                 currentEventList->events[currentEventList->count].params[2] = 0;
 
-                TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_GAMEPAD_BUTTON_UP | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+                TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_GAMEPAD_BUTTON_UP | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
                 currentEventList->count++;
             }
 
@@ -4978,7 +4978,7 @@ static void RecordAutomationEvent(void)
                 currentEventList->events[currentEventList->count].params[1] = button;
                 currentEventList->events[currentEventList->count].params[2] = 0;
 
-                TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_GAMEPAD_BUTTON_DOWN | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+                TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_GAMEPAD_BUTTON_DOWN | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
                 currentEventList->count++;
             }
 
@@ -4988,7 +4988,7 @@ static void RecordAutomationEvent(void)
         for (int axis = 0; axis < MAX_GAMEPAD_AXES; axis++)
         {
             // Event type: INPUT_GAMEPAD_AXIS_MOTION
-            float defaultMovement = ((axis == GAMEPAD_AXIS_LEFT_TRIGGER) || (axis == GAMEPAD_AXIS_RIGHT_TRIGGER))? -1.0f : 0.0f;
+            float defaultMovement = ((axis == RL_E_GAMEPAD_AXIS_LEFT_TRIGGER) || (axis == RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER))? -1.0f : 0.0f;
             if (RLGetGamepadAxisMovement(gamepad, axis) != defaultMovement)
             {
                 currentEventList->events[currentEventList->count].frame = CORE.Time.frameCounter;
@@ -4997,7 +4997,7 @@ static void RecordAutomationEvent(void)
                 currentEventList->events[currentEventList->count].params[1] = axis;
                 currentEventList->events[currentEventList->count].params[2] = (int)(CORE.Input.Gamepad.axisState[gamepad][axis]*32768.0f);
 
-                TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_GAMEPAD_AXIS_MOTION | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+                TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_GAMEPAD_AXIS_MOTION | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
                 currentEventList->count++;
             }
 
@@ -5009,7 +5009,7 @@ static void RecordAutomationEvent(void)
 #if defined(SUPPORT_GESTURES_SYSTEM)
     // Gestures input currentEventList->events recording
     //-------------------------------------------------------------------------------------
-    if (GESTURES.current != GESTURE_NONE)
+    if (GESTURES.current != RL_E_GESTURE_NONE)
     {
         // Event type: INPUT_GESTURE
         currentEventList->events[currentEventList->count].frame = CORE.Time.frameCounter;
@@ -5018,7 +5018,7 @@ static void RecordAutomationEvent(void)
         currentEventList->events[currentEventList->count].params[1] = 0;
         currentEventList->events[currentEventList->count].params[2] = 0;
 
-        TRACELOG(LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_GESTURE | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
+        TRACELOG(RL_E_LOG_INFO, "AUTOMATION: Frame: %i | Event type: INPUT_GESTURE | Event parameters: %i, %i, %i", currentEventList->events[currentEventList->count].frame, currentEventList->events[currentEventList->count].params[0], currentEventList->events[currentEventList->count].params[1], currentEventList->events[currentEventList->count].params[2]);
         currentEventList->count++;
 
         if (currentEventList->count == currentEventList->capacity) return;    // Security check

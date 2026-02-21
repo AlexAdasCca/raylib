@@ -65,9 +65,9 @@ int main(void)
     int brightnessLoc = RLGetShaderLocation(shdrColorCorrection, "brightness");
 
     // Set shader values (they can be changed later)
-    RLSetShaderValue(shdrColorCorrection, contrastLoc, &contrast, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shdrColorCorrection, saturationLoc, &saturation, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shdrColorCorrection, brightnessLoc, &brightness, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shdrColorCorrection, contrastLoc, &contrast, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shdrColorCorrection, saturationLoc, &saturation, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shdrColorCorrection, brightnessLoc, &brightness, RL_E_SHADER_UNIFORM_FLOAT);
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -78,13 +78,13 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Select texture to draw
-        if (RLIsKeyPressed(KEY_ONE)) imageIndex = 0;
-        else if (RLIsKeyPressed(KEY_TWO)) imageIndex = 1;
-        else if (RLIsKeyPressed(KEY_THREE)) imageIndex = 2;
-        else if (RLIsKeyPressed(KEY_FOUR)) imageIndex = 3;
+        if (RLIsKeyPressed(RL_E_KEY_ONE)) imageIndex = 0;
+        else if (RLIsKeyPressed(RL_E_KEY_TWO)) imageIndex = 1;
+        else if (RLIsKeyPressed(RL_E_KEY_THREE)) imageIndex = 2;
+        else if (RLIsKeyPressed(RL_E_KEY_FOUR)) imageIndex = 3;
 
         // Reset values to 0
-        if (RLIsKeyPressed(KEY_R) || resetButtonClicked)
+        if (RLIsKeyPressed(RL_E_KEY_R) || resetButtonClicked)
         {
             contrast = 0.0f;
             saturation = 0.0f;
@@ -92,9 +92,9 @@ int main(void)
         }
 
         // Send the values to the shader
-        RLSetShaderValue(shdrColorCorrection, contrastLoc, &contrast, SHADER_UNIFORM_FLOAT);
-        RLSetShaderValue(shdrColorCorrection, saturationLoc, &saturation, SHADER_UNIFORM_FLOAT);
-        RLSetShaderValue(shdrColorCorrection, brightnessLoc, &brightness, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shdrColorCorrection, contrastLoc, &contrast, RL_E_SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shdrColorCorrection, saturationLoc, &saturation, RL_E_SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shdrColorCorrection, brightnessLoc, &brightness, RL_E_SHADER_UNIFORM_FLOAT);
         //----------------------------------------------------------------------------------
 
         // Draw

@@ -41,7 +41,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera mode type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera mode type
 
     RLModel model = RLLoadModel("resources/models/iqm/guy.iqm");                    // Load the animated model mesh and basic data
     RLTexture2D texture = RLLoadTexture("resources/models/iqm/guytex.png");         // Load model texture and set material
@@ -63,10 +63,10 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);
 
         // Play animation when spacebar is held down
-        if (RLIsKeyDown(KEY_SPACE))
+        if (RLIsKeyDown(RL_E_KEY_SPACE))
         {
             animFrameCounter++;
             RLUpdateModelAnimation(model, anims[0], animFrameCounter);

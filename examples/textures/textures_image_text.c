@@ -50,7 +50,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyDown(KEY_SPACE)) showFont = true;
+        if (RLIsKeyDown(RL_E_KEY_SPACE)) showFont = true;
         else showFont = false;
         //----------------------------------------------------------------------------------
 

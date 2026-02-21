@@ -51,11 +51,11 @@ int main(void)
         //----------------------------------------------------------------------------------
         // Use mouse wheel to affect stack separation
         stackSpacing += RLGetMouseWheelMove()*0.1f;
-        stackSpacing = Clamp(stackSpacing, 0.0f, 5.0f);
+        stackSpacing = RLClamp(stackSpacing, 0.0f, 5.0f);
 
         // Add a positive/negative offset to spin right/left at different speeds
-        if (RLIsKeyDown(KEY_LEFT) || RLIsKeyDown(KEY_A)) rotationSpeed -= speedChange;
-        if (RLIsKeyDown(KEY_RIGHT) || RLIsKeyDown(KEY_D)) rotationSpeed += speedChange;
+        if (RLIsKeyDown(RL_E_KEY_LEFT) || RLIsKeyDown(RL_E_KEY_A)) rotationSpeed -= speedChange;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT) || RLIsKeyDown(RL_E_KEY_D)) rotationSpeed += speedChange;
 
         rotation += rotationSpeed*RLGetFrameTime();
         //----------------------------------------------------------------------------------

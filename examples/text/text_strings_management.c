@@ -81,7 +81,7 @@ int main(void)
         RLVector2 mousePos = RLGetMousePosition();
 
         // Checks if a text particle was grabbed
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             for (int i = particleCount - 1; i >= 0; i--)
             {
@@ -98,7 +98,7 @@ int main(void)
         }
 
         // Releases any text particle the was grabbed
-        if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT))
         {
             if (grabbedTextParticle != NULL)
             {
@@ -108,14 +108,14 @@ int main(void)
         }
 
         // Slice os shatter a text particle
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT))
         {
             for (int i = particleCount - 1; i >= 0; i--)
             {
                 TextParticle *tp = &textParticles[i];
                 if (RLCheckCollisionPointRec(mousePos, tp->rect))
                 {
-                    if (RLIsKeyDown(KEY_LEFT_SHIFT))
+                    if (RLIsKeyDown(RL_E_KEY_LEFT_SHIFT))
                     {
                         ShatterTextParticle(tp, i, textParticles, &particleCount);
                     } 
@@ -129,7 +129,7 @@ int main(void)
         }
 
         // Shake text particles
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_MIDDLE))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_MIDDLE))
         {
             for (int i = 0; i < particleCount; i++)
             {
@@ -138,12 +138,12 @@ int main(void)
         }
 
         // Reset using TextTo* functions
-        if (RLIsKeyPressed(KEY_ONE)) PrepareFirstTextParticle("raylib => fun videogames programming!", textParticles, &particleCount);
-        if (RLIsKeyPressed(KEY_TWO)) PrepareFirstTextParticle(RLTextToUpper("raylib => fun videogames programming!"), textParticles, &particleCount);
-        if (RLIsKeyPressed(KEY_THREE)) PrepareFirstTextParticle(RLTextToLower("raylib => fun videogames programming!"), textParticles, &particleCount);
-        if (RLIsKeyPressed(KEY_FOUR)) PrepareFirstTextParticle(RLTextToPascal("raylib_fun_videogames_programming"), textParticles, &particleCount);
-        if (RLIsKeyPressed(KEY_FIVE)) PrepareFirstTextParticle(RLTextToSnake("RaylibFunVideogamesProgramming"), textParticles, &particleCount);
-        if (RLIsKeyPressed(KEY_SIX)) PrepareFirstTextParticle(RLTextToCamel("raylib_fun_videogames_programming"), textParticles, &particleCount);
+        if (RLIsKeyPressed(RL_E_KEY_ONE)) PrepareFirstTextParticle("raylib => fun videogames programming!", textParticles, &particleCount);
+        if (RLIsKeyPressed(RL_E_KEY_TWO)) PrepareFirstTextParticle(RLTextToUpper("raylib => fun videogames programming!"), textParticles, &particleCount);
+        if (RLIsKeyPressed(RL_E_KEY_THREE)) PrepareFirstTextParticle(RLTextToLower("raylib => fun videogames programming!"), textParticles, &particleCount);
+        if (RLIsKeyPressed(RL_E_KEY_FOUR)) PrepareFirstTextParticle(RLTextToPascal("raylib_fun_videogames_programming"), textParticles, &particleCount);
+        if (RLIsKeyPressed(RL_E_KEY_FIVE)) PrepareFirstTextParticle(RLTextToSnake("RaylibFunVideogamesProgramming"), textParticles, &particleCount);
+        if (RLIsKeyPressed(RL_E_KEY_SIX)) PrepareFirstTextParticle(RLTextToCamel("raylib_fun_videogames_programming"), textParticles, &particleCount);
 
         // Slice by char pressed only when we have one text particle
         char charPressed = RLGetCharPressed();
@@ -206,7 +206,7 @@ int main(void)
                 tp->ppos.y = tp->rect.y;
 
                 // Glue text particles when dragging and pressing left ctrl
-                if (RLIsKeyDown(KEY_LEFT_CONTROL))
+                if (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL))
                 {
                     for (int i = 0; i < particleCount; i++)
                     {

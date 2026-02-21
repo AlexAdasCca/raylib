@@ -39,7 +39,7 @@ int main(void)
 
     // Load font with default Unicode range: Basic ASCII [32-127]
     RLFont font = RLLoadFont("resources/NotoSansTC-Regular.ttf");
-    RLSetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+    RLSetTextureFilter(font.texture, RL_E_TEXTURE_FILTER_BILINEAR);
 
     int unicodeRange = 0;           // Track the ranges of codepoints added to font
     int prevUnicodeRange = 0;       // Previous Unicode range to avoid reloading every frame
@@ -114,14 +114,14 @@ int main(void)
             }
 
             prevUnicodeRange = unicodeRange;
-            RLSetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR); // Set font atlas scale filter
+            RLSetTextureFilter(font.texture, RL_E_TEXTURE_FILTER_BILINEAR); // Set font atlas scale filter
         }
 
-        if (RLIsKeyPressed(KEY_ZERO)) unicodeRange = 0;
-        else if (RLIsKeyPressed(KEY_ONE)) unicodeRange = 1;
-        else if (RLIsKeyPressed(KEY_TWO)) unicodeRange = 2;
-        else if (RLIsKeyPressed(KEY_THREE)) unicodeRange = 3;
-        else if (RLIsKeyPressed(KEY_FOUR)) unicodeRange = 4;
+        if (RLIsKeyPressed(RL_E_KEY_ZERO)) unicodeRange = 0;
+        else if (RLIsKeyPressed(RL_E_KEY_ONE)) unicodeRange = 1;
+        else if (RLIsKeyPressed(RL_E_KEY_TWO)) unicodeRange = 2;
+        else if (RLIsKeyPressed(RL_E_KEY_THREE)) unicodeRange = 3;
+        else if (RLIsKeyPressed(RL_E_KEY_FOUR)) unicodeRange = 4;
         //else if (IsKeyPressed(KEY_FIVE)) unicodeRange = 5;
         //----------------------------------------------------------------------------------
 

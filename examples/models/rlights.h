@@ -150,21 +150,21 @@ Light CreateLight(int type, RLVector3 position, RLVector3 target, RLColor color,
 void UpdateLightValues(RLShader shader, Light light)
 {
     // Send to shader light enabled state and type
-    RLSetShaderValue(shader, light.enabledLoc, &light.enabled, SHADER_UNIFORM_INT);
-    RLSetShaderValue(shader, light.typeLoc, &light.type, SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, light.enabledLoc, &light.enabled, RL_E_SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, light.typeLoc, &light.type, RL_E_SHADER_UNIFORM_INT);
 
     // Send to shader light position values
     float position[3] = { light.position.x, light.position.y, light.position.z };
-    RLSetShaderValue(shader, light.positionLoc, position, SHADER_UNIFORM_VEC3);
+    RLSetShaderValue(shader, light.positionLoc, position, RL_E_SHADER_UNIFORM_VEC3);
 
     // Send to shader light target position values
     float target[3] = { light.target.x, light.target.y, light.target.z };
-    RLSetShaderValue(shader, light.targetLoc, target, SHADER_UNIFORM_VEC3);
+    RLSetShaderValue(shader, light.targetLoc, target, RL_E_SHADER_UNIFORM_VEC3);
 
     // Send to shader light color values
     float color[4] = { (float)light.color.r/(float)255, (float)light.color.g/(float)255, 
                        (float)light.color.b/(float)255, (float)light.color.a/(float)255 };
-    RLSetShaderValue(shader, light.colorLoc, color, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shader, light.colorLoc, color, RL_E_SHADER_UNIFORM_VEC4);
 }
 
 #endif // RLIGHTS_IMPLEMENTATION

@@ -102,17 +102,17 @@ int main(void)
         }
 
         // Quick cut/copy/paste with keyboard shortcuts
-        if (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_RIGHT_CONTROL))
+        if (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) || RLIsKeyDown(RL_E_KEY_RIGHT_CONTROL))
         {
-            if (RLIsKeyPressed(KEY_X))
+            if (RLIsKeyPressed(RL_E_KEY_X))
             {
                 RLSetClipboardText(inputBuffer);
                 inputBuffer[0] = '\0'; // Quick solution to clear text
             }
 
-            if (RLIsKeyPressed(KEY_C)) RLSetClipboardText(inputBuffer);
+            if (RLIsKeyPressed(RL_E_KEY_C)) RLSetClipboardText(inputBuffer);
 
-            if (RLIsKeyPressed(KEY_V))
+            if (RLIsKeyPressed(RL_E_KEY_V))
             {
                 clipboardText = RLGetClipboardText();
                 if (clipboardText != NULL) RLTextCopy(inputBuffer, clipboardText);

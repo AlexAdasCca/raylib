@@ -52,9 +52,9 @@ int main(void)
     int textureSizeLoc = RLGetShaderLocation(shdrOutline, "textureSize");
 
     // Set shader values (they can be changed later)
-    RLSetShaderValue(shdrOutline, outlineSizeLoc, &outlineSize, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shdrOutline, outlineColorLoc, outlineColor, SHADER_UNIFORM_VEC4);
-    RLSetShaderValue(shdrOutline, textureSizeLoc, textureSize, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shdrOutline, outlineSizeLoc, &outlineSize, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shdrOutline, outlineColorLoc, outlineColor, RL_E_SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shdrOutline, textureSizeLoc, textureSize, RL_E_SHADER_UNIFORM_VEC2);
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ int main(void)
         outlineSize += RLGetMouseWheelMove();
         if (outlineSize < 1.0f) outlineSize = 1.0f;
 
-        RLSetShaderValue(shdrOutline, outlineSizeLoc, &outlineSize, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shdrOutline, outlineSizeLoc, &outlineSize, RL_E_SHADER_UNIFORM_FLOAT);
         //----------------------------------------------------------------------------------
 
         // Draw

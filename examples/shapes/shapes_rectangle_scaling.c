@@ -51,7 +51,7 @@ int main(void)
         if (RLCheckCollisionPointRec(mousePosition, (RLRectangle){ rec.x + rec.width - MOUSE_SCALE_MARK_SIZE, rec.y + rec.height - MOUSE_SCALE_MARK_SIZE, MOUSE_SCALE_MARK_SIZE, MOUSE_SCALE_MARK_SIZE }))
         {
             mouseScaleReady = true;
-            if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) mouseScaleMode = true;
+            if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT)) mouseScaleMode = true;
         }
         else mouseScaleReady = false;
 
@@ -70,7 +70,7 @@ int main(void)
             if (rec.width > (RLGetScreenWidth() - rec.x)) rec.width = RLGetScreenWidth() - rec.x;
             if (rec.height > (RLGetScreenHeight() - rec.y)) rec.height = RLGetScreenHeight() - rec.y;
 
-            if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) mouseScaleMode = false;
+            if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT)) mouseScaleMode = false;
         }
         //----------------------------------------------------------------------------------
 

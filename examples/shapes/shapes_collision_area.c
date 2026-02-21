@@ -73,7 +73,7 @@ int main(void)
         if (collision) boxCollision = RLGetCollisionRec(boxA, boxB);
 
         // Pause Box A movement
-        if (RLIsKeyPressed(KEY_SPACE)) pause = !pause;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) pause = !pause;
         //-----------------------------------------------------
 
         // Draw

@@ -46,7 +46,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 10.0f, 0.0f };     // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;                   // Camera mode type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;                   // Camera mode type
 
     RLModel model = RLLoadModel("resources/models/obj/castle.obj");                 // Load model
     RLTexture2D texture = RLLoadTexture("resources/models/obj/castle_diffuse.png"); // Load model texture
@@ -71,7 +71,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);
 
         // Load new models/textures on drag&drop
         if (RLIsFileDropped())
@@ -108,7 +108,7 @@ int main(void)
         }
 
         // Select model on mouse click
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             // Check collision between ray and box
             if (RLGetRayCollisionBox(RLGetScreenToWorldRay(RLGetMousePosition(), camera), bounds).hit) selected = !selected;

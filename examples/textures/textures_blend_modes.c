@@ -53,7 +53,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             if (blendMode >= (blendCountMax - 1)) blendMode = 0;
             else blendMode++;
@@ -78,10 +78,10 @@ int main(void)
 
             switch (blendMode)
             {
-                case BLEND_ALPHA: RLDrawText("Current: BLEND_ALPHA", (screenWidth/2) - 60, 370, 10, GRAY); break;
-                case BLEND_ADDITIVE: RLDrawText("Current: BLEND_ADDITIVE", (screenWidth/2) - 60, 370, 10, GRAY); break;
-                case BLEND_MULTIPLIED: RLDrawText("Current: BLEND_MULTIPLIED", (screenWidth/2) - 60, 370, 10, GRAY); break;
-                case BLEND_ADD_COLORS: RLDrawText("Current: BLEND_ADD_COLORS", (screenWidth/2) - 60, 370, 10, GRAY); break;
+                case RL_E_BLEND_ALPHA: RLDrawText("Current: BLEND_ALPHA", (screenWidth/2) - 60, 370, 10, GRAY); break;
+                case RL_E_BLEND_ADDITIVE: RLDrawText("Current: BLEND_ADDITIVE", (screenWidth/2) - 60, 370, 10, GRAY); break;
+                case RL_E_BLEND_MULTIPLIED: RLDrawText("Current: BLEND_MULTIPLIED", (screenWidth/2) - 60, 370, 10, GRAY); break;
+                case RL_E_BLEND_ADD_COLORS: RLDrawText("Current: BLEND_ADD_COLORS", (screenWidth/2) - 60, 370, 10, GRAY); break;
                 default: break;
             }
 

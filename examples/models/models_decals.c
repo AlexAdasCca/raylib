@@ -58,7 +58,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [models] example - decals");
 
     // Define the camera to look into our 3d world
@@ -67,20 +67,20 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 1.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.6f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load character model
     RLModel model = RLLoadModel("resources/models/obj/character.obj");
 
     // Apply character skin
     RLTexture2D modelTexture = RLLoadTexture("resources/models/obj/character_diffuse.png");
-    RLSetTextureFilter(modelTexture, TEXTURE_FILTER_BILINEAR);
+    RLSetTextureFilter(modelTexture, RL_E_TEXTURE_FILTER_BILINEAR);
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = modelTexture;
 
     RLBoundingBox modelBBox = RLGetMeshBoundingBox(model.meshes[0]);    // Get mesh bounding box
 
-    camera.target  = Vector3Lerp(modelBBox.min, modelBBox.max, 0.5f);
-    camera.position = Vector3Scale(modelBBox.max, 1.0f);
+    camera.target  = RLVector3Lerp(modelBBox.min, modelBBox.max, 0.5f);
+    camera.position = RLVector3Scale(modelBBox.max, 1.0f);
     camera.position.x *= 0.1f;
 
     float modelSize = fminf(
@@ -103,7 +103,7 @@ int main(void)
     RLTexture decalTexture = RLLoadTextureFromImage(decalImage);
     RLUnloadImage(decalImage);
 
-    RLSetTextureFilter(decalTexture, TEXTURE_FILTER_BILINEAR);
+    RLSetTextureFilter(decalTexture, RL_E_TEXTURE_FILTER_BILINEAR);
     decalMaterial.maps[MATERIAL_MAP_DIFFUSE].texture = decalTexture;
     decalMaterial.maps[MATERIAL_MAP_DIFFUSE].color = RAYWHITE;
 
@@ -119,7 +119,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT)) RLUpdateCamera(&camera, CAMERA_THIRD_PERSON);
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT)) RLUpdateCamera(&camera, RL_E_CAMERA_THIRD_PERSON);
 
         // Display information about closest hit
         RLRayCollision collision = { 0 };
@@ -153,14 +153,14 @@ int main(void)
         }
 
         // Add decal to mesh on hit point
-        if (collision.hit && RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) && (decalCount < MAX_DECALS))
+        if (collision.hit && RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT) && (decalCount < MAX_DECALS))
         {
             // Create the transformation to project the decal
-            RLVector3 origin = Vector3Add(collision.point, Vector3Scale(collision.normal, 1.0f));
-            RLMatrix splat = MatrixLookAt(collision.point, origin, (RLVector3){ 0.0f, 1.0f, 0.0f });
+            RLVector3 origin = RLVector3Add(collision.point, RLVector3Scale(collision.normal, 1.0f));
+            RLMatrix splat = RLMatrixLookAt(collision.point, origin, (RLVector3){ 0.0f, 1.0f, 0.0f });
 
             // Spin the placement around a bit
-            splat = MatrixMultiply(splat, MatrixRotateZ(DEG2RAD*((float)RLGetRandomValue(-180, 180))));
+            splat = RLMatrixMultiply(splat, RLMatrixRotateZ(DEG2RAD*((float)RLGetRandomValue(-180, 180))));
 
             RLMesh decalMesh = GenMeshDecal(model, splat, decalSize, decalOffset);
 
@@ -188,9 +188,9 @@ int main(void)
                 // If we hit the mesh, draw the box for the decal
                 if (collision.hit)
                 {
-                    RLVector3 origin = Vector3Add(collision.point, Vector3Scale(collision.normal, 1.0f));
-                    RLMatrix splat = MatrixLookAt(collision.point, origin, (RLVector3){0,1,0});
-                    placementCube.transform = MatrixInvert(splat);
+                    RLVector3 origin = RLVector3Add(collision.point, RLVector3Scale(collision.normal, 1.0f));
+                    RLMatrix splat = RLMatrixLookAt(collision.point, origin, (RLVector3){0,1,0});
+                    placementCube.transform = RLMatrixInvert(splat);
                     RLDrawModel(placementCube, (RLVector3){ 0 }, 1.0f, RLFade(WHITE, 0.5f));
                 }
 
@@ -350,11 +350,11 @@ static RLMesh BuildMesh(MeshBuilder *mb)
 // Clip segment
 static RLVector3 ClipSegment(RLVector3 v0, RLVector3 v1, RLVector3 p, float s)
 {
-    float d0 = Vector3DotProduct(v0, p) - s;
-    float d1 = Vector3DotProduct(v1, p) - s;
+    float d0 = RLVector3DotProduct(v0, p) - s;
+    float d1 = RLVector3DotProduct(v1, p) - s;
     float s0 = d0/(d0 - d1);
 
-    RLVector3 position = Vector3Lerp(v0, v1, s0);
+    RLVector3 position = RLVector3Lerp(v0, v1, s0);
 
     return position;
 }
@@ -375,7 +375,7 @@ static RLMesh GenMeshDecal(RLModel target, RLMatrix projection, float decalSize,
     }
 
     // We're going to need the inverse matrix
-    RLMatrix invProj = MatrixInvert(projection);
+    RLMatrix invProj = RLMatrixInvert(projection);
 
     // Reset the mesh builders
     meshBuilders[0].vertexCount = 0;
@@ -424,7 +424,7 @@ static RLMesh GenMeshDecal(RLModel target, RLMatrix projection, float decalSize,
             for (int i = 0; i < 3; i++)
             {
                 // To projection space
-                RLVector3 v = Vector3Transform(vertices[i], projection);
+                RLVector3 v = RLVector3Transform(vertices[i], projection);
 
                 if ((fabsf(v.x) < decalSize) || (fabsf(v.y) <= decalSize) || (fabsf(v.z) <= decalSize)) insideCount++;
 
@@ -464,9 +464,9 @@ static RLMesh GenMeshDecal(RLModel target, RLMatrix projection, float decalSize,
         {
             RLVector3 nV1, nV2, nV3, nV4;
 
-            float d1 = Vector3DotProduct(inMesh->vertices[ i + 0 ], planes[face] ) - s;
-            float d2 = Vector3DotProduct(inMesh->vertices[ i + 1 ], planes[face] ) - s;
-            float d3 = Vector3DotProduct(inMesh->vertices[ i + 2 ], planes[face] ) - s;
+            float d1 = RLVector3DotProduct(inMesh->vertices[ i + 0 ], planes[face] ) - s;
+            float d2 = RLVector3DotProduct(inMesh->vertices[ i + 1 ], planes[face] ) - s;
+            float d3 = RLVector3DotProduct(inMesh->vertices[ i + 2 ], planes[face] ) - s;
 
             int v1Out = (d1 > 0);
             int v2Out = (d2 > 0);
@@ -568,7 +568,7 @@ static RLMesh GenMeshDecal(RLModel target, RLMatrix projection, float decalSize,
             theMesh->vertices[i].z -= decalOffset;
 
             // From projection space to world space
-            theMesh->vertices[i] = Vector3Transform(theMesh->vertices[i], invProj);
+            theMesh->vertices[i] = RLVector3Transform(theMesh->vertices[i], invProj);
         }
 
         // Decal model data ready, create the mesh and return it
@@ -590,7 +590,7 @@ static bool GuiButton(RLRectangle rec, const char *label)
     if (RLCheckCollisionPointRec(RLGetMousePosition(), rec))
     {
         bgColor = LIGHTGRAY;
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) pressed = true;
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT)) pressed = true;
     }
 
     RLDrawRectangleRec(rec, bgColor);

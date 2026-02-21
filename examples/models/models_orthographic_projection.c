@@ -33,7 +33,7 @@ int main(void)
     RLInitWindow(screenWidth, screenHeight, "raylib [models] example - orthographic projection");
 
     // Define the camera to look into our 3d world
-    RLCamera camera = { { 0.0f, 10.0f, 10.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, FOVY_PERSPECTIVE, CAMERA_PERSPECTIVE };
+    RLCamera camera = { { 0.0f, 10.0f, 10.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, FOVY_PERSPECTIVE, RL_E_CAMERA_PERSPECTIVE };
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -43,17 +43,17 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
-            if (camera.projection == CAMERA_PERSPECTIVE)
+            if (camera.projection == RL_E_CAMERA_PERSPECTIVE)
             {
                 camera.fovy = WIDTH_ORTHOGRAPHIC;
-                camera.projection = CAMERA_ORTHOGRAPHIC;
+                camera.projection = RL_E_CAMERA_ORTHOGRAPHIC;
             }
             else
             {
                 camera.fovy = FOVY_PERSPECTIVE;
-                camera.projection = CAMERA_PERSPECTIVE;
+                camera.projection = RL_E_CAMERA_PERSPECTIVE;
             }
         }
         //----------------------------------------------------------------------------------
@@ -86,8 +86,8 @@ int main(void)
 
             RLDrawText("Press Spacebar to switch camera type", 10, RLGetScreenHeight() - 30, 20, DARKGRAY);
 
-            if (camera.projection == CAMERA_ORTHOGRAPHIC) RLDrawText("ORTHOGRAPHIC", 10, 40, 20, BLACK);
-            else if (camera.projection == CAMERA_PERSPECTIVE) RLDrawText("PERSPECTIVE", 10, 40, 20, BLACK);
+            if (camera.projection == RL_E_CAMERA_ORTHOGRAPHIC) RLDrawText("ORTHOGRAPHIC", 10, 40, 20, BLACK);
+            else if (camera.projection == RL_E_CAMERA_PERSPECTIVE) RLDrawText("PERSPECTIVE", 10, 40, 20, BLACK);
 
             RLDrawFPS(10, 10);
 

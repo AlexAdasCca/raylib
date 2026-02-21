@@ -74,7 +74,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) || RLIsKeyPressed(KEY_RIGHT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT) || RLIsKeyPressed(RL_E_KEY_RIGHT))
         {
             currentTexture = (currentTexture + 1)%NUM_TEXTURES; // Cycle between the textures
         }

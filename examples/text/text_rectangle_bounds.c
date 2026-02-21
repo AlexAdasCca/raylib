@@ -65,7 +65,7 @@ tempor incididunt ut labore et dolore magna aliqua. Nec ullamcorper sit amet ris
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE)) wordWrap = !wordWrap;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) wordWrap = !wordWrap;
 
         RLVector2 mouse = RLGetMousePosition();
 
@@ -76,7 +76,7 @@ tempor incididunt ut labore et dolore magna aliqua. Nec ullamcorper sit amet ris
         // Container resizing logic
         if (resizing)
         {
-            if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) resizing = false;
+            if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT)) resizing = false;
 
             float width = container.width + (mouse.x - lastMouse.x);
             container.width = (width > minWidth)? ((width < maxWidth)? width : maxWidth) : minWidth;
@@ -87,7 +87,7 @@ tempor incididunt ut labore et dolore magna aliqua. Nec ullamcorper sit amet ris
         else
         {
             // Check if we're resizing
-            if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) && RLCheckCollisionPointRec(mouse, resizer)) resizing = true;
+            if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT) && RLCheckCollisionPointRec(mouse, resizer)) resizing = true;
         }
 
         // Move resizer rectangle properly

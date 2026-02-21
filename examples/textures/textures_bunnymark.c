@@ -59,7 +59,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT))
         {
             // Create more bunnies
             for (int i = 0; i < 100; i++)

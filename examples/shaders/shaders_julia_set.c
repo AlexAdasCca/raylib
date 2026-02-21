@@ -76,9 +76,9 @@ int main(void)
     int offsetLoc = RLGetShaderLocation(shader, "offset");
 
     // Upload the shader uniform values!
-    RLSetShaderValue(shader, cLoc, c, SHADER_UNIFORM_VEC2);
-    RLSetShaderValue(shader, zoomLoc, &zoom, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shader, offsetLoc, offset, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, cLoc, c, RL_E_SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, zoomLoc, &zoom, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, offsetLoc, offset, RL_E_SHADER_UNIFORM_VEC2);
 
     int incrementSpeed = 0;             // Multiplier of speed to change c value
     bool showControls = true;           // Show controls
@@ -92,44 +92,44 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Press [1 - 6] to reset c to a point of interest
-        if (RLIsKeyPressed(KEY_ONE) ||
-            RLIsKeyPressed(KEY_TWO) ||
-            RLIsKeyPressed(KEY_THREE) ||
-            RLIsKeyPressed(KEY_FOUR) ||
-            RLIsKeyPressed(KEY_FIVE) ||
-            RLIsKeyPressed(KEY_SIX))
+        if (RLIsKeyPressed(RL_E_KEY_ONE) ||
+            RLIsKeyPressed(RL_E_KEY_TWO) ||
+            RLIsKeyPressed(RL_E_KEY_THREE) ||
+            RLIsKeyPressed(RL_E_KEY_FOUR) ||
+            RLIsKeyPressed(RL_E_KEY_FIVE) ||
+            RLIsKeyPressed(RL_E_KEY_SIX))
         {
-            if (RLIsKeyPressed(KEY_ONE)) c[0] = pointsOfInterest[0][0], c[1] = pointsOfInterest[0][1];
-            else if (RLIsKeyPressed(KEY_TWO)) c[0] = pointsOfInterest[1][0], c[1] = pointsOfInterest[1][1];
-            else if (RLIsKeyPressed(KEY_THREE)) c[0] = pointsOfInterest[2][0], c[1] = pointsOfInterest[2][1];
-            else if (RLIsKeyPressed(KEY_FOUR)) c[0] = pointsOfInterest[3][0], c[1] = pointsOfInterest[3][1];
-            else if (RLIsKeyPressed(KEY_FIVE)) c[0] = pointsOfInterest[4][0], c[1] = pointsOfInterest[4][1];
-            else if (RLIsKeyPressed(KEY_SIX)) c[0] = pointsOfInterest[5][0], c[1] = pointsOfInterest[5][1];
+            if (RLIsKeyPressed(RL_E_KEY_ONE)) c[0] = pointsOfInterest[0][0], c[1] = pointsOfInterest[0][1];
+            else if (RLIsKeyPressed(RL_E_KEY_TWO)) c[0] = pointsOfInterest[1][0], c[1] = pointsOfInterest[1][1];
+            else if (RLIsKeyPressed(RL_E_KEY_THREE)) c[0] = pointsOfInterest[2][0], c[1] = pointsOfInterest[2][1];
+            else if (RLIsKeyPressed(RL_E_KEY_FOUR)) c[0] = pointsOfInterest[3][0], c[1] = pointsOfInterest[3][1];
+            else if (RLIsKeyPressed(RL_E_KEY_FIVE)) c[0] = pointsOfInterest[4][0], c[1] = pointsOfInterest[4][1];
+            else if (RLIsKeyPressed(RL_E_KEY_SIX)) c[0] = pointsOfInterest[5][0], c[1] = pointsOfInterest[5][1];
 
-            RLSetShaderValue(shader, cLoc, c, SHADER_UNIFORM_VEC2);
+            RLSetShaderValue(shader, cLoc, c, RL_E_SHADER_UNIFORM_VEC2);
         }
 
         // If "R" is pressed, reset zoom and offset
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
             zoom = startingZoom;
             offset[0] = 0.0f;
             offset[1] = 0.0f;
-            RLSetShaderValue(shader, zoomLoc, &zoom, SHADER_UNIFORM_FLOAT);
-            RLSetShaderValue(shader, offsetLoc, offset, SHADER_UNIFORM_VEC2);
+            RLSetShaderValue(shader, zoomLoc, &zoom, RL_E_SHADER_UNIFORM_FLOAT);
+            RLSetShaderValue(shader, offsetLoc, offset, RL_E_SHADER_UNIFORM_VEC2);
         }
 
-        if (RLIsKeyPressed(KEY_SPACE)) incrementSpeed = 0;         // Pause animation (c change)
-        if (RLIsKeyPressed(KEY_F1)) showControls = !showControls;  // Toggle whether or not to show controls
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) incrementSpeed = 0;         // Pause animation (c change)
+        if (RLIsKeyPressed(RL_E_KEY_F1)) showControls = !showControls;  // Toggle whether or not to show controls
 
-        if (RLIsKeyPressed(KEY_RIGHT)) incrementSpeed++;
-        else if (RLIsKeyPressed(KEY_LEFT)) incrementSpeed--;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) incrementSpeed++;
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT)) incrementSpeed--;
 
         // If either left or right button is pressed, zoom in/out
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) || RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT) || RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT))
         {
             // Change zoom. If Mouse left -> zoom in. Mouse right -> zoom out
-            zoom *= RLIsMouseButtonDown(MOUSE_BUTTON_LEFT)? zoomSpeed : 1.0f/zoomSpeed;
+            zoom *= RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT)? zoomSpeed : 1.0f/zoomSpeed;
 
             const RLVector2 mousePos = RLGetMousePosition();
             RLVector2 offsetVelocity;
@@ -143,15 +143,15 @@ int main(void)
             offset[1] += RLGetFrameTime()*offsetVelocity.y;
 
             // Update the shader uniform values!
-            RLSetShaderValue(shader, zoomLoc, &zoom, SHADER_UNIFORM_FLOAT);
-            RLSetShaderValue(shader, offsetLoc, offset, SHADER_UNIFORM_VEC2);
+            RLSetShaderValue(shader, zoomLoc, &zoom, RL_E_SHADER_UNIFORM_FLOAT);
+            RLSetShaderValue(shader, offsetLoc, offset, RL_E_SHADER_UNIFORM_VEC2);
         }
 
         // Increment c value with time
         const float dc = RLGetFrameTime()*(float)incrementSpeed*0.0005f;
         c[0] += dc;
         c[1] += dc;
-        RLSetShaderValue(shader, cLoc, c, SHADER_UNIFORM_VEC2);
+        RLSetShaderValue(shader, cLoc, c, RL_E_SHADER_UNIFORM_VEC2);
         //----------------------------------------------------------------------------------
 
         // Draw

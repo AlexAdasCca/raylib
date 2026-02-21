@@ -69,7 +69,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - penrose tile");
 
     float drawLength = 460.0f;
@@ -90,7 +90,7 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         bool rebuild = false;
-        if (RLIsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(RL_E_KEY_UP))
         {
             if (generations < maxGenerations)
             {
@@ -98,7 +98,7 @@ int main(void)
                 rebuild = true;
             }
         }
-        else if (RLIsKeyPressed(KEY_DOWN))
+        else if (RLIsKeyPressed(RL_E_KEY_DOWN))
         {
             if (generations > minGenerations)
             {
@@ -146,14 +146,14 @@ int main(void)
 static void PushTurtleState(TurtleState state)
 {
     if (turtleTop < (TURTLE_STACK_MAX_SIZE - 1)) turtleStack[++turtleTop] = state;
-    else RLTraceLog(LOG_WARNING, "TURTLE STACK OVERFLOW!");
+    else RLTraceLog(RL_E_LOG_WARNING, "TURTLE STACK OVERFLOW!");
 }
 
 // Pop turtle state step
 static TurtleState PopTurtleState(void)
 {
     if (turtleTop >= 0) return turtleStack[turtleTop--];
-    else RLTraceLog(LOG_WARNING, "TURTLE STACK UNDERFLOW!");
+    else RLTraceLog(RL_E_LOG_WARNING, "TURTLE STACK UNDERFLOW!");
 
     return (TurtleState){ 0 };
 }

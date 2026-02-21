@@ -82,7 +82,7 @@ int main(void)
         // Update points rotation with an angle transform
         // NOTE: Base points position are not modified
         angle++;
-        for (int i = 0; i < MAX_POINTS; i++) positions[i] = Vector2Rotate(points[i], angle*DEG2RAD);
+        for (int i = 0; i < MAX_POINTS; i++) positions[i] = RLVector2Rotate(points[i], angle*DEG2RAD);
         //----------------------------------------------------------------------------------
 
         // Draw

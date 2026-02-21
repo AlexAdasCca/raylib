@@ -38,7 +38,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };  // Target position
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f }; // Up vector
     camera.fovy = 45.0f; // FOV
-    camera.projection = CAMERA_PERSPECTIVE; // Projection type (Standard 3D perspective)
+    camera.projection = RL_E_CAMERA_PERSPECTIVE; // Projection type (Standard 3D perspective)
 
     // Load billboard texture
     RLTexture skillbot = RLLoadTexture("resources/skillbot.png");
@@ -56,7 +56,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
         // Update timer with delta time
         anim_timer += RLGetFrameTime();
@@ -72,7 +72,7 @@ int main(void)
         if (anim >= 4) anim = 0;
 
         // Find the current direction frame based on the camera position to the billboard object
-        float dir = (float)floor(((Vector2Angle((RLVector2){ 2.0f, 0.0f }, (RLVector2){ camera.position.x, camera.position.z })/PI)*4.0f) + 0.25f);
+        float dir = (float)floor(((RLVector2Angle((RLVector2){ 2.0f, 0.0f }, (RLVector2){ camera.position.x, camera.position.z })/PI)*4.0f) + 0.25f);
 
         // Correct frame index if angle is negative
         if (dir < 0.0f)
@@ -92,7 +92,7 @@ int main(void)
             RLDrawGrid(10, 1.0f);
 
             // Draw billboard pointing straight up to the sky, rotated relative to the camera and offset from the bottom
-            RLDrawBillboardPro(camera, skillbot, (RLRectangle){ 0.0f + (anim*24.0f), 0.0f + (dir*24.0f), 24.0f, 24.0f }, Vector3Zero(), (RLVector3){ 0.0f, 1.0f, 0.0f }, Vector2One(), (RLVector2){ 0.5f, 0.0f }, 0, WHITE);
+            RLDrawBillboardPro(camera, skillbot, (RLRectangle){ 0.0f + (anim*24.0f), 0.0f + (dir*24.0f), 24.0f, 24.0f }, RLVector3Zero(), (RLVector3){ 0.0f, 1.0f, 0.0f }, RLVector2One(), (RLVector2){ 0.5f, 0.0f }, 0, WHITE);
 
         RLEndMode3D();
 

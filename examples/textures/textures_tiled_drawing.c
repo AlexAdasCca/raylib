@@ -35,12 +35,12 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE); // Make the window resizable
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE); // Make the window resizable
     RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - tiled drawing");
 
     // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
     RLTexture texPattern = RLLoadTexture("resources/patterns.png");
-    RLSetTextureFilter(texPattern, TEXTURE_FILTER_BILINEAR); // Makes the texture smoother when upscaled
+    RLSetTextureFilter(texPattern, RL_E_TEXTURE_FILTER_BILINEAR); // Makes the texture smoother when upscaled
 
     // Coordinates for all patterns inside the texture
     const RLRectangle recPattern[] = {
@@ -85,7 +85,7 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Handle mouse
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             const RLVector2 mouse = RLGetMousePosition();
 
@@ -111,17 +111,17 @@ int main(void)
         }
 
         // Handle keys: change scale
-        if (RLIsKeyPressed(KEY_UP)) scale += 0.25f;
-        if (RLIsKeyPressed(KEY_DOWN)) scale -= 0.25f;
+        if (RLIsKeyPressed(RL_E_KEY_UP)) scale += 0.25f;
+        if (RLIsKeyPressed(RL_E_KEY_DOWN)) scale -= 0.25f;
         if (scale > 10.0f) scale = 10.0f;
         else if ( scale <= 0.0f) scale = 0.25f;
 
         // Handle keys: change rotation
-        if (RLIsKeyPressed(KEY_LEFT)) rotation -= 25.0f;
-        if (RLIsKeyPressed(KEY_RIGHT)) rotation += 25.0f;
+        if (RLIsKeyPressed(RL_E_KEY_LEFT)) rotation -= 25.0f;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) rotation += 25.0f;
 
         // Handle keys: reset
-        if (RLIsKeyPressed(KEY_SPACE)) { rotation = 0.0f; scale = 1.0f; }
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) { rotation = 0.0f; scale = 1.0f; }
         //----------------------------------------------------------------------------------
 
         // Draw

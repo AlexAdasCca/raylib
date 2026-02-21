@@ -33,7 +33,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------

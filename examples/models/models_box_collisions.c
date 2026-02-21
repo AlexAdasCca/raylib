@@ -52,10 +52,10 @@ int main(void)
         //----------------------------------------------------------------------------------
 
         // Move player
-        if (RLIsKeyDown(KEY_RIGHT)) playerPosition.x += 0.2f;
-        else if (RLIsKeyDown(KEY_LEFT)) playerPosition.x -= 0.2f;
-        else if (RLIsKeyDown(KEY_DOWN)) playerPosition.z += 0.2f;
-        else if (RLIsKeyDown(KEY_UP)) playerPosition.z -= 0.2f;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT)) playerPosition.x += 0.2f;
+        else if (RLIsKeyDown(RL_E_KEY_LEFT)) playerPosition.x -= 0.2f;
+        else if (RLIsKeyDown(RL_E_KEY_DOWN)) playerPosition.z += 0.2f;
+        else if (RLIsKeyDown(RL_E_KEY_UP)) playerPosition.z -= 0.2f;
 
         collision = false;
 

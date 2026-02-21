@@ -123,7 +123,7 @@ int main(void)
     // a pitch black half and a dimly lit half
     unsigned int wLoc = RLGetShaderLocation(shdrSpot, "screenWidth");
     float sw = (float)RLGetScreenWidth();
-    RLSetShaderValue(shdrSpot, wLoc, &sw, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shdrSpot, wLoc, &sw, RL_E_SHADER_UNIFORM_FLOAT);
 
     // Randomize the locations and velocities of the spotlights
     // and initialize the shader locations
@@ -142,9 +142,9 @@ int main(void)
         spots[i].inner = 28.0f*(i + 1);
         spots[i].radius = 48.0f*(i + 1);
 
-        RLSetShaderValue(shdrSpot, spots[i].positionLoc, &spots[i].position.x, SHADER_UNIFORM_VEC2);
-        RLSetShaderValue(shdrSpot, spots[i].innerLoc, &spots[i].inner, SHADER_UNIFORM_FLOAT);
-        RLSetShaderValue(shdrSpot, spots[i].radiusLoc, &spots[i].radius, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shdrSpot, spots[i].positionLoc, &spots[i].position.x, RL_E_SHADER_UNIFORM_VEC2);
+        RLSetShaderValue(shdrSpot, spots[i].innerLoc, &spots[i].inner, RL_E_SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shdrSpot, spots[i].radiusLoc, &spots[i].radius, RL_E_SHADER_UNIFORM_FLOAT);
     }
 
     RLSetTargetFPS(60);               // Set  to run at 60 frames-per-second
@@ -180,7 +180,7 @@ int main(void)
                 if (spots[i].position.y > (screenHeight - 64)) spots[i].speed.y = -spots[i].speed.y;
             }
 
-            RLSetShaderValue(shdrSpot, spots[i].positionLoc, &spots[i].position.x, SHADER_UNIFORM_VEC2);
+            RLSetShaderValue(shdrSpot, spots[i].positionLoc, &spots[i].position.x, RL_E_SHADER_UNIFORM_VEC2);
         }
 
         // Draw
@@ -249,12 +249,12 @@ static void ResetStar(Star *star)
         star->speed.y = (float)RLGetRandomValue(-1000, 1000)/100.0f;
     }
 
-    star->position = Vector2Add(star->position, Vector2Multiply(star->speed, (RLVector2){ 8.0f, 8.0f }));
+    star->position = RLVector2Add(star->position, RLVector2Multiply(star->speed, (RLVector2){ 8.0f, 8.0f }));
 }
 
 static void UpdateStar(Star *star)
 {
-    star->position = Vector2Add(star->position, star->speed);
+    star->position = RLVector2Add(star->position, star->speed);
 
     if ((star->position.x < 0) || (star->position.x > RLGetScreenWidth()) ||
         (star->position.y < 0) || (star->position.y > RLGetScreenHeight())) ResetStar(star);

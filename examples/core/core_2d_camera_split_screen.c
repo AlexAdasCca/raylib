@@ -63,15 +63,15 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyDown(KEY_S)) player1.y += 3.0f;
-        else if (RLIsKeyDown(KEY_W)) player1.y -= 3.0f;
-        if (RLIsKeyDown(KEY_D)) player1.x += 3.0f;
-        else if (RLIsKeyDown(KEY_A)) player1.x -= 3.0f;
+        if (RLIsKeyDown(RL_E_KEY_S)) player1.y += 3.0f;
+        else if (RLIsKeyDown(RL_E_KEY_W)) player1.y -= 3.0f;
+        if (RLIsKeyDown(RL_E_KEY_D)) player1.x += 3.0f;
+        else if (RLIsKeyDown(RL_E_KEY_A)) player1.x -= 3.0f;
 
-        if (RLIsKeyDown(KEY_UP)) player2.y -= 3.0f;
-        else if (RLIsKeyDown(KEY_DOWN)) player2.y += 3.0f;
-        if (RLIsKeyDown(KEY_RIGHT)) player2.x += 3.0f;
-        else if (RLIsKeyDown(KEY_LEFT)) player2.x -= 3.0f;
+        if (RLIsKeyDown(RL_E_KEY_UP)) player2.y -= 3.0f;
+        else if (RLIsKeyDown(RL_E_KEY_DOWN)) player2.y += 3.0f;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT)) player2.x += 3.0f;
+        else if (RLIsKeyDown(RL_E_KEY_LEFT)) player2.x -= 3.0f;
 
         camera1.target = (RLVector2){ player1.x, player1.y };
         camera2.target = (RLVector2){ player2.x, player2.y };

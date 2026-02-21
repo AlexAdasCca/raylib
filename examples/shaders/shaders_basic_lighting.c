@@ -43,7 +43,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);  // Enable Multi Sampling Anti Aliasing 4x (if available)
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);  // Enable Multi Sampling Anti Aliasing 4x (if available)
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - basic lighting");
 
     // Define the camera to look into our 3d world
@@ -52,27 +52,27 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load basic lighting shader
     RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/lighting.vs", GLSL_VERSION),
                                RLTextFormat("resources/shaders/glsl%i/lighting.fs", GLSL_VERSION));
     // Get some required shader locations
-    shader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
+    shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
     // NOTE: "matModel" location name is automatically assigned on shader loading,
     // no need to get the location again if using that uniform name
     //shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(shader, "matModel");
 
     // Ambient light level (some basic lighting)
     int ambientLoc = RLGetShaderLocation(shader, "ambient");
-    RLSetShaderValue(shader, ambientLoc, (float[4]){ 0.1f, 0.1f, 0.1f, 1.0f }, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shader, ambientLoc, (float[4]){ 0.1f, 0.1f, 0.1f, 1.0f }, RL_E_SHADER_UNIFORM_VEC4);
 
     // Create lights
     Light lights[MAX_LIGHTS] = { 0 };
-    lights[0] = CreateLight(LIGHT_POINT, (RLVector3){ -2, 1, -2 }, Vector3Zero(), YELLOW, shader);
-    lights[1] = CreateLight(LIGHT_POINT, (RLVector3){ 2, 1, 2 }, Vector3Zero(), RED, shader);
-    lights[2] = CreateLight(LIGHT_POINT, (RLVector3){ -2, 1, 2 }, Vector3Zero(), GREEN, shader);
-    lights[3] = CreateLight(LIGHT_POINT, (RLVector3){ 2, 1, -2 }, Vector3Zero(), BLUE, shader);
+    lights[0] = CreateLight(LIGHT_POINT, (RLVector3){ -2, 1, -2 }, RLVector3Zero(), YELLOW, shader);
+    lights[1] = CreateLight(LIGHT_POINT, (RLVector3){ 2, 1, 2 }, RLVector3Zero(), RED, shader);
+    lights[2] = CreateLight(LIGHT_POINT, (RLVector3){ -2, 1, 2 }, RLVector3Zero(), GREEN, shader);
+    lights[3] = CreateLight(LIGHT_POINT, (RLVector3){ 2, 1, -2 }, RLVector3Zero(), BLUE, shader);
 
     RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -82,17 +82,17 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
         // Update the shader with the camera view vector (points towards { 0.0f, 0.0f, 0.0f })
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
-        RLSetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], cameraPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW], cameraPos, RL_E_SHADER_UNIFORM_VEC3);
 
         // Check key inputs to enable/disable lights
-        if (RLIsKeyPressed(KEY_Y)) { lights[0].enabled = !lights[0].enabled; }
-        if (RLIsKeyPressed(KEY_R)) { lights[1].enabled = !lights[1].enabled; }
-        if (RLIsKeyPressed(KEY_G)) { lights[2].enabled = !lights[2].enabled; }
-        if (RLIsKeyPressed(KEY_B)) { lights[3].enabled = !lights[3].enabled; }
+        if (RLIsKeyPressed(RL_E_KEY_Y)) { lights[0].enabled = !lights[0].enabled; }
+        if (RLIsKeyPressed(RL_E_KEY_R)) { lights[1].enabled = !lights[1].enabled; }
+        if (RLIsKeyPressed(RL_E_KEY_G)) { lights[2].enabled = !lights[2].enabled; }
+        if (RLIsKeyPressed(RL_E_KEY_B)) { lights[3].enabled = !lights[3].enabled; }
 
         // Update light values (actually, only enable/disable them)
         for (int i = 0; i < MAX_LIGHTS; i++) UpdateLightValues(shader, lights[i]);
@@ -108,8 +108,8 @@ int main(void)
 
                 RLBeginShaderMode(shader);
 
-                    RLDrawPlane(Vector3Zero(), (RLVector2) { 10.0, 10.0 }, WHITE);
-                    RLDrawCube(Vector3Zero(), 2.0, 4.0, 2.0, WHITE);
+                    RLDrawPlane(RLVector3Zero(), (RLVector2) { 10.0, 10.0 }, WHITE);
+                    RLDrawCube(RLVector3Zero(), 2.0, 4.0, 2.0, WHITE);
 
                 RLEndShaderMode();
 

@@ -38,7 +38,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - normalmap rendering");
 
     RLCamera camera = { 0 };
@@ -46,15 +46,15 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;
 
     // Load basic normal map lighting shader
     RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/normalmap.vs", GLSL_VERSION),
                                RLTextFormat("resources/shaders/glsl%i/normalmap.fs", GLSL_VERSION));
 
     // Get some required shader locations
-    shader.locs[SHADER_LOC_MAP_NORMAL] = RLGetShaderLocation(shader, "normalMap");
-    shader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
+    shader.locs[RL_E_SHADER_LOC_MAP_NORMAL] = RLGetShaderLocation(shader, "normalMap");
+    shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
 
     // NOTE: "matModel" location name is automatically assigned on shader loading,
     // no need to get the location again if using that uniform name
@@ -70,14 +70,14 @@ int main(void)
     // Set the plane model's shader and texture maps
     plane.materials[0].shader = shader;
     plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = RLLoadTexture("resources/tiles_diffuse.png");
-    plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture = RLLoadTexture("resources/tiles_normal.png");
+    plane.materials[0].maps[RL_E_MATERIAL_MAP_NORMAL].texture = RLLoadTexture("resources/tiles_normal.png");
 
     // Generate Mipmaps and use TRILINEAR filtering to help with texture aliasing
     RLGenTextureMipmaps(&plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture);
-    RLGenTextureMipmaps(&plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture);
+    RLGenTextureMipmaps(&plane.materials[0].maps[RL_E_MATERIAL_MAP_NORMAL].texture);
 
-    RLSetTextureFilter(plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture, TEXTURE_FILTER_TRILINEAR);
-    RLSetTextureFilter(plane.materials[0].maps[MATERIAL_MAP_NORMAL].texture, TEXTURE_FILTER_TRILINEAR);
+    RLSetTextureFilter(plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture, RL_E_TEXTURE_FILTER_TRILINEAR);
+    RLSetTextureFilter(plane.materials[0].maps[RL_E_MATERIAL_MAP_NORMAL].texture, RL_E_TEXTURE_FILTER_TRILINEAR);
 
     // Specular exponent AKA shininess of the material
     float specularExponent = 8.0f;
@@ -97,34 +97,34 @@ int main(void)
         //----------------------------------------------------------------------------------
         // Move the light around on the X and Z axis using WASD keys
         RLVector3 direction = { 0 };
-        if (RLIsKeyDown(KEY_W)) direction = Vector3Add(direction, (RLVector3){ 0.0f, 0.0f, 1.0f });
-        if (RLIsKeyDown(KEY_S)) direction = Vector3Add(direction, (RLVector3){ 0.0f, 0.0f, -1.0f });
-        if (RLIsKeyDown(KEY_D)) direction = Vector3Add(direction, (RLVector3){ -1.0f, 0.0f, 0.0f });
-        if (RLIsKeyDown(KEY_A)) direction = Vector3Add(direction, (RLVector3){ 1.0f, 0.0f, 0.0f });
+        if (RLIsKeyDown(RL_E_KEY_W)) direction = RLVector3Add(direction, (RLVector3){ 0.0f, 0.0f, 1.0f });
+        if (RLIsKeyDown(RL_E_KEY_S)) direction = RLVector3Add(direction, (RLVector3){ 0.0f, 0.0f, -1.0f });
+        if (RLIsKeyDown(RL_E_KEY_D)) direction = RLVector3Add(direction, (RLVector3){ -1.0f, 0.0f, 0.0f });
+        if (RLIsKeyDown(RL_E_KEY_A)) direction = RLVector3Add(direction, (RLVector3){ 1.0f, 0.0f, 0.0f });
 
-        direction = Vector3Normalize(direction);
-        lightPosition = Vector3Add(lightPosition, Vector3Scale(direction, RLGetFrameTime()*3.0f));
+        direction = RLVector3Normalize(direction);
+        lightPosition = RLVector3Add(lightPosition, RLVector3Scale(direction, RLGetFrameTime()*3.0f));
 
         // Increase/Decrease the specular exponent(shininess)
-        if (RLIsKeyDown(KEY_UP)) specularExponent = Clamp(specularExponent + 40.0f*RLGetFrameTime(), 2.0f, 128.0f);
-        if (RLIsKeyDown(KEY_DOWN)) specularExponent = Clamp(specularExponent - 40.0f*RLGetFrameTime(), 2.0f, 128.0f);
+        if (RLIsKeyDown(RL_E_KEY_UP)) specularExponent = RLClamp(specularExponent + 40.0f*RLGetFrameTime(), 2.0f, 128.0f);
+        if (RLIsKeyDown(RL_E_KEY_DOWN)) specularExponent = RLClamp(specularExponent - 40.0f*RLGetFrameTime(), 2.0f, 128.0f);
 
         // Toggle normal map on and off
-        if (RLIsKeyPressed(KEY_N)) useNormalMap = !useNormalMap;
+        if (RLIsKeyPressed(RL_E_KEY_N)) useNormalMap = !useNormalMap;
 
         // Spin plane model at a constant rate
-        plane.transform = MatrixRotateY((float)RLGetTime()*0.5f);
+        plane.transform = RLMatrixRotateY((float)RLGetTime()*0.5f);
 
         // Update shader values
         float lightPos[3] = {lightPosition.x, lightPosition.y, lightPosition.z};
-        RLSetShaderValue(shader, lightPosLoc, lightPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, lightPosLoc, lightPos, RL_E_SHADER_UNIFORM_VEC3);
 
         float camPos[3] = {camera.position.x, camera.position.y, camera.position.z};
-        RLSetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], camPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW], camPos, RL_E_SHADER_UNIFORM_VEC3);
 
-        RLSetShaderValue(shader, specularExponentLoc, &specularExponent, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, specularExponentLoc, &specularExponent, RL_E_SHADER_UNIFORM_FLOAT);
 
-        RLSetShaderValue(shader, useNormalMapLoc, &useNormalMap, SHADER_UNIFORM_INT);
+        RLSetShaderValue(shader, useNormalMapLoc, &useNormalMap, RL_E_SHADER_UNIFORM_INT);
         //--------------------------------------------------------------------------------------
 
         // Draw
@@ -137,7 +137,7 @@ int main(void)
 
                 RLBeginShaderMode(shader);
 
-                    RLDrawModel(plane, Vector3Zero(), 2.0f, WHITE);
+                    RLDrawModel(plane, RLVector3Zero(), 2.0f, WHITE);
 
                 RLEndShaderMode();
 

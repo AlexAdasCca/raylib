@@ -31,7 +31,7 @@ int main(void)
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - vector angle");
 
     RLVector2 v0 = { screenWidth/2.0f, screenHeight/2.0f };
-    RLVector2 v1 = Vector2Add(v0, (RLVector2){ 100.0f, 80.0f });
+    RLVector2 v1 = RLVector2Add(v0, (RLVector2){ 100.0f, 80.0f });
     RLVector2 v2 = { 0 };             // Updated with mouse position
 
     float angle = 0.0f;             // Angle in degrees
@@ -47,27 +47,27 @@ int main(void)
         //----------------------------------------------------------------------------------
         float startangle = 0.0f;
 
-        if (angleMode == 0) startangle = -Vector2LineAngle(v0, v1)*RAD2DEG;
+        if (angleMode == 0) startangle = -RLVector2LineAngle(v0, v1)*RAD2DEG;
         if (angleMode == 1) startangle = 0.0f;
 
         v2 = RLGetMousePosition();
 
-        if (RLIsKeyPressed(KEY_SPACE)) angleMode = !angleMode;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) angleMode = !angleMode;
 
-        if ((angleMode == 0) && RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT)) v1 = RLGetMousePosition();
+        if ((angleMode == 0) && RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT)) v1 = RLGetMousePosition();
 
         if (angleMode == 0)
         {
             // Calculate angle between two vectors, considering a common origin (v0)
-            RLVector2 v1Normal = Vector2Normalize(Vector2Subtract(v1, v0));
-            RLVector2 v2Normal = Vector2Normalize(Vector2Subtract(v2, v0));
+            RLVector2 v1Normal = RLVector2Normalize(RLVector2Subtract(v1, v0));
+            RLVector2 v2Normal = RLVector2Normalize(RLVector2Subtract(v2, v0));
 
-            angle = Vector2Angle(v1Normal, v2Normal)*RAD2DEG;
+            angle = RLVector2Angle(v1Normal, v2Normal)*RAD2DEG;
         }
         else if (angleMode == 1)
         {
             // Calculate angle defined by a two vectors line, in reference to horizontal line
-            angle = Vector2LineAngle(v0, v2)*RAD2DEG;
+            angle = RLVector2LineAngle(v0, v2)*RAD2DEG;
         }
         //----------------------------------------------------------------------------------
 
@@ -100,8 +100,8 @@ int main(void)
             RLDrawText("v0", (int)v0.x, (int)v0.y, 10, DARKGRAY);
 
             // If the line from v0 to v1 would overlap the text, move it's position up 10
-            if (angleMode == 0 && Vector2Subtract(v0, v1).y > 0.0f) RLDrawText("v1", (int)v1.x, (int)v1.y-10, 10, DARKGRAY);
-            if (angleMode == 0 && Vector2Subtract(v0, v1).y < 0.0f) RLDrawText("v1", (int)v1.x, (int)v1.y, 10, DARKGRAY);
+            if (angleMode == 0 && RLVector2Subtract(v0, v1).y > 0.0f) RLDrawText("v1", (int)v1.x, (int)v1.y-10, 10, DARKGRAY);
+            if (angleMode == 0 && RLVector2Subtract(v0, v1).y < 0.0f) RLDrawText("v1", (int)v1.x, (int)v1.y, 10, DARKGRAY);
 
             // If angle mode 1, use v1 to emphasize the horizontal line
             if (angleMode == 1) RLDrawText("v1", (int)v0.x + 40, (int)v0.y, 10, DARKGRAY);

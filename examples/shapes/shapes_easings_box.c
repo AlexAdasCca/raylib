@@ -110,7 +110,7 @@ int main(void)
         }
 
         // Reset animation at any moment
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             rec = (RLRectangle){ RLGetScreenWidth()/2.0f, -100, 100, 100 };
             rotation = 0.0f;

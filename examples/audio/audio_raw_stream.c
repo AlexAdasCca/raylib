@@ -110,7 +110,7 @@ int main(void)
         //----------------------------------------------------------------------------------
         mousePosition = RLGetMousePosition();
 
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT))
         {
             float fp = (float)(mousePosition.y);
             frequency = 40.0f + (float)(fp);

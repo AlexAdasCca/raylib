@@ -82,7 +82,7 @@ int main(void)
                 rotation = EaseLinearIn((float)framesCounter, 0.0f, 360.0f, PLAY_TIME_IN_FRAMES);
             }
         }
-        else if ((state == 1) && RLIsKeyPressed(KEY_SPACE))
+        else if ((state == 1) && RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             // When animation has finished, press space to restart
             framesCounter = 0;

@@ -1,4 +1,4 @@
-/*******************************************************************************************
+﻿/*******************************************************************************************
 *
 *   raylib [core] example - GLFW event-thread diagnostics (Route2 multi-window)
 *
@@ -63,7 +63,7 @@ static unsigned __stdcall SecondaryWindowThread(void* /*arg*/)
     RLSetCurrentContext(ctx);
 
     // Secondary window uses event-thread mode.
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_EVENT_THREAD);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_EVENT_THREAD);
     RLInitWindow(680, 370, "raylib [event-thread] secondary window B");
     RLSetTargetFPS(60);
 
@@ -120,7 +120,7 @@ int main(void)
 #endif
 
     // Primary window A uses event-thread mode too.
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_EVENT_THREAD);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT | RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_EVENT_THREAD);
     RLInitWindow(800, 450, "raylib [event-thread] primary window A");
     RLSetTargetFPS(60);
 
@@ -135,12 +135,12 @@ int main(void)
 
     while (!QuitRequested() && !RLWindowShouldClose())
     {
-        if (RLIsKeyPressed(KEY_H)) showHelp = !showHelp;
+        if (RLIsKeyPressed(RL_E_KEY_H)) showHelp = !showHelp;
 
-        if (RLIsKeyPressed(KEY_M)) gBCmd.store(BCmd::Minimize, std::memory_order_release);
-        if (RLIsKeyPressed(KEY_R)) gBCmd.store(BCmd::Restore, std::memory_order_release);
-        if (RLIsKeyPressed(KEY_W)) gBCmd.store(BCmd::ToggleWait, std::memory_order_release);
-        if (RLIsKeyPressed(KEY_B)) gBCmd.store(BCmd::ToggleBorderless, std::memory_order_release);
+        if (RLIsKeyPressed(RL_E_KEY_M)) gBCmd.store(BCmd::Minimize, std::memory_order_release);
+        if (RLIsKeyPressed(RL_E_KEY_R)) gBCmd.store(BCmd::Restore, std::memory_order_release);
+        if (RLIsKeyPressed(RL_E_KEY_W)) gBCmd.store(BCmd::ToggleWait, std::memory_order_release);
+        if (RLIsKeyPressed(RL_E_KEY_B)) gBCmd.store(BCmd::ToggleBorderless, std::memory_order_release);
 
         RLBeginDrawing();
         RLClearBackground(RAYWHITE);

@@ -42,7 +42,7 @@ int main(void)
     subjectCamera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
     subjectCamera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     subjectCamera.fovy = 45.0f;
-    subjectCamera.projection = CAMERA_PERSPECTIVE;
+    subjectCamera.projection = RL_E_CAMERA_PERSPECTIVE;
 
     // Camera to observe the subject camera and 3D world
     RLCamera3D observerCamera = { 0 };
@@ -50,7 +50,7 @@ int main(void)
     observerCamera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
     observerCamera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     observerCamera.fovy = 45.0f;
-    observerCamera.projection = CAMERA_PERSPECTIVE;
+    observerCamera.projection = RL_E_CAMERA_PERSPECTIVE;
 
     // Set up render textures
     RLRenderTexture2D observerTarget = RLLoadRenderTexture(splitWidth, screenHeight);
@@ -76,10 +76,10 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&observerCamera, CAMERA_FREE);
-        RLUpdateCamera(&subjectCamera, CAMERA_ORBITAL);
+        RLUpdateCamera(&observerCamera, RL_E_CAMERA_FREE);
+        RLUpdateCamera(&subjectCamera, RL_E_CAMERA_ORBITAL);
 
-        if (RLIsKeyPressed(KEY_R)) observerCamera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
+        if (RLIsKeyPressed(RL_E_KEY_R)) observerCamera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
 
         // Build LHS observer view texture
         RLBeginTextureMode(observerTarget);
@@ -160,7 +160,7 @@ int main(void)
 //----------------------------------------------------------------------------------
 static void DrawCameraPrism(RLCamera3D camera, float aspect, RLColor color)
 {
-    float length = Vector3Distance(camera.position, camera.target);
+    float length = RLVector3Distance(camera.position, camera.target);
     // Define the 4 corners of the camera's prism plane sliced at the target in Normalized Device Coordinates
     RLVector3 planeNDC[4] = {
         { -1.0f, -1.0f, 1.0f }, // Bottom Left
@@ -171,11 +171,11 @@ static void DrawCameraPrism(RLCamera3D camera, float aspect, RLColor color)
 
     // Build the matrices
     RLMatrix view = RLGetCameraMatrix(camera);
-    RLMatrix proj = MatrixPerspective(camera.fovy * DEG2RAD, aspect, 0.05f, length);
+    RLMatrix proj = RLMatrixPerspective(camera.fovy * DEG2RAD, aspect, 0.05f, length);
     // Combine view and projection so we can reverse the full camera transform
-    RLMatrix viewProj = MatrixMultiply(view, proj);
+    RLMatrix viewProj = RLMatrixMultiply(view, proj);
     // Invert the view-projection matrix to unproject points from NDC space back into world space
-    RLMatrix inverseViewProj = MatrixInvert(viewProj);
+    RLMatrix inverseViewProj = RLMatrixInvert(viewProj);
 
     // Transform the 4 plane corners from NDC into world space
     RLVector3 corners[4];

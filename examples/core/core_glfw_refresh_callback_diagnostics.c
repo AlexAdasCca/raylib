@@ -1,4 +1,4 @@
-/*******************************************************************************************
+﻿/*******************************************************************************************
 *
 *   raylib [core] example - GLFW refresh-callback (Win32 modal loop) diagnostics
 *
@@ -47,7 +47,7 @@ static void DrawHud(const char* modeLabel)
     RLDrawText(RLTextFormat("window: %dx%d  render: %dx%d", RLGetScreenWidth(), RLGetScreenHeight(), RLGetRenderWidth(), RLGetRenderHeight()), 20, 68, 18, RAYWHITE);
 
     RLDrawText(RLTextFormat("focused=%d minimized=%d maximized=%d fullscreen=%d borderless=%d", 
-        RLIsWindowFocused(), RLIsWindowMinimized(), RLIsWindowMaximized(), RLIsWindowFullscreen(), RLIsWindowState(FLAG_WINDOW_UNDECORATED)),
+        RLIsWindowFocused(), RLIsWindowMinimized(), RLIsWindowMaximized(), RLIsWindowFullscreen(), RLIsWindowState(RL_E_FLAG_WINDOW_UNDECORATED)),
         20, 91, 18, RAYWHITE);
 
 #if defined(_WIN32)
@@ -142,7 +142,7 @@ static void OnRefreshDraw(void)
 
 int main(void)
 {
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_REFRESH_CALLBACK | FLAG_WINDOW_RESIZABLE);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT | RL_E_FLAG_WINDOW_REFRESH_CALLBACK | RL_E_FLAG_WINDOW_RESIZABLE);
     RLInitWindow(800, 450, "raylib [core] refresh callback diagnostics");
 
     // Register refresh callback (invoked during Win32 modal loops).
@@ -158,8 +158,8 @@ int main(void)
     while (!RLWindowShouldClose())
     {
         // Controls
-        if (RLIsKeyPressed(KEY_H)) gShowHelp = !gShowHelp;
-        if (RLIsKeyPressed(KEY_F5))
+        if (RLIsKeyPressed(RL_E_KEY_H)) gShowHelp = !gShowHelp;
+        if (RLIsKeyPressed(RL_E_KEY_F5))
         {
             gScripted = !gScripted;
             gScriptStep = 0;
@@ -176,31 +176,31 @@ int main(void)
             gNextScriptTime = RLGetTime() + 0.8;
         }
 
-        if (RLIsKeyPressed(KEY_ONE)) RLSetWindowTitle("[diag] title via key 1");
-        if (RLIsKeyPressed(KEY_TWO))
+        if (RLIsKeyPressed(RL_E_KEY_ONE)) RLSetWindowTitle("[diag] title via key 1");
+        if (RLIsKeyPressed(RL_E_KEY_TWO))
         {
             static const int sizes[][2] = { {800,450},{1024,576},{640,360},{900,520} };
             sizeIdx = (sizeIdx + 1) % 4;
             RLSetWindowSize(sizes[sizeIdx][0], sizes[sizeIdx][1]);
         }
-        if (RLIsKeyPressed(KEY_THREE))
+        if (RLIsKeyPressed(RL_E_KEY_THREE))
         {
             static const int pos[][2] = { {40,40},{200,120},{520,120},{120,240} };
             posIdx = (posIdx + 1) % 4;
             RLSetWindowPosition(pos[posIdx][0], pos[posIdx][1]);
         }
-        if (RLIsKeyPressed(KEY_FOUR)) RLMinimizeWindow();
-        if (RLIsKeyPressed(KEY_FIVE)) RLRestoreWindow();
-        if (RLIsKeyPressed(KEY_SIX)) RLMaximizeWindow();
-        if (RLIsKeyPressed(KEY_SEVEN)) RLToggleFullscreen();
-        if (RLIsKeyPressed(KEY_EIGHT)) RLToggleBorderlessWindowed();
-        if (RLIsKeyPressed(KEY_NINE))
+        if (RLIsKeyPressed(RL_E_KEY_FOUR)) RLMinimizeWindow();
+        if (RLIsKeyPressed(RL_E_KEY_FIVE)) RLRestoreWindow();
+        if (RLIsKeyPressed(RL_E_KEY_SIX)) RLMaximizeWindow();
+        if (RLIsKeyPressed(RL_E_KEY_SEVEN)) RLToggleFullscreen();
+        if (RLIsKeyPressed(RL_E_KEY_EIGHT)) RLToggleBorderlessWindowed();
+        if (RLIsKeyPressed(RL_E_KEY_NINE))
         {
             opacityIdx = (opacityIdx + 1) % (int)(sizeof(opacities)/sizeof(opacities[0]));
             RLSetWindowOpacity(opacities[opacityIdx]);
         }
 
-        if (RLIsKeyPressed(KEY_C))
+        if (RLIsKeyPressed(RL_E_KEY_C))
         {
             RLSetClipboardText("[diag] clipboard set by core_glfw_refresh_callback_diagnostics");
             printf("[diag] clipboard now: %s\n", RLGetClipboardText());

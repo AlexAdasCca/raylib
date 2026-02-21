@@ -136,7 +136,7 @@ int main(void)
 {
     // Enable Win32 event-thread mode via config flags.
     // (Your modified platform layer should read this flag and start the event thread.)
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_WINDOW_EVENT_THREAD);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_MSAA_4X_HINT | RL_E_FLAG_WINDOW_EVENT_THREAD);
 
     RLInitWindow(1280, 720, "raylib Win32 event thread diagnostics (interactive)");
     RLSetTargetFPS(120);
@@ -156,13 +156,13 @@ int main(void)
     while (!RLWindowShouldClose())
     {
         // --- toggles ---
-        if (RLIsKeyPressed(KEY_H)) showHelp = !showHelp;
-        if (RLIsKeyPressed(KEY_R)) RLResetEventThreadDiagStats();
-        if (RLIsKeyPressed(KEY_C)) ClearMarkers();
-        if (RLIsKeyPressed(KEY_J)) jitterWindow = !jitterWindow;
-        if (RLIsKeyPressed(KEY_U)) jitterResize = !jitterResize;
-        if (RLIsKeyPressed(KEY_W)) warpMouse = !warpMouse;
-        if (RLIsKeyPressed(KEY_V)) { gDrawMarkersDirect = !gDrawMarkersDirect; gCanvasDirty = true; }
+        if (RLIsKeyPressed(RL_E_KEY_H)) showHelp = !showHelp;
+        if (RLIsKeyPressed(RL_E_KEY_R)) RLResetEventThreadDiagStats();
+        if (RLIsKeyPressed(RL_E_KEY_C)) ClearMarkers();
+        if (RLIsKeyPressed(RL_E_KEY_J)) jitterWindow = !jitterWindow;
+        if (RLIsKeyPressed(RL_E_KEY_U)) jitterResize = !jitterResize;
+        if (RLIsKeyPressed(RL_E_KEY_W)) warpMouse = !warpMouse;
+        if (RLIsKeyPressed(RL_E_KEY_V)) { gDrawMarkersDirect = !gDrawMarkersDirect; gCanvasDirty = true; }
 
         // Layout (used by both input + draw)
         const int pad = 12;
@@ -183,7 +183,7 @@ int main(void)
         // --- interactive drawing stress ---
         const RLVector2 mp = RLGetMousePosition();
 
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             AddMarker(mp, markerRadius);
             if (!gDrawMarkersDirect)
@@ -193,7 +193,7 @@ int main(void)
             }
         }
 
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT))
         {
             // Paint at a controlled rate (still generates lots of mouse move + button polling).
             static double lastPaint = 0.0;
@@ -210,12 +210,12 @@ int main(void)
             }
         }
 
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT))
         {
             PopMarker();
             if (!gDrawMarkersDirect && gCanvasDirty) RebuildCanvas(canvasX, canvasY);
         }
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_MIDDLE))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_MIDDLE))
         {
             ClearMarkers();
             if (!gDrawMarkersDirect && gCanvasDirty) RebuildCanvas(canvasX, canvasY);

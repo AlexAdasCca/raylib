@@ -84,7 +84,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - basic pbr");
 
     // Define the camera to look into our 3d world
@@ -93,35 +93,35 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load PBR shader and setup all required locations
     RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/pbr.vs", GLSL_VERSION),
                                RLTextFormat("resources/shaders/glsl%i/pbr.fs", GLSL_VERSION));
-    shader.locs[SHADER_LOC_MAP_ALBEDO] = RLGetShaderLocation(shader, "albedoMap");
+    shader.locs[RL_E_SHADER_LOC_MAP_ALBEDO] = RLGetShaderLocation(shader, "albedoMap");
     // WARNING: Metalness, roughness, and ambient occlusion are all packed into a MRA texture
     // They are passed as to the SHADER_LOC_MAP_METALNESS location for convenience,
     // shader already takes care of it accordingly
-    shader.locs[SHADER_LOC_MAP_METALNESS] = RLGetShaderLocation(shader, "mraMap");
-    shader.locs[SHADER_LOC_MAP_NORMAL] = RLGetShaderLocation(shader, "normalMap");
+    shader.locs[RL_E_SHADER_LOC_MAP_METALNESS] = RLGetShaderLocation(shader, "mraMap");
+    shader.locs[RL_E_SHADER_LOC_MAP_NORMAL] = RLGetShaderLocation(shader, "normalMap");
     // WARNING: Similar to the MRA map, the emissive map packs different information
     // into a single texture: it stores height and emission data
     // It is binded to SHADER_LOC_MAP_EMISSION location an properly processed on shader
-    shader.locs[SHADER_LOC_MAP_EMISSION] = RLGetShaderLocation(shader, "emissiveMap");
-    shader.locs[SHADER_LOC_COLOR_DIFFUSE] = RLGetShaderLocation(shader, "albedoColor");
+    shader.locs[RL_E_SHADER_LOC_MAP_EMISSION] = RLGetShaderLocation(shader, "emissiveMap");
+    shader.locs[RL_E_SHADER_LOC_COLOR_DIFFUSE] = RLGetShaderLocation(shader, "albedoColor");
 
     // Setup additional required shader locations, including lights data
-    shader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
+    shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
     int lightCountLoc = RLGetShaderLocation(shader, "numOfLights");
     int maxLightCount = MAX_LIGHTS;
-    RLSetShaderValue(shader, lightCountLoc, &maxLightCount, SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, lightCountLoc, &maxLightCount, RL_E_SHADER_UNIFORM_INT);
 
     // Setup ambient color and intensity parameters
     float ambientIntensity = 0.02f;
     RLColor ambientColor = (RLColor){ 26, 32, 135, 255 };
     RLVector3 ambientColorNormalized = (RLVector3){ ambientColor.r/255.0f, ambientColor.g/255.0f, ambientColor.b/255.0f };
-    RLSetShaderValue(shader, RLGetShaderLocation(shader, "ambientColor"), &ambientColorNormalized, SHADER_UNIFORM_VEC3);
-    RLSetShaderValue(shader, RLGetShaderLocation(shader, "ambient"), &ambientIntensity, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "ambientColor"), &ambientColorNormalized, RL_E_SHADER_UNIFORM_VEC3);
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "ambient"), &ambientIntensity, RL_E_SHADER_UNIFORM_FLOAT);
 
     // Get location for shader parameters that can be modified in real time
     int metallicValueLoc = RLGetShaderLocation(shader, "metallicValue");
@@ -141,17 +141,17 @@ int main(void)
     car.materials[0].shader = shader;
 
     // Setup materials[0].maps default parameters
-    car.materials[0].maps[MATERIAL_MAP_ALBEDO].color = WHITE;
-    car.materials[0].maps[MATERIAL_MAP_METALNESS].value = 1.0f;
-    car.materials[0].maps[MATERIAL_MAP_ROUGHNESS].value = 0.0f;
-    car.materials[0].maps[MATERIAL_MAP_OCCLUSION].value = 1.0f;
-    car.materials[0].maps[MATERIAL_MAP_EMISSION].color = (RLColor){ 255, 162, 0, 255 };
+    car.materials[0].maps[RL_E_MATERIAL_MAP_ALBEDO].color = WHITE;
+    car.materials[0].maps[RL_E_MATERIAL_MAP_METALNESS].value = 1.0f;
+    car.materials[0].maps[RL_E_MATERIAL_MAP_ROUGHNESS].value = 0.0f;
+    car.materials[0].maps[RL_E_MATERIAL_MAP_OCCLUSION].value = 1.0f;
+    car.materials[0].maps[RL_E_MATERIAL_MAP_EMISSION].color = (RLColor){ 255, 162, 0, 255 };
 
     // Setup materials[0].maps default textures
-    car.materials[0].maps[MATERIAL_MAP_ALBEDO].texture = RLLoadTexture("resources/old_car_d.png");
-    car.materials[0].maps[MATERIAL_MAP_METALNESS].texture = RLLoadTexture("resources/old_car_mra.png");
-    car.materials[0].maps[MATERIAL_MAP_NORMAL].texture = RLLoadTexture("resources/old_car_n.png");
-    car.materials[0].maps[MATERIAL_MAP_EMISSION].texture = RLLoadTexture("resources/old_car_e.png");
+    car.materials[0].maps[RL_E_MATERIAL_MAP_ALBEDO].texture = RLLoadTexture("resources/old_car_d.png");
+    car.materials[0].maps[RL_E_MATERIAL_MAP_METALNESS].texture = RLLoadTexture("resources/old_car_mra.png");
+    car.materials[0].maps[RL_E_MATERIAL_MAP_NORMAL].texture = RLLoadTexture("resources/old_car_n.png");
+    car.materials[0].maps[RL_E_MATERIAL_MAP_EMISSION].texture = RLLoadTexture("resources/old_car_e.png");
 
     // Load floor model mesh and assign material parameters
     // NOTE: A basic plane shape can be generated instead of being loaded from a model file
@@ -163,15 +163,15 @@ int main(void)
     // Assign material shader for our floor model, same PBR shader
     floor.materials[0].shader = shader;
 
-    floor.materials[0].maps[MATERIAL_MAP_ALBEDO].color = WHITE;
-    floor.materials[0].maps[MATERIAL_MAP_METALNESS].value = 0.8f;
-    floor.materials[0].maps[MATERIAL_MAP_ROUGHNESS].value = 0.1f;
-    floor.materials[0].maps[MATERIAL_MAP_OCCLUSION].value = 1.0f;
-    floor.materials[0].maps[MATERIAL_MAP_EMISSION].color = BLACK;
+    floor.materials[0].maps[RL_E_MATERIAL_MAP_ALBEDO].color = WHITE;
+    floor.materials[0].maps[RL_E_MATERIAL_MAP_METALNESS].value = 0.8f;
+    floor.materials[0].maps[RL_E_MATERIAL_MAP_ROUGHNESS].value = 0.1f;
+    floor.materials[0].maps[RL_E_MATERIAL_MAP_OCCLUSION].value = 1.0f;
+    floor.materials[0].maps[RL_E_MATERIAL_MAP_EMISSION].color = BLACK;
 
-    floor.materials[0].maps[MATERIAL_MAP_ALBEDO].texture = RLLoadTexture("resources/road_a.png");
-    floor.materials[0].maps[MATERIAL_MAP_METALNESS].texture = RLLoadTexture("resources/road_mra.png");
-    floor.materials[0].maps[MATERIAL_MAP_NORMAL].texture = RLLoadTexture("resources/road_n.png");
+    floor.materials[0].maps[RL_E_MATERIAL_MAP_ALBEDO].texture = RLLoadTexture("resources/road_a.png");
+    floor.materials[0].maps[RL_E_MATERIAL_MAP_METALNESS].texture = RLLoadTexture("resources/road_mra.png");
+    floor.materials[0].maps[RL_E_MATERIAL_MAP_NORMAL].texture = RLLoadTexture("resources/road_n.png");
 
     // Models texture tiling parameter can be stored in the Material struct if required (CURRENTLY NOT USED)
     // NOTE: Material.params[4] are available for generic parameters storage (float)
@@ -188,10 +188,10 @@ int main(void)
     // Setup material texture maps usage in shader
     // NOTE: By default, the texture maps are always used
     int usage = 1;
-    RLSetShaderValue(shader, RLGetShaderLocation(shader, "useTexAlbedo"), &usage, SHADER_UNIFORM_INT);
-    RLSetShaderValue(shader, RLGetShaderLocation(shader, "useTexNormal"), &usage, SHADER_UNIFORM_INT);
-    RLSetShaderValue(shader, RLGetShaderLocation(shader, "useTexMRA"), &usage, SHADER_UNIFORM_INT);
-    RLSetShaderValue(shader, RLGetShaderLocation(shader, "useTexEmissive"), &usage, SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "useTexAlbedo"), &usage, RL_E_SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "useTexNormal"), &usage, RL_E_SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "useTexMRA"), &usage, RL_E_SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "useTexEmissive"), &usage, RL_E_SHADER_UNIFORM_INT);
 
     RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //---------------------------------------------------------------------------------------
@@ -201,17 +201,17 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
         // Update the shader with the camera view vector (points towards { 0.0f, 0.0f, 0.0f })
         float cameraPos[3] = {camera.position.x, camera.position.y, camera.position.z};
-        RLSetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], cameraPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW], cameraPos, RL_E_SHADER_UNIFORM_VEC3);
 
         // Check key inputs to enable/disable lights
-        if (RLIsKeyPressed(KEY_ONE)) { lights[2].enabled = !lights[2].enabled; }
-        if (RLIsKeyPressed(KEY_TWO)) { lights[1].enabled = !lights[1].enabled; }
-        if (RLIsKeyPressed(KEY_THREE)) { lights[3].enabled = !lights[3].enabled; }
-        if (RLIsKeyPressed(KEY_FOUR)) { lights[0].enabled = !lights[0].enabled; }
+        if (RLIsKeyPressed(RL_E_KEY_ONE)) { lights[2].enabled = !lights[2].enabled; }
+        if (RLIsKeyPressed(RL_E_KEY_TWO)) { lights[1].enabled = !lights[1].enabled; }
+        if (RLIsKeyPressed(RL_E_KEY_THREE)) { lights[3].enabled = !lights[3].enabled; }
+        if (RLIsKeyPressed(RL_E_KEY_FOUR)) { lights[0].enabled = !lights[0].enabled; }
 
         // Update light values on shader (actually, only enable/disable them)
         for (int i = 0; i < MAX_LIGHTS; i++) UpdateLight(shader, lights[i]);
@@ -226,26 +226,26 @@ int main(void)
             RLBeginMode3D(camera);
 
                 // Set floor model texture tiling and emissive color parameters on shader
-                RLSetShaderValue(shader, textureTilingLoc, &floorTextureTiling, SHADER_UNIFORM_VEC2);
-                RLVector4 floorEmissiveColor = RLColorNormalize(floor.materials[0].maps[MATERIAL_MAP_EMISSION].color);
-                RLSetShaderValue(shader, emissiveColorLoc, &floorEmissiveColor, SHADER_UNIFORM_VEC4);
+                RLSetShaderValue(shader, textureTilingLoc, &floorTextureTiling, RL_E_SHADER_UNIFORM_VEC2);
+                RLVector4 floorEmissiveColor = RLColorNormalize(floor.materials[0].maps[RL_E_MATERIAL_MAP_EMISSION].color);
+                RLSetShaderValue(shader, emissiveColorLoc, &floorEmissiveColor, RL_E_SHADER_UNIFORM_VEC4);
 
                 // Set floor metallic and roughness values
-                RLSetShaderValue(shader, metallicValueLoc, &floor.materials[0].maps[MATERIAL_MAP_METALNESS].value, SHADER_UNIFORM_FLOAT);
-                RLSetShaderValue(shader, roughnessValueLoc, &floor.materials[0].maps[MATERIAL_MAP_ROUGHNESS].value, SHADER_UNIFORM_FLOAT);
+                RLSetShaderValue(shader, metallicValueLoc, &floor.materials[0].maps[RL_E_MATERIAL_MAP_METALNESS].value, RL_E_SHADER_UNIFORM_FLOAT);
+                RLSetShaderValue(shader, roughnessValueLoc, &floor.materials[0].maps[RL_E_MATERIAL_MAP_ROUGHNESS].value, RL_E_SHADER_UNIFORM_FLOAT);
 
                 RLDrawModel(floor, (RLVector3){ 0.0f, 0.0f, 0.0f }, 5.0f, WHITE);   // Draw floor model
 
                 // Set old car model texture tiling, emissive color and emissive intensity parameters on shader
-                RLSetShaderValue(shader, textureTilingLoc, &carTextureTiling, SHADER_UNIFORM_VEC2);
-                RLVector4 carEmissiveColor = RLColorNormalize(car.materials[0].maps[MATERIAL_MAP_EMISSION].color);
-                RLSetShaderValue(shader, emissiveColorLoc, &carEmissiveColor, SHADER_UNIFORM_VEC4);
+                RLSetShaderValue(shader, textureTilingLoc, &carTextureTiling, RL_E_SHADER_UNIFORM_VEC2);
+                RLVector4 carEmissiveColor = RLColorNormalize(car.materials[0].maps[RL_E_MATERIAL_MAP_EMISSION].color);
+                RLSetShaderValue(shader, emissiveColorLoc, &carEmissiveColor, RL_E_SHADER_UNIFORM_VEC4);
                 float emissiveIntensity = 0.01f;
-                RLSetShaderValue(shader, emissiveIntensityLoc, &emissiveIntensity, SHADER_UNIFORM_FLOAT);
+                RLSetShaderValue(shader, emissiveIntensityLoc, &emissiveIntensity, RL_E_SHADER_UNIFORM_FLOAT);
 
                 // Set old car metallic and roughness values
-                RLSetShaderValue(shader, metallicValueLoc, &car.materials[0].maps[MATERIAL_MAP_METALNESS].value, SHADER_UNIFORM_FLOAT);
-                RLSetShaderValue(shader, roughnessValueLoc, &car.materials[0].maps[MATERIAL_MAP_ROUGHNESS].value, SHADER_UNIFORM_FLOAT);
+                RLSetShaderValue(shader, metallicValueLoc, &car.materials[0].maps[RL_E_MATERIAL_MAP_METALNESS].value, RL_E_SHADER_UNIFORM_FLOAT);
+                RLSetShaderValue(shader, roughnessValueLoc, &car.materials[0].maps[RL_E_MATERIAL_MAP_ROUGHNESS].value, RL_E_SHADER_UNIFORM_FLOAT);
 
                 RLDrawModel(car, (RLVector3){ 0.0f, 0.0f, 0.0f }, 0.25f, WHITE);   // Draw car model
 
@@ -337,16 +337,16 @@ static Light CreateLight(int type, RLVector3 position, RLVector3 target, RLColor
 // NOTE: Light shader locations should be available
 static void UpdateLight(RLShader shader, Light light)
 {
-    RLSetShaderValue(shader, light.enabledLoc, &light.enabled, SHADER_UNIFORM_INT);
-    RLSetShaderValue(shader, light.typeLoc, &light.type, SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, light.enabledLoc, &light.enabled, RL_E_SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, light.typeLoc, &light.type, RL_E_SHADER_UNIFORM_INT);
 
     // Send to shader light position values
     float position[3] = { light.position.x, light.position.y, light.position.z };
-    RLSetShaderValue(shader, light.positionLoc, position, SHADER_UNIFORM_VEC3);
+    RLSetShaderValue(shader, light.positionLoc, position, RL_E_SHADER_UNIFORM_VEC3);
 
     // Send to shader light target position values
     float target[3] = { light.target.x, light.target.y, light.target.z };
-    RLSetShaderValue(shader, light.targetLoc, target, SHADER_UNIFORM_VEC3);
-    RLSetShaderValue(shader, light.colorLoc, light.color, SHADER_UNIFORM_VEC4);
-    RLSetShaderValue(shader, light.intensityLoc, &light.intensity, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, light.targetLoc, target, RL_E_SHADER_UNIFORM_VEC3);
+    RLSetShaderValue(shader, light.colorLoc, light.color, RL_E_SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shader, light.intensityLoc, &light.intensity, RL_E_SHADER_UNIFORM_FLOAT);
 }

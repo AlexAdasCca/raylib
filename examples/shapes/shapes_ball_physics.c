@@ -74,7 +74,7 @@ int main(void)
         RLVector2 mousePos = RLGetMousePosition();
 
         // Checks if a ball was grabbed
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             for (int i = ballCount - 1; i >= 0; i--)
             {
@@ -94,7 +94,7 @@ int main(void)
         }
 
         // Releases any ball the was grabbed
-        if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT))
         {
             if (grabbedBall != NULL)
             {
@@ -104,7 +104,7 @@ int main(void)
         }
 
         // Creates a new ball
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT)))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT) || (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) && RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT)))
         {
             if (ballCount < MAX_BALLS)
             {
@@ -122,7 +122,7 @@ int main(void)
         }
 
         // Shake balls
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_MIDDLE))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_MIDDLE))
         {
             for (int i = 0; i < ballCount; i++)
             {

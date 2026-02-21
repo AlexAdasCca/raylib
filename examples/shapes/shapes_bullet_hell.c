@@ -146,21 +146,21 @@ int main(void)
         }
 
         // Input logic
-        if ((RLIsKeyPressed(KEY_RIGHT) || RLIsKeyPressed(KEY_D)) && (bulletRows < 359)) bulletRows++;
-        if ((RLIsKeyPressed(KEY_LEFT) || RLIsKeyPressed(KEY_A)) && (bulletRows > 1)) bulletRows--;
-        if (RLIsKeyPressed(KEY_UP) || RLIsKeyPressed(KEY_W)) bulletSpeed += 0.25f;
-        if ((RLIsKeyPressed(KEY_DOWN) || RLIsKeyPressed(KEY_S)) && (bulletSpeed > 0.50f)) bulletSpeed -= 0.25f;
-        if (RLIsKeyPressed(KEY_Z) && (spawnCooldown > 1)) spawnCooldown--;
-        if (RLIsKeyPressed(KEY_X)) spawnCooldown++;
-        if (RLIsKeyPressed(KEY_ENTER)) drawInPerformanceMode = !drawInPerformanceMode;
+        if ((RLIsKeyPressed(RL_E_KEY_RIGHT) || RLIsKeyPressed(RL_E_KEY_D)) && (bulletRows < 359)) bulletRows++;
+        if ((RLIsKeyPressed(RL_E_KEY_LEFT) || RLIsKeyPressed(RL_E_KEY_A)) && (bulletRows > 1)) bulletRows--;
+        if (RLIsKeyPressed(RL_E_KEY_UP) || RLIsKeyPressed(RL_E_KEY_W)) bulletSpeed += 0.25f;
+        if ((RLIsKeyPressed(RL_E_KEY_DOWN) || RLIsKeyPressed(RL_E_KEY_S)) && (bulletSpeed > 0.50f)) bulletSpeed -= 0.25f;
+        if (RLIsKeyPressed(RL_E_KEY_Z) && (spawnCooldown > 1)) spawnCooldown--;
+        if (RLIsKeyPressed(RL_E_KEY_X)) spawnCooldown++;
+        if (RLIsKeyPressed(RL_E_KEY_ENTER)) drawInPerformanceMode = !drawInPerformanceMode;
 
-        if (RLIsKeyDown(KEY_SPACE))
+        if (RLIsKeyDown(RL_E_KEY_SPACE))
         {
             angleIncrement += 1;
             angleIncrement %= 360;
         }
 
-        if (RLIsKeyPressed(KEY_C))
+        if (RLIsKeyPressed(RL_E_KEY_C))
         {
             bulletCount = 0;
             bulletDisabledCount = 0;

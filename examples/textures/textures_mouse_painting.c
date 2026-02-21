@@ -78,8 +78,8 @@ int main(void)
         RLVector2 mousePos = RLGetMousePosition();
 
         // Move between colors with keys
-        if (RLIsKeyPressed(KEY_RIGHT)) colorSelected++;
-        else if (RLIsKeyPressed(KEY_LEFT)) colorSelected--;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) colorSelected++;
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT)) colorSelected--;
 
         if (colorSelected >= MAX_COLORS_COUNT) colorSelected = MAX_COLORS_COUNT - 1;
         else if (colorSelected < 0) colorSelected = 0;
@@ -95,7 +95,7 @@ int main(void)
             else colorMouseHover = -1;
         }
 
-        if ((colorMouseHover >= 0) && RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if ((colorMouseHover >= 0) && RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             colorSelected = colorMouseHover;
             colorSelectedPrev = colorSelected;
@@ -106,7 +106,7 @@ int main(void)
         if (brushSize < 2) brushSize = 2;
         if (brushSize > 50) brushSize = 50;
 
-        if (RLIsKeyPressed(KEY_C))
+        if (RLIsKeyPressed(RL_E_KEY_C))
         {
             // Clear render texture to clear color
             RLBeginTextureMode(target);
@@ -114,7 +114,7 @@ int main(void)
             RLEndTextureMode();
         }
 
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) || (RLGetGestureDetected() == GESTURE_DRAG))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT) || (RLGetGestureDetected() == RL_E_GESTURE_DRAG))
         {
             // Paint circle into render texture
             // NOTE: To avoid discontinuous circles, we could store
@@ -124,7 +124,7 @@ int main(void)
             RLEndTextureMode();
         }
 
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT))
         {
             if (!mouseWasPressed)
             {
@@ -139,7 +139,7 @@ int main(void)
             if (mousePos.y > 50) RLDrawCircle((int)mousePos.x, (int)mousePos.y, brushSize, colors[0]);
             RLEndTextureMode();
         }
-        else if (RLIsMouseButtonReleased(MOUSE_BUTTON_RIGHT) && mouseWasPressed)
+        else if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_RIGHT) && mouseWasPressed)
         {
             colorSelected = colorSelectedPrev;
             mouseWasPressed = false;
@@ -151,7 +151,7 @@ int main(void)
 
         // Image saving logic
         // NOTE: Saving painted texture to a default named image
-        if ((btnSaveMouseHover && RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) || RLIsKeyPressed(KEY_S))
+        if ((btnSaveMouseHover && RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT)) || RLIsKeyPressed(RL_E_KEY_S))
         {
             RLImage image = RLLoadImageFromTexture(target.texture);
             RLImageFlipVertical(&image);
@@ -184,7 +184,7 @@ int main(void)
         // Draw drawing circle for reference
         if (mousePos.y > 50)
         {
-            if (RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT)) RLDrawCircleLines((int)mousePos.x, (int)mousePos.y, brushSize, GRAY);
+            if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT)) RLDrawCircleLines((int)mousePos.x, (int)mousePos.y, brushSize, GRAY);
             else RLDrawCircle(RLGetMouseX(), RLGetMouseY(), brushSize, colors[colorSelected]);
         }
 

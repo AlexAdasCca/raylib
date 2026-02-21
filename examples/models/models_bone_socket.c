@@ -42,7 +42,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };  // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };      // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                            // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;         // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;         // Camera projection type
 
     // Load gltf model
     RLModel characterModel = RLLoadModel("resources/models/gltf/greenman.glb"); // Load character model
@@ -98,20 +98,20 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_THIRD_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_THIRD_PERSON);
 
         // Rotate character
-        if (RLIsKeyDown(KEY_F)) angle = (angle + 1)%360;
-        else if (RLIsKeyDown(KEY_H)) angle = (360 + angle - 1)%360;
+        if (RLIsKeyDown(RL_E_KEY_F)) angle = (angle + 1)%360;
+        else if (RLIsKeyDown(RL_E_KEY_H)) angle = (360 + angle - 1)%360;
 
         // Select current animation
-        if (RLIsKeyPressed(KEY_T)) animIndex = (animIndex + 1)%animsCount;
-        else if (RLIsKeyPressed(KEY_G)) animIndex = (animIndex + animsCount - 1)%animsCount;
+        if (RLIsKeyPressed(RL_E_KEY_T)) animIndex = (animIndex + 1)%animsCount;
+        else if (RLIsKeyPressed(RL_E_KEY_G)) animIndex = (animIndex + animsCount - 1)%animsCount;
 
         // Toggle shown of equip
-        if (RLIsKeyPressed(KEY_ONE)) showEquip[BONE_SOCKET_HAT] = !showEquip[BONE_SOCKET_HAT];
-        if (RLIsKeyPressed(KEY_TWO)) showEquip[BONE_SOCKET_HAND_R] = !showEquip[BONE_SOCKET_HAND_R];
-        if (RLIsKeyPressed(KEY_THREE)) showEquip[BONE_SOCKET_HAND_L] = !showEquip[BONE_SOCKET_HAND_L];
+        if (RLIsKeyPressed(RL_E_KEY_ONE)) showEquip[BONE_SOCKET_HAT] = !showEquip[BONE_SOCKET_HAT];
+        if (RLIsKeyPressed(RL_E_KEY_TWO)) showEquip[BONE_SOCKET_HAND_R] = !showEquip[BONE_SOCKET_HAND_R];
+        if (RLIsKeyPressed(RL_E_KEY_THREE)) showEquip[BONE_SOCKET_HAND_L] = !showEquip[BONE_SOCKET_HAND_L];
 
         // Update model animation
         RLModelAnimation anim = modelAnimations[animIndex];
@@ -127,8 +127,8 @@ int main(void)
 
             RLBeginMode3D(camera);
                 // Draw character
-                RLQuaternion characterRotate = QuaternionFromAxisAngle((RLVector3){ 0.0f, 1.0f, 0.0f }, angle*DEG2RAD);
-                characterModel.transform = MatrixMultiply(QuaternionToMatrix(characterRotate), MatrixTranslate(position.x, position.y, position.z));
+                RLQuaternion characterRotate = RLQuaternionFromAxisAngle((RLVector3){ 0.0f, 1.0f, 0.0f }, angle*DEG2RAD);
+                characterModel.transform = RLMatrixMultiply(RLQuaternionToMatrix(characterRotate), RLMatrixTranslate(position.x, position.y, position.z));
                 RLUpdateModelAnimation(characterModel, anim, animCurrentFrame);
                 RLDrawMesh(characterModel.meshes[0], characterModel.materials[1], characterModel.transform);
 
@@ -142,12 +142,12 @@ int main(void)
                     RLQuaternion outRotation = transform->rotation;
 
                     // Calculate socket rotation (angle between bone in initial pose and same bone in current animation frame)
-                    RLQuaternion rotate = QuaternionMultiply(outRotation, QuaternionInvert(inRotation));
-                    RLMatrix matrixTransform = QuaternionToMatrix(rotate);
+                    RLQuaternion rotate = RLQuaternionMultiply(outRotation, RLQuaternionInvert(inRotation));
+                    RLMatrix matrixTransform = RLQuaternionToMatrix(rotate);
                     // Translate socket to its position in the current animation
-                    matrixTransform = MatrixMultiply(matrixTransform, MatrixTranslate(transform->translation.x, transform->translation.y, transform->translation.z));
+                    matrixTransform = RLMatrixMultiply(matrixTransform, RLMatrixTranslate(transform->translation.x, transform->translation.y, transform->translation.z));
                     // Transform the socket using the transform of the character (angle and translate)
-                    matrixTransform = MatrixMultiply(matrixTransform, characterModel.transform);
+                    matrixTransform = RLMatrixMultiply(matrixTransform, characterModel.transform);
 
                     // Draw mesh at socket position with socket angle rotation
                     RLDrawMesh(equipModel[i].meshes[0], equipModel[i].materials[1], matrixTransform);

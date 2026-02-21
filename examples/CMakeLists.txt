@@ -157,9 +157,42 @@ foreach (example_source ${example_sources})
     endif()
 
 
-    target_link_libraries(${example_name} raylib)
-    if (NOT WIN32)
-        target_link_libraries(${example_name} m)
+    # Most examples link against raylib.
+    # rlgl_standalone is special: it compiles rlgl.h in standalone mode (RLGL_IMPLEMENTATION)
+    # and must NOT link against raylib to avoid duplicate rlgl symbols and type collisions.
+    if (example_name STREQUAL "rlgl_standalone")
+        # Needed for rlgl.h/raymath.h includes when not inheriting from raylib target.
+        target_include_directories(${example_name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+        # Link GLFW: can be either an OBJECT library (raylib's bundled GLFW) or an external target.
+        if (TARGET glfw)
+            get_target_property(_glfw_type glfw TYPE)
+            if (_glfw_type STREQUAL "OBJECT_LIBRARY")
+                target_sources(${example_name} PRIVATE $<TARGET_OBJECTS:glfw>)
+            else()
+                target_link_libraries(${example_name} PRIVATE glfw)
+            endif()
+        elseif (TARGET glfw3::glfw)
+            target_link_libraries(${example_name} PRIVATE glfw3::glfw)
+        elseif (TARGET glfw3)
+            target_link_libraries(${example_name} PRIVATE glfw3)
+        endif()
+
+        # OpenGL
+        find_package(OpenGL REQUIRED)
+        target_link_libraries(${example_name} PRIVATE OpenGL::GL)
+
+        if (WIN32)
+            # GLFW on Windows typically needs these.
+            target_link_libraries(${example_name} PRIVATE gdi32 user32 shell32)
+        else()
+            target_link_libraries(${example_name} PRIVATE m)
+        endif()
+    else()
+        target_link_libraries(${example_name} raylib)
+        if (NOT WIN32)
+            target_link_libraries(${example_name} m)
+        endif()
     endif()
 
     string(REGEX MATCH ".*/.*/" resources_dir ${example_source})

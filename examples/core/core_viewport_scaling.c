@@ -66,7 +66,7 @@ int main(void)
     int screenWidth = 800;
     int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE);
     RLInitWindow(screenWidth, screenHeight, "raylib [core] example - viewport scaling");
 
     // Preset resolutions that could be created by subdividing screen resolution
@@ -106,7 +106,7 @@ int main(void)
         if (RLIsWindowResized()) ResizeRenderSize(viewportType, &screenWidth, &screenHeight, gameWidth, gameHeight, &sourceRect, &destRect, &target);
 
         RLVector2 mousePosition = RLGetMousePosition();
-        bool mousePressed = RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+        bool mousePressed = RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT);
 
         // Check buttons and rescale
         if (RLCheckCollisionPointRec(mousePosition, decreaseResolutionButton) && mousePressed)

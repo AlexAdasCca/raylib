@@ -46,7 +46,7 @@ int main(void)
         .target     = { 0.0f, 0.0f, 0.0f },
         .up         = { 0.0f, 1.0f, 0.0f },
         .fovy       = 45.0f,
-        .projection = CAMERA_PERSPECTIVE
+        .projection = RL_E_CAMERA_PERSPECTIVE
     };
 
     RLVector3 position = { 0.0f, 0.0f, 0.0f };
@@ -65,15 +65,15 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
-        if (RLIsKeyPressed(KEY_SPACE)) useDrawModelPoints = !useDrawModelPoints;
-        if (RLIsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) useDrawModelPoints = !useDrawModelPoints;
+        if (RLIsKeyPressed(RL_E_KEY_UP))
         {
             numPoints = (numPoints*10 > MAX_POINTS)? MAX_POINTS : numPoints*10;
             numPointsChanged = true;
         }
-        if (RLIsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(RL_E_KEY_DOWN))
         {
             numPoints = (numPoints/10 < MIN_POINTS)? MIN_POINTS : numPoints/10;
             numPointsChanged = true;

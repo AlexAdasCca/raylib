@@ -67,7 +67,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - digital clock");
 
     int clockMode = CLOCK_DIGITAL;
@@ -99,7 +99,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             // Toggle clock mode
             if (clockMode == CLOCK_DIGITAL) clockMode = CLOCK_ANALOG;

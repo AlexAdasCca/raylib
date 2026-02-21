@@ -85,9 +85,9 @@ int main(void)
     int maxIterationsLoc = RLGetShaderLocation(shader, "maxIterations");
 
     // Upload the shader uniform values!
-    RLSetShaderValue(shader, zoomLoc, &zoom, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shader, offsetLoc, offset, SHADER_UNIFORM_VEC2);
-    RLSetShaderValue(shader, maxIterationsLoc, &maxIterations, SHADER_UNIFORM_INT);
+    RLSetShaderValue(shader, zoomLoc, &zoom, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, offsetLoc, offset, RL_E_SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, maxIterationsLoc, &maxIterations, RL_E_SHADER_UNIFORM_INT);
 
     bool showControls = true;           // Show controls
 
@@ -102,20 +102,20 @@ int main(void)
         bool updateShader = false;
 
         // Press [1 - 6] to reset c to a point of interest
-        if (RLIsKeyPressed(KEY_ONE) ||
-            RLIsKeyPressed(KEY_TWO) ||
-            RLIsKeyPressed(KEY_THREE) ||
-            RLIsKeyPressed(KEY_FOUR) ||
-            RLIsKeyPressed(KEY_FIVE) ||
-            RLIsKeyPressed(KEY_SIX))
+        if (RLIsKeyPressed(RL_E_KEY_ONE) ||
+            RLIsKeyPressed(RL_E_KEY_TWO) ||
+            RLIsKeyPressed(RL_E_KEY_THREE) ||
+            RLIsKeyPressed(RL_E_KEY_FOUR) ||
+            RLIsKeyPressed(RL_E_KEY_FIVE) ||
+            RLIsKeyPressed(RL_E_KEY_SIX))
         {
             int interestIndex = 0;
-            if (RLIsKeyPressed(KEY_ONE)) interestIndex = 0;
-            else if (RLIsKeyPressed(KEY_TWO)) interestIndex = 1;
-            else if (RLIsKeyPressed(KEY_THREE)) interestIndex = 2;
-            else if (RLIsKeyPressed(KEY_FOUR)) interestIndex = 3;
-            else if (RLIsKeyPressed(KEY_FIVE)) interestIndex = 4;
-            else if (RLIsKeyPressed(KEY_SIX)) interestIndex = 5;
+            if (RLIsKeyPressed(RL_E_KEY_ONE)) interestIndex = 0;
+            else if (RLIsKeyPressed(RL_E_KEY_TWO)) interestIndex = 1;
+            else if (RLIsKeyPressed(RL_E_KEY_THREE)) interestIndex = 2;
+            else if (RLIsKeyPressed(RL_E_KEY_FOUR)) interestIndex = 3;
+            else if (RLIsKeyPressed(RL_E_KEY_FIVE)) interestIndex = 4;
+            else if (RLIsKeyPressed(RL_E_KEY_SIX)) interestIndex = 5;
 
             offset[0] = pointsOfInterest[interestIndex][0];
             offset[1] = pointsOfInterest[interestIndex][1];
@@ -124,7 +124,7 @@ int main(void)
         }
 
         // If "R" is pressed, reset zoom and offset
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
             offset[0] = startingOffset[0];
             offset[1] = startingOffset[1];
@@ -132,26 +132,26 @@ int main(void)
             updateShader = true;
         }
 
-        if (RLIsKeyPressed(KEY_F1)) showControls = !showControls;  // Toggle whether or not to show controls
+        if (RLIsKeyPressed(RL_E_KEY_F1)) showControls = !showControls;  // Toggle whether or not to show controls
 
         // Change number of max iterations with UP and DOWN keys
         // WARNING: Increasing the number of max iterations greatly impacts performance
-        if (RLIsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(RL_E_KEY_UP))
         {
             maxIterationsMultiplier *= 1.4f;
             updateShader = true;
         }
-        else if (RLIsKeyPressed(KEY_DOWN))
+        else if (RLIsKeyPressed(RL_E_KEY_DOWN))
         {
             maxIterationsMultiplier /= 1.4f;
             updateShader = true;
         }
 
         // If either left or right button is pressed, zoom in/out
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) || RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT) || RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT))
         {
             // Change zoom. If Mouse left -> zoom in. Mouse right -> zoom out
-            zoom *= RLIsMouseButtonDown(MOUSE_BUTTON_LEFT)? zoomSpeed : (1.0f/zoomSpeed);
+            zoom *= RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT)? zoomSpeed : (1.0f/zoomSpeed);
 
             const RLVector2 mousePos = RLGetMousePosition();
             RLVector2 offsetVelocity;
@@ -175,9 +175,9 @@ int main(void)
             maxIterations = (int)(sqrtf(2.0f*sqrtf(fabsf(1.0f - sqrtf(37.5f*zoom))))*maxIterationsMultiplier);
 
             // Update the shader uniform values!
-            RLSetShaderValue(shader, zoomLoc, &zoom, SHADER_UNIFORM_FLOAT);
-            RLSetShaderValue(shader, offsetLoc, offset, SHADER_UNIFORM_VEC2);
-            RLSetShaderValue(shader, maxIterationsLoc, &maxIterations, SHADER_UNIFORM_INT);
+            RLSetShaderValue(shader, zoomLoc, &zoom, RL_E_SHADER_UNIFORM_FLOAT);
+            RLSetShaderValue(shader, offsetLoc, offset, RL_E_SHADER_UNIFORM_VEC2);
+            RLSetShaderValue(shader, maxIterationsLoc, &maxIterations, RL_E_SHADER_UNIFORM_INT);
         }
         //----------------------------------------------------------------------------------
 

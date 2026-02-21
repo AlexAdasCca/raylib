@@ -121,7 +121,7 @@ int main(void)
             cam.target.y = (float)textHeight - screenHeight + textTop;
 
         // Computing the position of the scrollBar depending on the percentage of text covered
-        scrollBar.y = Lerp((float)textTop, (float)screenHeight - scrollBar.height, (float)(cam.target.y - textTop)/(textHeight - screenHeight));
+        scrollBar.y = RLLerp((float)textTop, (float)screenHeight - scrollBar.height, (float)(cam.target.y - textTop)/(textHeight - screenHeight));
         //----------------------------------------------------------------------------------
 
         // Draw

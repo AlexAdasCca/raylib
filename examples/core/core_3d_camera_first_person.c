@@ -36,9 +36,9 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 60.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
-    int cameraMode = CAMERA_FIRST_PERSON;
+    int cameraMode = RL_E_CAMERA_FIRST_PERSON;
 
     // Generates some random columns
     float heights[MAX_COLUMNS] = { 0 };
@@ -63,54 +63,54 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Switch camera mode
-        if (RLIsKeyPressed(KEY_ONE))
+        if (RLIsKeyPressed(RL_E_KEY_ONE))
         {
-            cameraMode = CAMERA_FREE;
+            cameraMode = RL_E_CAMERA_FREE;
             camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f }; // Reset roll
         }
 
-        if (RLIsKeyPressed(KEY_TWO))
+        if (RLIsKeyPressed(RL_E_KEY_TWO))
         {
-            cameraMode = CAMERA_FIRST_PERSON;
+            cameraMode = RL_E_CAMERA_FIRST_PERSON;
             camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f }; // Reset roll
         }
 
-        if (RLIsKeyPressed(KEY_THREE))
+        if (RLIsKeyPressed(RL_E_KEY_THREE))
         {
-            cameraMode = CAMERA_THIRD_PERSON;
+            cameraMode = RL_E_CAMERA_THIRD_PERSON;
             camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f }; // Reset roll
         }
 
-        if (RLIsKeyPressed(KEY_FOUR))
+        if (RLIsKeyPressed(RL_E_KEY_FOUR))
         {
-            cameraMode = CAMERA_ORBITAL;
+            cameraMode = RL_E_CAMERA_ORBITAL;
             camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f }; // Reset roll
         }
 
         // Switch camera projection
-        if (RLIsKeyPressed(KEY_P))
+        if (RLIsKeyPressed(RL_E_KEY_P))
         {
-            if (camera.projection == CAMERA_PERSPECTIVE)
+            if (camera.projection == RL_E_CAMERA_PERSPECTIVE)
             {
                 // Create isometric view
-                cameraMode = CAMERA_THIRD_PERSON;
+                cameraMode = RL_E_CAMERA_THIRD_PERSON;
                 // Note: The target distance is related to the render distance in the orthographic projection
                 camera.position = (RLVector3){ 0.0f, 2.0f, -100.0f };
                 camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };
                 camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
-                camera.projection = CAMERA_ORTHOGRAPHIC;
+                camera.projection = RL_E_CAMERA_ORTHOGRAPHIC;
                 camera.fovy = 20.0f; // near plane width in CAMERA_ORTHOGRAPHIC
-                CameraYaw(&camera, -135*DEG2RAD, true);
-                CameraPitch(&camera, -45*DEG2RAD, true, true, false);
+                RLCameraYaw(&camera, -135*DEG2RAD, true);
+                RLCameraPitch(&camera, -45*DEG2RAD, true, true, false);
             }
-            else if (camera.projection == CAMERA_ORTHOGRAPHIC)
+            else if (camera.projection == RL_E_CAMERA_ORTHOGRAPHIC)
             {
                 // Reset to default view
-                cameraMode = CAMERA_THIRD_PERSON;
+                cameraMode = RL_E_CAMERA_THIRD_PERSON;
                 camera.position = (RLVector3){ 0.0f, 2.0f, 10.0f };
                 camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };
                 camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
-                camera.projection = CAMERA_PERSPECTIVE;
+                camera.projection = RL_E_CAMERA_PERSPECTIVE;
                 camera.fovy = 60.0f;
             }
         }
@@ -161,7 +161,7 @@ int main(void)
                 }
 
                 // Draw player cube
-                if (cameraMode == CAMERA_THIRD_PERSON)
+                if (cameraMode == RL_E_CAMERA_THIRD_PERSON)
                 {
                     RLDrawCube(camera.target, 0.5f, 0.5f, 0.5f, PURPLE);
                     RLDrawCubeWires(camera.target, 0.5f, 0.5f, 0.5f, DARKPURPLE);
@@ -184,12 +184,12 @@ int main(void)
             RLDrawRectangleLines(600, 5, 195, 100, BLUE);
 
             RLDrawText("Camera status:", 610, 15, 10, BLACK);
-            RLDrawText(RLTextFormat("- Mode: %s", (cameraMode == CAMERA_FREE) ? "FREE" :
-                                              (cameraMode == CAMERA_FIRST_PERSON) ? "FIRST_PERSON" :
-                                              (cameraMode == CAMERA_THIRD_PERSON) ? "THIRD_PERSON" :
-                                              (cameraMode == CAMERA_ORBITAL) ? "ORBITAL" : "CUSTOM"), 610, 30, 10, BLACK);
-            RLDrawText(RLTextFormat("- Projection: %s", (camera.projection == CAMERA_PERSPECTIVE) ? "PERSPECTIVE" :
-                                                    (camera.projection == CAMERA_ORTHOGRAPHIC) ? "ORTHOGRAPHIC" : "CUSTOM"), 610, 45, 10, BLACK);
+            RLDrawText(RLTextFormat("- Mode: %s", (cameraMode == RL_E_CAMERA_FREE) ? "FREE" :
+                                              (cameraMode == RL_E_CAMERA_FIRST_PERSON) ? "FIRST_PERSON" :
+                                              (cameraMode == RL_E_CAMERA_THIRD_PERSON) ? "THIRD_PERSON" :
+                                              (cameraMode == RL_E_CAMERA_ORBITAL) ? "ORBITAL" : "CUSTOM"), 610, 30, 10, BLACK);
+            RLDrawText(RLTextFormat("- Projection: %s", (camera.projection == RL_E_CAMERA_PERSPECTIVE) ? "PERSPECTIVE" :
+                                                    (camera.projection == RL_E_CAMERA_ORTHOGRAPHIC) ? "ORTHOGRAPHIC" : "CUSTOM"), 610, 45, 10, BLACK);
             RLDrawText(RLTextFormat("- Position: (%06.3f, %06.3f, %06.3f)", camera.position.x, camera.position.y, camera.position.z), 610, 60, 10, BLACK);
             RLDrawText(RLTextFormat("- Target: (%06.3f, %06.3f, %06.3f)", camera.target.x, camera.target.y, camera.target.z), 610, 75, 10, BLACK);
             RLDrawText(RLTextFormat("- Up: (%06.3f, %06.3f, %06.3f)", camera.up.x, camera.up.y, camera.up.z), 610, 90, 10, BLACK);

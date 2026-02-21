@@ -86,7 +86,7 @@ int main(void)
     // NOTE: UpdateCameraFPS() takes care of the rest
     RLCamera camera = { 0 };
     camera.fovy = 60.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;
     camera.position = (RLVector3){
         player.position.x,
         player.position.y + (BOTTOM_HEIGHT + headLerp),
@@ -109,13 +109,13 @@ int main(void)
         lookRotation.x -= mouseDelta.x*sensitivity.x;
         lookRotation.y += mouseDelta.y*sensitivity.y;
 
-        char sideway = (RLIsKeyDown(KEY_D) - RLIsKeyDown(KEY_A));
-        char forward = (RLIsKeyDown(KEY_W) - RLIsKeyDown(KEY_S));
-        bool crouching = RLIsKeyDown(KEY_LEFT_CONTROL);
-        UpdateBody(&player, lookRotation.x, sideway, forward, RLIsKeyPressed(KEY_SPACE), crouching);
+        char sideway = (RLIsKeyDown(RL_E_KEY_D) - RLIsKeyDown(RL_E_KEY_A));
+        char forward = (RLIsKeyDown(RL_E_KEY_W) - RLIsKeyDown(RL_E_KEY_S));
+        bool crouching = RLIsKeyDown(RL_E_KEY_LEFT_CONTROL);
+        UpdateBody(&player, lookRotation.x, sideway, forward, RLIsKeyPressed(RL_E_KEY_SPACE), crouching);
 
         float delta = RLGetFrameTime();
-        headLerp = Lerp(headLerp, (crouching ? CROUCH_HEIGHT : STAND_HEIGHT), 20.0f*delta);
+        headLerp = RLLerp(headLerp, (crouching ? CROUCH_HEIGHT : STAND_HEIGHT), 20.0f*delta);
         camera.position = (RLVector3){
             player.position.x,
             player.position.y + (BOTTOM_HEIGHT + headLerp),
@@ -125,17 +125,17 @@ int main(void)
         if (player.isGrounded && ((forward != 0) || (sideway != 0)))
         {
             headTimer += delta*3.0f;
-            walkLerp = Lerp(walkLerp, 1.0f, 10.0f*delta);
-            camera.fovy = Lerp(camera.fovy, 55.0f, 5.0f*delta);
+            walkLerp = RLLerp(walkLerp, 1.0f, 10.0f*delta);
+            camera.fovy = RLLerp(camera.fovy, 55.0f, 5.0f*delta);
         }
         else
         {
-            walkLerp = Lerp(walkLerp, 0.0f, 10.0f*delta);
-            camera.fovy = Lerp(camera.fovy, 60.0f, 5.0f*delta);
+            walkLerp = RLLerp(walkLerp, 0.0f, 10.0f*delta);
+            camera.fovy = RLLerp(camera.fovy, 60.0f, 5.0f*delta);
         }
 
-        lean.x = Lerp(lean.x, sideway*0.02f, 10.0f*delta);
-        lean.y = Lerp(lean.y, forward*0.015f, 10.0f*delta);
+        lean.x = RLLerp(lean.x, sideway*0.02f, 10.0f*delta);
+        lean.y = RLLerp(lean.y, forward*0.015f, 10.0f*delta);
 
         UpdateCameraFPS(&camera);
         //----------------------------------------------------------------------------------
@@ -157,7 +157,7 @@ int main(void)
             RLDrawText("Camera controls:", 15, 15, 10, BLACK);
             RLDrawText("- Move keys: W, A, S, D, Space, Left-Ctrl", 15, 30, 10, BLACK);
             RLDrawText("- Look around: arrow keys or mouse", 15, 45, 10, BLACK);
-            RLDrawText(RLTextFormat("- Velocity Len: (%06.3f)", Vector2Length((RLVector2){ player.velocity.x, player.velocity.z })), 15, 60, 10, BLACK);
+            RLDrawText(RLTextFormat("- Velocity Len: (%06.3f)", RLVector2Length((RLVector2){ player.velocity.x, player.velocity.z })), 15, 60, 10, BLACK);
 
         RLEndDrawing();
         //----------------------------------------------------------------------------------
@@ -181,7 +181,7 @@ void UpdateBody(Body *body, float rot, char side, char forward, bool jumpPressed
 
 #if defined(NORMALIZE_INPUT)
     // Slow down diagonal movement
-    if ((side != 0) && (forward != 0)) input = Vector2Normalize(input);
+    if ((side != 0) && (forward != 0)) input = RLVector2Normalize(input);
 #endif
 
     float delta = RLGetFrameTime();
@@ -202,22 +202,22 @@ void UpdateBody(Body *body, float rot, char side, char forward, bool jumpPressed
     RLVector3 right = (RLVector3){ cosf(-rot), 0.f, sinf(-rot) };
 
     RLVector3 desiredDir = (RLVector3){ input.x*right.x + input.y*front.x, 0.0f, input.x*right.z + input.y*front.z, };
-    body->dir = Vector3Lerp(body->dir, desiredDir, CONTROL*delta);
+    body->dir = RLVector3Lerp(body->dir, desiredDir, CONTROL*delta);
 
     float decel = (body->isGrounded ? FRICTION : AIR_DRAG);
     RLVector3 hvel = (RLVector3){ body->velocity.x*decel, 0.0f, body->velocity.z*decel };
 
-    float hvelLength = Vector3Length(hvel); // Magnitude
+    float hvelLength = RLVector3Length(hvel); // Magnitude
     if (hvelLength < (MAX_SPEED*0.01f)) hvel = (RLVector3){ 0 };
 
     // This is what creates strafing
-    float speed = Vector3DotProduct(hvel, body->dir);
+    float speed = RLVector3DotProduct(hvel, body->dir);
 
     // Whenever the amount of acceleration to add is clamped by the maximum acceleration constant,
     // a Player can make the speed faster by bringing the direction closer to horizontal velocity angle
     // More info here: https://youtu.be/v3zT3Z5apaM?t=165
     float maxSpeed = (crouchHold? CROUCH_SPEED : MAX_SPEED);
-    float accel = Clamp(maxSpeed - speed, 0.f, MAX_ACCEL*delta);
+    float accel = RLClamp(maxSpeed - speed, 0.f, MAX_ACCEL*delta);
     hvel.x += body->dir.x*accel;
     hvel.z += body->dir.z*accel;
 
@@ -244,42 +244,42 @@ static void UpdateCameraFPS(RLCamera *camera)
     const RLVector3 targetOffset = (RLVector3){ 0.0f, 0.0f, -1.0f };
 
     // Left and right
-    RLVector3 yaw = Vector3RotateByAxisAngle(targetOffset, up, lookRotation.x);
+    RLVector3 yaw = RLVector3RotateByAxisAngle(targetOffset, up, lookRotation.x);
 
     // Clamp view up
-    float maxAngleUp = Vector3Angle(up, yaw);
+    float maxAngleUp = RLVector3Angle(up, yaw);
     maxAngleUp -= 0.001f; // Avoid numerical errors
     if ( -(lookRotation.y) > maxAngleUp) { lookRotation.y = -maxAngleUp; }
 
     // Clamp view down
-    float maxAngleDown = Vector3Angle(Vector3Negate(up), yaw);
+    float maxAngleDown = RLVector3Angle(RLVector3Negate(up), yaw);
     maxAngleDown *= -1.0f; // Downwards angle is negative
     maxAngleDown += 0.001f; // Avoid numerical errors
     if ( -(lookRotation.y) < maxAngleDown) { lookRotation.y = -maxAngleDown; }
 
     // Up and down
-    RLVector3 right = Vector3Normalize(Vector3CrossProduct(yaw, up));
+    RLVector3 right = RLVector3Normalize(RLVector3CrossProduct(yaw, up));
 
     // Rotate view vector around right axis
     float pitchAngle = -lookRotation.y - lean.y;
-    pitchAngle = Clamp(pitchAngle, -PI/2 + 0.0001f, PI/2 - 0.0001f); // Clamp angle so it doesn't go past straight up or straight down
-    RLVector3 pitch = Vector3RotateByAxisAngle(yaw, right, pitchAngle);
+    pitchAngle = RLClamp(pitchAngle, -PI/2 + 0.0001f, PI/2 - 0.0001f); // Clamp angle so it doesn't go past straight up or straight down
+    RLVector3 pitch = RLVector3RotateByAxisAngle(yaw, right, pitchAngle);
 
     // Head animation
     // Rotate up direction around forward axis
     float headSin = sinf(headTimer*PI);
     float headCos = cosf(headTimer*PI);
     const float stepRotation = 0.01f;
-    camera->up = Vector3RotateByAxisAngle(up, pitch, headSin*stepRotation + lean.x);
+    camera->up = RLVector3RotateByAxisAngle(up, pitch, headSin*stepRotation + lean.x);
 
     // Camera BOB
     const float bobSide = 0.1f;
     const float bobUp = 0.15f;
-    RLVector3 bobbing = Vector3Scale(right, headSin*bobSide);
+    RLVector3 bobbing = RLVector3Scale(right, headSin*bobSide);
     bobbing.y = fabsf(headCos*bobUp);
 
-    camera->position = Vector3Add(camera->position, Vector3Scale(bobbing, walkLerp));
-    camera->target = Vector3Add(camera->position, pitch);
+    camera->position = RLVector3Add(camera->position, RLVector3Scale(bobbing, walkLerp));
+    camera->target = RLVector3Add(camera->position, pitch);
 }
 
 // Draw game level

@@ -47,7 +47,7 @@ int main(void)
     RLVector2 textSize = { 0.0f, 0.0f };
 
     // Setup texture scaling filter
-    RLSetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
+    RLSetTextureFilter(font.texture, RL_E_TEXTURE_FILTER_POINT);
     int currentFontFilter = 0;      // TEXTURE_FILTER_POINT
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
@@ -61,27 +61,27 @@ int main(void)
         fontSize += RLGetMouseWheelMove()*4.0f;
 
         // Choose font texture filter method
-        if (RLIsKeyPressed(KEY_ONE))
+        if (RLIsKeyPressed(RL_E_KEY_ONE))
         {
-            RLSetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
+            RLSetTextureFilter(font.texture, RL_E_TEXTURE_FILTER_POINT);
             currentFontFilter = 0;
         }
-        else if (RLIsKeyPressed(KEY_TWO))
+        else if (RLIsKeyPressed(RL_E_KEY_TWO))
         {
-            RLSetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+            RLSetTextureFilter(font.texture, RL_E_TEXTURE_FILTER_BILINEAR);
             currentFontFilter = 1;
         }
-        else if (RLIsKeyPressed(KEY_THREE))
+        else if (RLIsKeyPressed(RL_E_KEY_THREE))
         {
             // NOTE: Trilinear filter won't be noticed on 2D drawing
-            RLSetTextureFilter(font.texture, TEXTURE_FILTER_TRILINEAR);
+            RLSetTextureFilter(font.texture, RL_E_TEXTURE_FILTER_TRILINEAR);
             currentFontFilter = 2;
         }
 
         textSize = RLMeasureTextEx(font, msg, fontSize, 0);
 
-        if (RLIsKeyDown(KEY_LEFT)) fontPosition.x -= 10;
-        else if (RLIsKeyDown(KEY_RIGHT)) fontPosition.x += 10;
+        if (RLIsKeyDown(RL_E_KEY_LEFT)) fontPosition.x -= 10;
+        else if (RLIsKeyDown(RL_E_KEY_RIGHT)) fontPosition.x += 10;
 
         // Load a dropped TTF file dynamically (at current fontSize)
         if (RLIsFileDropped())

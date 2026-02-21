@@ -60,9 +60,9 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE)) ShuffleColorRectSequence(rectangles, rectCount);
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) ShuffleColorRectSequence(rectangles, rectCount);
 
-        if (RLIsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(RL_E_KEY_UP))
         {
             rectCount++;
             rectSize = (float)screenWidth/rectCount;
@@ -72,7 +72,7 @@ int main(void)
             rectangles = GenerateRandomColorRectSequence((float)rectCount, rectSize, (float)screenWidth, 0.75f*screenHeight);
         }
 
-        if (RLIsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(RL_E_KEY_DOWN))
         {
             if (rectCount >= 4)
             {
@@ -145,7 +145,7 @@ static ColorRect *GenerateRandomColorRectSequence(float rectCount, float rectWid
 
     for (int i = 0; i < rectCount; i++)
     {
-        int rectHeight = (int)Remap((float)seq[i], 0, rectCount - 1, 0, screenHeight);
+        int rectHeight = (int)RLRemap((float)seq[i], 0, rectCount - 1, 0, screenHeight);
 
         rectangles[i].color = GenerateRandomColor();
         rectangles[i].rect = CLITERAL(RLRectangle){ startX + i*rectWidth, screenHeight - rectHeight, rectWidth, (float)rectHeight };

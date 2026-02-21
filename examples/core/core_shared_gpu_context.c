@@ -56,13 +56,13 @@ static unsigned __stdcall WorkerThread(void *arg)
     RLSetCurrentContext(ctx);
     RLContextSetResourceShareMode(ctx, RL_CONTEXT_SHARE_WITH_PRIMARY, NULL);
 
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_EVENT_THREAD);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_EVENT_THREAD);
     RLInitWindow(640, 360, "raylib [shared-gpu] worker (shared context)");
     RLSetTargetFPS(60);
 
     if (!RLIsWindowReady())
     {
-        RLTraceLog(LOG_WARNING, "worker: window init failed");
+        RLTraceLog(RL_E_LOG_WARNING, "worker: window init failed");
         if (gEvtWorkerDone) SetEvent(gEvtWorkerDone);
         RLDestroyContext(ctx);
         return 0;
@@ -191,13 +191,13 @@ int main(void)
     RLContext *mainCtx = RLCreateContext();
     RLSetCurrentContext(mainCtx);
 
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_EVENT_THREAD);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_EVENT_THREAD);
     RLInitWindow(screenWidth, screenHeight, "raylib [shared-gpu] primary (owner)");
     RLSetTargetFPS(60);
 
     if (!RLIsWindowReady())
     {
-        RLTraceLog(LOG_WARNING, "main: window init failed");
+        RLTraceLog(RL_E_LOG_WARNING, "main: window init failed");
         RLDestroyContext(mainCtx);
         return 1;
     }
@@ -221,7 +221,7 @@ int main(void)
     uintptr_t h = _beginthreadex(NULL, 0, WorkerThread, NULL, 0, NULL);
     if (h == 0)
     {
-        RLTraceLog(LOG_WARNING, "main: failed to start worker thread");
+        RLTraceLog(RL_E_LOG_WARNING, "main: failed to start worker thread");
         SetEvent(gEvtWorkerDone);
     }
     SetEvent(gEvtReady);
@@ -310,13 +310,13 @@ int main(void)
     // ---- Phase C: recreate a brand new context/window on the same thread ----
     RLContext *ctx2 = RLCreateContext();
     RLSetCurrentContext(ctx2);
-    RLSetConfigFlags(FLAG_WINDOW_EVENT_THREAD);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD);
     RLInitWindow(720, 420, "raylib [shared-gpu] recreated context");
     RLSetTargetFPS(60);
 
     if (!RLIsWindowReady())
     {
-        RLTraceLog(LOG_WARNING, "recreate: window init failed");
+        RLTraceLog(RL_E_LOG_WARNING, "recreate: window init failed");
         RLDestroyContext(ctx2);
         return 1;
     }

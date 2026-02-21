@@ -1,4 +1,4 @@
-/**********************************************************************************************
+﻿/**********************************************************************************************
 *
 *   raylib v5.6-dev - A simple and easy-to-use library to enjoy videogames programming (www.raylib.com)
 *
@@ -83,8 +83,8 @@
 #ifndef RAYLIB_H
 #define RAYLIB_H
 
-#include <stdarg.h>
-#include <stdint.h>     // Required for: va_list - Only used by TraceLogCallback
+#include <stdarg.h>     // Required for: va_list - Only used by TraceLogCallback
+#include <stdint.h>
 
 #define RAYLIB_VERSION_MAJOR 5
 #define RAYLIB_VERSION_MINOR 6
@@ -168,6 +168,7 @@
 #define RL_VECTOR4_TYPE
 #define RL_QUATERNION_TYPE
 #define RL_MATRIX_TYPE
+#define RL_CAMERA_TYPE
 
 // Some Basic Colors
 // NOTE: Custom raylib color palette for amazing visuals on WHITE background
@@ -351,8 +352,8 @@ typedef struct RLMesh {
     float *texcoords2;      // Vertex texture second coordinates (UV - 2 components per vertex) (shader-location = 5)
     float *normals;         // Vertex normals (XYZ - 3 components per vertex) (shader-location = 2)
     float *tangents;        // Vertex tangents (XYZW - 4 components per vertex) (shader-location = 4)
-    unsigned char *colors;      // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
-    unsigned short *indices;    // Vertex indices (in case vertex data comes indexed)
+    unsigned char *colors;  // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
+    unsigned short *indices; // Vertex indices (in case vertex data comes indexed)
 
     // Animation vertex data
     float *animVertices;    // Animated vertex positions (after bones transformations)
@@ -537,416 +538,416 @@ typedef struct RLAutomationEventList {
 // NOTE: Every bit registers one state (use it with bit masks)
 // By default all flags are set to 0
 typedef enum {
-    FLAG_VSYNC_HINT         = 0x00000040,   // Set to try enabling V-Sync on GPU
-    FLAG_FULLSCREEN_MODE    = 0x00000002,   // Set to run program in fullscreen
-    FLAG_WINDOW_RESIZABLE   = 0x00000004,   // Set to allow resizable window
-    FLAG_WINDOW_UNDECORATED = 0x00000008,   // Set to disable window decoration (frame and buttons)
-    FLAG_WINDOW_HIDDEN      = 0x00000080,   // Set to hide window
-    FLAG_WINDOW_MINIMIZED   = 0x00000200,   // Set to minimize window (iconify)
-    FLAG_WINDOW_MAXIMIZED   = 0x00000400,   // Set to maximize window (expanded to monitor)
-    FLAG_WINDOW_UNFOCUSED   = 0x00000800,   // Set to window non focused
-    FLAG_WINDOW_TOPMOST     = 0x00001000,   // Set to window always on top
-    FLAG_WINDOW_ALWAYS_RUN  = 0x00000100,   // Set to allow windows running while minimized
-    FLAG_WINDOW_TRANSPARENT = 0x00000010,   // Set to allow transparent framebuffer
-    FLAG_WINDOW_HIGHDPI     = 0x00002000,   // Set to support HighDPI
-    FLAG_WINDOW_MOUSE_PASSTHROUGH = 0x00004000, // Set to support mouse passthrough, only supported when FLAG_WINDOW_UNDECORATED
-    FLAG_BORDERLESS_WINDOWED_MODE = 0x00008000, // Set to run program in borderless windowed mode
-    FLAG_MSAA_4X_HINT       = 0x00000020,   // Set to try enabling MSAA 4X
-    FLAG_INTERLACED_HINT    = 0x00010000,   // Set to try enabling interlaced video format (for V3D)
-    FLAG_WINDOW_EVENT_THREAD        = 0x00020000,   // [GLFW/Win32] Create a dedicated message/event thread for this window (render thread separated)
-    FLAG_WINDOW_REFRESH_CALLBACK   = 0x00040000,   // [GLFW/Win32] Enable OS-driven refresh ticks during Win32 modal loops (move/size/menu); use with RLSetWindowRefreshCallback()
-    FLAG_WINDOW_BROADCAST_WAKE    = 0x00080000, // [GLFW/Win32] Broadcast wake to all windows' render threads on shutdown/close (optional)
-    FLAG_WINDOW_SNAP_LAYOUT       = 0x00100000    // [GLFW/Win32] Keep Win11 Snap Layout affordances even when non-resizable (blocks interactive border resize)
+    RL_E_FLAG_VSYNC_HINT         = 0x00000040,   // Set to try enabling V-Sync on GPU
+    RL_E_FLAG_FULLSCREEN_MODE    = 0x00000002,   // Set to run program in fullscreen
+    RL_E_FLAG_WINDOW_RESIZABLE   = 0x00000004,   // Set to allow resizable window
+    RL_E_FLAG_WINDOW_UNDECORATED = 0x00000008,   // Set to disable window decoration (frame and buttons)
+    RL_E_FLAG_WINDOW_HIDDEN      = 0x00000080,   // Set to hide window
+    RL_E_FLAG_WINDOW_MINIMIZED   = 0x00000200,   // Set to minimize window (iconify)
+    RL_E_FLAG_WINDOW_MAXIMIZED   = 0x00000400,   // Set to maximize window (expanded to monitor)
+    RL_E_FLAG_WINDOW_UNFOCUSED   = 0x00000800,   // Set to window non focused
+    RL_E_FLAG_WINDOW_TOPMOST     = 0x00001000,   // Set to window always on top
+    RL_E_FLAG_WINDOW_ALWAYS_RUN  = 0x00000100,   // Set to allow windows running while minimized
+    RL_E_FLAG_WINDOW_TRANSPARENT = 0x00000010,   // Set to allow transparent framebuffer
+    RL_E_FLAG_WINDOW_HIGHDPI     = 0x00002000,   // Set to support HighDPI
+    RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH = 0x00004000, // Set to support mouse passthrough, only supported when FLAG_WINDOW_UNDECORATED
+    RL_E_FLAG_BORDERLESS_WINDOWED_MODE = 0x00008000, // Set to run program in borderless windowed mode
+    RL_E_FLAG_MSAA_4X_HINT       = 0x00000020,   // Set to try enabling MSAA 4X
+    RL_E_FLAG_INTERLACED_HINT    = 0x00010000,   // Set to try enabling interlaced video format (for V3D)
+    RL_E_FLAG_WINDOW_EVENT_THREAD        = 0x00020000,   // [GLFW/Win32] Create a dedicated message/event thread for this window (render thread separated)
+    RL_E_FLAG_WINDOW_REFRESH_CALLBACK   = 0x00040000,   // [GLFW/Win32] Enable OS-driven refresh ticks during Win32 modal loops (move/size/menu); use with RLSetWindowRefreshCallback()
+    RL_E_FLAG_WINDOW_BROADCAST_WAKE    = 0x00080000, // [GLFW/Win32] Broadcast wake to all windows' render threads on shutdown/close (optional)
+    RL_E_FLAG_WINDOW_SNAP_LAYOUT       = 0x00100000    // [GLFW/Win32] Keep Win11 Snap Layout affordances even when non-resizable (blocks interactive border resize)
 } RLConfigFlags;
 
 // Trace log level
 // NOTE: Organized by priority level
 typedef enum {
-    LOG_ALL = 0,        // Display all logs
-    LOG_TRACE,          // Trace logging, intended for internal use only
-    LOG_DEBUG,          // Debug logging, used for internal debugging, it should be disabled on release builds
-    LOG_INFO,           // Info logging, used for program execution info
-    LOG_WARNING,        // Warning logging, used on recoverable failures
-    LOG_ERROR,          // Error logging, used on unrecoverable failures
-    LOG_FATAL,          // Fatal logging, used to abort program: exit(EXIT_FAILURE)
-    LOG_NONE            // Disable logging
+    RL_E_LOG_ALL = 0,        // Display all logs
+    RL_E_LOG_TRACE,          // Trace logging, intended for internal use only
+    RL_E_LOG_DEBUG,          // Debug logging, used for internal debugging, it should be disabled on release builds
+    RL_E_LOG_INFO,           // Info logging, used for program execution info
+    RL_E_LOG_WARNING,        // Warning logging, used on recoverable failures
+    RL_E_LOG_ERROR,          // Error logging, used on unrecoverable failures
+    RL_E_LOG_FATAL,          // Fatal logging, used to abort program: exit(EXIT_FAILURE)
+    RL_E_LOG_NONE            // Disable logging
 } RLTraceLogLevel;
 
 // Keyboard keys (US keyboard layout)
 // NOTE: Use GetKeyPressed() to allow redefining required keys for alternative layouts
 typedef enum {
-    KEY_NULL            = 0,        // Key: NULL, used for no key pressed
+    RL_E_KEY_NULL            = 0,        // Key: NULL, used for no key pressed
     // Alphanumeric keys
-    KEY_APOSTROPHE      = 39,       // Key: '
-    KEY_COMMA           = 44,       // Key: ,
-    KEY_MINUS           = 45,       // Key: -
-    KEY_PERIOD          = 46,       // Key: .
-    KEY_SLASH           = 47,       // Key: /
-    KEY_ZERO            = 48,       // Key: 0
-    KEY_ONE             = 49,       // Key: 1
-    KEY_TWO             = 50,       // Key: 2
-    KEY_THREE           = 51,       // Key: 3
-    KEY_FOUR            = 52,       // Key: 4
-    KEY_FIVE            = 53,       // Key: 5
-    KEY_SIX             = 54,       // Key: 6
-    KEY_SEVEN           = 55,       // Key: 7
-    KEY_EIGHT           = 56,       // Key: 8
-    KEY_NINE            = 57,       // Key: 9
-    KEY_SEMICOLON       = 59,       // Key: ;
-    KEY_EQUAL           = 61,       // Key: =
-    KEY_A               = 65,       // Key: A | a
-    KEY_B               = 66,       // Key: B | b
-    KEY_C               = 67,       // Key: C | c
-    KEY_D               = 68,       // Key: D | d
-    KEY_E               = 69,       // Key: E | e
-    KEY_F               = 70,       // Key: F | f
-    KEY_G               = 71,       // Key: G | g
-    KEY_H               = 72,       // Key: H | h
-    KEY_I               = 73,       // Key: I | i
-    KEY_J               = 74,       // Key: J | j
-    KEY_K               = 75,       // Key: K | k
-    KEY_L               = 76,       // Key: L | l
-    KEY_M               = 77,       // Key: M | m
-    KEY_N               = 78,       // Key: N | n
-    KEY_O               = 79,       // Key: O | o
-    KEY_P               = 80,       // Key: P | p
-    KEY_Q               = 81,       // Key: Q | q
-    KEY_R               = 82,       // Key: R | r
-    KEY_S               = 83,       // Key: S | s
-    KEY_T               = 84,       // Key: T | t
-    KEY_U               = 85,       // Key: U | u
-    KEY_V               = 86,       // Key: V | v
-    KEY_W               = 87,       // Key: W | w
-    KEY_X               = 88,       // Key: X | x
-    KEY_Y               = 89,       // Key: Y | y
-    KEY_Z               = 90,       // Key: Z | z
-    KEY_LEFT_BRACKET    = 91,       // Key: [
-    KEY_BACKSLASH       = 92,       // Key: '\'
-    KEY_RIGHT_BRACKET   = 93,       // Key: ]
-    KEY_GRAVE           = 96,       // Key: `
+    RL_E_KEY_APOSTROPHE      = 39,       // Key: '
+    RL_E_KEY_COMMA           = 44,       // Key: ,
+    RL_E_KEY_MINUS           = 45,       // Key: -
+    RL_E_KEY_PERIOD          = 46,       // Key: .
+    RL_E_KEY_SLASH           = 47,       // Key: /
+    RL_E_KEY_ZERO            = 48,       // Key: 0
+    RL_E_KEY_ONE             = 49,       // Key: 1
+    RL_E_KEY_TWO             = 50,       // Key: 2
+    RL_E_KEY_THREE           = 51,       // Key: 3
+    RL_E_KEY_FOUR            = 52,       // Key: 4
+    RL_E_KEY_FIVE            = 53,       // Key: 5
+    RL_E_KEY_SIX             = 54,       // Key: 6
+    RL_E_KEY_SEVEN           = 55,       // Key: 7
+    RL_E_KEY_EIGHT           = 56,       // Key: 8
+    RL_E_KEY_NINE            = 57,       // Key: 9
+    RL_E_KEY_SEMICOLON       = 59,       // Key: ;
+    RL_E_KEY_EQUAL           = 61,       // Key: =
+    RL_E_KEY_A               = 65,       // Key: A | a
+    RL_E_KEY_B               = 66,       // Key: B | b
+    RL_E_KEY_C               = 67,       // Key: C | c
+    RL_E_KEY_D               = 68,       // Key: D | d
+    RL_E_KEY_E               = 69,       // Key: E | e
+    RL_E_KEY_F               = 70,       // Key: F | f
+    RL_E_KEY_G               = 71,       // Key: G | g
+    RL_E_KEY_H               = 72,       // Key: H | h
+    RL_E_KEY_I               = 73,       // Key: I | i
+    RL_E_KEY_J               = 74,       // Key: J | j
+    RL_E_KEY_K               = 75,       // Key: K | k
+    RL_E_KEY_L               = 76,       // Key: L | l
+    RL_E_KEY_M               = 77,       // Key: M | m
+    RL_E_KEY_N               = 78,       // Key: N | n
+    RL_E_KEY_O               = 79,       // Key: O | o
+    RL_E_KEY_P               = 80,       // Key: P | p
+    RL_E_KEY_Q               = 81,       // Key: Q | q
+    RL_E_KEY_R               = 82,       // Key: R | r
+    RL_E_KEY_S               = 83,       // Key: S | s
+    RL_E_KEY_T               = 84,       // Key: T | t
+    RL_E_KEY_U               = 85,       // Key: U | u
+    RL_E_KEY_V               = 86,       // Key: V | v
+    RL_E_KEY_W               = 87,       // Key: W | w
+    RL_E_KEY_X               = 88,       // Key: X | x
+    RL_E_KEY_Y               = 89,       // Key: Y | y
+    RL_E_KEY_Z               = 90,       // Key: Z | z
+    RL_E_KEY_LEFT_BRACKET    = 91,       // Key: [
+    RL_E_KEY_BACKSLASH       = 92,       // Key: '\'
+    RL_E_KEY_RIGHT_BRACKET   = 93,       // Key: ]
+    RL_E_KEY_GRAVE           = 96,       // Key: `
     // Function keys
-    KEY_SPACE           = 32,       // Key: Space
-    KEY_ESCAPE          = 256,      // Key: Esc
-    KEY_ENTER           = 257,      // Key: Enter
-    KEY_TAB             = 258,      // Key: Tab
-    KEY_BACKSPACE       = 259,      // Key: Backspace
-    KEY_INSERT          = 260,      // Key: Ins
-    KEY_DELETE          = 261,      // Key: Del
-    KEY_RIGHT           = 262,      // Key: Cursor right
-    KEY_LEFT            = 263,      // Key: Cursor left
-    KEY_DOWN            = 264,      // Key: Cursor down
-    KEY_UP              = 265,      // Key: Cursor up
-    KEY_PAGE_UP         = 266,      // Key: Page up
-    KEY_PAGE_DOWN       = 267,      // Key: Page down
-    KEY_HOME            = 268,      // Key: Home
-    KEY_END             = 269,      // Key: End
-    KEY_CAPS_LOCK       = 280,      // Key: Caps lock
-    KEY_SCROLL_LOCK     = 281,      // Key: Scroll down
-    KEY_NUM_LOCK        = 282,      // Key: Num lock
-    KEY_PRINT_SCREEN    = 283,      // Key: Print screen
-    KEY_PAUSE           = 284,      // Key: Pause
-    KEY_F1              = 290,      // Key: F1
-    KEY_F2              = 291,      // Key: F2
-    KEY_F3              = 292,      // Key: F3
-    KEY_F4              = 293,      // Key: F4
-    KEY_F5              = 294,      // Key: F5
-    KEY_F6              = 295,      // Key: F6
-    KEY_F7              = 296,      // Key: F7
-    KEY_F8              = 297,      // Key: F8
-    KEY_F9              = 298,      // Key: F9
-    KEY_F10             = 299,      // Key: F10
-    KEY_F11             = 300,      // Key: F11
-    KEY_F12             = 301,      // Key: F12
-    KEY_LEFT_SHIFT      = 340,      // Key: Shift left
-    KEY_LEFT_CONTROL    = 341,      // Key: Control left
-    KEY_LEFT_ALT        = 342,      // Key: Alt left
-    KEY_LEFT_SUPER      = 343,      // Key: Super left
-    KEY_RIGHT_SHIFT     = 344,      // Key: Shift right
-    KEY_RIGHT_CONTROL   = 345,      // Key: Control right
-    KEY_RIGHT_ALT       = 346,      // Key: Alt right
-    KEY_RIGHT_SUPER     = 347,      // Key: Super right
-    KEY_KB_MENU         = 348,      // Key: KB menu
+    RL_E_KEY_SPACE           = 32,       // Key: Space
+    RL_E_KEY_ESCAPE          = 256,      // Key: Esc
+    RL_E_KEY_ENTER           = 257,      // Key: Enter
+    RL_E_KEY_TAB             = 258,      // Key: Tab
+    RL_E_KEY_BACKSPACE       = 259,      // Key: Backspace
+    RL_E_KEY_INSERT          = 260,      // Key: Ins
+    RL_E_KEY_DELETE          = 261,      // Key: Del
+    RL_E_KEY_RIGHT           = 262,      // Key: Cursor right
+    RL_E_KEY_LEFT            = 263,      // Key: Cursor left
+    RL_E_KEY_DOWN            = 264,      // Key: Cursor down
+    RL_E_KEY_UP              = 265,      // Key: Cursor up
+    RL_E_KEY_PAGE_UP         = 266,      // Key: Page up
+    RL_E_KEY_PAGE_DOWN       = 267,      // Key: Page down
+    RL_E_KEY_HOME            = 268,      // Key: Home
+    RL_E_KEY_END             = 269,      // Key: End
+    RL_E_KEY_CAPS_LOCK       = 280,      // Key: Caps lock
+    RL_E_KEY_SCROLL_LOCK     = 281,      // Key: Scroll down
+    RL_E_KEY_NUM_LOCK        = 282,      // Key: Num lock
+    RL_E_KEY_PRINT_SCREEN    = 283,      // Key: Print screen
+    RL_E_KEY_PAUSE           = 284,      // Key: Pause
+    RL_E_KEY_F1              = 290,      // Key: F1
+    RL_E_KEY_F2              = 291,      // Key: F2
+    RL_E_KEY_F3              = 292,      // Key: F3
+    RL_E_KEY_F4              = 293,      // Key: F4
+    RL_E_KEY_F5              = 294,      // Key: F5
+    RL_E_KEY_F6              = 295,      // Key: F6
+    RL_E_KEY_F7              = 296,      // Key: F7
+    RL_E_KEY_F8              = 297,      // Key: F8
+    RL_E_KEY_F9              = 298,      // Key: F9
+    RL_E_KEY_F10             = 299,      // Key: F10
+    RL_E_KEY_F11             = 300,      // Key: F11
+    RL_E_KEY_F12             = 301,      // Key: F12
+    RL_E_KEY_LEFT_SHIFT      = 340,      // Key: Shift left
+    RL_E_KEY_LEFT_CONTROL    = 341,      // Key: Control left
+    RL_E_KEY_LEFT_ALT        = 342,      // Key: Alt left
+    RL_E_KEY_LEFT_SUPER      = 343,      // Key: Super left
+    RL_E_KEY_RIGHT_SHIFT     = 344,      // Key: Shift right
+    RL_E_KEY_RIGHT_CONTROL   = 345,      // Key: Control right
+    RL_E_KEY_RIGHT_ALT       = 346,      // Key: Alt right
+    RL_E_KEY_RIGHT_SUPER     = 347,      // Key: Super right
+    RL_E_KEY_KB_MENU         = 348,      // Key: KB menu
     // Keypad keys
-    KEY_KP_0            = 320,      // Key: Keypad 0
-    KEY_KP_1            = 321,      // Key: Keypad 1
-    KEY_KP_2            = 322,      // Key: Keypad 2
-    KEY_KP_3            = 323,      // Key: Keypad 3
-    KEY_KP_4            = 324,      // Key: Keypad 4
-    KEY_KP_5            = 325,      // Key: Keypad 5
-    KEY_KP_6            = 326,      // Key: Keypad 6
-    KEY_KP_7            = 327,      // Key: Keypad 7
-    KEY_KP_8            = 328,      // Key: Keypad 8
-    KEY_KP_9            = 329,      // Key: Keypad 9
-    KEY_KP_DECIMAL      = 330,      // Key: Keypad .
-    KEY_KP_DIVIDE       = 331,      // Key: Keypad /
-    KEY_KP_MULTIPLY     = 332,      // Key: Keypad *
-    KEY_KP_SUBTRACT     = 333,      // Key: Keypad -
-    KEY_KP_ADD          = 334,      // Key: Keypad +
-    KEY_KP_ENTER        = 335,      // Key: Keypad Enter
-    KEY_KP_EQUAL        = 336,      // Key: Keypad =
+    RL_E_KEY_KP_0            = 320,      // Key: Keypad 0
+    RL_E_KEY_KP_1            = 321,      // Key: Keypad 1
+    RL_E_KEY_KP_2            = 322,      // Key: Keypad 2
+    RL_E_KEY_KP_3            = 323,      // Key: Keypad 3
+    RL_E_KEY_KP_4            = 324,      // Key: Keypad 4
+    RL_E_KEY_KP_5            = 325,      // Key: Keypad 5
+    RL_E_KEY_KP_6            = 326,      // Key: Keypad 6
+    RL_E_KEY_KP_7            = 327,      // Key: Keypad 7
+    RL_E_KEY_KP_8            = 328,      // Key: Keypad 8
+    RL_E_KEY_KP_9            = 329,      // Key: Keypad 9
+    RL_E_KEY_KP_DECIMAL      = 330,      // Key: Keypad .
+    RL_E_KEY_KP_DIVIDE       = 331,      // Key: Keypad /
+    RL_E_KEY_KP_MULTIPLY     = 332,      // Key: Keypad *
+    RL_E_KEY_KP_SUBTRACT     = 333,      // Key: Keypad -
+    RL_E_KEY_KP_ADD          = 334,      // Key: Keypad +
+    RL_E_KEY_KP_ENTER        = 335,      // Key: Keypad Enter
+    RL_E_KEY_KP_EQUAL        = 336,      // Key: Keypad =
     // Android key buttons
-    KEY_BACK            = 4,        // Key: Android back button
-    KEY_MENU            = 5,        // Key: Android menu button
-    KEY_VOLUME_UP       = 24,       // Key: Android volume up button
-    KEY_VOLUME_DOWN     = 25        // Key: Android volume down button
+    RL_E_KEY_BACK            = 4,        // Key: Android back button
+    RL_E_KEY_MENU            = 5,        // Key: Android menu button
+    RL_E_KEY_VOLUME_UP       = 24,       // Key: Android volume up button
+    RL_E_KEY_VOLUME_DOWN     = 25        // Key: Android volume down button
 } RLKeyboardKey;
 
 // Add backwards compatibility support for deprecated names
-#define MOUSE_LEFT_BUTTON   MOUSE_BUTTON_LEFT
-#define MOUSE_RIGHT_BUTTON  MOUSE_BUTTON_RIGHT
-#define MOUSE_MIDDLE_BUTTON MOUSE_BUTTON_MIDDLE
+#define MOUSE_LEFT_BUTTON   RL_E_MOUSE_BUTTON_LEFT
+#define MOUSE_RIGHT_BUTTON  RL_E_MOUSE_BUTTON_RIGHT
+#define MOUSE_MIDDLE_BUTTON RL_E_MOUSE_BUTTON_MIDDLE
 
 // Mouse buttons
 typedef enum {
-    MOUSE_BUTTON_LEFT    = 0,       // Mouse button left
-    MOUSE_BUTTON_RIGHT   = 1,       // Mouse button right
-    MOUSE_BUTTON_MIDDLE  = 2,       // Mouse button middle (pressed wheel)
-    MOUSE_BUTTON_SIDE    = 3,       // Mouse button side (advanced mouse device)
-    MOUSE_BUTTON_EXTRA   = 4,       // Mouse button extra (advanced mouse device)
-    MOUSE_BUTTON_FORWARD = 5,       // Mouse button forward (advanced mouse device)
-    MOUSE_BUTTON_BACK    = 6,       // Mouse button back (advanced mouse device)
+    RL_E_MOUSE_BUTTON_LEFT    = 0,       // Mouse button left
+    RL_E_MOUSE_BUTTON_RIGHT   = 1,       // Mouse button right
+    RL_E_MOUSE_BUTTON_MIDDLE  = 2,       // Mouse button middle (pressed wheel)
+    RL_E_MOUSE_BUTTON_SIDE    = 3,       // Mouse button side (advanced mouse device)
+    RL_E_MOUSE_BUTTON_EXTRA   = 4,       // Mouse button extra (advanced mouse device)
+    RL_E_MOUSE_BUTTON_FORWARD = 5,       // Mouse button forward (advanced mouse device)
+    RL_E_MOUSE_BUTTON_BACK    = 6,       // Mouse button back (advanced mouse device)
 } RLMouseButton;
 
 // Mouse cursor
 typedef enum {
-    MOUSE_CURSOR_DEFAULT       = 0,     // Default pointer shape
-    MOUSE_CURSOR_ARROW         = 1,     // Arrow shape
-    MOUSE_CURSOR_IBEAM         = 2,     // Text writing cursor shape
-    MOUSE_CURSOR_CROSSHAIR     = 3,     // Cross shape
-    MOUSE_CURSOR_POINTING_HAND = 4,     // Pointing hand cursor
-    MOUSE_CURSOR_RESIZE_EW     = 5,     // Horizontal resize/move arrow shape
-    MOUSE_CURSOR_RESIZE_NS     = 6,     // Vertical resize/move arrow shape
-    MOUSE_CURSOR_RESIZE_NWSE   = 7,     // Top-left to bottom-right diagonal resize/move arrow shape
-    MOUSE_CURSOR_RESIZE_NESW   = 8,     // The top-right to bottom-left diagonal resize/move arrow shape
-    MOUSE_CURSOR_RESIZE_ALL    = 9,     // The omnidirectional resize/move cursor shape
-    MOUSE_CURSOR_NOT_ALLOWED   = 10     // The operation-not-allowed shape
+    RL_E_MOUSE_CURSOR_DEFAULT       = 0,     // Default pointer shape
+    RL_E_MOUSE_CURSOR_ARROW         = 1,     // Arrow shape
+    RL_E_MOUSE_CURSOR_IBEAM         = 2,     // Text writing cursor shape
+    RL_E_MOUSE_CURSOR_CROSSHAIR     = 3,     // Cross shape
+    RL_E_MOUSE_CURSOR_POINTING_HAND = 4,     // Pointing hand cursor
+    RL_E_MOUSE_CURSOR_RESIZE_EW     = 5,     // Horizontal resize/move arrow shape
+    RL_E_MOUSE_CURSOR_RESIZE_NS     = 6,     // Vertical resize/move arrow shape
+    RL_E_MOUSE_CURSOR_RESIZE_NWSE   = 7,     // Top-left to bottom-right diagonal resize/move arrow shape
+    RL_E_MOUSE_CURSOR_RESIZE_NESW   = 8,     // The top-right to bottom-left diagonal resize/move arrow shape
+    RL_E_MOUSE_CURSOR_RESIZE_ALL    = 9,     // The omnidirectional resize/move cursor shape
+    RL_E_MOUSE_CURSOR_NOT_ALLOWED   = 10     // The operation-not-allowed shape
 } RLMouseCursor;
 
 // Gamepad buttons
 typedef enum {
-    GAMEPAD_BUTTON_UNKNOWN = 0,         // Unknown button, just for error checking
-    GAMEPAD_BUTTON_LEFT_FACE_UP,        // Gamepad left DPAD up button
-    GAMEPAD_BUTTON_LEFT_FACE_RIGHT,     // Gamepad left DPAD right button
-    GAMEPAD_BUTTON_LEFT_FACE_DOWN,      // Gamepad left DPAD down button
-    GAMEPAD_BUTTON_LEFT_FACE_LEFT,      // Gamepad left DPAD left button
-    GAMEPAD_BUTTON_RIGHT_FACE_UP,       // Gamepad right button up (i.e. PS3: Triangle, Xbox: Y)
-    GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,    // Gamepad right button right (i.e. PS3: Circle, Xbox: B)
-    GAMEPAD_BUTTON_RIGHT_FACE_DOWN,     // Gamepad right button down (i.e. PS3: Cross, Xbox: A)
-    GAMEPAD_BUTTON_RIGHT_FACE_LEFT,     // Gamepad right button left (i.e. PS3: Square, Xbox: X)
-    GAMEPAD_BUTTON_LEFT_TRIGGER_1,      // Gamepad top/back trigger left (first), it could be a trailing button
-    GAMEPAD_BUTTON_LEFT_TRIGGER_2,      // Gamepad top/back trigger left (second), it could be a trailing button
-    GAMEPAD_BUTTON_RIGHT_TRIGGER_1,     // Gamepad top/back trigger right (first), it could be a trailing button
-    GAMEPAD_BUTTON_RIGHT_TRIGGER_2,     // Gamepad top/back trigger right (second), it could be a trailing button
-    GAMEPAD_BUTTON_MIDDLE_LEFT,         // Gamepad center buttons, left one (i.e. PS3: Select)
-    GAMEPAD_BUTTON_MIDDLE,              // Gamepad center buttons, middle one (i.e. PS3: PS, Xbox: XBOX)
-    GAMEPAD_BUTTON_MIDDLE_RIGHT,        // Gamepad center buttons, right one (i.e. PS3: Start)
-    GAMEPAD_BUTTON_LEFT_THUMB,          // Gamepad joystick pressed button left
-    GAMEPAD_BUTTON_RIGHT_THUMB          // Gamepad joystick pressed button right
+    RL_E_GAMEPAD_BUTTON_UNKNOWN = 0,         // Unknown button, just for error checking
+    RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP,        // Gamepad left DPAD up button
+    RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT,     // Gamepad left DPAD right button
+    RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN,      // Gamepad left DPAD down button
+    RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT,      // Gamepad left DPAD left button
+    RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP,       // Gamepad right button up (i.e. PS3: Triangle, Xbox: Y)
+    RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,    // Gamepad right button right (i.e. PS3: Circle, Xbox: B)
+    RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN,     // Gamepad right button down (i.e. PS3: Cross, Xbox: A)
+    RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT,     // Gamepad right button left (i.e. PS3: Square, Xbox: X)
+    RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_1,      // Gamepad top/back trigger left (first), it could be a trailing button
+    RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_2,      // Gamepad top/back trigger left (second), it could be a trailing button
+    RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_1,     // Gamepad top/back trigger right (first), it could be a trailing button
+    RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_2,     // Gamepad top/back trigger right (second), it could be a trailing button
+    RL_E_GAMEPAD_BUTTON_MIDDLE_LEFT,         // Gamepad center buttons, left one (i.e. PS3: Select)
+    RL_E_GAMEPAD_BUTTON_MIDDLE,              // Gamepad center buttons, middle one (i.e. PS3: PS, Xbox: XBOX)
+    RL_E_GAMEPAD_BUTTON_MIDDLE_RIGHT,        // Gamepad center buttons, right one (i.e. PS3: Start)
+    RL_E_GAMEPAD_BUTTON_LEFT_THUMB,          // Gamepad joystick pressed button left
+    RL_E_GAMEPAD_BUTTON_RIGHT_THUMB          // Gamepad joystick pressed button right
 } RLGamepadButton;
 
 // Gamepad axes
 typedef enum {
-    GAMEPAD_AXIS_LEFT_X        = 0,     // Gamepad left stick X axis
-    GAMEPAD_AXIS_LEFT_Y        = 1,     // Gamepad left stick Y axis
-    GAMEPAD_AXIS_RIGHT_X       = 2,     // Gamepad right stick X axis
-    GAMEPAD_AXIS_RIGHT_Y       = 3,     // Gamepad right stick Y axis
-    GAMEPAD_AXIS_LEFT_TRIGGER  = 4,     // Gamepad back trigger left, pressure level: [1..-1]
-    GAMEPAD_AXIS_RIGHT_TRIGGER = 5      // Gamepad back trigger right, pressure level: [1..-1]
+    RL_E_GAMEPAD_AXIS_LEFT_X        = 0,     // Gamepad left stick X axis
+    RL_E_GAMEPAD_AXIS_LEFT_Y        = 1,     // Gamepad left stick Y axis
+    RL_E_GAMEPAD_AXIS_RIGHT_X       = 2,     // Gamepad right stick X axis
+    RL_E_GAMEPAD_AXIS_RIGHT_Y       = 3,     // Gamepad right stick Y axis
+    RL_E_GAMEPAD_AXIS_LEFT_TRIGGER  = 4,     // Gamepad back trigger left, pressure level: [1..-1]
+    RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER = 5      // Gamepad back trigger right, pressure level: [1..-1]
 } RLGamepadAxis;
 
 // Material map index
 typedef enum {
-    MATERIAL_MAP_ALBEDO = 0,        // Albedo material (same as: MATERIAL_MAP_DIFFUSE)
-    MATERIAL_MAP_METALNESS,         // Metalness material (same as: MATERIAL_MAP_SPECULAR)
-    MATERIAL_MAP_NORMAL,            // Normal material
-    MATERIAL_MAP_ROUGHNESS,         // Roughness material
-    MATERIAL_MAP_OCCLUSION,         // Ambient occlusion material
-    MATERIAL_MAP_EMISSION,          // Emission material
-    MATERIAL_MAP_HEIGHT,            // Heightmap material
-    MATERIAL_MAP_CUBEMAP,           // Cubemap material (NOTE: Uses GL_TEXTURE_CUBE_MAP)
-    MATERIAL_MAP_IRRADIANCE,        // Irradiance material (NOTE: Uses GL_TEXTURE_CUBE_MAP)
-    MATERIAL_MAP_PREFILTER,         // Prefilter material (NOTE: Uses GL_TEXTURE_CUBE_MAP)
-    MATERIAL_MAP_BRDF               // Brdf material
+    RL_E_MATERIAL_MAP_ALBEDO = 0,        // Albedo material (same as: MATERIAL_MAP_DIFFUSE)
+    RL_E_MATERIAL_MAP_METALNESS,         // Metalness material (same as: MATERIAL_MAP_SPECULAR)
+    RL_E_MATERIAL_MAP_NORMAL,            // Normal material
+    RL_E_MATERIAL_MAP_ROUGHNESS,         // Roughness material
+    RL_E_MATERIAL_MAP_OCCLUSION,         // Ambient occlusion material
+    RL_E_MATERIAL_MAP_EMISSION,          // Emission material
+    RL_E_MATERIAL_MAP_HEIGHT,            // Heightmap material
+    RL_E_MATERIAL_MAP_CUBEMAP,           // Cubemap material (NOTE: Uses GL_TEXTURE_CUBE_MAP)
+    RL_E_MATERIAL_MAP_IRRADIANCE,        // Irradiance material (NOTE: Uses GL_TEXTURE_CUBE_MAP)
+    RL_E_MATERIAL_MAP_PREFILTER,         // Prefilter material (NOTE: Uses GL_TEXTURE_CUBE_MAP)
+    RL_E_MATERIAL_MAP_BRDF               // Brdf material
 } RLMaterialMapIndex;
 
-#define MATERIAL_MAP_DIFFUSE      MATERIAL_MAP_ALBEDO
-#define MATERIAL_MAP_SPECULAR     MATERIAL_MAP_METALNESS
+#define MATERIAL_MAP_DIFFUSE      RL_E_MATERIAL_MAP_ALBEDO
+#define MATERIAL_MAP_SPECULAR     RL_E_MATERIAL_MAP_METALNESS
 
 // Shader location index
 typedef enum {
-    SHADER_LOC_VERTEX_POSITION = 0, // Shader location: vertex attribute: position
-    SHADER_LOC_VERTEX_TEXCOORD01,   // Shader location: vertex attribute: texcoord01
-    SHADER_LOC_VERTEX_TEXCOORD02,   // Shader location: vertex attribute: texcoord02
-    SHADER_LOC_VERTEX_NORMAL,       // Shader location: vertex attribute: normal
-    SHADER_LOC_VERTEX_TANGENT,      // Shader location: vertex attribute: tangent
-    SHADER_LOC_VERTEX_COLOR,        // Shader location: vertex attribute: color
-    SHADER_LOC_MATRIX_MVP,          // Shader location: matrix uniform: model-view-projection
-    SHADER_LOC_MATRIX_VIEW,         // Shader location: matrix uniform: view (camera transform)
-    SHADER_LOC_MATRIX_PROJECTION,   // Shader location: matrix uniform: projection
-    SHADER_LOC_MATRIX_MODEL,        // Shader location: matrix uniform: model (transform)
-    SHADER_LOC_MATRIX_NORMAL,       // Shader location: matrix uniform: normal
-    SHADER_LOC_VECTOR_VIEW,         // Shader location: vector uniform: view
-    SHADER_LOC_COLOR_DIFFUSE,       // Shader location: vector uniform: diffuse color
-    SHADER_LOC_COLOR_SPECULAR,      // Shader location: vector uniform: specular color
-    SHADER_LOC_COLOR_AMBIENT,       // Shader location: vector uniform: ambient color
-    SHADER_LOC_MAP_ALBEDO,          // Shader location: sampler2d texture: albedo (same as: SHADER_LOC_MAP_DIFFUSE)
-    SHADER_LOC_MAP_METALNESS,       // Shader location: sampler2d texture: metalness (same as: SHADER_LOC_MAP_SPECULAR)
-    SHADER_LOC_MAP_NORMAL,          // Shader location: sampler2d texture: normal
-    SHADER_LOC_MAP_ROUGHNESS,       // Shader location: sampler2d texture: roughness
-    SHADER_LOC_MAP_OCCLUSION,       // Shader location: sampler2d texture: occlusion
-    SHADER_LOC_MAP_EMISSION,        // Shader location: sampler2d texture: emission
-    SHADER_LOC_MAP_HEIGHT,          // Shader location: sampler2d texture: height
-    SHADER_LOC_MAP_CUBEMAP,         // Shader location: samplerCube texture: cubemap
-    SHADER_LOC_MAP_IRRADIANCE,      // Shader location: samplerCube texture: irradiance
-    SHADER_LOC_MAP_PREFILTER,       // Shader location: samplerCube texture: prefilter
-    SHADER_LOC_MAP_BRDF,            // Shader location: sampler2d texture: brdf
-    SHADER_LOC_VERTEX_BONEIDS,      // Shader location: vertex attribute: boneIds
-    SHADER_LOC_VERTEX_BONEWEIGHTS,  // Shader location: vertex attribute: boneWeights
-    SHADER_LOC_BONE_MATRICES,       // Shader location: array of matrices uniform: boneMatrices
-    SHADER_LOC_VERTEX_INSTANCE_TX   // Shader location: vertex attribute: instanceTransform
+    RL_E_SHADER_LOC_VERTEX_POSITION = 0, // Shader location: vertex attribute: position
+    RL_E_SHADER_LOC_VERTEX_TEXCOORD01,   // Shader location: vertex attribute: texcoord01
+    RL_E_SHADER_LOC_VERTEX_TEXCOORD02,   // Shader location: vertex attribute: texcoord02
+    RL_E_SHADER_LOC_VERTEX_NORMAL,       // Shader location: vertex attribute: normal
+    RL_E_SHADER_LOC_VERTEX_TANGENT,      // Shader location: vertex attribute: tangent
+    RL_E_SHADER_LOC_VERTEX_COLOR,        // Shader location: vertex attribute: color
+    RL_E_SHADER_LOC_MATRIX_MVP,          // Shader location: matrix uniform: model-view-projection
+    RL_E_SHADER_LOC_MATRIX_VIEW,         // Shader location: matrix uniform: view (camera transform)
+    RL_E_SHADER_LOC_MATRIX_PROJECTION,   // Shader location: matrix uniform: projection
+    RL_E_SHADER_LOC_MATRIX_MODEL,        // Shader location: matrix uniform: model (transform)
+    RL_E_SHADER_LOC_MATRIX_NORMAL,       // Shader location: matrix uniform: normal
+    RL_E_SHADER_LOC_VECTOR_VIEW,         // Shader location: vector uniform: view
+    RL_E_SHADER_LOC_COLOR_DIFFUSE,       // Shader location: vector uniform: diffuse color
+    RL_E_SHADER_LOC_COLOR_SPECULAR,      // Shader location: vector uniform: specular color
+    RL_E_SHADER_LOC_COLOR_AMBIENT,       // Shader location: vector uniform: ambient color
+    RL_E_SHADER_LOC_MAP_ALBEDO,          // Shader location: sampler2d texture: albedo (same as: SHADER_LOC_MAP_DIFFUSE)
+    RL_E_SHADER_LOC_MAP_METALNESS,       // Shader location: sampler2d texture: metalness (same as: SHADER_LOC_MAP_SPECULAR)
+    RL_E_SHADER_LOC_MAP_NORMAL,          // Shader location: sampler2d texture: normal
+    RL_E_SHADER_LOC_MAP_ROUGHNESS,       // Shader location: sampler2d texture: roughness
+    RL_E_SHADER_LOC_MAP_OCCLUSION,       // Shader location: sampler2d texture: occlusion
+    RL_E_SHADER_LOC_MAP_EMISSION,        // Shader location: sampler2d texture: emission
+    RL_E_SHADER_LOC_MAP_HEIGHT,          // Shader location: sampler2d texture: height
+    RL_E_SHADER_LOC_MAP_CUBEMAP,         // Shader location: samplerCube texture: cubemap
+    RL_E_SHADER_LOC_MAP_IRRADIANCE,      // Shader location: samplerCube texture: irradiance
+    RL_E_SHADER_LOC_MAP_PREFILTER,       // Shader location: samplerCube texture: prefilter
+    RL_E_SHADER_LOC_MAP_BRDF,            // Shader location: sampler2d texture: brdf
+    RL_E_SHADER_LOC_VERTEX_BONEIDS,      // Shader location: vertex attribute: boneIds
+    RL_E_SHADER_LOC_VERTEX_BONEWEIGHTS,  // Shader location: vertex attribute: boneWeights
+    RL_E_SHADER_LOC_BONE_MATRICES,       // Shader location: array of matrices uniform: boneMatrices
+    RL_E_SHADER_LOC_VERTEX_INSTANCE_TX   // Shader location: vertex attribute: instanceTransform
 } RLShaderLocationIndex;
 
-#define SHADER_LOC_MAP_DIFFUSE      SHADER_LOC_MAP_ALBEDO
-#define SHADER_LOC_MAP_SPECULAR     SHADER_LOC_MAP_METALNESS
+#define SHADER_LOC_MAP_DIFFUSE      RL_E_SHADER_LOC_MAP_ALBEDO
+#define SHADER_LOC_MAP_SPECULAR     RL_E_SHADER_LOC_MAP_METALNESS
 
 // Shader uniform data type
 typedef enum {
-    SHADER_UNIFORM_FLOAT = 0,       // Shader uniform type: float
-    SHADER_UNIFORM_VEC2,            // Shader uniform type: vec2 (2 float)
-    SHADER_UNIFORM_VEC3,            // Shader uniform type: vec3 (3 float)
-    SHADER_UNIFORM_VEC4,            // Shader uniform type: vec4 (4 float)
-    SHADER_UNIFORM_INT,             // Shader uniform type: int
-    SHADER_UNIFORM_IVEC2,           // Shader uniform type: ivec2 (2 int)
-    SHADER_UNIFORM_IVEC3,           // Shader uniform type: ivec3 (3 int)
-    SHADER_UNIFORM_IVEC4,           // Shader uniform type: ivec4 (4 int)
-    SHADER_UNIFORM_UINT,            // Shader uniform type: unsigned int
-    SHADER_UNIFORM_UIVEC2,          // Shader uniform type: uivec2 (2 unsigned int)
-    SHADER_UNIFORM_UIVEC3,          // Shader uniform type: uivec3 (3 unsigned int)
-    SHADER_UNIFORM_UIVEC4,          // Shader uniform type: uivec4 (4 unsigned int)
-    SHADER_UNIFORM_SAMPLER2D        // Shader uniform type: sampler2d
+    RL_E_SHADER_UNIFORM_FLOAT = 0,       // Shader uniform type: float
+    RL_E_SHADER_UNIFORM_VEC2,            // Shader uniform type: vec2 (2 float)
+    RL_E_SHADER_UNIFORM_VEC3,            // Shader uniform type: vec3 (3 float)
+    RL_E_SHADER_UNIFORM_VEC4,            // Shader uniform type: vec4 (4 float)
+    RL_E_SHADER_UNIFORM_INT,             // Shader uniform type: int
+    RL_E_SHADER_UNIFORM_IVEC2,           // Shader uniform type: ivec2 (2 int)
+    RL_E_SHADER_UNIFORM_IVEC3,           // Shader uniform type: ivec3 (3 int)
+    RL_E_SHADER_UNIFORM_IVEC4,           // Shader uniform type: ivec4 (4 int)
+    RL_E_SHADER_UNIFORM_UINT,            // Shader uniform type: unsigned int
+    RL_E_SHADER_UNIFORM_UIVEC2,          // Shader uniform type: uivec2 (2 unsigned int)
+    RL_E_SHADER_UNIFORM_UIVEC3,          // Shader uniform type: uivec3 (3 unsigned int)
+    RL_E_SHADER_UNIFORM_UIVEC4,          // Shader uniform type: uivec4 (4 unsigned int)
+    RL_E_SHADER_UNIFORM_SAMPLER2D        // Shader uniform type: sampler2d
 } RLShaderUniformDataType;
 
 // Shader attribute data types
 typedef enum {
-    SHADER_ATTRIB_FLOAT = 0,        // Shader attribute type: float
-    SHADER_ATTRIB_VEC2,             // Shader attribute type: vec2 (2 float)
-    SHADER_ATTRIB_VEC3,             // Shader attribute type: vec3 (3 float)
-    SHADER_ATTRIB_VEC4              // Shader attribute type: vec4 (4 float)
+    RL_E_SHADER_ATTRIB_FLOAT = 0,        // Shader attribute type: float
+    RL_E_SHADER_ATTRIB_VEC2,             // Shader attribute type: vec2 (2 float)
+    RL_E_SHADER_ATTRIB_VEC3,             // Shader attribute type: vec3 (3 float)
+    RL_E_SHADER_ATTRIB_VEC4              // Shader attribute type: vec4 (4 float)
 } RLShaderAttributeDataType;
 
 // Pixel formats
 // NOTE: Support depends on OpenGL version and platform
 typedef enum {
-    PIXELFORMAT_UNCOMPRESSED_GRAYSCALE = 1, // 8 bit per pixel (no alpha)
-    PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA,    // 8*2 bpp (2 channels)
-    PIXELFORMAT_UNCOMPRESSED_R5G6B5,        // 16 bpp
-    PIXELFORMAT_UNCOMPRESSED_R8G8B8,        // 24 bpp
-    PIXELFORMAT_UNCOMPRESSED_R5G5B5A1,      // 16 bpp (1 bit alpha)
-    PIXELFORMAT_UNCOMPRESSED_R4G4B4A4,      // 16 bpp (4 bit alpha)
-    PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,      // 32 bpp
-    PIXELFORMAT_UNCOMPRESSED_R32,           // 32 bpp (1 channel - float)
-    PIXELFORMAT_UNCOMPRESSED_R32G32B32,     // 32*3 bpp (3 channels - float)
-    PIXELFORMAT_UNCOMPRESSED_R32G32B32A32,  // 32*4 bpp (4 channels - float)
-    PIXELFORMAT_UNCOMPRESSED_R16,           // 16 bpp (1 channel - half float)
-    PIXELFORMAT_UNCOMPRESSED_R16G16B16,     // 16*3 bpp (3 channels - half float)
-    PIXELFORMAT_UNCOMPRESSED_R16G16B16A16,  // 16*4 bpp (4 channels - half float)
-    PIXELFORMAT_COMPRESSED_DXT1_RGB,        // 4 bpp (no alpha)
-    PIXELFORMAT_COMPRESSED_DXT1_RGBA,       // 4 bpp (1 bit alpha)
-    PIXELFORMAT_COMPRESSED_DXT3_RGBA,       // 8 bpp
-    PIXELFORMAT_COMPRESSED_DXT5_RGBA,       // 8 bpp
-    PIXELFORMAT_COMPRESSED_ETC1_RGB,        // 4 bpp
-    PIXELFORMAT_COMPRESSED_ETC2_RGB,        // 4 bpp
-    PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA,   // 8 bpp
-    PIXELFORMAT_COMPRESSED_PVRT_RGB,        // 4 bpp
-    PIXELFORMAT_COMPRESSED_PVRT_RGBA,       // 4 bpp
-    PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA,   // 8 bpp
-    PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA    // 2 bpp
+    RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE = 1, // 8 bit per pixel (no alpha)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA,    // 8*2 bpp (2 channels)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5,        // 16 bpp
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8,        // 24 bpp
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1,      // 16 bpp (1 bit alpha)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4,      // 16 bpp (4 bit alpha)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,      // 32 bpp
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R32,           // 32 bpp (1 channel - float)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32,     // 32*3 bpp (3 channels - float)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32,  // 32*4 bpp (4 channels - float)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R16,           // 16 bpp (1 channel - half float)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16,     // 16*3 bpp (3 channels - half float)
+    RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16,  // 16*4 bpp (4 channels - half float)
+    RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB,        // 4 bpp (no alpha)
+    RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGBA,       // 4 bpp (1 bit alpha)
+    RL_E_PIXELFORMAT_COMPRESSED_DXT3_RGBA,       // 8 bpp
+    RL_E_PIXELFORMAT_COMPRESSED_DXT5_RGBA,       // 8 bpp
+    RL_E_PIXELFORMAT_COMPRESSED_ETC1_RGB,        // 4 bpp
+    RL_E_PIXELFORMAT_COMPRESSED_ETC2_RGB,        // 4 bpp
+    RL_E_PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA,   // 8 bpp
+    RL_E_PIXELFORMAT_COMPRESSED_PVRT_RGB,        // 4 bpp
+    RL_E_PIXELFORMAT_COMPRESSED_PVRT_RGBA,       // 4 bpp
+    RL_E_PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA,   // 8 bpp
+    RL_E_PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA    // 2 bpp
 } RLPixelFormat;
 
 // Texture parameters: filter mode
 // NOTE 1: Filtering considers mipmaps if available in the texture
 // NOTE 2: Filter is accordingly set for minification and magnification
 typedef enum {
-    TEXTURE_FILTER_POINT = 0,               // No filter, just pixel approximation
-    TEXTURE_FILTER_BILINEAR,                // Linear filtering
-    TEXTURE_FILTER_TRILINEAR,               // Trilinear filtering (linear with mipmaps)
-    TEXTURE_FILTER_ANISOTROPIC_4X,          // Anisotropic filtering 4x
-    TEXTURE_FILTER_ANISOTROPIC_8X,          // Anisotropic filtering 8x
-    TEXTURE_FILTER_ANISOTROPIC_16X,         // Anisotropic filtering 16x
+    RL_E_TEXTURE_FILTER_POINT = 0,               // No filter, just pixel approximation
+    RL_E_TEXTURE_FILTER_BILINEAR,                // Linear filtering
+    RL_E_TEXTURE_FILTER_TRILINEAR,               // Trilinear filtering (linear with mipmaps)
+    RL_E_TEXTURE_FILTER_ANISOTROPIC_4X,          // Anisotropic filtering 4x
+    RL_E_TEXTURE_FILTER_ANISOTROPIC_8X,          // Anisotropic filtering 8x
+    RL_E_TEXTURE_FILTER_ANISOTROPIC_16X,         // Anisotropic filtering 16x
 } RLTextureFilter;
 
 // Texture parameters: wrap mode
 typedef enum {
-    TEXTURE_WRAP_REPEAT = 0,                // Repeats texture in tiled mode
-    TEXTURE_WRAP_CLAMP,                     // Clamps texture to edge pixel in tiled mode
-    TEXTURE_WRAP_MIRROR_REPEAT,             // Mirrors and repeats the texture in tiled mode
-    TEXTURE_WRAP_MIRROR_CLAMP               // Mirrors and clamps to border the texture in tiled mode
+    RL_E_TEXTURE_WRAP_REPEAT = 0,                // Repeats texture in tiled mode
+    RL_E_TEXTURE_WRAP_CLAMP,                     // Clamps texture to edge pixel in tiled mode
+    RL_E_TEXTURE_WRAP_MIRROR_REPEAT,             // Mirrors and repeats the texture in tiled mode
+    RL_E_TEXTURE_WRAP_MIRROR_CLAMP               // Mirrors and clamps to border the texture in tiled mode
 } RLTextureWrap;
 
 // Cubemap layouts
 typedef enum {
-    CUBEMAP_LAYOUT_AUTO_DETECT = 0,         // Automatically detect layout type
-    CUBEMAP_LAYOUT_LINE_VERTICAL,           // Layout is defined by a vertical line with faces
-    CUBEMAP_LAYOUT_LINE_HORIZONTAL,         // Layout is defined by a horizontal line with faces
-    CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR,     // Layout is defined by a 3x4 cross with cubemap faces
-    CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE     // Layout is defined by a 4x3 cross with cubemap faces
+    RL_E_CUBEMAP_LAYOUT_AUTO_DETECT = 0,         // Automatically detect layout type
+    RL_E_CUBEMAP_LAYOUT_LINE_VERTICAL,           // Layout is defined by a vertical line with faces
+    RL_E_CUBEMAP_LAYOUT_LINE_HORIZONTAL,         // Layout is defined by a horizontal line with faces
+    RL_E_CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR,     // Layout is defined by a 3x4 cross with cubemap faces
+    RL_E_CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE     // Layout is defined by a 4x3 cross with cubemap faces
 } RLCubemapLayout;
 
 // Font type, defines generation method
 typedef enum {
-    FONT_DEFAULT = 0,               // Default font generation, anti-aliased
-    FONT_BITMAP,                    // Bitmap font generation, no anti-aliasing
-    FONT_SDF                        // SDF font generation, requires external shader
+    RL_E_FONT_DEFAULT = 0,               // Default font generation, anti-aliased
+    RL_E_FONT_BITMAP,                    // Bitmap font generation, no anti-aliasing
+    RL_E_FONT_SDF                        // SDF font generation, requires external shader
 } RLFontType;
 
 // Color blending modes (pre-defined)
 typedef enum {
-    BLEND_ALPHA = 0,                // Blend textures considering alpha (default)
-    BLEND_ADDITIVE,                 // Blend textures adding colors
-    BLEND_MULTIPLIED,               // Blend textures multiplying colors
-    BLEND_ADD_COLORS,               // Blend textures adding colors (alternative)
-    BLEND_SUBTRACT_COLORS,          // Blend textures subtracting colors (alternative)
-    BLEND_ALPHA_PREMULTIPLY,        // Blend premultiplied textures considering alpha
-    BLEND_CUSTOM,                   // Blend textures using custom src/dst factors (use rlSetBlendFactors())
-    BLEND_CUSTOM_SEPARATE           // Blend textures using custom rgb/alpha separate src/dst factors (use rlSetBlendFactorsSeparate())
+    RL_E_BLEND_ALPHA = 0,                // Blend textures considering alpha (default)
+    RL_E_BLEND_ADDITIVE,                 // Blend textures adding colors
+    RL_E_BLEND_MULTIPLIED,               // Blend textures multiplying colors
+    RL_E_BLEND_ADD_COLORS,               // Blend textures adding colors (alternative)
+    RL_E_BLEND_SUBTRACT_COLORS,          // Blend textures subtracting colors (alternative)
+    RL_E_BLEND_ALPHA_PREMULTIPLY,        // Blend premultiplied textures considering alpha
+    RL_E_BLEND_CUSTOM,                   // Blend textures using custom src/dst factors (use rlSetBlendFactors())
+    RL_E_BLEND_CUSTOM_SEPARATE           // Blend textures using custom rgb/alpha separate src/dst factors (use rlSetBlendFactorsSeparate())
 } RLBlendMode;
 
 // Gesture
 // NOTE: Provided as bit-wise flags to enable only desired gestures
 typedef enum {
-    GESTURE_NONE        = 0,        // No gesture
-    GESTURE_TAP         = 1,        // Tap gesture
-    GESTURE_DOUBLETAP   = 2,        // Double tap gesture
-    GESTURE_HOLD        = 4,        // Hold gesture
-    GESTURE_DRAG        = 8,        // Drag gesture
-    GESTURE_SWIPE_RIGHT = 16,       // Swipe right gesture
-    GESTURE_SWIPE_LEFT  = 32,       // Swipe left gesture
-    GESTURE_SWIPE_UP    = 64,       // Swipe up gesture
-    GESTURE_SWIPE_DOWN  = 128,      // Swipe down gesture
-    GESTURE_PINCH_IN    = 256,      // Pinch in gesture
-    GESTURE_PINCH_OUT   = 512       // Pinch out gesture
+    RL_E_GESTURE_NONE        = 0,        // No gesture
+    RL_E_GESTURE_TAP         = 1,        // Tap gesture
+    RL_E_GESTURE_DOUBLETAP   = 2,        // Double tap gesture
+    RL_E_GESTURE_HOLD        = 4,        // Hold gesture
+    RL_E_GESTURE_DRAG        = 8,        // Drag gesture
+    RL_E_GESTURE_SWIPE_RIGHT = 16,       // Swipe right gesture
+    RL_E_GESTURE_SWIPE_LEFT  = 32,       // Swipe left gesture
+    RL_E_GESTURE_SWIPE_UP    = 64,       // Swipe up gesture
+    RL_E_GESTURE_SWIPE_DOWN  = 128,      // Swipe down gesture
+    RL_E_GESTURE_PINCH_IN    = 256,      // Pinch in gesture
+    RL_E_GESTURE_PINCH_OUT   = 512       // Pinch out gesture
 } RLGesture;
 
 // Camera system modes
 typedef enum {
-    CAMERA_CUSTOM = 0,              // Camera custom, controlled by user (UpdateCamera() does nothing)
-    CAMERA_FREE,                    // Camera free mode
-    CAMERA_ORBITAL,                 // Camera orbital, around target, zoom supported
-    CAMERA_FIRST_PERSON,            // Camera first person
-    CAMERA_THIRD_PERSON             // Camera third person
+    RL_E_CAMERA_CUSTOM = 0,              // Camera custom, controlled by user (UpdateCamera() does nothing)
+    RL_E_CAMERA_FREE,                    // Camera free mode
+    RL_E_CAMERA_ORBITAL,                 // Camera orbital, around target, zoom supported
+    RL_E_CAMERA_FIRST_PERSON,            // Camera first person
+    RL_E_CAMERA_THIRD_PERSON             // Camera third person
 } RLCameraMode;
 
 // Camera projection
 typedef enum {
-    CAMERA_PERSPECTIVE = 0,         // Perspective projection
-    CAMERA_ORTHOGRAPHIC             // Orthographic projection
+    RL_E_CAMERA_PERSPECTIVE = 0,         // Perspective projection
+    RL_E_CAMERA_ORTHOGRAPHIC             // Orthographic projection
 } RLCameraProjection;
 
 // N-patch layout
 typedef enum {
-    NPATCH_NINE_PATCH = 0,          // Npatch layout: 3x3 tiles
-    NPATCH_THREE_PATCH_VERTICAL,    // Npatch layout: 1x3 tiles
-    NPATCH_THREE_PATCH_HORIZONTAL   // Npatch layout: 3x1 tiles
+    RL_E_NPATCH_NINE_PATCH = 0,          // Npatch layout: 3x3 tiles
+    RL_E_NPATCH_THREE_PATCH_VERTICAL,    // Npatch layout: 1x3 tiles
+    RL_E_NPATCH_THREE_PATCH_HORIZONTAL   // Npatch layout: 3x1 tiles
 } RLNPatchLayout;
 
 // Callbacks to hook some internal functions
@@ -1037,7 +1038,7 @@ RLAPI bool RLIsWindowMaximized(void);                               // Check if 
 RLAPI bool RLIsWindowFocused(void);                                 // Check if window is currently focused
 RLAPI bool RLIsWindowResized(void);                                 // Check if window has been resized last frame
 RLAPI bool RLIsWindowState(unsigned int flag);                      // Check if one specific window flag is enabled
-RLAPI unsigned int RLGetWindowState(void);                         // Get current window configuration state flags
+RLAPI unsigned int RLGetWindowState(void);                          // Get current window configuration state flags
 RLAPI void RLSetWindowState(unsigned int flags);                    // Set window configuration state using flags
 RLAPI void RLClearWindowState(unsigned int flags);                  // Clear window configuration state flags
 RLAPI void RLToggleFullscreen(void);                                // Toggle window state: fullscreen/windowed, resizes monitor to match window resolution
@@ -1105,6 +1106,7 @@ RLAPI intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderTh
 #endif
 
 RLAPI void RLSetWindowWin32ClassName(const char *win32ClassName);   // Set one-shot Win32 class name for next window creation (desktop+GLFW on Windows)
+
 RLAPI int RLGetScreenWidth(void);                                   // Get current screen width
 RLAPI int RLGetScreenHeight(void);                                  // Get current screen height
 RLAPI int RLGetRenderWidth(void);                                   // Get current render width (it considers HiDPI)
@@ -1865,9 +1867,9 @@ typedef struct RLEventThreadDiagStats {
     unsigned long long tasksExecuted;
     unsigned long long pumpCalls;
     unsigned long long pumpTasksExecutedTotal;
-    unsigned int        pumpTasksExecutedMax;
-    double              pumpTimeTotalMs;
-    double              pumpTimeMaxMs;
+    unsigned int       pumpTasksExecutedMax;
+    double             pumpTimeTotalMs;
+    double             pumpTimeMaxMs;
 } RLEventThreadDiagStats;
 
 RLAPI RLEventThreadDiagStats RLGetEventThreadDiagStats(void);

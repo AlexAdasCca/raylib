@@ -49,7 +49,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Define our three models to show the shader on
     RLMesh torus = RLGenMeshTorus(0.3f, 1, 16, 32);
@@ -73,9 +73,9 @@ int main(void)
     // Using MATERIAL_MAP_EMISSION as a spare slot to use for 2nd texture
     // NOTE: Don't use MATERIAL_MAP_IRRADIANCE, MATERIAL_MAP_PREFILTER or  MATERIAL_MAP_CUBEMAP as they are bound as cube maps
     RLTexture texMask = RLLoadTexture("resources/mask.png");
-    model1.materials[0].maps[MATERIAL_MAP_EMISSION].texture = texMask;
-    model2.materials[0].maps[MATERIAL_MAP_EMISSION].texture = texMask;
-    shader.locs[SHADER_LOC_MAP_EMISSION] = RLGetShaderLocation(shader, "mask");
+    model1.materials[0].maps[RL_E_MATERIAL_MAP_EMISSION].texture = texMask;
+    model2.materials[0].maps[RL_E_MATERIAL_MAP_EMISSION].texture = texMask;
+    shader.locs[RL_E_SHADER_LOC_MAP_EMISSION] = RLGetShaderLocation(shader, "mask");
 
     // Frame is incremented each frame to animate the shader
     int shaderFrame = RLGetShaderLocation(shader, "frame");
@@ -96,7 +96,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);
 
         framesCounter++;
         rotation.x += 0.01f;
@@ -104,10 +104,10 @@ int main(void)
         rotation.z -= 0.0025f;
 
         // Send frames counter to shader for animation
-        RLSetShaderValue(shader, shaderFrame, &framesCounter, SHADER_UNIFORM_INT);
+        RLSetShaderValue(shader, shaderFrame, &framesCounter, RL_E_SHADER_UNIFORM_INT);
 
         // Rotate one of the models
-        model1.transform = MatrixRotateXYZ(rotation);
+        model1.transform = RLMatrixRotateXYZ(rotation);
         //----------------------------------------------------------------------------------
 
         // Draw

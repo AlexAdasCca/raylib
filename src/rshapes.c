@@ -1,4 +1,4 @@
-﻿/**********************************************************************************************
+/**********************************************************************************************
 *
 *   rshapes - Basic functions to draw 2d shapes and check collisions
 *
@@ -51,7 +51,6 @@
 #if defined(SUPPORT_MODULE_RSHAPES)
 
 #include "rlgl.h"       // OpenGL abstraction layer to OpenGL 1.1, 2.1, 3.3+ or ES2
-#include "rl_context.h"         // Route2: context management
 
 #include <math.h>       // Required for: sinf(), asinf(), cosf(), acosf(), sqrtf(), fabsf()
 #include <float.h>      // Required for: FLT_EPSILON
@@ -77,19 +76,9 @@
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-#define texShapes       (RLGetCurrentContext()->stShapesTexture)
-#define texShapesRec    (RLGetCurrentContext()->stShapesTextureRec)
-#define shapesReady     (RLGetCurrentContext()->bIsShapesTextureReady)
+static RLTexture2D texShapes = { 1, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlgl)
+static RLRectangle texShapesRec = { 0.0f, 0.0f, 1.0f, 1.0f };    // Texture source rectangle used on shapes drawing
 
-static inline void RLEnsureShapesState(void)
-{
-    if (!shapesReady)
-    {
-        texShapes = (RLTexture2D){ (unsigned int)rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
-        texShapesRec = (RLRectangle){ 0.0f, 0.0f, 1.0f, 1.0f };
-        shapesReady = true;
-    }
-}
 //----------------------------------------------------------------------------------
 // Module Internal Functions Declaration
 //----------------------------------------------------------------------------------
@@ -108,7 +97,7 @@ void RLSetShapesTexture(RLTexture2D texture, RLRectangle source)
     // it can break the rendering of all shapes if misused
     if ((texture.id == 0) || (source.width == 0) || (source.height == 0))
     {
-        texShapes = (RLTexture2D){ (unsigned int)rlGetTextureIdDefault(), 1, 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
+        texShapes = (RLTexture2D){ 1, 1, 1, 1, 7 };
         texShapesRec = (RLRectangle){ 0.0f, 0.0f, 1.0f, 1.0f };
     }
     else
@@ -116,21 +105,17 @@ void RLSetShapesTexture(RLTexture2D texture, RLRectangle source)
         texShapes = texture;
         texShapesRec = source;
     }
-
-    shapesReady = true;
 }
 
 // Get texture that is used for shapes drawing
 RLTexture2D RLGetShapesTexture(void)
 {
-    RLEnsureShapesState();
     return texShapes;
 }
 
 // Get texture source rectangle that is used for shapes drawing
 RLRectangle RLGetShapesTextureRectangle(void)
 {
-    RLEnsureShapesState();
     return texShapesRec;
 }
 

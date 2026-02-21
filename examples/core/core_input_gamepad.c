@@ -36,7 +36,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);  // Set MSAA 4X hint before windows creation
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);  // Set MSAA 4X hint before windows creation
 
     RLInitWindow(screenWidth, screenHeight, "raylib [core] example - input gamepad");
 
@@ -63,12 +63,12 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_LEFT) && gamepad > 0) gamepad--;
-        if (RLIsKeyPressed(KEY_RIGHT)) gamepad++;
+        if (RLIsKeyPressed(RL_E_KEY_LEFT) && gamepad > 0) gamepad--;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) gamepad++;
         RLVector2 mousePosition = RLGetMousePosition();
 
         vibrateButton = (RLRectangle){ 10, 70.0f + 20*RLGetGamepadAxisCount(gamepad) + 20, 75, 24 };
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) && RLCheckCollisionPointRec(mousePosition, vibrateButton)) RLSetGamepadVibration(gamepad, 1.0, 1.0, 1.0);
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT) && RLCheckCollisionPointRec(mousePosition, vibrateButton)) RLSetGamepadVibration(gamepad, 1.0, 1.0, 1.0);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -82,12 +82,12 @@ int main(void)
                 RLDrawText(RLTextFormat("GP%d: %s", gamepad, RLGetGamepadName(gamepad)), 10, 10, 10, BLACK);
 
                 // Get axis values
-                float leftStickX = RLGetGamepadAxisMovement(gamepad, GAMEPAD_AXIS_LEFT_X);
-                float leftStickY = RLGetGamepadAxisMovement(gamepad, GAMEPAD_AXIS_LEFT_Y);
-                float rightStickX = RLGetGamepadAxisMovement(gamepad, GAMEPAD_AXIS_RIGHT_X);
-                float rightStickY = RLGetGamepadAxisMovement(gamepad, GAMEPAD_AXIS_RIGHT_Y);
-                float leftTrigger = RLGetGamepadAxisMovement(gamepad, GAMEPAD_AXIS_LEFT_TRIGGER);
-                float rightTrigger = RLGetGamepadAxisMovement(gamepad, GAMEPAD_AXIS_RIGHT_TRIGGER);
+                float leftStickX = RLGetGamepadAxisMovement(gamepad, RL_E_GAMEPAD_AXIS_LEFT_X);
+                float leftStickY = RLGetGamepadAxisMovement(gamepad, RL_E_GAMEPAD_AXIS_LEFT_Y);
+                float rightStickX = RLGetGamepadAxisMovement(gamepad, RL_E_GAMEPAD_AXIS_RIGHT_X);
+                float rightStickY = RLGetGamepadAxisMovement(gamepad, RL_E_GAMEPAD_AXIS_RIGHT_Y);
+                float leftTrigger = RLGetGamepadAxisMovement(gamepad, RL_E_GAMEPAD_AXIS_LEFT_TRIGGER);
+                float rightTrigger = RLGetGamepadAxisMovement(gamepad, RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER);
 
                 // Calculate deadzones
                 if (leftStickX > -leftStickDeadzoneX && leftStickX < leftStickDeadzoneX) leftStickX = 0.0f;
@@ -103,38 +103,38 @@ int main(void)
                     RLDrawTexture(texXboxPad, 0, 0, DARKGRAY);
 
                     // Draw buttons: xbox home
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE)) RLDrawCircle(394, 89, 19, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE)) RLDrawCircle(394, 89, 19, RED);
 
                     // Draw buttons: basic
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE_RIGHT)) RLDrawCircle(436, 150, 9, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE_LEFT)) RLDrawCircle(352, 150, 9, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) RLDrawCircle(501, 151, 15, BLUE);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) RLDrawCircle(536, 187, 15, LIME);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) RLDrawCircle(572, 151, 15, MAROON);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_UP)) RLDrawCircle(536, 115, 15, GOLD);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE_RIGHT)) RLDrawCircle(436, 150, 9, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE_LEFT)) RLDrawCircle(352, 150, 9, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) RLDrawCircle(501, 151, 15, BLUE);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) RLDrawCircle(536, 187, 15, LIME);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) RLDrawCircle(572, 151, 15, MAROON);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP)) RLDrawCircle(536, 115, 15, GOLD);
 
                     // Draw buttons: d-pad
                     RLDrawRectangle(317, 202, 19, 71, BLACK);
                     RLDrawRectangle(293, 228, 69, 19, BLACK);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_UP)) RLDrawRectangle(317, 202, 19, 26, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_DOWN)) RLDrawRectangle(317, 202 + 45, 19, 26, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_LEFT)) RLDrawRectangle(292, 228, 25, 19, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) RLDrawRectangle(292 + 44, 228, 26, 19, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP)) RLDrawRectangle(317, 202, 19, 26, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN)) RLDrawRectangle(317, 202 + 45, 19, 26, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT)) RLDrawRectangle(292, 228, 25, 19, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) RLDrawRectangle(292 + 44, 228, 26, 19, RED);
 
                     // Draw buttons: left-right back
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_TRIGGER_1)) RLDrawCircle(259, 61, 20, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_TRIGGER_1)) RLDrawCircle(536, 61, 20, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_1)) RLDrawCircle(259, 61, 20, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_1)) RLDrawCircle(536, 61, 20, RED);
 
                     // Draw axis: left joystick
                     RLColor leftGamepadColor = BLACK;
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_THUMB)) leftGamepadColor = RED;
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_THUMB)) leftGamepadColor = RED;
                     RLDrawCircle(259, 152, 39, BLACK);
                     RLDrawCircle(259, 152, 34, LIGHTGRAY);
                     RLDrawCircle(259 + (int)(leftStickX*20), 152 + (int)(leftStickY*20), 25, leftGamepadColor);
 
                     // Draw axis: right joystick
                     RLColor rightGamepadColor = BLACK;
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_THUMB)) rightGamepadColor = RED;
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_THUMB)) rightGamepadColor = RED;
                     RLDrawCircle(461, 237, 38, BLACK);
                     RLDrawCircle(461, 237, 33, LIGHTGRAY);
                     RLDrawCircle(461 + (int)(rightStickX*20), 237 + (int)(rightStickY*20), 25, rightGamepadColor);
@@ -153,38 +153,38 @@ int main(void)
                     RLDrawTexture(texPs3Pad, 0, 0, DARKGRAY);
 
                     // Draw buttons: ps
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE)) RLDrawCircle(396, 222, 13, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE)) RLDrawCircle(396, 222, 13, RED);
 
                     // Draw buttons: basic
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE_LEFT)) RLDrawRectangle(328, 170, 32, 13, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE_RIGHT)) RLDrawTriangle((RLVector2){ 436, 168 }, (RLVector2){ 436, 185 }, (RLVector2){ 464, 177 }, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_UP)) RLDrawCircle(557, 144, 13, LIME);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) RLDrawCircle(586, 173, 13, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) RLDrawCircle(557, 203, 13, VIOLET);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) RLDrawCircle(527, 173, 13, PINK);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE_LEFT)) RLDrawRectangle(328, 170, 32, 13, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE_RIGHT)) RLDrawTriangle((RLVector2){ 436, 168 }, (RLVector2){ 436, 185 }, (RLVector2){ 464, 177 }, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP)) RLDrawCircle(557, 144, 13, LIME);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) RLDrawCircle(586, 173, 13, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) RLDrawCircle(557, 203, 13, VIOLET);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) RLDrawCircle(527, 173, 13, PINK);
 
                     // Draw buttons: d-pad
                     RLDrawRectangle(225, 132, 24, 84, BLACK);
                     RLDrawRectangle(195, 161, 84, 25, BLACK);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_UP)) RLDrawRectangle(225, 132, 24, 29, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_DOWN)) RLDrawRectangle(225, 132 + 54, 24, 30, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_LEFT)) RLDrawRectangle(195, 161, 30, 25, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) RLDrawRectangle(195 + 54, 161, 30, 25, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP)) RLDrawRectangle(225, 132, 24, 29, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN)) RLDrawRectangle(225, 132 + 54, 24, 30, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT)) RLDrawRectangle(195, 161, 30, 25, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) RLDrawRectangle(195 + 54, 161, 30, 25, RED);
 
                     // Draw buttons: left-right back buttons
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_TRIGGER_1)) RLDrawCircle(239, 82, 20, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_TRIGGER_1)) RLDrawCircle(557, 82, 20, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_1)) RLDrawCircle(239, 82, 20, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_1)) RLDrawCircle(557, 82, 20, RED);
 
                     // Draw axis: left joystick
                     RLColor leftGamepadColor = BLACK;
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_THUMB)) leftGamepadColor = RED;
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_THUMB)) leftGamepadColor = RED;
                     RLDrawCircle(319, 255, 35, BLACK);
                     RLDrawCircle(319, 255, 31, LIGHTGRAY);
                     RLDrawCircle(319 + (int)(leftStickX*20), 255 + (int)(leftStickY*20), 25, leftGamepadColor);
 
                     // Draw axis: right joystick
                     RLColor rightGamepadColor = BLACK;
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_THUMB)) rightGamepadColor = RED;
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_THUMB)) rightGamepadColor = RED;
                     RLDrawCircle(475, 255, 35, BLACK);
                     RLDrawCircle(475, 255, 31, LIGHTGRAY);
                     RLDrawCircle(475 + (int)(rightStickX*20), 255 + (int)(rightStickY*20), 25, rightGamepadColor);
@@ -208,40 +208,40 @@ int main(void)
                     RLDrawCircle(551, 227, 17, RAYWHITE);
                     RLDrawCircle(587, 191, 17, RAYWHITE);
                     RLDrawCircle(551, 155, 17, RAYWHITE);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE_LEFT)) RLDrawCircle(365, 170, 10, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE)) RLDrawCircle(405, 170, 10, GREEN);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE_RIGHT)) RLDrawCircle(445, 170, 10, BLUE);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) RLDrawCircle(516, 191, 15, GOLD);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) RLDrawCircle(551, 227, 15, BLUE);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) RLDrawCircle(587, 191, 15, GREEN);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_UP)) RLDrawCircle(551, 155, 15, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE_LEFT)) RLDrawCircle(365, 170, 10, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE)) RLDrawCircle(405, 170, 10, GREEN);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_MIDDLE_RIGHT)) RLDrawCircle(445, 170, 10, BLUE);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) RLDrawCircle(516, 191, 15, GOLD);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) RLDrawCircle(551, 227, 15, BLUE);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) RLDrawCircle(587, 191, 15, GREEN);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP)) RLDrawCircle(551, 155, 15, RED);
 
                     // Draw buttons: d-pad
                     RLDrawRectangle(245, 145, 28, 88, RAYWHITE);
                     RLDrawRectangle(215, 174, 88, 29, RAYWHITE);
                     RLDrawRectangle(247, 147, 24, 84, BLACK);
                     RLDrawRectangle(217, 176, 84, 25, BLACK);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_UP)) RLDrawRectangle(247, 147, 24, 29, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_DOWN)) RLDrawRectangle(247, 147 + 54, 24, 30, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_LEFT)) RLDrawRectangle(217, 176, 30, 25, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) RLDrawRectangle(217 + 54, 176, 30, 25, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP)) RLDrawRectangle(247, 147, 24, 29, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN)) RLDrawRectangle(247, 147 + 54, 24, 30, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT)) RLDrawRectangle(217, 176, 30, 25, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) RLDrawRectangle(217 + 54, 176, 30, 25, RED);
 
                     // Draw buttons: left-right back
                     RLDrawRectangleRounded((RLRectangle){ 215, 98, 100, 10}, 0.5f, 16, DARKGRAY);
                     RLDrawRectangleRounded((RLRectangle){ 495, 98, 100, 10}, 0.5f, 16, DARKGRAY);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_TRIGGER_1)) RLDrawRectangleRounded((RLRectangle){ 215, 98, 100, 10}, 0.5f, 16, RED);
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_TRIGGER_1)) RLDrawRectangleRounded((RLRectangle){ 495, 98, 100, 10}, 0.5f, 16, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_1)) RLDrawRectangleRounded((RLRectangle){ 215, 98, 100, 10}, 0.5f, 16, RED);
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_1)) RLDrawRectangleRounded((RLRectangle){ 495, 98, 100, 10}, 0.5f, 16, RED);
 
                     // Draw axis: left joystick
                     RLColor leftGamepadColor = BLACK;
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_THUMB)) leftGamepadColor = RED;
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_LEFT_THUMB)) leftGamepadColor = RED;
                     RLDrawCircle(345, 260, 40, BLACK);
                     RLDrawCircle(345, 260, 35, LIGHTGRAY);
                     RLDrawCircle(345 + (int)(leftStickX*20), 260 + (int)(leftStickY*20), 25, leftGamepadColor);
 
                     // Draw axis: right joystick
                     RLColor rightGamepadColor = BLACK;
-                    if (RLIsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_THUMB)) rightGamepadColor = RED;
+                    if (RLIsGamepadButtonDown(gamepad, RL_E_GAMEPAD_BUTTON_RIGHT_THUMB)) rightGamepadColor = RED;
                     RLDrawCircle(465, 260, 40, BLACK);
                     RLDrawCircle(465, 260, 35, LIGHTGRAY);
                     RLDrawCircle(465 + (int)(rightStickX*20), 260 + (int)(rightStickY*20), 25, rightGamepadColor);
@@ -264,7 +264,7 @@ int main(void)
                 RLDrawRectangleRec(vibrateButton, SKYBLUE);
                 RLDrawText("VIBRATE", (int)(vibrateButton.x + 14), (int)(vibrateButton.y + 1), 10, DARKGRAY);
 
-                if (RLGetGamepadButtonPressed() != GAMEPAD_BUTTON_UNKNOWN) RLDrawText(RLTextFormat("DETECTED BUTTON: %i", RLGetGamepadButtonPressed()), 10, 430, 10, RED);
+                if (RLGetGamepadButtonPressed() != RL_E_GAMEPAD_BUTTON_UNKNOWN) RLDrawText(RLTextFormat("DETECTED BUTTON: %i", RLGetGamepadButtonPressed()), 10, 430, 10, RED);
                 else RLDrawText("DETECTED BUTTON: NONE", 10, 430, 10, GRAY);
             }
             else

@@ -65,22 +65,22 @@ int main(void)
 
     // Update distortion shader with lens and distortion-scale parameters
     RLSetShaderValue(distortion, RLGetShaderLocation(distortion, "leftLensCenter"),
-                   config.leftLensCenter, SHADER_UNIFORM_VEC2);
+                   config.leftLensCenter, RL_E_SHADER_UNIFORM_VEC2);
     RLSetShaderValue(distortion, RLGetShaderLocation(distortion, "rightLensCenter"),
-                   config.rightLensCenter, SHADER_UNIFORM_VEC2);
+                   config.rightLensCenter, RL_E_SHADER_UNIFORM_VEC2);
     RLSetShaderValue(distortion, RLGetShaderLocation(distortion, "leftScreenCenter"),
-                   config.leftScreenCenter, SHADER_UNIFORM_VEC2);
+                   config.leftScreenCenter, RL_E_SHADER_UNIFORM_VEC2);
     RLSetShaderValue(distortion, RLGetShaderLocation(distortion, "rightScreenCenter"),
-                   config.rightScreenCenter, SHADER_UNIFORM_VEC2);
+                   config.rightScreenCenter, RL_E_SHADER_UNIFORM_VEC2);
 
     RLSetShaderValue(distortion, RLGetShaderLocation(distortion, "scale"),
-                   config.scale, SHADER_UNIFORM_VEC2);
+                   config.scale, RL_E_SHADER_UNIFORM_VEC2);
     RLSetShaderValue(distortion, RLGetShaderLocation(distortion, "scaleIn"),
-                   config.scaleIn, SHADER_UNIFORM_VEC2);
+                   config.scaleIn, RL_E_SHADER_UNIFORM_VEC2);
     RLSetShaderValue(distortion, RLGetShaderLocation(distortion, "deviceWarpParam"),
-                   device.lensDistortionValues, SHADER_UNIFORM_VEC4);
+                   device.lensDistortionValues, RL_E_SHADER_UNIFORM_VEC4);
     RLSetShaderValue(distortion, RLGetShaderLocation(distortion, "chromaAbParam"),
-                   device.chromaAbCorrection, SHADER_UNIFORM_VEC4);
+                   device.chromaAbCorrection, RL_E_SHADER_UNIFORM_VEC4);
 
     // Initialize framebuffer for stereo rendering
     // NOTE: Screen size should match HMD aspect ratio
@@ -96,7 +96,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector
     camera.fovy = 60.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLVector3 cubePosition = { 0.0f, 0.0f, 0.0f };
 
@@ -110,7 +110,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);
         //----------------------------------------------------------------------------------
 
         // Draw

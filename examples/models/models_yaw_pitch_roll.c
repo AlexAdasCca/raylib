@@ -37,7 +37,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 30.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera type
 
     RLModel model = RLLoadModel("resources/models/obj/plane.obj");                  // Load model
     RLTexture2D texture = RLLoadTexture("resources/models/obj/plane_diffuse.png");  // Load model texture
@@ -56,8 +56,8 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Plane pitch (x-axis) controls
-        if (RLIsKeyDown(KEY_DOWN)) pitch += 0.6f;
-        else if (RLIsKeyDown(KEY_UP)) pitch -= 0.6f;
+        if (RLIsKeyDown(RL_E_KEY_DOWN)) pitch += 0.6f;
+        else if (RLIsKeyDown(RL_E_KEY_UP)) pitch -= 0.6f;
         else
         {
             if (pitch > 0.3f) pitch -= 0.3f;
@@ -65,8 +65,8 @@ int main(void)
         }
 
         // Plane yaw (y-axis) controls
-        if (RLIsKeyDown(KEY_S)) yaw -= 1.0f;
-        else if (RLIsKeyDown(KEY_A)) yaw += 1.0f;
+        if (RLIsKeyDown(RL_E_KEY_S)) yaw -= 1.0f;
+        else if (RLIsKeyDown(RL_E_KEY_A)) yaw += 1.0f;
         else
         {
             if (yaw > 0.0f) yaw -= 0.5f;
@@ -74,8 +74,8 @@ int main(void)
         }
 
         // Plane roll (z-axis) controls
-        if (RLIsKeyDown(KEY_LEFT)) roll -= 1.0f;
-        else if (RLIsKeyDown(KEY_RIGHT)) roll += 1.0f;
+        if (RLIsKeyDown(RL_E_KEY_LEFT)) roll -= 1.0f;
+        else if (RLIsKeyDown(RL_E_KEY_RIGHT)) roll += 1.0f;
         else
         {
             if (roll > 0.0f) roll -= 0.5f;
@@ -83,7 +83,7 @@ int main(void)
         }
 
         // Tranformation matrix for rotations
-        model.transform = MatrixRotateXYZ((RLVector3){ DEG2RAD*pitch, DEG2RAD*yaw, DEG2RAD*roll });
+        model.transform = RLMatrixRotateXYZ((RLVector3){ DEG2RAD*pitch, DEG2RAD*yaw, DEG2RAD*roll });
         //----------------------------------------------------------------------------------
 
         // Draw

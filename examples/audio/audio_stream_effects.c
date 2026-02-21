@@ -70,14 +70,14 @@ int main(void)
         RLUpdateMusicStream(music);   // Update music buffer with new stream data
 
         // Restart music playing (stop and play)
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             RLStopMusicStream(music);
             RLPlayMusicStream(music);
         }
 
         // Pause/Resume music playing
-        if (RLIsKeyPressed(KEY_P))
+        if (RLIsKeyPressed(RL_E_KEY_P))
         {
             pause = !pause;
 
@@ -86,7 +86,7 @@ int main(void)
         }
 
         // Add/Remove effect: lowpass filter
-        if (RLIsKeyPressed(KEY_F))
+        if (RLIsKeyPressed(RL_E_KEY_F))
         {
             enableEffectLPF = !enableEffectLPF;
             if (enableEffectLPF) RLAttachAudioStreamProcessor(music.stream, AudioProcessEffectLPF);
@@ -94,7 +94,7 @@ int main(void)
         }
 
         // Add/Remove effect: delay
-        if (RLIsKeyPressed(KEY_D))
+        if (RLIsKeyPressed(RL_E_KEY_D))
         {
             enableEffectDelay = !enableEffectDelay;
             if (enableEffectDelay) RLAttachAudioStreamProcessor(music.stream, AudioProcessEffectDelay);

@@ -52,7 +52,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;
 
     // Load render texture with a depth texture attached
     RLRenderTexture2D target = LoadRenderTextureDepthTex(screenWidth, screenHeight);
@@ -61,7 +61,7 @@ int main(void)
     RLShader depthShader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/depth_render.fs", GLSL_VERSION));
     int depthLoc = RLGetShaderLocation(depthShader, "depthTexture");
     int flipTextureLoc = RLGetShaderLocation(depthShader, "flipY");
-    RLSetShaderValue(depthShader, flipTextureLoc, (int[]){ 1 }, SHADER_UNIFORM_INT); // Flip Y texture
+    RLSetShaderValue(depthShader, flipTextureLoc, (int[]){ 1 }, RL_E_SHADER_UNIFORM_INT); // Flip Y texture
 
     // Load scene models
     RLModel cube = RLLoadModelFromMesh(RLGenMeshCube(1.0f, 1.0f, 1.0f));
@@ -77,7 +77,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FREE);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FREE);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -140,10 +140,10 @@ static RLRenderTexture2D LoadRenderTextureDepthTex(int width, int height)
         rlEnableFramebuffer(target.id);
 
         // Create color texture (default to RGBA)
-        target.texture.id = rlLoadTexture(0, width, height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+        target.texture.id = rlLoadTexture(0, width, height, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
         target.texture.width = width;
         target.texture.height = height;
-        target.texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        target.texture.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
         target.texture.mipmaps = 1;
 
         // Create depth texture buffer (instead of raylib default renderbuffer)
@@ -158,11 +158,11 @@ static RLRenderTexture2D LoadRenderTextureDepthTex(int width, int height)
         rlFramebufferAttach(target.id, target.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
 
         // Check if fbo is complete with attachments (valid)
-        if (rlFramebufferComplete(target.id)) TRACELOG(LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
+        if (rlFramebufferComplete(target.id)) TRACELOG(RL_E_LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
 
         rlDisableFramebuffer();
     }
-    else TRACELOG(LOG_WARNING, "FBO: Framebuffer object can not be created");
+    else TRACELOG(RL_E_LOG_WARNING, "FBO: Framebuffer object can not be created");
 
     return target;
 }

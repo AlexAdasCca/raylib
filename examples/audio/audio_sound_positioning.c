@@ -45,7 +45,7 @@ int main(void)
         .target = (RLVector3) { 0, 0, 0 },
         .up = (RLVector3) { 0, 1, 0 },
         .fovy = 60,
-        .projection = CAMERA_PERSPECTIVE
+        .projection = RL_E_CAMERA_PERSPECTIVE
     };
 
     RLDisableCursor();
@@ -58,7 +58,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FREE);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FREE);
 
         float th = (float)RLGetTime();
 
@@ -106,24 +106,24 @@ int main(void)
 static void SetSoundPosition(RLCamera listener, RLSound sound, RLVector3 position, float maxDist)
 {
     // Calculate direction vector and distance between listener and sound source
-    RLVector3 direction = Vector3Subtract(position, listener.position);
-    float distance = Vector3Length(direction);
+    RLVector3 direction = RLVector3Subtract(position, listener.position);
+    float distance = RLVector3Length(direction);
 
     // Apply logarithmic distance attenuation and clamp between 0-1
     float attenuation = 1.0f/(1.0f + (distance/maxDist));
-    attenuation = Clamp(attenuation, 0.0f, 1.0f);
+    attenuation = RLClamp(attenuation, 0.0f, 1.0f);
 
     // Calculate normalized vectors for spatial positioning
-    RLVector3 normalizedDirection = Vector3Normalize(direction);
-    RLVector3 forward = Vector3Normalize(Vector3Subtract(listener.target, listener.position));
-    RLVector3 right = Vector3Normalize(Vector3CrossProduct(listener.up, forward));
+    RLVector3 normalizedDirection = RLVector3Normalize(direction);
+    RLVector3 forward = RLVector3Normalize(RLVector3Subtract(listener.target, listener.position));
+    RLVector3 right = RLVector3Normalize(RLVector3CrossProduct(listener.up, forward));
 
     // Reduce volume for sounds behind the listener
-    float dotProduct = Vector3DotProduct(forward, normalizedDirection);
+    float dotProduct = RLVector3DotProduct(forward, normalizedDirection);
     if (dotProduct < 0.0f) attenuation *= (1.0f + dotProduct*0.5f);
 
     // Set stereo panning based on sound position relative to listener
-    float pan = 0.5f + 0.5f*Vector3DotProduct(normalizedDirection, right);
+    float pan = 0.5f + 0.5f*RLVector3DotProduct(normalizedDirection, right);
 
     // Apply final sound properties
     RLSetSoundVolume(sound, attenuation);

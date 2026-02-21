@@ -132,130 +132,130 @@ static PlatformData platform = { 0 };   // Platform specific
 static bool RGFW_disableCursor = false;
 
 static const unsigned short keyMappingRGFW[] = {
-    [RGFW_keyNULL] = KEY_NULL,
-    [RGFW_return] = KEY_ENTER,
-    [RGFW_apostrophe] = KEY_APOSTROPHE,
-    [RGFW_comma] = KEY_COMMA,
-    [RGFW_minus] = KEY_MINUS,
-    [RGFW_period] = KEY_PERIOD,
-    [RGFW_slash] = KEY_SLASH,
-    [RGFW_escape] = KEY_ESCAPE,
-    [RGFW_F1] = KEY_F1,
-    [RGFW_F2] = KEY_F2,
-    [RGFW_F3] = KEY_F3,
-    [RGFW_F4] = KEY_F4,
-    [RGFW_F5] = KEY_F5,
-    [RGFW_F6] = KEY_F6,
-    [RGFW_F7] = KEY_F7,
-    [RGFW_F8] = KEY_F8,
-    [RGFW_F9] = KEY_F9,
-    [RGFW_F10] = KEY_F10,
-    [RGFW_F11] = KEY_F11,
-    [RGFW_F12] = KEY_F12,
-    [RGFW_backtick] = KEY_GRAVE,
-    [RGFW_0] = KEY_ZERO,
-    [RGFW_1] = KEY_ONE,
-    [RGFW_2] = KEY_TWO,
-    [RGFW_3] = KEY_THREE,
-    [RGFW_4] = KEY_FOUR,
-    [RGFW_5] = KEY_FIVE,
-    [RGFW_6] = KEY_SIX,
-    [RGFW_7] = KEY_SEVEN,
-    [RGFW_8] = KEY_EIGHT,
-    [RGFW_9] = KEY_NINE,
-    [RGFW_equals] = KEY_EQUAL,
-    [RGFW_backSpace] = KEY_BACKSPACE,
-    [RGFW_tab] = KEY_TAB,
-    [RGFW_capsLock] = KEY_CAPS_LOCK,
-    [RGFW_shiftL] = KEY_LEFT_SHIFT,
-    [RGFW_controlL] = KEY_LEFT_CONTROL,
-    [RGFW_altL] = KEY_LEFT_ALT,
-    [RGFW_superL] = KEY_LEFT_SUPER,
+    [RGFW_keyNULL] = RL_E_KEY_NULL,
+    [RGFW_return] = RL_E_KEY_ENTER,
+    [RGFW_apostrophe] = RL_E_KEY_APOSTROPHE,
+    [RGFW_comma] = RL_E_KEY_COMMA,
+    [RGFW_minus] = RL_E_KEY_MINUS,
+    [RGFW_period] = RL_E_KEY_PERIOD,
+    [RGFW_slash] = RL_E_KEY_SLASH,
+    [RGFW_escape] = RL_E_KEY_ESCAPE,
+    [RGFW_F1] = RL_E_KEY_F1,
+    [RGFW_F2] = RL_E_KEY_F2,
+    [RGFW_F3] = RL_E_KEY_F3,
+    [RGFW_F4] = RL_E_KEY_F4,
+    [RGFW_F5] = RL_E_KEY_F5,
+    [RGFW_F6] = RL_E_KEY_F6,
+    [RGFW_F7] = RL_E_KEY_F7,
+    [RGFW_F8] = RL_E_KEY_F8,
+    [RGFW_F9] = RL_E_KEY_F9,
+    [RGFW_F10] = RL_E_KEY_F10,
+    [RGFW_F11] = RL_E_KEY_F11,
+    [RGFW_F12] = RL_E_KEY_F12,
+    [RGFW_backtick] = RL_E_KEY_GRAVE,
+    [RGFW_0] = RL_E_KEY_ZERO,
+    [RGFW_1] = RL_E_KEY_ONE,
+    [RGFW_2] = RL_E_KEY_TWO,
+    [RGFW_3] = RL_E_KEY_THREE,
+    [RGFW_4] = RL_E_KEY_FOUR,
+    [RGFW_5] = RL_E_KEY_FIVE,
+    [RGFW_6] = RL_E_KEY_SIX,
+    [RGFW_7] = RL_E_KEY_SEVEN,
+    [RGFW_8] = RL_E_KEY_EIGHT,
+    [RGFW_9] = RL_E_KEY_NINE,
+    [RGFW_equals] = RL_E_KEY_EQUAL,
+    [RGFW_backSpace] = RL_E_KEY_BACKSPACE,
+    [RGFW_tab] = RL_E_KEY_TAB,
+    [RGFW_capsLock] = RL_E_KEY_CAPS_LOCK,
+    [RGFW_shiftL] = RL_E_KEY_LEFT_SHIFT,
+    [RGFW_controlL] = RL_E_KEY_LEFT_CONTROL,
+    [RGFW_altL] = RL_E_KEY_LEFT_ALT,
+    [RGFW_superL] = RL_E_KEY_LEFT_SUPER,
     #ifndef RGFW_MACOS
-    [RGFW_shiftR] = KEY_RIGHT_SHIFT,
-    [RGFW_controlR] = KEY_RIGHT_CONTROL,
-    [RGFW_altR] = KEY_RIGHT_ALT,
-    [RGFW_superR] = KEY_RIGHT_SUPER,
+    [RGFW_shiftR] = RL_E_KEY_RIGHT_SHIFT,
+    [RGFW_controlR] = RL_E_KEY_RIGHT_CONTROL,
+    [RGFW_altR] = RL_E_KEY_RIGHT_ALT,
+    [RGFW_superR] = RL_E_KEY_RIGHT_SUPER,
     #endif
-    [RGFW_space] = KEY_SPACE,
+    [RGFW_space] = RL_E_KEY_SPACE,
 
-    [RGFW_a] = KEY_A,
-    [RGFW_b] = KEY_B,
-    [RGFW_c] = KEY_C,
-    [RGFW_d] = KEY_D,
-    [RGFW_e] = KEY_E,
-    [RGFW_f] = KEY_F,
-    [RGFW_g] = KEY_G,
-    [RGFW_h] = KEY_H,
-    [RGFW_i] = KEY_I,
-    [RGFW_j] = KEY_J,
-    [RGFW_k] = KEY_K,
-    [RGFW_l] = KEY_L,
-    [RGFW_m] = KEY_M,
-    [RGFW_n] = KEY_N,
-    [RGFW_o] = KEY_O,
-    [RGFW_p] = KEY_P,
-    [RGFW_q] = KEY_Q,
-    [RGFW_r] = KEY_R,
-    [RGFW_s] = KEY_S,
-    [RGFW_t] = KEY_T,
-    [RGFW_u] = KEY_U,
-    [RGFW_v] = KEY_V,
-    [RGFW_w] = KEY_W,
-    [RGFW_x] = KEY_X,
-    [RGFW_y] = KEY_Y,
-    [RGFW_z] = KEY_Z,
-    [RGFW_bracket] = KEY_LEFT_BRACKET,
-    [RGFW_backSlash] = KEY_BACKSLASH,
-    [RGFW_closeBracket] = KEY_RIGHT_BRACKET,
-    [RGFW_semicolon] = KEY_SEMICOLON,
-    [RGFW_insert] = KEY_INSERT,
-    [RGFW_home] = KEY_HOME,
-    [RGFW_pageUp] = KEY_PAGE_UP,
-    [RGFW_delete] = KEY_DELETE,
-    [RGFW_end] = KEY_END,
-    [RGFW_pageDown] = KEY_PAGE_DOWN,
-    [RGFW_right] = KEY_RIGHT,
-    [RGFW_left] = KEY_LEFT,
-    [RGFW_down] = KEY_DOWN,
-    [RGFW_up] = KEY_UP,
-    [RGFW_numLock] = KEY_NUM_LOCK,
-    [RGFW_KP_Slash] = KEY_KP_DIVIDE,
-    [RGFW_multiply] = KEY_KP_MULTIPLY,
-    [RGFW_KP_Minus] = KEY_KP_SUBTRACT,
-    [RGFW_KP_Return] = KEY_KP_ENTER,
-    [RGFW_KP_1] = KEY_KP_1,
-    [RGFW_KP_2] = KEY_KP_2,
-    [RGFW_KP_3] = KEY_KP_3,
-    [RGFW_KP_4] = KEY_KP_4,
-    [RGFW_KP_5] = KEY_KP_5,
-    [RGFW_KP_6] = KEY_KP_6,
-    [RGFW_KP_7] = KEY_KP_7,
-    [RGFW_KP_8] = KEY_KP_8,
-    [RGFW_KP_9] = KEY_KP_9,
-    [RGFW_KP_0] = KEY_KP_0,
-    [RGFW_KP_Period] = KEY_KP_DECIMAL,
-    [RGFW_scrollLock] = KEY_SCROLL_LOCK,
+    [RGFW_a] = RL_E_KEY_A,
+    [RGFW_b] = RL_E_KEY_B,
+    [RGFW_c] = RL_E_KEY_C,
+    [RGFW_d] = RL_E_KEY_D,
+    [RGFW_e] = RL_E_KEY_E,
+    [RGFW_f] = RL_E_KEY_F,
+    [RGFW_g] = RL_E_KEY_G,
+    [RGFW_h] = RL_E_KEY_H,
+    [RGFW_i] = RL_E_KEY_I,
+    [RGFW_j] = RL_E_KEY_J,
+    [RGFW_k] = RL_E_KEY_K,
+    [RGFW_l] = RL_E_KEY_L,
+    [RGFW_m] = RL_E_KEY_M,
+    [RGFW_n] = RL_E_KEY_N,
+    [RGFW_o] = RL_E_KEY_O,
+    [RGFW_p] = RL_E_KEY_P,
+    [RGFW_q] = RL_E_KEY_Q,
+    [RGFW_r] = RL_E_KEY_R,
+    [RGFW_s] = RL_E_KEY_S,
+    [RGFW_t] = RL_E_KEY_T,
+    [RGFW_u] = RL_E_KEY_U,
+    [RGFW_v] = RL_E_KEY_V,
+    [RGFW_w] = RL_E_KEY_W,
+    [RGFW_x] = RL_E_KEY_X,
+    [RGFW_y] = RL_E_KEY_Y,
+    [RGFW_z] = RL_E_KEY_Z,
+    [RGFW_bracket] = RL_E_KEY_LEFT_BRACKET,
+    [RGFW_backSlash] = RL_E_KEY_BACKSLASH,
+    [RGFW_closeBracket] = RL_E_KEY_RIGHT_BRACKET,
+    [RGFW_semicolon] = RL_E_KEY_SEMICOLON,
+    [RGFW_insert] = RL_E_KEY_INSERT,
+    [RGFW_home] = RL_E_KEY_HOME,
+    [RGFW_pageUp] = RL_E_KEY_PAGE_UP,
+    [RGFW_delete] = RL_E_KEY_DELETE,
+    [RGFW_end] = RL_E_KEY_END,
+    [RGFW_pageDown] = RL_E_KEY_PAGE_DOWN,
+    [RGFW_right] = RL_E_KEY_RIGHT,
+    [RGFW_left] = RL_E_KEY_LEFT,
+    [RGFW_down] = RL_E_KEY_DOWN,
+    [RGFW_up] = RL_E_KEY_UP,
+    [RGFW_numLock] = RL_E_KEY_NUM_LOCK,
+    [RGFW_KP_Slash] = RL_E_KEY_KP_DIVIDE,
+    [RGFW_multiply] = RL_E_KEY_KP_MULTIPLY,
+    [RGFW_KP_Minus] = RL_E_KEY_KP_SUBTRACT,
+    [RGFW_KP_Return] = RL_E_KEY_KP_ENTER,
+    [RGFW_KP_1] = RL_E_KEY_KP_1,
+    [RGFW_KP_2] = RL_E_KEY_KP_2,
+    [RGFW_KP_3] = RL_E_KEY_KP_3,
+    [RGFW_KP_4] = RL_E_KEY_KP_4,
+    [RGFW_KP_5] = RL_E_KEY_KP_5,
+    [RGFW_KP_6] = RL_E_KEY_KP_6,
+    [RGFW_KP_7] = RL_E_KEY_KP_7,
+    [RGFW_KP_8] = RL_E_KEY_KP_8,
+    [RGFW_KP_9] = RL_E_KEY_KP_9,
+    [RGFW_KP_0] = RL_E_KEY_KP_0,
+    [RGFW_KP_Period] = RL_E_KEY_KP_DECIMAL,
+    [RGFW_scrollLock] = RL_E_KEY_SCROLL_LOCK,
 };
 
 static int RGFW_gpConvTable[18] = {
-    [RGFW_gamepadY] = GAMEPAD_BUTTON_RIGHT_FACE_UP,
-    [RGFW_gamepadB] = GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,
-    [RGFW_gamepadA] = GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
-    [RGFW_gamepadX] = GAMEPAD_BUTTON_RIGHT_FACE_LEFT,
-    [RGFW_gamepadL1] = GAMEPAD_BUTTON_LEFT_TRIGGER_1,
-    [RGFW_gamepadR1] = GAMEPAD_BUTTON_RIGHT_TRIGGER_1,
-    [RGFW_gamepadL2] = GAMEPAD_BUTTON_LEFT_TRIGGER_2,
-    [RGFW_gamepadR2] = GAMEPAD_BUTTON_RIGHT_TRIGGER_2,
-    [RGFW_gamepadSelect] = GAMEPAD_BUTTON_MIDDLE_LEFT,
-    [RGFW_gamepadHome] = GAMEPAD_BUTTON_MIDDLE,
-    [RGFW_gamepadStart] = GAMEPAD_BUTTON_MIDDLE_RIGHT,
-    [RGFW_gamepadUp] = GAMEPAD_BUTTON_LEFT_FACE_UP,
-    [RGFW_gamepadRight] = GAMEPAD_BUTTON_LEFT_FACE_RIGHT,
-    [RGFW_gamepadDown] = GAMEPAD_BUTTON_LEFT_FACE_DOWN,
-    [RGFW_gamepadLeft] = GAMEPAD_BUTTON_LEFT_FACE_LEFT,
-    [RGFW_gamepadL3] = GAMEPAD_BUTTON_LEFT_THUMB,
-    [RGFW_gamepadR3] = GAMEPAD_BUTTON_RIGHT_THUMB,
+    [RGFW_gamepadY] = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP,
+    [RGFW_gamepadB] = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,
+    [RGFW_gamepadA] = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+    [RGFW_gamepadX] = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT,
+    [RGFW_gamepadL1] = RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_1,
+    [RGFW_gamepadR1] = RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_1,
+    [RGFW_gamepadL2] = RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_2,
+    [RGFW_gamepadR2] = RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_2,
+    [RGFW_gamepadSelect] = RL_E_GAMEPAD_BUTTON_MIDDLE_LEFT,
+    [RGFW_gamepadHome] = RL_E_GAMEPAD_BUTTON_MIDDLE,
+    [RGFW_gamepadStart] = RL_E_GAMEPAD_BUTTON_MIDDLE_RIGHT,
+    [RGFW_gamepadUp] = RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP,
+    [RGFW_gamepadRight] = RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT,
+    [RGFW_gamepadDown] = RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN,
+    [RGFW_gamepadLeft] = RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT,
+    [RGFW_gamepadL3] = RL_E_GAMEPAD_BUTTON_LEFT_THUMB,
+    [RGFW_gamepadR3] = RL_E_GAMEPAD_BUTTON_RIGHT_THUMB,
 };
 
 //----------------------------------------------------------------------------------
@@ -287,21 +287,21 @@ bool RLWindowShouldClose(void)
 // Toggle fullscreen mode
 void RLToggleFullscreen(void)
 {
-    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE))
+    if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
         // Store previous window position (in case we exit fullscreen)
         CORE.Window.previousPosition = CORE.Window.position;
         CORE.Window.previousScreen = CORE.Window.screen;
 
         platform.mon = RGFW_window_getMonitor(platform.window);
-        FLAG_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
 
         RGFW_monitor_scaleToWindow(platform.mon, platform.window);
         RGFW_window_setFullscreen(platform.window, 1);
     }
     else
     {
-        FLAG_CLEAR(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
 
         if (platform.mon.mode.area.w)
         {
@@ -320,15 +320,15 @@ void RLToggleFullscreen(void)
 
     // Try to enable GPU V-Sync, so frames are limited to screen refresh rate (60Hz -> 60 FPS)
     // NOTE: V-Sync can be enabled by graphic driver configuration
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_VSYNC_HINT)) RGFW_window_swapInterval(platform.window, 1);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_VSYNC_HINT)) RGFW_window_swapInterval(platform.window, 1);
 }
 
 // Toggle borderless windowed mode
 void RLToggleBorderlessWindowed(void)
 {
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE)) RLToggleFullscreen();
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE)) RLToggleFullscreen();
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE))
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
         CORE.Window.previousPosition = CORE.Window.position;
         CORE.Window.previousScreen = CORE.Window.screen;
@@ -362,7 +362,7 @@ void RLMinimizeWindow(void)
 // Restore window from being minimized/maximized
 void RLRestoreWindow(void)
 {
-    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED)) RGFW_window_focus(platform.window);
+    if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) RGFW_window_focus(platform.window);
 
     RGFW_window_restore(platform.window);
 }
@@ -370,76 +370,76 @@ void RLRestoreWindow(void)
 // Set window configuration state using flags
 void RLSetWindowState(unsigned int flags)
 {
-    if (!CORE.Window.ready) TRACELOG(LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
+    if (!CORE.Window.ready) TRACELOG(RL_E_LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
 
     FLAG_SET(CORE.Window.flags, flags);
 
-    if (FLAG_IS_SET(flags, FLAG_VSYNC_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_VSYNC_HINT))
     {
         RGFW_window_swapInterval(platform.window, 1);
     }
-    if (FLAG_IS_SET(flags, FLAG_FULLSCREEN_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
         RLToggleFullscreen();
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_RESIZABLE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE))
     {
         RGFW_window_setMaxSize(platform.window, RGFW_AREA(0, 0));
         RGFW_window_setMinSize(platform.window, RGFW_AREA(0, 0));
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNDECORATED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED))
     {
         RGFW_window_setBorder(platform.window, 0);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIDDEN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN))
     {
         RGFW_window_hide(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MINIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MINIMIZED))
     {
         RGFW_window_minimize(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MAXIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MAXIMIZED))
     {
         RGFW_window_maximize(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNFOCUSED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED))
     {
-        FLAG_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED);
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
         FLAG_CLEAR(platform.window->_flags, RGFW_windowFocusOnShow);
         RGFW_window_setFlags(platform.window, platform.window->_flags);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TOPMOST))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST))
     {
         RGFW_window_setFloating(platform.window, RGFW_TRUE);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_ALWAYS_RUN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_ALWAYS_RUN))
     {
-        FLAG_SET(CORE.Window.flags, FLAG_WINDOW_ALWAYS_RUN);
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_ALWAYS_RUN);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TRANSPARENT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TRANSPARENT))
     {
-        TRACELOG(LOG_WARNING, "WINDOW: Framebuffer transparency can only be configured before window initialization");
+        TRACELOG(RL_E_LOG_WARNING, "WINDOW: Framebuffer transparency can only be configured before window initialization");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIGHDPI))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
-        TRACELOG(LOG_WARNING, "WINDOW: High DPI can only be configured before window initialization");
+        TRACELOG(RL_E_LOG_WARNING, "WINDOW: High DPI can only be configured before window initialization");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MOUSE_PASSTHROUGH))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH))
     {
         RGFW_window_setMousePassthrough(platform.window, 1);
     }
-    if (FLAG_IS_SET(flags, FLAG_BORDERLESS_WINDOWED_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
         RLToggleBorderlessWindowed();
     }
-    if (FLAG_IS_SET(flags, FLAG_MSAA_4X_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_MSAA_4X_HINT))
     {
         RGFW_setGLHint(RGFW_glSamples, 4);
     }
-    if (FLAG_IS_SET(flags, FLAG_INTERLACED_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_INTERLACED_HINT))
     {
-        TRACELOG(LOG_WARNING, "RPI: Interlaced mode can only be configured before window initialization");
+        TRACELOG(RL_E_LOG_WARNING, "RPI: Interlaced mode can only be configured before window initialization");
     }
 }
 
@@ -448,81 +448,81 @@ void RLClearWindowState(unsigned int flags)
 {
     FLAG_CLEAR(CORE.Window.flags, flags);
 
-    if (FLAG_IS_SET(flags, FLAG_VSYNC_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_VSYNC_HINT))
     {
         RGFW_window_swapInterval(platform.window, 0);
     }
-    if (FLAG_IS_SET(flags, FLAG_FULLSCREEN_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
         RLToggleFullscreen();
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_RESIZABLE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE))
     {
         RGFW_window_setMaxSize(platform.window, RGFW_AREA(platform.window->r.w, platform.window->r.h));
         RGFW_window_setMinSize(platform.window, RGFW_AREA(platform.window->r.w, platform.window->r.h));
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNDECORATED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED))
     {
         RGFW_window_setBorder(platform.window, 1);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIDDEN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN))
     {
-        if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED)) RGFW_window_focus(platform.window);
+        if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) RGFW_window_focus(platform.window);
 
         RGFW_window_show(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MINIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MINIMIZED))
     {
-        if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED)) RGFW_window_focus(platform.window);
+        if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) RGFW_window_focus(platform.window);
 
         RGFW_window_restore(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MAXIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MAXIMIZED))
     {
-        if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED)) RGFW_window_focus(platform.window);
+        if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) RGFW_window_focus(platform.window);
 
         RGFW_window_restore(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNFOCUSED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED))
     {
         RGFW_window_setFlags(platform.window, platform.window->_flags | RGFW_windowFocusOnShow);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TOPMOST))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST))
     {
         RGFW_window_setFloating(platform.window, RGFW_FALSE);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TRANSPARENT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TRANSPARENT))
     {
-        TRACELOG(LOG_WARNING, "WINDOW: Framebuffer transparency can only be configured before window initialization");
+        TRACELOG(RL_E_LOG_WARNING, "WINDOW: Framebuffer transparency can only be configured before window initialization");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIGHDPI))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
-        TRACELOG(LOG_WARNING, "WINDOW: High DPI can only be configured before window initialization");
+        TRACELOG(RL_E_LOG_WARNING, "WINDOW: High DPI can only be configured before window initialization");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MOUSE_PASSTHROUGH))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH))
     {
         RGFW_window_setMousePassthrough(platform.window, 0);
     }
-    if (FLAG_IS_SET(flags, FLAG_BORDERLESS_WINDOWED_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
         RLToggleBorderlessWindowed();
     }
-    if (FLAG_IS_SET(flags, FLAG_MSAA_4X_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_MSAA_4X_HINT))
     {
         RGFW_setGLHint(RGFW_glSamples, 0);
     }
-    if (FLAG_IS_SET(flags, FLAG_INTERLACED_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_INTERLACED_HINT))
     {
-        TRACELOG(LOG_WARNING, "RPI: Interlaced mode can only be configured before window initialization");
+        TRACELOG(RL_E_LOG_WARNING, "RPI: Interlaced mode can only be configured before window initialization");
     }
 }
 
 // Set icon for window
 void RLSetWindowIcon(RLImage image)
 {
-    if (image.format != PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
+    if (image.format != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
     {
-        TRACELOG(LOG_WARNING, "RGFW: Window icon image must be in R8G8B8A8 pixel format");
+        TRACELOG(RL_E_LOG_WARNING, "RGFW: Window icon image must be in R8G8B8A8 pixel format");
         return;
     }
     RGFW_window_setIcon(platform.window, (u8 *)image.data, RGFW_AREA(image.width, image.height), 4);
@@ -542,9 +542,9 @@ void RLSetWindowIcons(RLImage *images, int count)
 
         for (int i = 0; i < count; i++)
         {
-            if (images[i].format != PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
+            if (images[i].format != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
             {
-                TRACELOG(LOG_WARNING, "RGFW: Window icon image must be in R8G8B8A8 pixel format");
+                TRACELOG(RL_E_LOG_WARNING, "RGFW: Window icon image must be in R8G8B8A8 pixel format");
                 continue;
             }
             if ((bigIcon == NULL) || ((images[i].width > bigIcon->width) && (images[i].height > bigIcon->height))) bigIcon = &images[i];
@@ -770,10 +770,10 @@ RLImage RLGetClipboardImage(void)
     int height = 0;
     fileData  = (void *)Win32GetClipboardImageData(&width, &height, &dataSize);
 
-    if (fileData == NULL) TRACELOG(LOG_WARNING, "Clipboard image: Couldn't get clipboard data");
+    if (fileData == NULL) TRACELOG(RL_E_LOG_WARNING, "Clipboard image: Couldn't get clipboard data");
     else image = RLLoadImageFromMemory(".bmp", (const unsigned char *)fileData, dataSize);
 #else
-    TRACELOG(LOG_WARNING, "Clipboard image: PLATFORM_DESKTOP_RGFW doesn't implement GetClipboardImage() for this OS");
+    TRACELOG(RL_E_LOG_WARNING, "Clipboard image: PLATFORM_DESKTOP_RGFW doesn't implement GetClipboardImage() for this OS");
 #endif
 #endif // SUPPORT_CLIPBOARD_IMAGE
 
@@ -839,7 +839,7 @@ double RLGetTime(void)
 void RLOpenURL(const char *url)
 {
     // Security check to (partially) avoid malicious code on target platform
-    if (strchr(url, '\'') != NULL) TRACELOG(LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
+    if (strchr(url, '\'') != NULL) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
     else
     {
         char *cmd = (char *)RL_CALLOC(strlen(url) + 32, sizeof(char));
@@ -853,7 +853,7 @@ void RLOpenURL(const char *url)
         sprintf(cmd, "open '%s'", url);
 #endif
         int result = system(cmd);
-        if (result == -1) TRACELOG(LOG_WARNING, "OpenURL() child process could not be created");
+        if (result == -1) TRACELOG(RL_E_LOG_WARNING, "OpenURL() child process could not be created");
         RL_FREE(cmd);
     }
 }
@@ -865,14 +865,14 @@ void RLOpenURL(const char *url)
 // Set internal gamepad mappings
 int RLSetGamepadMappings(const char *mappings)
 {
-    TRACELOG(LOG_WARNING, "SetGamepadMappings() unsupported on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "SetGamepadMappings() unsupported on target platform");
     return 0;
 }
 
 // Set gamepad vibration
 void RLSetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float duration)
 {
-    TRACELOG(LOG_WARNING, "SetGamepadVibration() unsupported on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "SetGamepadVibration() unsupported on target platform");
 }
 
 // Set mouse position XY
@@ -892,7 +892,7 @@ void RLSetMouseCursor(int cursor)
 // Get physical key name
 const char *RLGetKeyName(int key)
 {
-    TRACELOG(LOG_WARNING, "GetKeyName() unsupported on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetKeyName() unsupported on target platform");
 
     return "";
 }
@@ -965,7 +965,7 @@ void RLPollInputEvents(void)
         CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
     }
 
-    if ((CORE.Window.eventWaiting) || (RLIsWindowState(FLAG_WINDOW_MINIMIZED) && !RLIsWindowState(FLAG_WINDOW_ALWAYS_RUN)))
+    if ((CORE.Window.eventWaiting) || (RLIsWindowState(RL_E_FLAG_WINDOW_MINIMIZED) && !RLIsWindowState(RL_E_FLAG_WINDOW_ALWAYS_RUN)))
     {
         RGFW_window_eventWait(platform.window, -1); // Wait for input events: keyboard/mouse/window events (callbacks) -> Update keys state
         CORE.Time.previous = RLGetTime();
@@ -1007,7 +1007,7 @@ void RLPollInputEvents(void)
 
                         CORE.Window.dropFileCount++;
                     }
-                    else TRACELOG(LOG_WARNING, "FILE: Maximum drag and drop files at once is limited to 1024 files!");
+                    else TRACELOG(RL_E_LOG_WARNING, "FILE: Maximum drag and drop files at once is limited to 1024 files!");
                 }
             } break;
 
@@ -1017,7 +1017,7 @@ void RLPollInputEvents(void)
                 SetupViewport(platform.window->r.w, platform.window->r.h);
 
                 // if we are doing automatic DPI scaling, then the "screen" size is divided by the window scale
-                if (RLIsWindowState(FLAG_WINDOW_HIGHDPI))
+                if (RLIsWindowState(RL_E_FLAG_WINDOW_HIGHDPI))
                 {
                     CORE.Window.screen.width = (int)(platform.window->r.w/RLGetWindowScaleDPI().x);
                     CORE.Window.screen.height = (int)(platform.window->r.h/RLGetWindowScaleDPI().y);
@@ -1034,18 +1034,18 @@ void RLPollInputEvents(void)
             } break;
             case RGFW_windowMaximized:
             {
-                FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);  // The window was maximized
+                FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);  // The window was maximized
             } break;
             case RGFW_windowMinimized:
             {
-                FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);  // The window was iconified
+                FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);  // The window was iconified
             } break;
             case RGFW_windowRestored:
             {
                 if (RGFW_window_isMaximized(platform.window))
-                    FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);           // The window was restored
+                    FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);           // The window was restored
                 if (RGFW_window_isMinimized(platform.window))
-                    FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);           // The window was restored
+                    FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);           // The window was restored
             } break;
             case RGFW_windowMoved:
             {
@@ -1057,7 +1057,7 @@ void RLPollInputEvents(void)
             case RGFW_keyPressed:
             {
                 RLKeyboardKey key = ConvertScancodeToKey(event->key);
-                if (key != KEY_NULL)
+                if (key != RL_E_KEY_NULL)
                 {
                     // If key was up, add it to the key pressed queue
                     if ((CORE.Input.Keyboard.currentKeyState[key] == 0) && (CORE.Input.Keyboard.keyPressedQueueCount < MAX_KEY_PRESSED_QUEUE))
@@ -1083,7 +1083,7 @@ void RLPollInputEvents(void)
             case RGFW_keyReleased:
             {
                 RLKeyboardKey key = ConvertScancodeToKey(event->key);
-                if (key != KEY_NULL) CORE.Input.Keyboard.currentKeyState[key] = 0;
+                if (key != RL_E_KEY_NULL) CORE.Input.Keyboard.currentKeyState[key] = 0;
             } break;
 
             // Check mouse events
@@ -1146,8 +1146,8 @@ void RLPollInputEvents(void)
             {
                 CORE.Input.Gamepad.ready[platform.window->event.gamepad] = true;
                 CORE.Input.Gamepad.axisCount[platform.window->event.gamepad] = platform.window->event.axisesCount;
-                CORE.Input.Gamepad.axisState[platform.window->event.gamepad][GAMEPAD_AXIS_LEFT_TRIGGER] = -1.0f;
-                CORE.Input.Gamepad.axisState[platform.window->event.gamepad][GAMEPAD_AXIS_RIGHT_TRIGGER] = -1.0f;
+                CORE.Input.Gamepad.axisState[platform.window->event.gamepad][RL_E_GAMEPAD_AXIS_LEFT_TRIGGER] = -1.0f;
+                CORE.Input.Gamepad.axisState[platform.window->event.gamepad][RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER] = -1.0f;
 
                 strcpy(CORE.Input.Gamepad.name[platform.window->event.gamepad], RGFW_getGamepadName(platform.window, platform.window->event.gamepad));
             } break;
@@ -1181,20 +1181,20 @@ void RLPollInputEvents(void)
                 {
                     case 0:
                     {
-                        CORE.Input.Gamepad.axisState[event->gamepad][GAMEPAD_AXIS_LEFT_X] = event->axis[0].x/100.0f;
-                        CORE.Input.Gamepad.axisState[event->gamepad][GAMEPAD_AXIS_LEFT_Y] = event->axis[0].y/100.0f;
+                        CORE.Input.Gamepad.axisState[event->gamepad][RL_E_GAMEPAD_AXIS_LEFT_X] = event->axis[0].x/100.0f;
+                        CORE.Input.Gamepad.axisState[event->gamepad][RL_E_GAMEPAD_AXIS_LEFT_Y] = event->axis[0].y/100.0f;
                     } break;
                     case 1:
                     {
-                        CORE.Input.Gamepad.axisState[event->gamepad][GAMEPAD_AXIS_RIGHT_X] = event->axis[1].x/100.0f;
-                        CORE.Input.Gamepad.axisState[event->gamepad][GAMEPAD_AXIS_RIGHT_Y] = event->axis[1].y/100.0f;
+                        CORE.Input.Gamepad.axisState[event->gamepad][RL_E_GAMEPAD_AXIS_RIGHT_X] = event->axis[1].x/100.0f;
+                        CORE.Input.Gamepad.axisState[event->gamepad][RL_E_GAMEPAD_AXIS_RIGHT_Y] = event->axis[1].y/100.0f;
                     } break;
-                    case 2: axis = GAMEPAD_AXIS_LEFT_TRIGGER;
+                    case 2: axis = RL_E_GAMEPAD_AXIS_LEFT_TRIGGER;
                     case 3:
                     {
-                        if (axis == -1) axis = GAMEPAD_AXIS_RIGHT_TRIGGER;
+                        if (axis == -1) axis = RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER;
 
-                        int button = (axis == GAMEPAD_AXIS_LEFT_TRIGGER)? GAMEPAD_BUTTON_LEFT_TRIGGER_2 : GAMEPAD_BUTTON_RIGHT_TRIGGER_2;
+                        int button = (axis == RL_E_GAMEPAD_AXIS_LEFT_TRIGGER)? RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_2 : RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_2;
                         int pressed = (value > 0.1f);
                         CORE.Input.Gamepad.currentButtonState[event->gamepad][button] = pressed;
 
@@ -1211,7 +1211,7 @@ void RLPollInputEvents(void)
         if (touchAction > -1)
         {
             // Process mouse events as touches to be able to use mouse-gestures
-            GestureEvent gestureEvent = { 0 };
+            RLGestureEvent gestureEvent = { 0 };
 
             // Register touch actions
             gestureEvent.touchAction = touchAction;
@@ -1251,22 +1251,22 @@ int InitPlatform(void)
     unsigned int flags = RGFW_windowCenter | RGFW_windowAllowDND;
 
     // Check window creation flags
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE))
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
         FLAG_SET(flags, RGFW_windowFullscreen);
     }
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE))
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
         FLAG_SET(flags, RGFW_windowedFullscreen);
     }
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNDECORATED)) FLAG_SET(flags, RGFW_windowNoBorder);
-    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE)) FLAG_SET(flags, RGFW_windowNoResize);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_TRANSPARENT)) FLAG_SET(flags, RGFW_windowTransparent);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE)) FLAG_SET(flags, RGFW_windowFullscreen);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIDDEN)) FLAG_SET(flags, RGFW_windowHide);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)) FLAG_SET(flags, RGFW_windowMaximize);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED)) FLAG_SET(flags, RGFW_windowNoBorder);
+    if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE)) FLAG_SET(flags, RGFW_windowNoResize);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_TRANSPARENT)) FLAG_SET(flags, RGFW_windowTransparent);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE)) FLAG_SET(flags, RGFW_windowFullscreen);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN)) FLAG_SET(flags, RGFW_windowHide);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED)) FLAG_SET(flags, RGFW_windowMaximize);
 
     // NOTE: Some OpenGL context attributes must be set before window creation
     // Check selection OpenGL version
@@ -1286,9 +1286,9 @@ int InitPlatform(void)
         RGFW_setGLHint(RGFW_glMinor, 3);
     }
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_MSAA_4X_HINT)) RGFW_setGLHint(RGFW_glSamples, 4);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_MSAA_4X_HINT)) RGFW_setGLHint(RGFW_glSamples, 4);
 
-    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED)) FLAG_SET(flags, RGFW_windowFocusOnShow | RGFW_windowFocus);
+    if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) FLAG_SET(flags, RGFW_windowFocusOnShow | RGFW_windowFocus);
 
     platform.window = RGFW_createWindow((CORE.Window.title != 0)? CORE.Window.title : " ", RGFW_RECT(0, 0, CORE.Window.screen.width, CORE.Window.screen.height), flags);
     platform.mon.mode.area.w = 0;
@@ -1308,7 +1308,7 @@ int InitPlatform(void)
     CORE.Window.display.width = CORE.Window.screen.width;
     CORE.Window.display.height = CORE.Window.screen.height;
 #endif
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_VSYNC_HINT)) RGFW_window_swapInterval(platform.window, 1);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_VSYNC_HINT)) RGFW_window_swapInterval(platform.window, 1);
     RGFW_window_makeCurrent(platform.window);
 
     // Check surface and context activation
@@ -1323,7 +1323,7 @@ int InitPlatform(void)
     }
     else
     {
-        TRACELOG(LOG_FATAL, "PLATFORM: Failed to initialize graphics device");
+        TRACELOG(RL_E_LOG_FATAL, "PLATFORM: Failed to initialize graphics device");
         return -1;
     }
     //----------------------------------------------------------------------------
@@ -1336,11 +1336,11 @@ int InitPlatform(void)
     CORE.Window.currentFbo.width = CORE.Window.render.width;
     CORE.Window.currentFbo.height = CORE.Window.render.height;
 
-    TRACELOG(LOG_INFO, "DISPLAY: Device initialized successfully");
-    TRACELOG(LOG_INFO, "    > Display size: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
-    TRACELOG(LOG_INFO, "    > Screen size:  %i x %i", CORE.Window.screen.width, CORE.Window.screen.height);
-    TRACELOG(LOG_INFO, "    > Render size:  %i x %i", CORE.Window.render.width, CORE.Window.render.height);
-    TRACELOG(LOG_INFO, "    > Viewport offsets: %i, %i", CORE.Window.renderOffset.x, CORE.Window.renderOffset.y);
+    TRACELOG(RL_E_LOG_INFO, "DISPLAY: Device initialized successfully");
+    TRACELOG(RL_E_LOG_INFO, "    > Display size: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
+    TRACELOG(RL_E_LOG_INFO, "    > Screen size:  %i x %i", CORE.Window.screen.width, CORE.Window.screen.height);
+    TRACELOG(RL_E_LOG_INFO, "    > Render size:  %i x %i", CORE.Window.render.width, CORE.Window.render.height);
+    TRACELOG(RL_E_LOG_INFO, "    > Viewport offsets: %i, %i", CORE.Window.renderOffset.x, CORE.Window.renderOffset.y);
 
     // Load OpenGL extensions
     // NOTE: GL procedures address loader is required to load extensions
@@ -1359,20 +1359,20 @@ int InitPlatform(void)
     //----------------------------------------------------------------------------
 
 #if defined(RGFW_WAYLAND)
-    if (RGFW_useWaylandBool) TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (RGFW - Wayland): Initialized successfully");
-    else TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (RGFW - X11 (fallback)): Initialized successfully");
+    if (RGFW_useWaylandBool) TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (RGFW - Wayland): Initialized successfully");
+    else TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (RGFW - X11 (fallback)): Initialized successfully");
 #elif defined(RGFW_X11)
     #if defined(__APPLE__)
-        TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (RGFW - X11 (MacOS)): Initialized successfully");
+        TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (RGFW - X11 (MacOS)): Initialized successfully");
     #else
-        TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (RGFW - X11): Initialized successfully");
+        TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (RGFW - X11): Initialized successfully");
     #endif
 #elif defined (RGFW_WINDOWS)
-    TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (RGFW - Win32): Initialized successfully");
+    TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (RGFW - Win32): Initialized successfully");
 #elif defined(RGFW_WASM)
-    TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (RGFW - WASMs): Initialized successfully");
+    TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (RGFW - WASMs): Initialized successfully");
 #elif defined(RGFW_MACOS)
-    TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (RGFW - MacOS): Initialized successfully");
+    TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (RGFW - MacOS): Initialized successfully");
 #endif
 
     return 0;
@@ -1387,7 +1387,7 @@ void ClosePlatform(void)
 // Keycode mapping
 static RLKeyboardKey ConvertScancodeToKey(u32 keycode)
 {
-    if (keycode > sizeof(keyMappingRGFW)/sizeof(unsigned short)) return KEY_NULL;
+    if (keycode > sizeof(keyMappingRGFW)/sizeof(unsigned short)) return RL_E_KEY_NULL;
 
     return (RLKeyboardKey)keyMappingRGFW[keycode];
 }

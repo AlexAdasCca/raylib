@@ -60,10 +60,10 @@ int main(void)
         // Check button state
         if (RLCheckCollisionPointRec(mousePoint, btnBounds))
         {
-            if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT)) btnState = 2;
+            if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT)) btnState = 2;
             else btnState = 1;
 
-            if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) btnAction = true;
+            if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT)) btnAction = true;
         }
         else btnState = 0;
 

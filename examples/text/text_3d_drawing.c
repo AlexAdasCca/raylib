@@ -86,7 +86,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT|FLAG_VSYNC_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT|RL_E_FLAG_VSYNC_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [text] example - 3d drawing");
 
     bool spin = true;        // Spin the camera?
@@ -98,9 +98,9 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };          // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };              // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                    // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;                 // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;                 // Camera projection type
 
-    int camera_mode = CAMERA_ORBITAL;
+    int camera_mode = RL_E_CAMERA_ORBITAL;
 
     RLVector3 cubePosition = { 0.0f, 1.0f, 0.0f };
     RLVector3 cubeSize = { 2.0f, 2.0f, 2.0f };
@@ -169,9 +169,9 @@ int main(void)
         }
 
         // Handle Events
-        if (RLIsKeyPressed(KEY_F1)) SHOW_LETTER_BOUNDRY = !SHOW_LETTER_BOUNDRY;
-        if (RLIsKeyPressed(KEY_F2)) SHOW_TEXT_BOUNDRY = !SHOW_TEXT_BOUNDRY;
-        if (RLIsKeyPressed(KEY_F3))
+        if (RLIsKeyPressed(RL_E_KEY_F1)) SHOW_LETTER_BOUNDRY = !SHOW_LETTER_BOUNDRY;
+        if (RLIsKeyPressed(RL_E_KEY_F2)) SHOW_TEXT_BOUNDRY = !SHOW_TEXT_BOUNDRY;
+        if (RLIsKeyPressed(RL_E_KEY_F3))
         {
             // Handle camera change
             spin = !spin;
@@ -180,22 +180,22 @@ int main(void)
             camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };          // Camera looking at point
             camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };              // Camera up vector (rotation towards target)
             camera.fovy = 45.0f;                                    // Camera field-of-view Y
-            camera.projection = CAMERA_PERSPECTIVE;                 // Camera mode type
+            camera.projection = RL_E_CAMERA_PERSPECTIVE;                 // Camera mode type
 
             if (spin)
             {
                 camera.position = (RLVector3){ -10.0f, 15.0f, -10.0f };   // Camera position
-                camera_mode = CAMERA_ORBITAL;
+                camera_mode = RL_E_CAMERA_ORBITAL;
             }
             else
             {
                 camera.position = (RLVector3){ 10.0f, 10.0f, -10.0f };   // Camera position
-                camera_mode = CAMERA_FREE;
+                camera_mode = RL_E_CAMERA_FREE;
             }
         }
 
         // Handle clicking the cube
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             RLRay ray = RLGetScreenToWorldRay(RLGetMousePosition(), camera);
 
@@ -212,19 +212,19 @@ int main(void)
         }
 
         // Handle text layers changes
-        if (RLIsKeyPressed(KEY_HOME)) { if (layers > 1) --layers; }
-        else if (RLIsKeyPressed(KEY_END)) { if (layers < TEXT_MAX_LAYERS) ++layers; }
+        if (RLIsKeyPressed(RL_E_KEY_HOME)) { if (layers > 1) --layers; }
+        else if (RLIsKeyPressed(RL_E_KEY_END)) { if (layers < TEXT_MAX_LAYERS) ++layers; }
 
         // Handle text changes
-        if (RLIsKeyPressed(KEY_LEFT)) fontSize -= 0.5f;
-        else if (RLIsKeyPressed(KEY_RIGHT)) fontSize += 0.5f;
-        else if (RLIsKeyPressed(KEY_UP)) fontSpacing -= 0.1f;
-        else if (RLIsKeyPressed(KEY_DOWN)) fontSpacing += 0.1f;
-        else if (RLIsKeyPressed(KEY_PAGE_UP)) lineSpacing -= 0.1f;
-        else if (RLIsKeyPressed(KEY_PAGE_DOWN)) lineSpacing += 0.1f;
-        else if (RLIsKeyDown(KEY_INSERT)) layerDistance -= 0.001f;
-        else if (RLIsKeyDown(KEY_DELETE)) layerDistance += 0.001f;
-        else if (RLIsKeyPressed(KEY_TAB))
+        if (RLIsKeyPressed(RL_E_KEY_LEFT)) fontSize -= 0.5f;
+        else if (RLIsKeyPressed(RL_E_KEY_RIGHT)) fontSize += 0.5f;
+        else if (RLIsKeyPressed(RL_E_KEY_UP)) fontSpacing -= 0.1f;
+        else if (RLIsKeyPressed(RL_E_KEY_DOWN)) fontSpacing += 0.1f;
+        else if (RLIsKeyPressed(RL_E_KEY_PAGE_UP)) lineSpacing -= 0.1f;
+        else if (RLIsKeyPressed(RL_E_KEY_PAGE_DOWN)) lineSpacing += 0.1f;
+        else if (RLIsKeyDown(RL_E_KEY_INSERT)) layerDistance -= 0.001f;
+        else if (RLIsKeyDown(RL_E_KEY_DELETE)) layerDistance += 0.001f;
+        else if (RLIsKeyPressed(RL_E_KEY_TAB))
         {
             multicolor = !multicolor;   // Enable /disable multicolor mode
 
@@ -241,13 +241,13 @@ int main(void)
 
         // Handle text input
         int ch = RLGetCharPressed();
-        if (RLIsKeyPressed(KEY_BACKSPACE))
+        if (RLIsKeyPressed(RL_E_KEY_BACKSPACE))
         {
             // Remove last char
             int len = RLTextLength(text);
             if (len > 0) text[len - 1] = '\0';
         }
-        else if (RLIsKeyPressed(KEY_ENTER))
+        else if (RLIsKeyPressed(RL_E_KEY_ENTER))
         {
             // handle newline
             int len = RLTextLength(text);

@@ -52,7 +52,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             RLPlaySound(soundArray[currentSound]);    // Play the next open sound slot
             currentSound++;                         // Increment the sound slot

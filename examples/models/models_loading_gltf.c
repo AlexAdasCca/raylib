@@ -40,7 +40,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load gltf model
     RLModel model = RLLoadModel("resources/models/gltf/robot.glb");
@@ -60,11 +60,11 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
         // Select current animation
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) animIndex = (animIndex + 1)%animsCount;
-        else if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) animIndex = (animIndex + animsCount - 1)%animsCount;
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT)) animIndex = (animIndex + 1)%animsCount;
+        else if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT)) animIndex = (animIndex + animsCount - 1)%animsCount;
 
         // Update model animation
         RLModelAnimation anim = modelAnimations[animIndex];

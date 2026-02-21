@@ -37,10 +37,10 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyDown(KEY_RIGHT)) ballPosition.x += 2.0f;
-        if (RLIsKeyDown(KEY_LEFT)) ballPosition.x -= 2.0f;
-        if (RLIsKeyDown(KEY_UP)) ballPosition.y -= 2.0f;
-        if (RLIsKeyDown(KEY_DOWN)) ballPosition.y += 2.0f;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT)) ballPosition.x += 2.0f;
+        if (RLIsKeyDown(RL_E_KEY_LEFT)) ballPosition.x -= 2.0f;
+        if (RLIsKeyDown(RL_E_KEY_UP)) ballPosition.y -= 2.0f;
+        if (RLIsKeyDown(RL_E_KEY_DOWN)) ballPosition.y += 2.0f;
         //----------------------------------------------------------------------------------
 
         // Draw

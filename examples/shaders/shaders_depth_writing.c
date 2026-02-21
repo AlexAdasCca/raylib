@@ -52,7 +52,7 @@ int main(void)
         .target = (RLVector3){ 0.0f, 0.5f, 0.0f },      // Camera looking at point
         .up = (RLVector3){ 0.0f, 1.0f, 0.0f },          // Camera up vector (rotation towards target)
         .fovy = 45.0f,                                // Camera field-of-view Y
-        .projection = CAMERA_PERSPECTIVE              // Camera projection type
+        .projection = RL_E_CAMERA_PERSPECTIVE              // Camera projection type
     };
 
     // Load custom render texture with writable depth texture buffer
@@ -69,7 +69,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -126,10 +126,10 @@ static RLRenderTexture2D LoadRenderTextureDepthTex(int width, int height)
         rlEnableFramebuffer(target.id);
 
         // Create color texture (default to RGBA)
-        target.texture.id = rlLoadTexture(0, width, height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+        target.texture.id = rlLoadTexture(0, width, height, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
         target.texture.width = width;
         target.texture.height = height;
-        target.texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        target.texture.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
         target.texture.mipmaps = 1;
 
         // Create depth texture buffer (instead of raylib default renderbuffer)
@@ -144,11 +144,11 @@ static RLRenderTexture2D LoadRenderTextureDepthTex(int width, int height)
         rlFramebufferAttach(target.id, target.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
 
         // Check if fbo is complete with attachments (valid)
-        if (rlFramebufferComplete(target.id)) TRACELOG(LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
+        if (rlFramebufferComplete(target.id)) TRACELOG(RL_E_LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
 
         rlDisableFramebuffer();
     }
-    else TRACELOG(LOG_WARNING, "FBO: Framebuffer object can not be created");
+    else TRACELOG(RL_E_LOG_WARNING, "FBO: Framebuffer object can not be created");
 
     return target;
 }

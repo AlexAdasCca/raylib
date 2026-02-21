@@ -33,7 +33,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };          // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };              // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                    // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;                 // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;                 // Camera projection type
 
     RLImage image = RLLoadImage("resources/heightmap.png");     // Load heightmap image (RAM)
     RLTexture2D texture = RLLoadTextureFromImage(image);        // Convert image to texture (VRAM)
@@ -54,7 +54,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
         //----------------------------------------------------------------------------------
 
         // Draw

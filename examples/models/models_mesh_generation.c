@@ -72,19 +72,19 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             currentModel = (currentModel + 1)%NUM_MODELS; // Cycle between the textures
         }
 
-        if (RLIsKeyPressed(KEY_RIGHT))
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT))
         {
             currentModel++;
             if (currentModel >= NUM_MODELS) currentModel = 0;
         }
-        else if (RLIsKeyPressed(KEY_LEFT))
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT))
         {
             currentModel--;
             if (currentModel < 0) currentModel = NUM_MODELS - 1;

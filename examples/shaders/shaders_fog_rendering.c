@@ -43,7 +43,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);  // Enable Multi Sampling Anti Aliasing 4x (if available)
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);  // Enable Multi Sampling Anti Aliasing 4x (if available)
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - fog rendering");
 
     // Define the camera to look into our 3d world
@@ -52,7 +52,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load models and texture
     RLModel modelA = RLLoadModelFromMesh(RLGenMeshTorus(0.4f, 1.0f, 16, 32));
@@ -68,16 +68,16 @@ int main(void)
     // Load shader and set up some uniforms
     RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/lighting.vs", GLSL_VERSION),
                                RLTextFormat("resources/shaders/glsl%i/fog.fs", GLSL_VERSION));
-    shader.locs[SHADER_LOC_MATRIX_MODEL] = RLGetShaderLocation(shader, "matModel");
-    shader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
+    shader.locs[RL_E_SHADER_LOC_MATRIX_MODEL] = RLGetShaderLocation(shader, "matModel");
+    shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
 
     // Ambient light level
     int ambientLoc = RLGetShaderLocation(shader, "ambient");
-    RLSetShaderValue(shader, ambientLoc, (float[4]){ 0.2f, 0.2f, 0.2f, 1.0f }, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shader, ambientLoc, (float[4]){ 0.2f, 0.2f, 0.2f, 1.0f }, RL_E_SHADER_UNIFORM_VEC4);
 
     float fogDensity = 0.15f;
     int fogDensityLoc = RLGetShaderLocation(shader, "fogDensity");
-    RLSetShaderValue(shader, fogDensityLoc, &fogDensity, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, fogDensityLoc, &fogDensity, RL_E_SHADER_UNIFORM_FLOAT);
 
     // NOTE: All models share the same shader
     modelA.materials[0].shader = shader;
@@ -85,7 +85,7 @@ int main(void)
     modelC.materials[0].shader = shader;
 
     // Using just 1 point lights
-    CreateLight(LIGHT_POINT, (RLVector3){ 0, 2, 6 }, Vector3Zero(), WHITE, shader);
+    CreateLight(LIGHT_POINT, (RLVector3){ 0, 2, 6 }, RLVector3Zero(), WHITE, shader);
 
     RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -95,28 +95,28 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
-        if (RLIsKeyDown(KEY_UP))
+        if (RLIsKeyDown(RL_E_KEY_UP))
         {
             fogDensity += 0.001f;
             if (fogDensity > 1.0f) fogDensity = 1.0f;
         }
 
-        if (RLIsKeyDown(KEY_DOWN))
+        if (RLIsKeyDown(RL_E_KEY_DOWN))
         {
             fogDensity -= 0.001f;
             if (fogDensity < 0.0f) fogDensity = 0.0f;
         }
 
-        RLSetShaderValue(shader, fogDensityLoc, &fogDensity, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, fogDensityLoc, &fogDensity, RL_E_SHADER_UNIFORM_FLOAT);
 
         // Rotate the torus
-        modelA.transform = MatrixMultiply(modelA.transform, MatrixRotateX(-0.025f));
-        modelA.transform = MatrixMultiply(modelA.transform, MatrixRotateZ(0.012f));
+        modelA.transform = RLMatrixMultiply(modelA.transform, RLMatrixRotateX(-0.025f));
+        modelA.transform = RLMatrixMultiply(modelA.transform, RLMatrixRotateZ(0.012f));
 
         // Update the light shader with the camera view position
-        RLSetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], &camera.position.x, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW], &camera.position.x, RL_E_SHADER_UNIFORM_VEC3);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -128,7 +128,7 @@ int main(void)
             RLBeginMode3D(camera);
 
                 // Draw the three models
-                RLDrawModel(modelA, Vector3Zero(), 1.0f, WHITE);
+                RLDrawModel(modelA, RLVector3Zero(), 1.0f, WHITE);
                 RLDrawModel(modelB, (RLVector3){ -2.6f, 0, 0 }, 1.0f, WHITE);
                 RLDrawModel(modelC, (RLVector3){ 2.6f, 0, 0 }, 1.0f, WHITE);
 

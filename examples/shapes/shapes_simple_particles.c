@@ -105,12 +105,12 @@ int main(void)
         UpdateCircularBuffer(&circularBuffer);
 
         // Change Particle Emission Rate (UP/DOWN arrows)
-        if (RLIsKeyPressed(KEY_UP)) emissionRate++;
-        if (RLIsKeyPressed(KEY_DOWN)) emissionRate--;
+        if (RLIsKeyPressed(RL_E_KEY_UP)) emissionRate++;
+        if (RLIsKeyPressed(RL_E_KEY_DOWN)) emissionRate--;
 
         // Change Particle Type (LEFT/RIGHT arrows)
-        if (RLIsKeyPressed(KEY_RIGHT)) (currentType == FIRE)? (currentType = WATER) : currentType++;
-        if (RLIsKeyPressed(KEY_LEFT)) (currentType == WATER)? (currentType = FIRE) : currentType--;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) (currentType == FIRE)? (currentType = WATER) : currentType++;
+        if (RLIsKeyPressed(RL_E_KEY_LEFT)) (currentType == WATER)? (currentType = FIRE) : currentType--;
 
         if (RLIsMouseButtonDown(MOUSE_LEFT_BUTTON)) emitterPosition = RLGetMousePosition();
         //----------------------------------------------------------------------------------

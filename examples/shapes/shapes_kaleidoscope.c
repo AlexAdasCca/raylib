@@ -81,8 +81,8 @@ int main(void)
         prevMousePos = mousePos;
         mousePos = RLGetMousePosition();
 
-        RLVector2 lineStart = Vector2Subtract(mousePos, offset);
-        RLVector2 lineEnd = Vector2Subtract(prevMousePos, offset);
+        RLVector2 lineStart = RLVector2Subtract(mousePos, offset);
+        RLVector2 lineEnd = RLVector2Subtract(prevMousePos, offset);
 
         if (
             RLIsMouseButtonDown(MOUSE_LEFT_BUTTON)
@@ -93,16 +93,16 @@ int main(void)
         {
             for (int s = 0; (s < symmetry) && (totalLineCounter < (MAX_DRAW_LINES - 1)); s++)
             {
-                lineStart = Vector2Rotate(lineStart, angle*DEG2RAD);
-                lineEnd = Vector2Rotate(lineEnd, angle*DEG2RAD);
+                lineStart = RLVector2Rotate(lineStart, angle*DEG2RAD);
+                lineEnd = RLVector2Rotate(lineEnd, angle*DEG2RAD);
 
                 // Store mouse line
                 lines[totalLineCounter].start = lineStart;
                 lines[totalLineCounter].end = lineEnd;
 
                 // Store reflective line
-                lines[totalLineCounter + 1].start = Vector2Multiply(lineStart, scaleVector);
-                lines[totalLineCounter + 1].end = Vector2Multiply(lineEnd, scaleVector);
+                lines[totalLineCounter + 1].start = RLVector2Multiply(lineStart, scaleVector);
+                lines[totalLineCounter + 1].end = RLVector2Multiply(lineEnd, scaleVector);
 
                 totalLineCounter += 2;
                 currentLineCounter = totalLineCounter;

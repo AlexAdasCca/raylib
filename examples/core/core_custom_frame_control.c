@@ -65,10 +65,10 @@ int main(void)
             RLPollInputEvents();          // Poll input events (SUPPORT_CUSTOM_FRAME_CONTROL)
         #endif
 
-        if (RLIsKeyPressed(KEY_SPACE)) pause = !pause;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) pause = !pause;
 
-        if (RLIsKeyPressed(KEY_UP)) targetFPS += 20;
-        else if (RLIsKeyPressed(KEY_DOWN)) targetFPS -= 20;
+        if (RLIsKeyPressed(RL_E_KEY_UP)) targetFPS += 20;
+        else if (RLIsKeyPressed(RL_E_KEY_DOWN)) targetFPS -= 20;
 
         if (targetFPS < 0) targetFPS = 0;
 

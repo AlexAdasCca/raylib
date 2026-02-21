@@ -1166,8 +1166,6 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
                     break;
                 }
 
-
-
                 // User trying to access application menu using ALT?
                 case SC_KEYMENU:
                 {

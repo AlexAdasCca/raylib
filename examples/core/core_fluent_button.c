@@ -434,7 +434,7 @@ static void EnsureRT(RLRenderTexture2D* rt, int* curW, int* curH, int wantW, int
     {
         if (rt->id != 0) RLUnloadRenderTexture(*rt);
         *rt = RLLoadRenderTexture(wantW, wantH);
-        RLSetTextureFilter(rt->texture, TEXTURE_FILTER_BILINEAR);
+        RLSetTextureFilter(rt->texture, RL_E_TEXTURE_FILTER_BILINEAR);
         *curW = wantW;
         *curH = wantH;
     }
@@ -537,7 +537,7 @@ static bool TryLoadBackgroundTexture(RLTexture2D* outTex, const char** outPath)
         RLUnloadImage(img);
 
         if (tex.id == 0) continue;
-        RLSetTextureFilter(tex, TEXTURE_FILTER_BILINEAR);
+        RLSetTextureFilter(tex, RL_E_TEXTURE_FILTER_BILINEAR);
 
         *outTex = tex;
         if (outPath) *outPath = pCandidatePath;
@@ -612,14 +612,14 @@ static void DrawAcrylicRounded(const AcrylicCtx* acrylicCtx, RLTexture2D backdro
 
     float grain = (grainAmount < 0.0f) ? 0.0f : grainAmount;
 
-    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locScreen, screen, SHADER_UNIFORM_VEC2);
-    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locRect, rect, SHADER_UNIFORM_VEC4);
-    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locRadius, &rad, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locTint, tint, SHADER_UNIFORM_VEC4);
-    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locGrain, &grain, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locTime, &fTimeSeconds, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locScreen, screen, RL_E_SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locRect, rect, RL_E_SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locRadius, &rad, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locTint, tint, RL_E_SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locGrain, &grain, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locTime, &fTimeSeconds, RL_E_SHADER_UNIFORM_FLOAT);
     float soft = Clamp01(soften);
-    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locSoften, &soft, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(acrylicCtx->shader, acrylicCtx->locSoften, &soft, RL_E_SHADER_UNIFORM_FLOAT);
 
     // Bind backdrop to texture0.
     RLSetShaderValueTexture(acrylicCtx->shader, acrylicCtx->locBackdrop, backdrop);
@@ -691,9 +691,9 @@ static int UIHitTest(const UIHitItem* items, int count, RLVector2 p)
 static void UIInputBegin(UIInput* uiInput, const UIHitItem* items, int count)
 {
     uiInput->mouse = RLGetMousePosition();
-    uiInput->down = RLIsMouseButtonDown(MOUSE_BUTTON_LEFT);
-    uiInput->pressed = RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT);
-    uiInput->released = RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+    uiInput->down = RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT);
+    uiInput->pressed = RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT);
+    uiInput->released = RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT);
 
     if (!RLIsWindowFocused()) gUiActiveId = -1;
 
@@ -1332,7 +1332,7 @@ static bool DrawFluentButtonEx(int id, RLRectangle rcRect, const char* text,
     bool clickedKey = false;
     if (enabled && focused)
     {
-        if (RLIsKeyPressed(KEY_ENTER) || RLIsKeyPressed(KEY_KP_ENTER) || RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_ENTER) || RLIsKeyPressed(RL_E_KEY_KP_ENTER) || RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             clickedKey = true;
             st->ripplePos = (RLVector2){ rcRect.x + rcRect.width * 0.5f, rcRect.y + rcRect.height * 0.5f };
@@ -1539,7 +1539,7 @@ static void ComputeScrollbarRects(const UILayout* pLayoutBase, float fScrollPosi
 
 int main(void)
 {
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_EVENT_THREAD);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT | RL_E_FLAG_VSYNC_HINT | RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_EVENT_THREAD);
     RLInitWindow(900, 540, "raylib [core] example - fluent button");
     RLSetTargetFPS(144);
 
@@ -1597,22 +1597,22 @@ int main(void)
         fTimeSeconds += fDeltaTime;
 
         // Global toggles
-        if (RLIsKeyPressed(KEY_T)) bThemeTargetLight = !bThemeTargetLight;
-        if (RLIsKeyPressed(KEY_B)) bBackgroundUseImage = !bBackgroundUseImage;
-        if (RLIsKeyPressed(KEY_V)) bBackgroundUseBlur = !bBackgroundUseBlur;
-        if (RLIsKeyPressed(KEY_A)) gAcrylicEnabled = !gAcrylicEnabled;
-        if (RLIsKeyPressed(KEY_N)) gAcrylicNoise = !gAcrylicNoise;
-        if (RLIsKeyPressed(KEY_M)) gAcrylicButtons = !gAcrylicButtons;
+        if (RLIsKeyPressed(RL_E_KEY_T)) bThemeTargetLight = !bThemeTargetLight;
+        if (RLIsKeyPressed(RL_E_KEY_B)) bBackgroundUseImage = !bBackgroundUseImage;
+        if (RLIsKeyPressed(RL_E_KEY_V)) bBackgroundUseBlur = !bBackgroundUseBlur;
+        if (RLIsKeyPressed(RL_E_KEY_A)) gAcrylicEnabled = !gAcrylicEnabled;
+        if (RLIsKeyPressed(RL_E_KEY_N)) gAcrylicNoise = !gAcrylicNoise;
+        if (RLIsKeyPressed(RL_E_KEY_M)) gAcrylicButtons = !gAcrylicButtons;
 
-        if (RLIsKeyPressed(KEY_C)) gFlyoutConstrainToCard = !gFlyoutConstrainToCard;
-        if (RLIsKeyPressed(KEY_LEFT_BRACKET))
+        if (RLIsKeyPressed(RL_E_KEY_C)) gFlyoutConstrainToCard = !gFlyoutConstrainToCard;
+        if (RLIsKeyPressed(RL_E_KEY_LEFT_BRACKET))
         {
             iBackgroundBlurLevel--;
             if (iBackgroundBlurLevel < 1) iBackgroundBlurLevel = 1;
             iBackgroundBlurWidth = 0; iBackgroundBlurHeight = 0;
             iAcrylicWidth = 0; iAcrylicHeight = 0;
         }
-        if (RLIsKeyPressed(KEY_RIGHT_BRACKET))
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT_BRACKET))
         {
             iBackgroundBlurLevel++;
             if (iBackgroundBlurLevel > 5) iBackgroundBlurLevel = 5;
@@ -1626,7 +1626,7 @@ int main(void)
         ThemeTokens ttTheme = LerpTheme(ttThemeDark, ttThemeLight, fThemeLightness);
 
         // Close flyout on ESC
-        if ((bFlyoutWanted || fFlyoutAnimT > 0.01f) && RLIsKeyPressed(KEY_ESCAPE))
+        if ((bFlyoutWanted || fFlyoutAnimT > 0.01f) && RLIsKeyPressed(RL_E_KEY_ESCAPE))
         {
             bFlyoutWanted = false;
         }
@@ -1788,7 +1788,7 @@ int main(void)
                 {
                     // Step size tuned to feel like Fluent ScrollViewer (slightly larger on taller viewports).
                     float wheelStep = LerpF(78.0f, 104.0f, Clamp01(lytLayoutBase.rcContentClip.height / 420.0f));
-                    if (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_RIGHT_CONTROL)) wheelStep *= 1.55f;
+                    if (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) || RLIsKeyDown(RL_E_KEY_RIGHT_CONTROL)) wheelStep *= 1.55f;
 
                     ssCardScroll.target = ClampF(ssCardScroll.target + (-fWheelDelta) * wheelStep, 0.0f, lytLayoutBase.fScrollMax);
                     scrollTouched = true;
@@ -1853,9 +1853,9 @@ int main(void)
         }
 
         // Keyboard focus cycling within the current scope.
-        if (RLIsKeyPressed(KEY_TAB))
+        if (RLIsKeyPressed(RL_E_KEY_TAB))
         {
-            int dir = (RLIsKeyDown(KEY_LEFT_SHIFT) || RLIsKeyDown(KEY_RIGHT_SHIFT)) ? -1 : 1;
+            int dir = (RLIsKeyDown(RL_E_KEY_LEFT_SHIFT) || RLIsKeyDown(RL_E_KEY_RIGHT_SHIFT)) ? -1 : 1;
             if (bFlyoutVisible)
             {
                 const int orderFly[] = { 100, 101 };

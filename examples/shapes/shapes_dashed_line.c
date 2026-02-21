@@ -50,15 +50,15 @@ int main(void)
         lineEndPosition = RLGetMousePosition(); // Line endpoint follows the mouse
 
         // Change Dash Length (UP/DOWN arrows)
-        if (RLIsKeyDown(KEY_UP)) dashLength += 1.0f;
-        if (RLIsKeyDown(KEY_DOWN) && dashLength > 1.0f) dashLength -= 1.0f;
+        if (RLIsKeyDown(RL_E_KEY_UP)) dashLength += 1.0f;
+        if (RLIsKeyDown(RL_E_KEY_DOWN) && dashLength > 1.0f) dashLength -= 1.0f;
 
         // Change Space Length (LEFT/RIGHT arrows)
-        if (RLIsKeyDown(KEY_RIGHT)) blankLength += 1.0f;
-        if (RLIsKeyDown(KEY_LEFT) && blankLength > 1.0f) blankLength -= 1.0f;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT)) blankLength += 1.0f;
+        if (RLIsKeyDown(RL_E_KEY_LEFT) && blankLength > 1.0f) blankLength -= 1.0f;
 
         // Cycle through colors ('C' key)
-        if (RLIsKeyPressed(KEY_C)) colorIndex = (colorIndex + 1)%(sizeof(lineColors)/sizeof(RLColor));
+        if (RLIsKeyPressed(RL_E_KEY_C)) colorIndex = (colorIndex + 1)%(sizeof(lineColors)/sizeof(RLColor));
         //----------------------------------------------------------------------------------
 
         // Draw

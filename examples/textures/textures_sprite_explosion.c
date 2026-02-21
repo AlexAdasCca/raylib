@@ -60,7 +60,7 @@ int main(void)
         //----------------------------------------------------------------------------------
 
         // Check for mouse button pressed and activate explosion (if not active)
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !active)
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT) && !active)
         {
             position = RLGetMousePosition();
             active = true;

@@ -59,10 +59,10 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Disable the hint text once the user clicks
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT) && startText) startText = false;
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT) && startText) startText = false;
 
         // Clear the canvas when the user middle-clicks
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_MIDDLE))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_MIDDLE))
         {
             RLBeginTextureMode(canvas);
                 RLClearBackground(RAYWHITE);
@@ -70,8 +70,8 @@ int main(void)
         }
 
         // Store whether the left and right buttons are down
-        bool leftButtonDown = RLIsMouseButtonDown(MOUSE_BUTTON_LEFT);
-        bool rightButtonDown = RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+        bool leftButtonDown = RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT);
+        bool rightButtonDown = RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT);
 
         if (leftButtonDown || rightButtonDown)
         {
@@ -81,7 +81,7 @@ int main(void)
             if (leftButtonDown)
             {
                 // Increase the hue value by the distance our cursor has moved since the last frame (divided by 3)
-                lineHue += Vector2Distance(mousePositionPrevious, RLGetMousePosition())/3.0f;
+                lineHue += RLVector2Distance(mousePositionPrevious, RLGetMousePosition())/3.0f;
 
                 // While the hue is >=360, subtract it to bring it down into the range 0-360
                 // This is more visually accurate than resetting to zero
@@ -103,7 +103,7 @@ int main(void)
 
         // Update line thickness based on mousewheel
         lineThickness += RLGetMouseWheelMove();
-        lineThickness = Clamp(lineThickness, 1.0, 500.0f);
+        lineThickness = RLClamp(lineThickness, 1.0, 500.0f);
 
         // Update mouse's previous position
         mousePositionPrevious = RLGetMousePosition();
@@ -114,7 +114,7 @@ int main(void)
         RLBeginDrawing();
 
             // Draw the render texture to the screen, flipped vertically to make it appear top-side up
-            RLDrawTextureRec(canvas.texture, (RLRectangle){ 0.0f, 0.0f, (float)canvas.texture.width,(float)-canvas.texture.height }, Vector2Zero(), WHITE);
+            RLDrawTextureRec(canvas.texture, (RLRectangle){ 0.0f, 0.0f, (float)canvas.texture.width,(float)-canvas.texture.height }, RLVector2Zero(), WHITE);
 
             // Draw the preview circle
             if (!leftButtonDown) RLDrawCircleLinesV(RLGetMousePosition(), lineThickness/2.0f, (RLColor){ 127, 127, 127, 127 });

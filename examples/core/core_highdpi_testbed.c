@@ -27,7 +27,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_HIGHDPI);
     RLInitWindow(screenWidth, screenHeight, "raylib [core] example - highdpi testbed");
 
     RLVector2 scaleDpi = RLGetWindowScaleDPI();
@@ -50,8 +50,8 @@ int main(void)
         scaleDpi = RLGetWindowScaleDPI();
         windowPos = RLGetWindowPosition();
 
-        if (RLIsKeyPressed(KEY_SPACE)) RLToggleBorderlessWindowed();
-        if (RLIsKeyPressed(KEY_F)) RLToggleFullscreen();
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) RLToggleBorderlessWindowed();
+        if (RLIsKeyPressed(RL_E_KEY_F)) RLToggleFullscreen();
         //----------------------------------------------------------------------------------
 
         // Draw

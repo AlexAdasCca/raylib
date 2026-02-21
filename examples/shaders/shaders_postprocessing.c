@@ -75,7 +75,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - postprocessing");
 
@@ -85,7 +85,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 1.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLModel model = RLLoadModel("resources/models/church.obj");                 // Load OBJ model
     RLTexture2D texture = RLLoadTexture("resources/models/church_diffuse.png"); // Load model texture (diffuse map)
@@ -125,10 +125,10 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
-        if (RLIsKeyPressed(KEY_RIGHT)) currentShader++;
-        else if (RLIsKeyPressed(KEY_LEFT)) currentShader--;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) currentShader++;
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT)) currentShader--;
 
         if (currentShader >= MAX_POSTPRO_SHADERS) currentShader = 0;
         else if (currentShader < 0) currentShader = MAX_POSTPRO_SHADERS - 1;

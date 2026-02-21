@@ -84,7 +84,7 @@ int main(void)
             if (maxHeight < height) maxHeight = height;
         }
 
-        if (RLIsKeyPressed(KEY_ENTER) && (monitorCount > 1))
+        if (RLIsKeyPressed(RL_E_KEY_ENTER) && (monitorCount > 1))
         {
             currentMonitorIndex += 1;
 

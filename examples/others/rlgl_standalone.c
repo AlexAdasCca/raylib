@@ -1,4 +1,4 @@
-/*******************************************************************************************
+﻿/*******************************************************************************************
 *
 *   raylib [others] example - standalone
 *
@@ -62,6 +62,7 @@
 //#define RL_CULL_DISTANCE_NEAR              0.01    // Default projection matrix near cull distance
 //#define RL_CULL_DISTANCE_FAR             1000.0    // Default projection matrix far cull distance
 
+#define RL_RLGL_STANDALONE
 #define RLGL_IMPLEMENTATION
 #include "rlgl.h"               // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
 
@@ -72,22 +73,31 @@
 
 #include <stdio.h>              // Required for: printf()
 
+#if !defined(RED)
 #define RED        (RLColor){ 230, 41, 55, 255 }     // Red
+#endif
+#if !defined(RAYWHITE) 
 #define RAYWHITE   (RLColor){ 245, 245, 245, 255 }   // My own White (raylib logo)
+#endif
+#if !defined(DARKGRAY) 
 #define DARKGRAY   (RLColor){ 80, 80, 80, 255 }      // Dark Gray
+#endif
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 // Color, 4 components, R8G8B8A8 (32bit)
+#if !defined(RL_COLOR_TYPE)
 typedef struct RLColor {
     unsigned char r;        // Color red value
     unsigned char g;        // Color green value
     unsigned char b;        // Color blue value
     unsigned char a;        // Color alpha value
 } RLColor;
+#endif
 
 // Camera type, defines a camera position/orientation in 3d space
+#if !defined(RL_CAMERA_TYPE)
 typedef struct RLCamera {
     RLVector3 position;       // Camera position
     RLVector3 target;         // Camera target it looks-at
@@ -95,6 +105,7 @@ typedef struct RLCamera {
     float fovy;             // Camera field-of-view apperture in Y (degrees) in perspective, used as near plane width in orthographic
     int projection;         // Camera projection: CAMERA_PERSPECTIVE or CAMERA_ORTHOGRAPHIC
 } RLCamera;
+#endif
 
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
@@ -205,8 +216,8 @@ int main(void)
             // Draw '3D' elements in the scene
             //-----------------------------------------------
             // Calculate projection matrix (from perspective) and view matrix from camera look at
-            RLMatrix matProj = MatrixPerspective((double)(camera.fovy*DEG2RAD), (double)screenWidth/(double)screenHeight, 0.01, 1000.0);
-            RLMatrix matView = MatrixLookAt(camera.position, camera.target, camera.up);
+            RLMatrix matProj = RLMatrixPerspective((double)(camera.fovy*DEG2RAD), (double)screenWidth/(double)screenHeight, 0.01, 1000.0);
+            RLMatrix matView = RLMatrixLookAt(camera.position, camera.target, camera.up);
 
             rlSetMatrixModelview(matView);    // Set internal modelview matrix (default shader)
             rlSetMatrixProjection(matProj);   // Set internal projection matrix (default shader)
@@ -223,8 +234,8 @@ int main(void)
             //-----------------------------------------------
 #define RLGL_SET_MATRIX_MANUALLY
 #if defined(RLGL_SET_MATRIX_MANUALLY)
-            matProj = MatrixOrtho(0.0, screenWidth, screenHeight, 0.0, 0.0, 1.0);
-            matView = MatrixIdentity();
+            matProj = RLMatrixOrtho(0.0, screenWidth, screenHeight, 0.0, 0.0, 1.0);
+            matView = RLMatrixIdentity();
 
             rlSetMatrixModelview(matView);    // Set internal modelview matrix (default shader)
             rlSetMatrixProjection(matProj);   // Set internal projection matrix (default shader)

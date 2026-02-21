@@ -51,7 +51,7 @@ int main(void)
         if (mouseOnText)
         {
             // Set the window's cursor to the I-Beam
-            RLSetMouseCursor(MOUSE_CURSOR_IBEAM);
+            RLSetMouseCursor(RL_E_MOUSE_CURSOR_IBEAM);
 
             // Get char pressed (unicode character) on the queue
             int key = RLGetCharPressed();
@@ -70,14 +70,14 @@ int main(void)
                 key = RLGetCharPressed();  // Check next character in the queue
             }
 
-            if (RLIsKeyPressed(KEY_BACKSPACE))
+            if (RLIsKeyPressed(RL_E_KEY_BACKSPACE))
             {
                 letterCount--;
                 if (letterCount < 0) letterCount = 0;
                 name[letterCount] = '\0';
             }
         }
-        else RLSetMouseCursor(MOUSE_CURSOR_DEFAULT);
+        else RLSetMouseCursor(RL_E_MOUSE_CURSOR_DEFAULT);
 
         if (mouseOnText) framesCounter++;
         else framesCounter = 0;

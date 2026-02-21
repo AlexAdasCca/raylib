@@ -45,7 +45,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);  // Enable Multi Sampling Anti Aliasing 4x (if available)
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);  // Enable Multi Sampling Anti Aliasing 4x (if available)
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - lightmap rendering");
 
     // Define the camera to look into our 3d world
@@ -54,7 +54,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLMesh mesh = RLGenMeshPlane((float)MAP_SIZE, (float)MAP_SIZE, 1, 1);
 
@@ -68,7 +68,7 @@ int main(void)
     mesh.texcoords2[6] = 1.0f;    mesh.texcoords2[7] = 1.0f;
 
     // Load a new texcoords2 attributes buffer
-    mesh.vboId[SHADER_LOC_VERTEX_TEXCOORD02] = rlLoadVertexBuffer(mesh.texcoords2, mesh.vertexCount*2*sizeof(float), false);
+    mesh.vboId[RL_E_SHADER_LOC_VERTEX_TEXCOORD02] = rlLoadVertexBuffer(mesh.texcoords2, mesh.vertexCount*2*sizeof(float), false);
     rlEnableVertexArray(mesh.vaoId);
 
     // Index 5 is for texcoords2
@@ -84,20 +84,20 @@ int main(void)
     RLTexture light = RLLoadTexture("resources/spark_flame.png");
 
     RLGenTextureMipmaps(&texture);
-    RLSetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+    RLSetTextureFilter(texture, RL_E_TEXTURE_FILTER_TRILINEAR);
 
     RLRenderTexture lightmap = RLLoadRenderTexture(MAP_SIZE, MAP_SIZE);
 
     RLMaterial material = RLLoadMaterialDefault();
     material.shader = shader;
-    material.maps[MATERIAL_MAP_ALBEDO].texture = texture;
-    material.maps[MATERIAL_MAP_METALNESS].texture = lightmap.texture;
+    material.maps[RL_E_MATERIAL_MAP_ALBEDO].texture = texture;
+    material.maps[RL_E_MATERIAL_MAP_METALNESS].texture = lightmap.texture;
 
     // Drawing to lightmap
     RLBeginTextureMode(lightmap);
         RLClearBackground(BLACK);
 
-        RLBeginBlendMode(BLEND_ADDITIVE);
+        RLBeginBlendMode(RL_E_BLEND_ADDITIVE);
             RLDrawTexturePro(
                 light,
                 (RLRectangle){ 0, 0, (float)light.width, (float)light.height },
@@ -122,12 +122,12 @@ int main(void)
                 0.0,
                 GREEN
             );
-        RLBeginBlendMode(BLEND_ALPHA);
+        RLBeginBlendMode(RL_E_BLEND_ALPHA);
     RLEndTextureMode();
 
     // NOTE: To enable trilinear filtering we need mipmaps available for texture
     RLGenTextureMipmaps(&lightmap.texture);
-    RLSetTextureFilter(lightmap.texture, TEXTURE_FILTER_TRILINEAR);
+    RLSetTextureFilter(lightmap.texture, RL_E_TEXTURE_FILTER_TRILINEAR);
 
     RLSetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -137,7 +137,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -147,7 +147,7 @@ int main(void)
             RLClearBackground(RAYWHITE);
 
             RLBeginMode3D(camera);
-                RLDrawMesh(mesh, material, MatrixIdentity());
+                RLDrawMesh(mesh, material, RLMatrixIdentity());
             RLEndMode3D();
 
             RLDrawTexturePro(lightmap.texture, (RLRectangle){ 0, 0, -MAP_SIZE, -MAP_SIZE },

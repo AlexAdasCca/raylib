@@ -30,7 +30,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - clock of clocks");
 
     const RLColor bgColor = RLColorLerp(DARKBLUE, BLACK, 0.75f);
@@ -118,7 +118,7 @@ int main(void)
         if (handsMoveTimer < handsMoveDuration)
         {
             // Increase the timer but don't go above the maximum
-            handsMoveTimer = Clamp(handsMoveTimer + RLGetFrameTime(), 0, handsMoveDuration);
+            handsMoveTimer = RLClamp(handsMoveTimer + RLGetFrameTime(), 0, handsMoveDuration);
 
             // Calculate the%completion of the animation
             float t = handsMoveTimer/handsMoveDuration;
@@ -130,14 +130,14 @@ int main(void)
             {
                 for (int cell = 0; cell < 24; cell++)
                 {
-                    currentAngles[digit][cell].x = Lerp(srcAngles[digit][cell].x, dstAngles[digit][cell].x, t);
-                    currentAngles[digit][cell].y = Lerp(srcAngles[digit][cell].y, dstAngles[digit][cell].y, t);
+                    currentAngles[digit][cell].x = RLLerp(srcAngles[digit][cell].x, dstAngles[digit][cell].x, t);
+                    currentAngles[digit][cell].y = RLLerp(srcAngles[digit][cell].y, dstAngles[digit][cell].y, t);
                 }
             }
         }
 
         // Handle input
-        if (RLIsKeyPressed(KEY_SPACE)) hourMode = 36 - hourMode; // Toggle between 12 and 24 hour mode with space
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) hourMode = 36 - hourMode; // Toggle between 12 and 24 hour mode with space
         //----------------------------------------------------------------------------------
 
         // Draw

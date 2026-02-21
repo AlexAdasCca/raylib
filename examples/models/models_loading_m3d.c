@@ -39,7 +39,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.4f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLVector3 position = { 0.0f, 0.0f, 0.0f };            // Set model position
 
@@ -66,12 +66,12 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);
 
         if (animsCount)
         {
             // Play animation when spacebar is held down (or step one frame with N)
-            if (RLIsKeyDown(KEY_SPACE) || RLIsKeyPressed(KEY_N))
+            if (RLIsKeyDown(RL_E_KEY_SPACE) || RLIsKeyPressed(RL_E_KEY_N))
             {
                 animFrameCounter++;
 
@@ -82,7 +82,7 @@ int main(void)
             }
 
             // Select animation by pressing C
-            if (RLIsKeyPressed(KEY_C))
+            if (RLIsKeyPressed(RL_E_KEY_C))
             {
                 animFrameCounter = 0;
                 animId++;
@@ -94,10 +94,10 @@ int main(void)
         }
 
         // Toggle skeleton drawing
-        if (RLIsKeyPressed(KEY_B)) drawSkeleton ^= 1;
+        if (RLIsKeyPressed(RL_E_KEY_B)) drawSkeleton ^= 1;
 
         // Toggle mesh drawing
-        if (RLIsKeyPressed(KEY_M)) drawMesh ^= 1;
+        if (RLIsKeyPressed(RL_E_KEY_M)) drawMesh ^= 1;
         //----------------------------------------------------------------------------------
 
         // Draw

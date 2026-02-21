@@ -99,14 +99,14 @@ int main(void)
         //----------------------------------------------------------------------------------
         brushSize += (int)RLGetMouseWheelMove();
 
-        if ((RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) || RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if ((RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT) || RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT))
             && (transfertBuffer.count < MAX_BUFFERED_TRANSFERTS))
         {
             // Buffer a new command
             transfertBuffer.commands[transfertBuffer.count].x = RLGetMouseX() - brushSize/2;
             transfertBuffer.commands[transfertBuffer.count].y = RLGetMouseY() - brushSize/2;
             transfertBuffer.commands[transfertBuffer.count].w = brushSize;
-            transfertBuffer.commands[transfertBuffer.count].enabled = RLIsMouseButtonDown(MOUSE_BUTTON_LEFT);
+            transfertBuffer.commands[transfertBuffer.count].enabled = RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT);
             transfertBuffer.count++;
         }
         else if (transfertBuffer.count > 0)  // Process transfert buffer
@@ -139,7 +139,7 @@ int main(void)
         }
 
         rlBindShaderBuffer(ssboA, 1);
-        RLSetShaderValue(golRenderShader, resUniformLoc, &resolution, SHADER_UNIFORM_VEC2);
+        RLSetShaderValue(golRenderShader, resUniformLoc, &resolution, RL_E_SHADER_UNIFORM_VEC2);
         //----------------------------------------------------------------------------------
 
         // Draw

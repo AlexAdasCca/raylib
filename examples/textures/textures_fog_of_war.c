@@ -67,7 +67,8 @@ int main(void)
     // NOTE: To get an automatic smooth-fog effect we use a render texture to render fog
     // at a smaller size (one pixel per tile) and scale it on drawing with bilinear filtering
     RLRenderTexture2D fogOfWar = RLLoadRenderTexture(map.tilesX, map.tilesY);
-    RLSetTextureFilter(fogOfWar.texture, TEXTURE_FILTER_BILINEAR);
+    RLSetTextureFilter(fogOfWar.texture, RL_E_TEXTURE_FILTER_BILINEAR);
+    RLSetTextureWrap(fogOfWar.texture, RL_E_TEXTURE_WRAP_CLAMP);
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -78,10 +79,10 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Move player around
-        if (RLIsKeyDown(KEY_RIGHT)) playerPosition.x += 5;
-        if (RLIsKeyDown(KEY_LEFT)) playerPosition.x -= 5;
-        if (RLIsKeyDown(KEY_DOWN)) playerPosition.y += 5;
-        if (RLIsKeyDown(KEY_UP)) playerPosition.y -= 5;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT)) playerPosition.x += 5;
+        if (RLIsKeyDown(RL_E_KEY_LEFT)) playerPosition.x -= 5;
+        if (RLIsKeyDown(RL_E_KEY_DOWN)) playerPosition.y += 5;
+        if (RLIsKeyDown(RL_E_KEY_UP)) playerPosition.y -= 5;
 
         // Check player position to avoid moving outside tilemap limits
         if (playerPosition.x < 0) playerPosition.x = 0;

@@ -60,7 +60,7 @@ int main(void)
     RLFont font = RLLoadFontEx("resources/DotGothic16-Regular.ttf", 36, codepointsNoDups, codepointsNoDupsCount);
 
     // Set bilinear scale filter for better font scaling
-    RLSetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+    RLSetTextureFilter(font.texture, RL_E_TEXTURE_FILTER_BILINEAR);
 
     RLSetTextLineSpacing(20);         // Set line spacing for multiline text (when line breaks are included '\n')
 
@@ -80,16 +80,16 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE)) showFontAtlas = !showFontAtlas;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) showFontAtlas = !showFontAtlas;
 
         // Testing code: getting next and previous codepoints on provided text
-        if (RLIsKeyPressed(KEY_RIGHT))
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT))
         {
             // Get next codepoint in string and move pointer
             RLGetCodepointNext(ptr, &codepointSize);
             ptr += codepointSize;
         }
-        else if (RLIsKeyPressed(KEY_LEFT))
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT))
         {
             // Get previous codepoint in string and move pointer
             RLGetCodepointPrevious(ptr, &codepointSize);

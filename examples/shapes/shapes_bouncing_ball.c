@@ -27,7 +27,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - bouncing ball");
 
     RLVector2 ballPosition = { RLGetScreenWidth()/2.0f, RLGetScreenHeight()/2.0f };
@@ -47,8 +47,8 @@ int main(void)
     {
         // Update
         //-----------------------------------------------------
-        if (RLIsKeyPressed(KEY_G)) useGravity = !useGravity;
-        if (RLIsKeyPressed(KEY_SPACE)) pause = !pause;
+        if (RLIsKeyPressed(RL_E_KEY_G)) useGravity = !useGravity;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) pause = !pause;
 
         if (!pause)
         {

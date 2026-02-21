@@ -29,7 +29,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - rlgl triangle");
 
     // Starting postions and rendered triangle positions
@@ -49,14 +49,14 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE)) linesMode = !linesMode;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) linesMode = !linesMode;
 
         // Check selected vertex
         for (unsigned int i = 0; i < 3; i++)
         {
             // If the mouse is within the handle circle
             if (RLCheckCollisionPointCircle(RLGetMousePosition(), trianglePositions[i], handleRadius) &&
-                RLIsMouseButtonDown(MOUSE_BUTTON_LEFT))
+                RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT))
             {
                 triangleIndex = i;
                 break;
@@ -74,14 +74,14 @@ int main(void)
         }
 
         // Reset index on release
-        if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) triangleIndex = -1;
+        if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT)) triangleIndex = -1;
 
         // Enable/disable backface culling (2-sided triangles, slower to render)
-        if (RLIsKeyPressed(KEY_LEFT)) rlEnableBackfaceCulling();
-        if (RLIsKeyPressed(KEY_RIGHT)) rlDisableBackfaceCulling();
+        if (RLIsKeyPressed(RL_E_KEY_LEFT)) rlEnableBackfaceCulling();
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) rlDisableBackfaceCulling();
 
         // Reset triangle vertices to starting positions and reset backface culling
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
             trianglePositions[0] = startingPositions[0];
             trianglePositions[1] = startingPositions[1];

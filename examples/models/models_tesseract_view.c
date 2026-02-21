@@ -39,7 +39,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 0.0f, 1.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 50.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera mode type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera mode type
 
     // Find the coordinates by setting XYZW to +-1
     RLVector4 tesseract[16] = {
@@ -72,7 +72,7 @@ int main(void)
             RLVector4 p = tesseract[i];
 
             // Rotate the XW part of the vector
-            RLVector2 rotXW = Vector2Rotate((RLVector2){ p.x, p.w }, rotation);
+            RLVector2 rotXW = RLVector2Rotate((RLVector2){ p.x, p.w }, rotation);
             p.x = rotXW.x;
             p.w = rotXW.y;
 

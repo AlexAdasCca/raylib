@@ -34,7 +34,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE);
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - raymarching rendering");
 
     RLCamera camera = { 0 };
@@ -42,7 +42,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.7f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 65.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load raymarching shader
     // NOTE: Defining 0 (NULL) for vertex shader forces usage of internal default vertex shader
@@ -55,7 +55,7 @@ int main(void)
     int resolutionLoc = RLGetShaderLocation(shader, "resolution");
 
     float resolution[2] = { (float)screenWidth, (float)screenHeight };
-    RLSetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, resolutionLoc, resolution, RL_E_SHADER_UNIFORM_VEC2);
 
     float runTime = 0.0f;
 
@@ -68,7 +68,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);
 
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
         float cameraTarget[3] = { camera.target.x, camera.target.y, camera.target.z };
@@ -77,16 +77,16 @@ int main(void)
         runTime += deltaTime;
 
         // Set shader required uniform values
-        RLSetShaderValue(shader, viewEyeLoc, cameraPos, SHADER_UNIFORM_VEC3);
-        RLSetShaderValue(shader, viewCenterLoc, cameraTarget, SHADER_UNIFORM_VEC3);
-        RLSetShaderValue(shader, runTimeLoc, &runTime, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, viewEyeLoc, cameraPos, RL_E_SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, viewCenterLoc, cameraTarget, RL_E_SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, runTimeLoc, &runTime, RL_E_SHADER_UNIFORM_FLOAT);
 
         // Check if screen is resized
         if (RLIsWindowResized())
         {
             resolution[0] = (float)RLGetScreenWidth();
             resolution[1] = (float)RLGetScreenHeight();
-            RLSetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+            RLSetShaderValue(shader, resolutionLoc, resolution, RL_E_SHADER_UNIFORM_VEC2);
         }
         //----------------------------------------------------------------------------------
 

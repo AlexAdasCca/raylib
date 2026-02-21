@@ -79,7 +79,7 @@ static int MyHook1(void* hwnd, unsigned int msg, uintptr_t wp, intptr_t lp, intp
 
 static int MyHook2(void* hwnd, unsigned int msg, uintptr_t wp, intptr_t lp, intptr_t* result, void* user) {
     (void)hwnd; (void)msg; (void)wp; (void)lp; (void)result; (void)user;
-    RLTraceLog(LOG_INFO, "MyHook2: %p, %d, %p", hwnd, msg, wp, lp, result, user);
+    RLTraceLog(RL_E_LOG_INFO, "MyHook2: %p, %d, %p", hwnd, msg, wp, lp, result, user);
     return 0;
 }
 
@@ -87,7 +87,7 @@ static unsigned __stdcall OtherThread(void* arg)
 {
     int nRelNumber = RLWin32GetAllWindowHandles(NULL, -1);
 
-    RLTraceLog(LOG_INFO, "Win32 Window Handle number: %d.", nRelNumber);
+    RLTraceLog(RL_E_LOG_INFO, "Win32 Window Handle number: %d.", nRelNumber);
 
     void* hwnds[32];
     int n = RLWin32GetAllWindowHandles(hwnds, 32);
@@ -95,7 +95,7 @@ static unsigned __stdcall OtherThread(void* arg)
     for (int i = 0; i < n; i++) {
         void* hwnd = hwnds[i];
         RLWin32SetWindowPropByHandle(hwnd, "MyTag", (void*)0x1234);
-        RLTraceLog(LOG_INFO, "Win32 Window Handle %d: %p.", i, hwnd);
+        RLTraceLog(RL_E_LOG_INFO, "Win32 Window Handle %d: %p.", i, hwnd);
     }
 
     void* hwnd = RLWin32GetPrimaryWindowHandle();
@@ -118,7 +118,7 @@ static unsigned __stdcall SecondaryWindowThread(void* arg)
     RLContext* ctx = RLCreateContext();
     RLSetCurrentContext(ctx);
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_EVENT_THREAD);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT | RL_E_FLAG_WINDOW_HIGHDPI | RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_EVENT_THREAD);
     RLInitWindow(680, 370, "raylib [thread] secondary window");
     //RLSetWindowMaxSize(1000, 800);
     RLSetTargetFPS(60);
@@ -181,14 +181,14 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_REFRESH_CALLBACK);  // NOTE: Try to enable MSAA 4X
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT | RL_E_FLAG_WINDOW_REFRESH_CALLBACK);  // NOTE: Try to enable MSAA 4X
 
-    RLSetWindowState(FLAG_WINDOW_SNAP_LAYOUT);
+    RLSetWindowState(RL_E_FLAG_WINDOW_SNAP_LAYOUT);
 
     RLInitWindowEx(screenWidth, screenHeight, 
         "raylib [audio] example - module playing", "RLCustomWindowClass");
 
-    //RLSetWindowState(FLAG_WINDOW_SNAP_LAYOUT);
+    //RLSetWindowState(RL_E_FLAG_WINDOW_SNAP_LAYOUT);
 
     RLInitAudioDevice();                  // Initialize audio device
 
@@ -240,7 +240,7 @@ int main(void)
         RLUpdateMusicStream(gMusic);      // Update music buffer with new stream data
 
         // Restart music playing (stop and play)
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             RLStopMusicStream(gMusic);
             RLPlayMusicStream(gMusic);
@@ -248,7 +248,7 @@ int main(void)
         }
 
         // Pause/Resume music playing
-        if (RLIsKeyPressed(KEY_P))
+        if (RLIsKeyPressed(RL_E_KEY_P))
         {
             pause = !pause;
 
@@ -256,8 +256,8 @@ int main(void)
             else RLResumeMusicStream(gMusic);
         }
 
-        if (RLIsKeyDown(KEY_DOWN)) pitch -= 0.01f;
-        else if (RLIsKeyDown(KEY_UP)) pitch += 0.01f;
+        if (RLIsKeyDown(RL_E_KEY_DOWN)) pitch -= 0.01f;
+        else if (RLIsKeyDown(RL_E_KEY_UP)) pitch += 0.01f;
 
         RLSetMusicPitch(gMusic, pitch);
 

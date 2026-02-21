@@ -38,7 +38,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);      // Enable Multi Sampling Anti Aliasing 4x (if available)
 
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - model shader");
 
@@ -48,7 +48,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 1.0f, -1.0f };     // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLModel model = RLLoadModel("resources/models/watermill.obj");                   // Load OBJ model
     RLTexture2D texture = RLLoadTexture("resources/models/watermill_diffuse.png");   // Load model texture
@@ -71,7 +71,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FREE);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FREE);
         //----------------------------------------------------------------------------------
 
         // Draw

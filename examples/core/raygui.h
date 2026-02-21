@@ -1431,12 +1431,12 @@ static bool guiStyleLoaded = false;         // Style loaded flag for lazy style 
 //----------------------------------------------------------------------------------
 #if defined(RAYGUI_STANDALONE)
 
-#define KEY_RIGHT           262
-#define KEY_LEFT            263
-#define KEY_DOWN            264
-#define KEY_UP              265
-#define KEY_BACKSPACE       259
-#define KEY_ENTER           257
+#define RL_E_KEY_RIGHT           262
+#define RL_E_KEY_LEFT            263
+#define RL_E_KEY_DOWN            264
+#define RL_E_KEY_UP              265
+#define RL_E_KEY_BACKSPACE       259
+#define RL_E_KEY_ENTER           257
 
 #define MOUSE_LEFT_BUTTON     0
 
@@ -1896,14 +1896,14 @@ int GuiScrollPanel(RLRectangle bounds, const char *text, RLRectangle content, RL
 #if defined(SUPPORT_SCROLLBAR_KEY_INPUT)
             if (hasHorizontalScrollBar)
             {
-                if (RLIsKeyDown(KEY_RIGHT)) scrollPos.x -= GuiGetStyle(SCROLLBAR, SCROLL_SPEED);
-                if (RLIsKeyDown(KEY_LEFT)) scrollPos.x += GuiGetStyle(SCROLLBAR, SCROLL_SPEED);
+                if (RLIsKeyDown(RL_E_KEY_RIGHT)) scrollPos.x -= GuiGetStyle(SCROLLBAR, SCROLL_SPEED);
+                if (RLIsKeyDown(RL_E_KEY_LEFT)) scrollPos.x += GuiGetStyle(SCROLLBAR, SCROLL_SPEED);
             }
 
             if (hasVerticalScrollBar)
             {
-                if (RLIsKeyDown(KEY_DOWN)) scrollPos.y -= GuiGetStyle(SCROLLBAR, SCROLL_SPEED);
-                if (RLIsKeyDown(KEY_UP)) scrollPos.y += GuiGetStyle(SCROLLBAR, SCROLL_SPEED);
+                if (RLIsKeyDown(RL_E_KEY_DOWN)) scrollPos.y -= GuiGetStyle(SCROLLBAR, SCROLL_SPEED);
+                if (RLIsKeyDown(RL_E_KEY_UP)) scrollPos.y += GuiGetStyle(SCROLLBAR, SCROLL_SPEED);
             }
 #endif
             float wheelMove = RLGetMouseWheelMove();
@@ -1914,7 +1914,7 @@ int GuiScrollPanel(RLRectangle bounds, const char *text, RLRectangle content, RL
             if (mouseWheelSpeed.y < RAYGUI_MIN_MOUSE_WHEEL_SPEED) mouseWheelSpeed.y = RAYGUI_MIN_MOUSE_WHEEL_SPEED;
 
             // Horizontal and vertical scrolling with mouse wheel
-            if (hasHorizontalScrollBar && (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_LEFT_SHIFT))) scrollPos.x += wheelMove*mouseWheelSpeed.x;
+            if (hasHorizontalScrollBar && (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) || RLIsKeyDown(RL_E_KEY_LEFT_SHIFT))) scrollPos.x += wheelMove*mouseWheelSpeed.x;
             else scrollPos.y += wheelMove*mouseWheelSpeed.y; // Vertical scroll
         }
     }
@@ -2553,7 +2553,7 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
         {
             // GLOBAL: Auto-cursor movement logic
             // NOTE: Keystrokes are handled repeatedly when button is held down for some time
-            if (RLIsKeyDown(KEY_LEFT) || RLIsKeyDown(KEY_RIGHT) || RLIsKeyDown(KEY_UP) || RLIsKeyDown(KEY_DOWN) || RLIsKeyDown(KEY_BACKSPACE) || RLIsKeyDown(KEY_DELETE)) autoCursorCounter++;
+            if (RLIsKeyDown(RL_E_KEY_LEFT) || RLIsKeyDown(RL_E_KEY_RIGHT) || RLIsKeyDown(RL_E_KEY_UP) || RLIsKeyDown(RL_E_KEY_DOWN) || RLIsKeyDown(RL_E_KEY_BACKSPACE) || RLIsKeyDown(RL_E_KEY_DELETE)) autoCursorCounter++;
             else autoCursorCounter = 0;
 
             bool autoCursorShouldTrigger = (autoCursorCounter > RAYGUI_TEXTBOX_AUTO_CURSOR_COOLDOWN) && ((autoCursorCounter % RAYGUI_TEXTBOX_AUTO_CURSOR_DELAY) == 0);
@@ -2575,14 +2575,14 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
             }
 
             int codepoint = RLGetCharPressed();       // Get Unicode codepoint
-            if (multiline && RLIsKeyPressed(KEY_ENTER)) codepoint = (int)'\n';
+            if (multiline && RLIsKeyPressed(RL_E_KEY_ENTER)) codepoint = (int)'\n';
 
             // Encode codepoint as UTF-8
             int codepointSize = 0;
             const char *charEncoded = RLCodepointToUTF8(codepoint, &codepointSize);
 
             // Handle text paste action
-            if (RLIsKeyPressed(KEY_V) && (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_RIGHT_CONTROL)))
+            if (RLIsKeyPressed(RL_E_KEY_V) && (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) || RLIsKeyDown(RL_E_KEY_RIGHT_CONTROL)))
             {
                 const char *pasteText = RLGetClipboardText();
                 if (pasteText != NULL)
@@ -2632,13 +2632,13 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
             }
 
             // Move cursor to start
-            if ((textLength > 0) && RLIsKeyPressed(KEY_HOME)) textBoxCursorIndex = 0;
+            if ((textLength > 0) && RLIsKeyPressed(RL_E_KEY_HOME)) textBoxCursorIndex = 0;
 
             // Move cursor to end
-            if ((textLength > textBoxCursorIndex) && RLIsKeyPressed(KEY_END)) textBoxCursorIndex = textLength;
+            if ((textLength > textBoxCursorIndex) && RLIsKeyPressed(RL_E_KEY_END)) textBoxCursorIndex = textLength;
 
             // Delete related codepoints from text, after current cursor position
-            if ((textLength > textBoxCursorIndex) && RLIsKeyPressed(KEY_DELETE) && (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_RIGHT_CONTROL)))
+            if ((textLength > textBoxCursorIndex) && RLIsKeyPressed(RL_E_KEY_DELETE) && (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) || RLIsKeyDown(RL_E_KEY_RIGHT_CONTROL)))
             {
                 int offset = textBoxCursorIndex;
                 int accCodepointSize = 0;
@@ -2674,7 +2674,7 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
                 textLength -= accCodepointSize;
             }
 
-            else if ((textLength > textBoxCursorIndex) && (RLIsKeyPressed(KEY_DELETE) || (RLIsKeyDown(KEY_DELETE) && autoCursorShouldTrigger)))
+            else if ((textLength > textBoxCursorIndex) && (RLIsKeyPressed(RL_E_KEY_DELETE) || (RLIsKeyDown(RL_E_KEY_DELETE) && autoCursorShouldTrigger)))
             {
                 // Delete single codepoint from text, after current cursor position
 
@@ -2688,7 +2688,7 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
             }
 
             // Delete related codepoints from text, before current cursor position
-            if ((textBoxCursorIndex > 0) && RLIsKeyPressed(KEY_BACKSPACE) && (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_RIGHT_CONTROL)))
+            if ((textBoxCursorIndex > 0) && RLIsKeyPressed(RL_E_KEY_BACKSPACE) && (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) || RLIsKeyDown(RL_E_KEY_RIGHT_CONTROL)))
             {
                 int offset = textBoxCursorIndex;
                 int accCodepointSize = 0;
@@ -2724,7 +2724,7 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
                 textBoxCursorIndex -= accCodepointSize;
             }
 
-            else if ((textBoxCursorIndex > 0) && (RLIsKeyPressed(KEY_BACKSPACE) || (RLIsKeyDown(KEY_BACKSPACE) && autoCursorShouldTrigger)))
+            else if ((textBoxCursorIndex > 0) && (RLIsKeyPressed(RL_E_KEY_BACKSPACE) || (RLIsKeyDown(RL_E_KEY_BACKSPACE) && autoCursorShouldTrigger)))
             {
                 // Delete single codepoint from text, before current cursor position
 
@@ -2740,7 +2740,7 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
             }
 
             // Move cursor position with keys
-            if ((textBoxCursorIndex > 0) && RLIsKeyPressed(KEY_LEFT) && (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_RIGHT_CONTROL)))
+            if ((textBoxCursorIndex > 0) && RLIsKeyPressed(RL_E_KEY_LEFT) && (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) || RLIsKeyDown(RL_E_KEY_RIGHT_CONTROL)))
             {
                 int offset = textBoxCursorIndex;
                 //int accCodepointSize = 0;
@@ -2771,14 +2771,14 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
 
                 textBoxCursorIndex = offset;
             }
-            else if ((textBoxCursorIndex > 0) && (RLIsKeyPressed(KEY_LEFT) || (RLIsKeyDown(KEY_LEFT) && autoCursorShouldTrigger)))
+            else if ((textBoxCursorIndex > 0) && (RLIsKeyPressed(RL_E_KEY_LEFT) || (RLIsKeyDown(RL_E_KEY_LEFT) && autoCursorShouldTrigger)))
             {
                 int prevCodepointSize = 0;
                 RLGetCodepointPrevious(text + textBoxCursorIndex, &prevCodepointSize);
 
                 textBoxCursorIndex -= prevCodepointSize;
             }
-            else if ((textLength > textBoxCursorIndex) && RLIsKeyPressed(KEY_RIGHT) && (RLIsKeyDown(KEY_LEFT_CONTROL) || RLIsKeyDown(KEY_RIGHT_CONTROL)))
+            else if ((textLength > textBoxCursorIndex) && RLIsKeyPressed(RL_E_KEY_RIGHT) && (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) || RLIsKeyDown(RL_E_KEY_RIGHT_CONTROL)))
             {
                 int offset = textBoxCursorIndex;
                 //int accCodepointSize = 0;
@@ -2810,7 +2810,7 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
 
                 textBoxCursorIndex = offset;
             }
-            else if ((textLength > textBoxCursorIndex) && (RLIsKeyPressed(KEY_RIGHT) || (RLIsKeyDown(KEY_RIGHT) && autoCursorShouldTrigger)))
+            else if ((textLength > textBoxCursorIndex) && (RLIsKeyPressed(RL_E_KEY_RIGHT) || (RLIsKeyDown(RL_E_KEY_RIGHT) && autoCursorShouldTrigger)))
             {
                 int nextCodepointSize = 0;
                 RLGetCodepointNext(text + textBoxCursorIndex, &nextCodepointSize);
@@ -2867,7 +2867,7 @@ int GuiTextBox(RLRectangle bounds, char *text, int textSize, bool editMode)
             //if (multiline) cursor.y = GetTextLines()
 
             // Finish text editing on ENTER or mouse click outside bounds
-            if ((!multiline && RLIsKeyPressed(KEY_ENTER)) ||
+            if ((!multiline && RLIsKeyPressed(RL_E_KEY_ENTER)) ||
                 (!RLCheckCollisionPointRec(mousePosition, bounds) && RLIsMouseButtonPressed(MOUSE_LEFT_BUTTON)))
             {
                 textBoxCursorIndex = 0;     // GLOBAL: Reset the shared cursor index
@@ -3060,7 +3060,7 @@ int GuiValueBox(RLRectangle bounds, const char *text, int *value, int minValue, 
             int keyCount = (int)strlen(textValue);
 
             // Add or remove minus symbol
-            if (RLIsKeyPressed(KEY_MINUS))
+            if (RLIsKeyPressed(RL_E_KEY_MINUS))
             {
                 if (textValue[0] == '-')
                 {
@@ -3101,7 +3101,7 @@ int GuiValueBox(RLRectangle bounds, const char *text, int *value, int minValue, 
             }
 
             // Delete text
-            if ((keyCount > 0) && RLIsKeyPressed(KEY_BACKSPACE))
+            if ((keyCount > 0) && RLIsKeyPressed(RL_E_KEY_BACKSPACE))
             {
                 keyCount--;
                 textValue[keyCount] = '\0';
@@ -3114,7 +3114,7 @@ int GuiValueBox(RLRectangle bounds, const char *text, int *value, int minValue, 
             //if (*value > maxValue) *value = maxValue;
             //else if (*value < minValue) *value = minValue;
 
-            if ((RLIsKeyPressed(KEY_ENTER) || RLIsKeyPressed(KEY_KP_ENTER)) || (!RLCheckCollisionPointRec(mousePoint, bounds) && RLIsMouseButtonPressed(MOUSE_LEFT_BUTTON)))
+            if ((RLIsKeyPressed(RL_E_KEY_ENTER) || RLIsKeyPressed(RL_E_KEY_KP_ENTER)) || (!RLCheckCollisionPointRec(mousePoint, bounds) && RLIsMouseButtonPressed(MOUSE_LEFT_BUTTON)))
             {
                 if (*value > maxValue) *value = maxValue;
                 else if (*value < minValue) *value = minValue;
@@ -3202,7 +3202,7 @@ int GuiValueBoxFloat(RLRectangle bounds, const char *text, char *textValue, floa
             int keyCount = (int)strlen(textValue);
 
             // Add or remove minus symbol
-            if (RLIsKeyPressed(KEY_MINUS))
+            if (RLIsKeyPressed(RL_E_KEY_MINUS))
             {
                 if (textValue[0] == '-')
                 {
@@ -3248,7 +3248,7 @@ int GuiValueBoxFloat(RLRectangle bounds, const char *text, char *textValue, floa
             }
 
             // Pressed backspace
-            if (RLIsKeyPressed(KEY_BACKSPACE))
+            if (RLIsKeyPressed(RL_E_KEY_BACKSPACE))
             {
                 if (keyCount > 0)
                 {
@@ -3260,7 +3260,7 @@ int GuiValueBoxFloat(RLRectangle bounds, const char *text, char *textValue, floa
 
             if (valueHasChanged) *value = RLTextToFloat(textValue);
 
-            if ((RLIsKeyPressed(KEY_ENTER) || RLIsKeyPressed(KEY_KP_ENTER)) || (!RLCheckCollisionPointRec(mousePoint, bounds) && RLIsMouseButtonPressed(MOUSE_LEFT_BUTTON))) result = 1;
+            if ((RLIsKeyPressed(RL_E_KEY_ENTER) || RLIsKeyPressed(RL_E_KEY_KP_ENTER)) || (!RLCheckCollisionPointRec(mousePoint, bounds) && RLIsMouseButtonPressed(MOUSE_LEFT_BUTTON))) result = 1;
         }
         else
         {

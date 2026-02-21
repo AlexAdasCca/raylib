@@ -50,7 +50,7 @@ int main(void)
 
     // Loading font data from memory data
     // Parameters > font size: 16, no glyphs array provided (0), glyphs count: 95 (autogenerate chars array)
-    fontDefault.glyphs = RLLoadFontData(fileData, fileSize, 16, 0, 95, FONT_DEFAULT, &fontDefault.glyphCount);
+    fontDefault.glyphs = RLLoadFontData(fileData, fileSize, 16, 0, 95, RL_E_FONT_DEFAULT, &fontDefault.glyphCount);
     // Parameters > glyphs count: 95, font size: 16, glyphs padding in image: 4 px, pack method: 0 (default)
     RLImage atlas = RLGenImageFontAtlas(fontDefault.glyphs, &fontDefault.recs, 95, 16, 4, 0);
     fontDefault.texture = RLLoadTextureFromImage(atlas);
@@ -61,7 +61,7 @@ int main(void)
     fontSDF.baseSize = 16;
     fontSDF.glyphCount = 95;
     // Parameters > font size: 16, no glyphs array provided (0), glyphs count: 0 (defaults to 95)
-    fontSDF.glyphs = RLLoadFontData(fileData, fileSize, 16, 0, 0, FONT_SDF, &
+    fontSDF.glyphs = RLLoadFontData(fileData, fileSize, 16, 0, 0, RL_E_FONT_SDF, &
     fontSDF.glyphCount);
     // Parameters > glyphs count: 95, font size: 16, glyphs padding in image: 0 px, pack method: 1 (Skyline algorythm)
     atlas = RLGenImageFontAtlas(fontSDF.glyphs, &fontSDF.recs, 95, 16, 0, 1);
@@ -72,7 +72,7 @@ int main(void)
 
     // Load SDF required shader (we use default vertex shader)
     RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/sdf.fs", GLSL_VERSION));
-    RLSetTextureFilter(fontSDF.texture, TEXTURE_FILTER_BILINEAR);    // Required for SDF font
+    RLSetTextureFilter(fontSDF.texture, RL_E_TEXTURE_FILTER_BILINEAR);    // Required for SDF font
 
     RLVector2 fontPosition = { 40, screenHeight/2.0f - 50 };
     RLVector2 textSize = { 0.0f, 0.0f };
@@ -91,7 +91,7 @@ int main(void)
 
         if (fontSize < 6) fontSize = 6;
 
-        if (RLIsKeyDown(KEY_SPACE)) currentFont = 1;
+        if (RLIsKeyDown(RL_E_KEY_SPACE)) currentFont = 1;
         else currentFont = 0;
 
         if (currentFont == 0) textSize = RLMeasureTextEx(fontDefault, msg, fontSize, 0);

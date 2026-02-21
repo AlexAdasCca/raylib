@@ -61,8 +61,8 @@ int main(void)
         }
 
         // Control frames speed
-        if (RLIsKeyPressed(KEY_RIGHT)) framesSpeed++;
-        else if (RLIsKeyPressed(KEY_LEFT)) framesSpeed--;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) framesSpeed++;
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT)) framesSpeed--;
 
         if (framesSpeed > MAX_FRAME_SPEED) framesSpeed = MAX_FRAME_SPEED;
         else if (framesSpeed < MIN_FRAME_SPEED) framesSpeed = MIN_FRAME_SPEED;

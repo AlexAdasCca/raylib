@@ -70,7 +70,7 @@ int main(void)
         if (frameCircle.x > screenWidth) frameCircle.x = 0;
 
         // Reset both circles positions
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
             deltaCircle.x = 0;
             frameCircle.x = 0;

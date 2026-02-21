@@ -61,7 +61,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyDown(KEY_SPACE)) useTtf = true;
+        if (RLIsKeyDown(RL_E_KEY_SPACE)) useTtf = true;
         else useTtf = false;
         //----------------------------------------------------------------------------------
 

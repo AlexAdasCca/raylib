@@ -33,7 +33,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLVector3 cubePosition = { 0.0f, 1.0f, 0.0f };
     RLVector3 cubeSize = { 2.0f, 2.0f, 2.0f };
@@ -49,16 +49,16 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsCursorHidden()) RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        if (RLIsCursorHidden()) RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);
 
         // Toggle camera controls
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT))
         {
             if (RLIsCursorHidden()) RLEnableCursor();
             else RLDisableCursor();
         }
 
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT))
         {
             if (!collision.hit)
             {

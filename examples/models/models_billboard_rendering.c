@@ -34,7 +34,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLTexture2D bill = RLLoadTexture("resources/billboard.png");    // Our billboard texture
     RLVector3 billPositionStatic = { 0.0f, 2.0f, 0.0f };          // Position of static billboard
@@ -51,7 +51,7 @@ int main(void)
 
     // Rotate around origin
     // Here we choose to rotate around the image center
-    RLVector2 origin = Vector2Scale(size, 0.5f);
+    RLVector2 origin = RLVector2Scale(size, 0.5f);
 
     // Distance is needed for the correct billboard draw order
     // Larger distance (further away from the camera) should be drawn prior to smaller distance
@@ -67,11 +67,11 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
         rotation += 0.4f;
-        distanceStatic = Vector3Distance(camera.position, billPositionStatic);
-        distanceRotating = Vector3Distance(camera.position, billPositionRotating);
+        distanceStatic = RLVector3Distance(camera.position, billPositionStatic);
+        distanceRotating = RLVector3Distance(camera.position, billPositionRotating);
         //----------------------------------------------------------------------------------
 
         // Draw

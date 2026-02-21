@@ -60,7 +60,7 @@ int main(void)
 
     RLTexture2D smoke = RLLoadTexture("resources/spark_flame.png");
 
-    int blending = BLEND_ALPHA;
+    int blending = RL_E_BLEND_ALPHA;
 
     RLSetTargetFPS(60);
     //--------------------------------------------------------------------------------------
@@ -99,10 +99,10 @@ int main(void)
             }
         }
 
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
-            if (blending == BLEND_ALPHA) blending = BLEND_ADDITIVE;
-            else blending = BLEND_ALPHA;
+            if (blending == RL_E_BLEND_ALPHA) blending = RL_E_BLEND_ADDITIVE;
+            else blending = RL_E_BLEND_ALPHA;
         }
         //----------------------------------------------------------------------------------
 
@@ -127,7 +127,7 @@ int main(void)
 
             RLDrawText("PRESS SPACE to CHANGE BLENDING MODE", 180, 20, 20, BLACK);
 
-            if (blending == BLEND_ALPHA) RLDrawText("ALPHA BLENDING", 290, screenHeight - 40, 20, BLACK);
+            if (blending == RL_E_BLEND_ALPHA) RLDrawText("ALPHA BLENDING", 290, screenHeight - 40, 20, BLACK);
             else RLDrawText("ADDITIVE BLENDING", 280, screenHeight - 40, 20, RAYWHITE);
 
         RLEndDrawing();

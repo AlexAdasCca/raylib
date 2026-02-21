@@ -45,15 +45,15 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_ONE)) zoomMode = 0;
-        else if (RLIsKeyPressed(KEY_TWO)) zoomMode = 1;
+        if (RLIsKeyPressed(RL_E_KEY_ONE)) zoomMode = 0;
+        else if (RLIsKeyPressed(RL_E_KEY_TWO)) zoomMode = 1;
 
         // Translate based on mouse right click
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT))
         {
             RLVector2 delta = RLGetMouseDelta();
-            delta = Vector2Scale(delta, -1.0f/camera.zoom);
-            camera.target = Vector2Add(camera.target, delta);
+            delta = RLVector2Scale(delta, -1.0f/camera.zoom);
+            camera.target = RLVector2Add(camera.target, delta);
         }
 
         if (zoomMode == 0)
@@ -75,13 +75,13 @@ int main(void)
                 // Zoom increment
                 // Uses log scaling to provide consistent zoom speed
                 float scale = 0.2f*wheel;
-                camera.zoom = Clamp(expf(logf(camera.zoom)+scale), 0.125f, 64.0f);
+                camera.zoom = RLClamp(expf(logf(camera.zoom)+scale), 0.125f, 64.0f);
             }
         }
         else
         {
             // Zoom based on mouse right click
-            if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+            if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT))
             {
                 // Get the world point that is under the mouse
                 RLVector2 mouseWorldPos = RLGetScreenToWorld2D(RLGetMousePosition(), camera);
@@ -94,13 +94,13 @@ int main(void)
                 camera.target = mouseWorldPos;
             }
 
-            if (RLIsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+            if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_RIGHT))
             {
                 // Zoom increment
                 // Uses log scaling to provide consistent zoom speed
                 float deltaX = RLGetMouseDelta().x;
                 float scale = 0.005f*deltaX;
-                camera.zoom = Clamp(expf(logf(camera.zoom)+scale), 0.125f, 64.0f);
+                camera.zoom = RLClamp(expf(logf(camera.zoom)+scale), 0.125f, 64.0f);
             }
         }
         //----------------------------------------------------------------------------------
@@ -127,7 +127,7 @@ int main(void)
             //Vector2 mousePos = GetWorldToScreen2D(GetMousePosition(), camera)
             RLDrawCircleV(RLGetMousePosition(), 4, DARKGRAY);
             RLDrawTextEx(RLGetFontDefault(), RLTextFormat("[%i, %i]", RLGetMouseX(), RLGetMouseY()),
-                Vector2Add(RLGetMousePosition(), (RLVector2){ -44, -24 }), 20, 2, BLACK);
+                RLVector2Add(RLGetMousePosition(), (RLVector2){ -44, -24 }), 20, 2, BLACK);
 
             RLDrawText("[1][2] Select mouse zoom mode (Wheel or Move)", 20, 20, 20, DARKGRAY);
             if (zoomMode == 0) RLDrawText("Mouse left button drag to move, mouse wheel to zoom", 20, 50, 20, DARKGRAY);

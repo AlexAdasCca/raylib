@@ -53,14 +53,14 @@ int main(void)
         RLUpdateMusicStream(music);   // Update music buffer with new stream data
 
         // Restart music playing (stop and play)
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             RLStopMusicStream(music);
             RLPlayMusicStream(music);
         }
 
         // Pause/Resume music playing
-        if (RLIsKeyPressed(KEY_P))
+        if (RLIsKeyPressed(RL_E_KEY_P))
         {
             pause = !pause;
 
@@ -69,13 +69,13 @@ int main(void)
         }
 
         // Set audio pan
-        if (RLIsKeyDown(KEY_LEFT))
+        if (RLIsKeyDown(RL_E_KEY_LEFT))
         {
             pan -= 0.05f;
             if (pan < -1.0f) pan = -1.0f;
             RLSetMusicPan(music, pan);
         }
-        else if (RLIsKeyDown(KEY_RIGHT))
+        else if (RLIsKeyDown(RL_E_KEY_RIGHT))
         {
             pan += 0.05f;
             if (pan > 1.0f) pan = 1.0f;
@@ -83,13 +83,13 @@ int main(void)
         }
 
         // Set audio volume
-        if (RLIsKeyDown(KEY_DOWN))
+        if (RLIsKeyDown(RL_E_KEY_DOWN))
         {
             volume -= 0.05f;
             if (volume < 0.0f) volume = 0.0f;
             RLSetMusicVolume(music, volume);
         }
-        else if (RLIsKeyDown(KEY_UP))
+        else if (RLIsKeyDown(RL_E_KEY_UP))
         {
             volume += 0.05f;
             if (volume > 1.0f) volume = 1.0f;

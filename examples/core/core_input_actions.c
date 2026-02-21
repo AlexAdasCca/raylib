@@ -101,7 +101,7 @@ int main(void)
         if (IsActionReleased(ACTION_FIRE)) releaseAction = true;
 
         // Switch control scheme by pressing TAB
-        if (RLIsKeyPressed(KEY_TAB))
+        if (RLIsKeyPressed(RL_E_KEY_TAB))
         {
             actionSet = !actionSet;
             if (actionSet == 0) SetActionsDefault();
@@ -172,32 +172,32 @@ static bool IsActionDown(int action)
 // NOTE: Here WASD and gamepad buttons on the left side for movement
 static void SetActionsDefault(void)
 {
-    actionInputs[ACTION_UP].key = KEY_W;
-    actionInputs[ACTION_DOWN].key = KEY_S;
-    actionInputs[ACTION_LEFT].key = KEY_A;
-    actionInputs[ACTION_RIGHT].key = KEY_D;
-    actionInputs[ACTION_FIRE].key = KEY_SPACE;
+    actionInputs[ACTION_UP].key = RL_E_KEY_W;
+    actionInputs[ACTION_DOWN].key = RL_E_KEY_S;
+    actionInputs[ACTION_LEFT].key = RL_E_KEY_A;
+    actionInputs[ACTION_RIGHT].key = RL_E_KEY_D;
+    actionInputs[ACTION_FIRE].key = RL_E_KEY_SPACE;
 
-    actionInputs[ACTION_UP].button = GAMEPAD_BUTTON_LEFT_FACE_UP;
-    actionInputs[ACTION_DOWN].button = GAMEPAD_BUTTON_LEFT_FACE_DOWN;
-    actionInputs[ACTION_LEFT].button = GAMEPAD_BUTTON_LEFT_FACE_LEFT;
-    actionInputs[ACTION_RIGHT].button = GAMEPAD_BUTTON_LEFT_FACE_RIGHT;
-    actionInputs[ACTION_FIRE].button = GAMEPAD_BUTTON_RIGHT_FACE_DOWN;
+    actionInputs[ACTION_UP].button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP;
+    actionInputs[ACTION_DOWN].button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN;
+    actionInputs[ACTION_LEFT].button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT;
+    actionInputs[ACTION_RIGHT].button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT;
+    actionInputs[ACTION_FIRE].button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN;
 }
 
 // Set the "alternate" keyset
 // NOTE: Here cursor keys and gamepad buttons on the right side for movement
 static void SetActionsCursor(void)
 {
-    actionInputs[ACTION_UP].key = KEY_UP;
-    actionInputs[ACTION_DOWN].key = KEY_DOWN;
-    actionInputs[ACTION_LEFT].key = KEY_LEFT;
-    actionInputs[ACTION_RIGHT].key = KEY_RIGHT;
-    actionInputs[ACTION_FIRE].key = KEY_SPACE;
+    actionInputs[ACTION_UP].key = RL_E_KEY_UP;
+    actionInputs[ACTION_DOWN].key = RL_E_KEY_DOWN;
+    actionInputs[ACTION_LEFT].key = RL_E_KEY_LEFT;
+    actionInputs[ACTION_RIGHT].key = RL_E_KEY_RIGHT;
+    actionInputs[ACTION_FIRE].key = RL_E_KEY_SPACE;
 
-    actionInputs[ACTION_UP].button = GAMEPAD_BUTTON_RIGHT_FACE_UP;
-    actionInputs[ACTION_DOWN].button = GAMEPAD_BUTTON_RIGHT_FACE_DOWN;
-    actionInputs[ACTION_LEFT].button = GAMEPAD_BUTTON_RIGHT_FACE_LEFT;
-    actionInputs[ACTION_RIGHT].button = GAMEPAD_BUTTON_RIGHT_FACE_RIGHT;
-    actionInputs[ACTION_FIRE].button = GAMEPAD_BUTTON_LEFT_FACE_DOWN;
+    actionInputs[ACTION_UP].button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP;
+    actionInputs[ACTION_DOWN].button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN;
+    actionInputs[ACTION_LEFT].button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT;
+    actionInputs[ACTION_RIGHT].button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT;
+    actionInputs[ACTION_FIRE].button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN;
 }

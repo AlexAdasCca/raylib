@@ -45,7 +45,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 2.0f, 0.0f };  // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };      // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                            // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;         // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;         // Camera projection type
 
     // Load gltf model
     RLModel characterModel = RLLoadModel("resources/models/gltf/greenman.glb"); // Load character model
@@ -74,16 +74,16 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_THIRD_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_THIRD_PERSON);
 
         // Select current animation
-        if (RLIsKeyPressed(KEY_T)) animIndex = (animIndex + 1)%animsCount;
-        else if (RLIsKeyPressed(KEY_G)) animIndex = (animIndex + animsCount - 1)%animsCount;
+        if (RLIsKeyPressed(RL_E_KEY_T)) animIndex = (animIndex + 1)%animsCount;
+        else if (RLIsKeyPressed(RL_E_KEY_G)) animIndex = (animIndex + animsCount - 1)%animsCount;
 
         // Update model animation
         RLModelAnimation anim = modelAnimations[animIndex];
         animCurrentFrame = (animCurrentFrame + 1)%anim.frameCount;
-        characterModel.transform = MatrixTranslate(position.x, position.y, position.z);
+        characterModel.transform = RLMatrixTranslate(position.x, position.y, position.z);
         RLUpdateModelAnimationBones(characterModel, anim, animCurrentFrame);
         //----------------------------------------------------------------------------------
 

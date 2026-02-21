@@ -52,7 +52,7 @@ int main()
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 60.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;
 
     //--------------------------------------------------------------------------------------
 
@@ -82,7 +82,7 @@ static void UpdateDrawFrame(void)
 {
     // Update
     //----------------------------------------------------------------------------------
-    RLUpdateCamera(&camera, CAMERA_ORBITAL);
+    RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
     //----------------------------------------------------------------------------------
 
     // Draw

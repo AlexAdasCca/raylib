@@ -65,13 +65,13 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyDown(KEY_RIGHT)) dividerValue += 0.01f;
-        else if (RLIsKeyDown(KEY_LEFT)) dividerValue -= 0.01f;
+        if (RLIsKeyDown(RL_E_KEY_RIGHT)) dividerValue += 0.01f;
+        else if (RLIsKeyDown(RL_E_KEY_LEFT)) dividerValue -= 0.01f;
 
         if (dividerValue < 0.0f) dividerValue = 0.0f;
         else if (dividerValue > 1.0f) dividerValue = 1.0f;
 
-        RLSetShaderValue(shader, dividerLoc, &dividerValue, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, dividerLoc, &dividerValue, RL_E_SHADER_UNIFORM_FLOAT);
         //----------------------------------------------------------------------------------
 
         // Draw

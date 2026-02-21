@@ -67,7 +67,7 @@ int main(void)
         else if (speed > 2.0f) speed = 2.0f;
 
         // Toggle lines / points with space bar
-        if (RLIsKeyPressed(KEY_SPACE)) drawLines = !drawLines;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) drawLines = !drawLines;
 
         float dt = RLGetFrameTime();
         for (int i = 0; i < STAR_COUNT; i++)
@@ -103,7 +103,7 @@ int main(void)
                 if (drawLines)
                 {
                     // Get the time a little while ago for this star, but clamp it
-                    float t = Clamp(stars[i].z + 1.0f/32.0f, 0.0f, 1.0f);
+                    float t = RLClamp(stars[i].z + 1.0f/32.0f, 0.0f, 1.0f);
 
                     // If it's different enough from the current time, we proceed
                     if ((t - stars[i].z) > 1e-3)
@@ -121,7 +121,7 @@ int main(void)
                 else
                 {
                     // Make the radius grow as the star ages
-                    float radius = Lerp(stars[i].z, 1.0f, 5.0f);
+                    float radius = RLLerp(stars[i].z, 1.0f, 5.0f);
 
                     // Draw the circle
                     RLDrawCircleV(starsScreenPos[i], radius, RAYWHITE);

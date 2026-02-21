@@ -80,7 +80,7 @@ int main(void)
         }
         else if (state == 3)        // Reset state to play again
         {
-            if (RLIsKeyPressed(KEY_ENTER))
+            if (RLIsKeyPressed(RL_E_KEY_ENTER))
             {
                 // Reset required variables to play again
                 ballPositionX = -100;
@@ -90,7 +90,7 @@ int main(void)
             }
         }
 
-        if (RLIsKeyPressed(KEY_R)) framesCounter = 0;
+        if (RLIsKeyPressed(RL_E_KEY_R)) framesCounter = 0;
         //----------------------------------------------------------------------------------
 
         // Draw

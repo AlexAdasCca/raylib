@@ -116,13 +116,13 @@ int main(void)
         if (camera.zoom > 3.0f) camera.zoom = 3.0f;
         else if (camera.zoom < 0.25f) camera.zoom = 0.25f;
 
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
             camera.zoom = 1.0f;
             player.position = (RLVector2){ 400, 280 };
         }
 
-        if (RLIsKeyPressed(KEY_C)) cameraOption = (cameraOption + 1)%cameraUpdatersLength;
+        if (RLIsKeyPressed(RL_E_KEY_C)) cameraOption = (cameraOption + 1)%cameraUpdatersLength;
 
         // Call update camera function by its pointer
         cameraUpdaters[cameraOption](&camera, &player, envItems, envItemsLength, deltaTime, screenWidth, screenHeight);
@@ -167,9 +167,9 @@ int main(void)
 
 void UpdatePlayer(Player *player, EnvItem *envItems, int envItemsLength, float delta)
 {
-    if (RLIsKeyDown(KEY_LEFT)) player->position.x -= PLAYER_HOR_SPD*delta;
-    if (RLIsKeyDown(KEY_RIGHT)) player->position.x += PLAYER_HOR_SPD*delta;
-    if (RLIsKeyDown(KEY_SPACE) && player->canJump)
+    if (RLIsKeyDown(RL_E_KEY_LEFT)) player->position.x -= PLAYER_HOR_SPD*delta;
+    if (RLIsKeyDown(RL_E_KEY_RIGHT)) player->position.x += PLAYER_HOR_SPD*delta;
+    if (RLIsKeyDown(RL_E_KEY_SPACE) && player->canJump)
     {
         player->speed = -PLAYER_JUMP_SPD;
         player->canJump = false;
@@ -239,13 +239,13 @@ void UpdateCameraCenterSmoothFollow(RLCamera2D *camera, Player *player, EnvItem 
     static float fractionSpeed = 0.8f;
 
     camera->offset = (RLVector2){ width/2.0f, height/2.0f };
-    RLVector2 diff = Vector2Subtract(player->position, camera->target);
-    float length = Vector2Length(diff);
+    RLVector2 diff = RLVector2Subtract(player->position, camera->target);
+    float length = RLVector2Length(diff);
 
     if (length > minEffectLength)
     {
         float speed = fmaxf(fractionSpeed*length, minSpeed);
-        camera->target = Vector2Add(camera->target, Vector2Scale(diff, speed*delta/length));
+        camera->target = RLVector2Add(camera->target, RLVector2Scale(diff, speed*delta/length));
     }
 }
 

@@ -39,7 +39,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 8.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.6f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLRay ray = { 0 };        // Picking ray
 
@@ -74,10 +74,10 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsCursorHidden()) RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);          // Update camera
+        if (RLIsCursorHidden()) RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);          // Update camera
 
         // Toggle camera controls
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT))
         {
             if (RLIsCursorHidden()) RLEnableCursor();
             else RLDisableCursor();
@@ -112,7 +112,7 @@ int main(void)
             cursorColor = PURPLE;
             hitObjectName = "Triangle";
 
-            bary = Vector3Barycenter(collision.point, ta, tb, tc);
+            bary = RLVector3Barycenter(collision.point, ta, tb, tc);
         }
 
         // Check ray collision against test sphere

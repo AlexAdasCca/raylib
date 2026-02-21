@@ -33,7 +33,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLVector3 cubePosition = { 0.0f, 0.0f, 0.0f };
     RLVector2 cubeScreenPosition = { 0.0f, 0.0f };
@@ -48,7 +48,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_THIRD_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_THIRD_PERSON);
 
         // Calculate cube screen space position (with a little offset to be in top)
         cubeScreenPosition = RLGetWorldToScreen((RLVector3){cubePosition.x, cubePosition.y + 2.5f, cubePosition.z}, camera);

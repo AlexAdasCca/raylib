@@ -43,7 +43,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };      // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     // Load a cube model
     RLMesh cube = RLGenMeshCube(1.0f, 1.0f, 1.0f);
@@ -56,7 +56,7 @@ int main(void)
     // Set the texture tiling using a shader
     float tiling[2] = { 3.0f, 3.0f };
     RLShader shader = RLLoadShader(0, RLTextFormat("resources/shaders/glsl%i/tiling.fs", GLSL_VERSION));
-    RLSetShaderValue(shader, RLGetShaderLocation(shader, "tiling"), tiling, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "tiling"), tiling, RL_E_SHADER_UNIFORM_VEC2);
     model.materials[0].shader = shader;
 
     RLDisableCursor();                    // Limit cursor to relative movement inside the window
@@ -69,7 +69,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FREE);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FREE);
 
         if (RLIsKeyPressed('Z')) camera.target = (RLVector3){ 0.0f, 0.5f, 0.0f };
         //----------------------------------------------------------------------------------

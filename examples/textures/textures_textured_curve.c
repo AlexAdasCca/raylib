@@ -56,12 +56,12 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_VSYNC_HINT | RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [textures] example - textured curve");
 
     // Load the road texture
     texRoad = RLLoadTexture("resources/road.png");
-    RLSetTextureFilter(texRoad, TEXTURE_FILTER_BILINEAR);
+    RLSetTextureFilter(texRoad, RL_E_TEXTURE_FILTER_BILINEAR);
 
     // Setup the curve
     curveStartPosition = (RLVector2){ 80, 100 };
@@ -79,14 +79,14 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Curve config options
-        if (RLIsKeyPressed(KEY_SPACE)) showCurve = !showCurve;
-        if (RLIsKeyPressed(KEY_EQUAL)) curveWidth += 2;
-        if (RLIsKeyPressed(KEY_MINUS)) curveWidth -= 2;
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) showCurve = !showCurve;
+        if (RLIsKeyPressed(RL_E_KEY_EQUAL)) curveWidth += 2;
+        if (RLIsKeyPressed(RL_E_KEY_MINUS)) curveWidth -= 2;
         if (curveWidth < 2) curveWidth = 2;
 
         // Update segments
-        if (RLIsKeyPressed(KEY_LEFT)) curveSegments -= 2;
-        if (RLIsKeyPressed(KEY_RIGHT)) curveSegments += 2;
+        if (RLIsKeyPressed(RL_E_KEY_LEFT)) curveSegments -= 2;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) curveSegments += 2;
 
         if (curveSegments < 2) curveSegments = 2;
 
@@ -95,7 +95,7 @@ int main(void)
         if (!RLIsMouseButtonDown(MOUSE_LEFT_BUTTON))  curveSelectedPoint = NULL;
 
         // If a point was selected, move it
-        if (curveSelectedPoint) *curveSelectedPoint = Vector2Add(*curveSelectedPoint, RLGetMouseDelta());
+        if (curveSelectedPoint) *curveSelectedPoint = RLVector2Add(*curveSelectedPoint, RLGetMouseDelta());
 
         // The mouse is down, and nothing was selected, so see if anything was picked
         RLVector2 mouse = RLGetMousePosition();
@@ -187,10 +187,10 @@ static void DrawTexturedCurve(void)
         RLVector2 delta = { current.x - previous.x, current.y - previous.y };
 
         // The right hand normal to the delta vector
-        RLVector2 normal = Vector2Normalize((RLVector2){ -delta.y, delta.x });
+        RLVector2 normal = RLVector2Normalize((RLVector2){ -delta.y, delta.x });
 
         // The v texture coordinate of the segment (add up the length of all the segments so far)
-        float v = previousV + Vector2Length(delta) / (float)(texRoad.height * 2);
+        float v = previousV + RLVector2Length(delta) / (float)(texRoad.height * 2);
 
         // Make sure the start point has a normal
         if (!tangentSet)
@@ -200,11 +200,11 @@ static void DrawTexturedCurve(void)
         }
 
         // Extend out the normals from the previous and current points to get the quad for this segment
-        RLVector2 prevPosNormal = Vector2Add(previous, Vector2Scale(previousTangent, curveWidth));
-        RLVector2 prevNegNormal = Vector2Add(previous, Vector2Scale(previousTangent, -curveWidth));
+        RLVector2 prevPosNormal = RLVector2Add(previous, RLVector2Scale(previousTangent, curveWidth));
+        RLVector2 prevNegNormal = RLVector2Add(previous, RLVector2Scale(previousTangent, -curveWidth));
 
-        RLVector2 currentPosNormal = Vector2Add(current, Vector2Scale(normal, curveWidth));
-        RLVector2 currentNegNormal = Vector2Add(current, Vector2Scale(normal, -curveWidth));
+        RLVector2 currentPosNormal = RLVector2Add(current, RLVector2Scale(normal, curveWidth));
+        RLVector2 currentNegNormal = RLVector2Add(current, RLVector2Scale(normal, -curveWidth));
 
         // Draw the segment as a quad
         rlSetTexture(texRoad.id);

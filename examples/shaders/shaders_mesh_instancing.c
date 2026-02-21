@@ -49,7 +49,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };              // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };                  // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                        // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;                     // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;                     // Camera projection type
 
     // Define mesh to be instanced
     RLMesh cube = RLGenMeshCube(1.0f, 1.0f, 1.0f);
@@ -60,27 +60,27 @@ int main(void)
     // Translate and rotate cubes randomly
     for (int i = 0; i < MAX_INSTANCES; i++)
     {
-        RLMatrix translation = MatrixTranslate((float)RLGetRandomValue(-50, 50), (float)RLGetRandomValue(-50, 50), (float)RLGetRandomValue(-50, 50));
-        RLVector3 axis = Vector3Normalize((RLVector3){ (float)RLGetRandomValue(0, 360), (float)RLGetRandomValue(0, 360), (float)RLGetRandomValue(0, 360) });
+        RLMatrix translation = RLMatrixTranslate((float)RLGetRandomValue(-50, 50), (float)RLGetRandomValue(-50, 50), (float)RLGetRandomValue(-50, 50));
+        RLVector3 axis = RLVector3Normalize((RLVector3){ (float)RLGetRandomValue(0, 360), (float)RLGetRandomValue(0, 360), (float)RLGetRandomValue(0, 360) });
         float angle = (float)RLGetRandomValue(0, 180)*DEG2RAD;
-        RLMatrix rotation = MatrixRotate(axis, angle);
+        RLMatrix rotation = RLMatrixRotate(axis, angle);
 
-        transforms[i] = MatrixMultiply(rotation, translation);
+        transforms[i] = RLMatrixMultiply(rotation, translation);
     }
 
     // Load lighting shader
     RLShader shader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/lighting_instancing.vs", GLSL_VERSION),
                                RLTextFormat("resources/shaders/glsl%i/lighting.fs", GLSL_VERSION));
     // Get shader locations
-    shader.locs[SHADER_LOC_MATRIX_MVP] = RLGetShaderLocation(shader, "mvp");
-    shader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
+    shader.locs[RL_E_SHADER_LOC_MATRIX_MVP] = RLGetShaderLocation(shader, "mvp");
+    shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shader, "viewPos");
 
     // Set shader value: ambient light level
     int ambientLoc = RLGetShaderLocation(shader, "ambient");
-    RLSetShaderValue(shader, ambientLoc, (float[4]){ 0.2f, 0.2f, 0.2f, 1.0f }, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shader, ambientLoc, (float[4]){ 0.2f, 0.2f, 0.2f, 1.0f }, RL_E_SHADER_UNIFORM_VEC4);
 
     // Create one light
-    CreateLight(LIGHT_DIRECTIONAL, (RLVector3){ 50.0f, 50.0f, 0.0f }, Vector3Zero(), WHITE, shader);
+    CreateLight(LIGHT_DIRECTIONAL, (RLVector3){ 50.0f, 50.0f, 0.0f }, RLVector3Zero(), WHITE, shader);
 
     // NOTE: We are assigning the intancing shader to material.shader
     // to be used on mesh drawing with DrawMeshInstanced()
@@ -102,11 +102,11 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
         // Update the light shader with the camera view position
         float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
-        RLSetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], cameraPos, SHADER_UNIFORM_VEC3);
+        RLSetShaderValue(shader, shader.locs[RL_E_SHADER_LOC_VECTOR_VIEW], cameraPos, RL_E_SHADER_UNIFORM_VEC3);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -118,7 +118,7 @@ int main(void)
             RLBeginMode3D(camera);
 
                 // Draw cube mesh with default material (BLUE)
-                RLDrawMesh(cube, matDefault, MatrixTranslate(-10.0f, 0.0f, 0.0f));
+                RLDrawMesh(cube, matDefault, RLMatrixTranslate(-10.0f, 0.0f, 0.0f));
 
                 // Draw meshes instanced using material containing instancing shader (RED + lighting),
                 // transforms[] for the instances should be provided, they are dynamically
@@ -126,7 +126,7 @@ int main(void)
                 RLDrawMeshInstanced(cube, matInstances, transforms, MAX_INSTANCES);
 
                 // Draw cube mesh with default material (BLUE)
-                RLDrawMesh(cube, matDefault, MatrixTranslate(10.0f, 0.0f, 0.0f));
+                RLDrawMesh(cube, matDefault, RLMatrixTranslate(10.0f, 0.0f, 0.0f));
 
             RLEndMode3D();
 

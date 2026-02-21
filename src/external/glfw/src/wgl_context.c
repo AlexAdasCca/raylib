@@ -595,6 +595,7 @@ GLFWbool _glfwCreateContextWGL(_GLFWwindow* window,
             return GLFW_FALSE;
         }
     }
+    
     if (!SetPixelFormat(window->context.wgl.dc, pixelFormat, &pfd))
     {
         _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,

@@ -40,7 +40,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_S)) scissorMode = !scissorMode;
+        if (RLIsKeyPressed(RL_E_KEY_S)) scissorMode = !scissorMode;
 
         // Centre the scissor area around the mouse position
         scissorArea.x = RLGetMouseX() - scissorArea.width/2;

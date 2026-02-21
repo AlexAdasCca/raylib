@@ -46,7 +46,7 @@ int main(void)
     camera.target = (RLVector3) {0.0f, 0.0f, 0.0f};
     camera.up = (RLVector3) {0.0f, 1.0f, 0.0f};
     camera.fovy = 60.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;
 
     // Load vertex and fragment shaders
     RLShader shader = RLLoadShader(
@@ -81,10 +81,10 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        RLUpdateCamera(&camera, CAMERA_FREE); // Update camera
+        RLUpdateCamera(&camera, RL_E_CAMERA_FREE); // Update camera
 
         time += RLGetFrameTime(); // Update time variable
-        RLSetShaderValue(shader, RLGetShaderLocation(shader, "time"), &time, SHADER_UNIFORM_FLOAT); // Send time value to shader
+        RLSetShaderValue(shader, RLGetShaderLocation(shader, "time"), &time, RL_E_SHADER_UNIFORM_FLOAT); // Send time value to shader
 
         // Draw
         //----------------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-/**********************************************************************************************
+﻿/**********************************************************************************************
 *
 *   rlgl v5.0 - A multi-OpenGL abstraction layer with an immediate-mode style API
 *
@@ -829,7 +829,32 @@ RLAPI void rlLoadDrawQuad(void);     // Load and draw a quad
 
 #if defined(RLGL_IMPLEMENTATION)
 
-#include "rl_shared_gpu.h"
+// NOTE: rlgl is designed to be usable as a standalone module (see examples/others/rlgl_standalone.c).
+// Our multi-context/share-group helpers live in rl_shared_gpu.h and pull in internal raylib headers.
+// For standalone builds we provide lightweight stubs to keep rlgl self-contained.
+#if !defined(RL_RLGL_STANDALONE)
+    #include "rl_shared_gpu.h"
+#else
+    // Standalone build: no shared GPU tracking (single-context).
+    typedef enum RLSharedGpuObjectType {
+        RL_SHARED_GPU_OBJECT_TEXTURE = 0,
+        RL_SHARED_GPU_OBJECT_RENDERBUFFER,
+        RL_SHARED_GPU_OBJECT_FRAMEBUFFER,
+        RL_SHARED_GPU_OBJECT_BUFFER,
+        RL_SHARED_GPU_OBJECT_VERTEX_ARRAY,
+        RL_SHARED_GPU_OBJECT_PROGRAM,
+    } RLSharedGpuObjectType;
+
+    static inline void RLSharedGpuRegisterObject(RLSharedGpuObjectType type, unsigned int id) { (void)type; (void)id; }
+    static inline void RLSharedGpuReleaseObject(RLSharedGpuObjectType type, unsigned int id)  { (void)type; (void)id; }
+    static inline void RLSharedGpuRegisterFramebufferDepth(unsigned int fboId, RLSharedGpuObjectType type, unsigned int id)
+    { (void)fboId; (void)type; (void)id; }
+    static inline void RLSharedGpuUnregisterFramebufferDepth(unsigned int fboId) { (void)fboId; }
+    static inline bool RLSharedGpuQueryFramebufferDepth(unsigned int fboId, RLSharedGpuObjectType *outType, unsigned int *outId)
+    { (void)fboId; if (outType) *outType = (RLSharedGpuObjectType)0; if (outId) *outId = 0; return false; }
+    static inline bool RLSharedGpuPopPendingDelete(RLSharedGpuObjectType *outType, unsigned int *outId)
+    { (void)outType; (void)outId; return false; }
+#endif
 
 // Expose OpenGL functions from glad in raylib
 #if defined(BUILD_LIBTYPE_SHARED)
@@ -1136,6 +1161,35 @@ typedef struct rlglData {
 } rlglData;
 
 #endif  // GRAPHICS_API_OPENGL_33 || GRAPHICS_API_OPENGL_ES2
+
+#if defined(RL_RLGL_STANDALONE)
+
+// Minimal context used by rlgl when built standalone (no full raylib core).
+// raylib core provides RLGetCurrentContext() (thread-local) in rl_context.cpp; standalone uses a single static context.
+typedef struct RLContext {
+    void *rlgl;                    // Pointer to rlglData state (OpenGL 3.3/ES2)
+    float lfRlCullDistanceNear;    // Projection near cull distance
+    float lfRlCullDistanceFar;     // Projection far cull distance
+    bool bIsGpuReady;              // GPU ready flag
+} RLContext;
+
+static inline RLContext *RLGetCurrentContext(void)
+{
+    static RLContext ctx = { 0 };
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
+    static rlglData rlglState = { 0 };
+    if (ctx.rlgl == NULL) ctx.rlgl = (void *)&rlglState;
+#endif
+    if ((ctx.lfRlCullDistanceNear == 0.0f) && (ctx.lfRlCullDistanceFar == 0.0f))
+    {
+        ctx.lfRlCullDistanceNear = (float)RL_CULL_DISTANCE_NEAR;
+        ctx.lfRlCullDistanceFar  = (float)RL_CULL_DISTANCE_FAR;
+    }
+    return &ctx;
+}
+
+#endif  // RL_RLGL_STANDALONE
+
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition

@@ -97,7 +97,7 @@ int main(void)
         }
         else if (state == 4)            // State 4: Reset and Replay
         {
-            if (RLIsKeyPressed(KEY_R))
+            if (RLIsKeyPressed(RL_E_KEY_R))
             {
                 framesCounter = 0;
                 lettersCount = 0;

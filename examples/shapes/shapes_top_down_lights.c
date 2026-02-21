@@ -112,17 +112,17 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Drag light 0
-        if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT)) MoveLight(0, RLGetMousePosition().x, RLGetMousePosition().y);
+        if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT)) MoveLight(0, RLGetMousePosition().x, RLGetMousePosition().y);
 
         // Make a new light
-        if (RLIsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && (nextLight < MAX_LIGHTS))
+        if (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_RIGHT) && (nextLight < MAX_LIGHTS))
         {
             SetupLight(nextLight, RLGetMousePosition().x, RLGetMousePosition().y, 200);
             nextLight++;
         }
 
         // Toggle debug info
-        if (RLIsKeyPressed(KEY_F1)) showLines = !showLines;
+        if (RLIsKeyPressed(RL_E_KEY_F1)) showLines = !showLines;
 
         // Update the lights and keep track if any were dirty so we know if we need to update the master light mask
         bool dirtyLights = false;
@@ -141,18 +141,18 @@ int main(void)
 
                 // Force the blend mode to only set the alpha of the destination
                 rlSetBlendFactors(RLGL_SRC_ALPHA, RLGL_SRC_ALPHA, RLGL_MIN);
-                rlSetBlendMode(BLEND_CUSTOM);
+                rlSetBlendMode(RL_E_BLEND_CUSTOM);
 
                 // Merge in all the light masks
                 for (int i = 0; i < MAX_LIGHTS; i++)
                 {
-                    if (lights[i].active) RLDrawTextureRec(lights[i].mask.texture, (RLRectangle){ 0, 0, (float)RLGetScreenWidth(), -(float)RLGetScreenHeight() }, Vector2Zero(), WHITE);
+                    if (lights[i].active) RLDrawTextureRec(lights[i].mask.texture, (RLRectangle){ 0, 0, (float)RLGetScreenWidth(), -(float)RLGetScreenHeight() }, RLVector2Zero(), WHITE);
                 }
 
                 rlDrawRenderBatchActive();
 
                 // Go back to normal blend
-                rlSetBlendMode(BLEND_ALPHA);
+                rlSetBlendMode(RL_E_BLEND_ALPHA);
             RLEndTextureMode();
         }
         //----------------------------------------------------------------------------------
@@ -164,10 +164,10 @@ int main(void)
             RLClearBackground(BLACK);
 
             // Draw the tile background
-            RLDrawTextureRec(backgroundTexture, (RLRectangle){ 0, 0, (float)RLGetScreenWidth(), (float)RLGetScreenHeight() }, Vector2Zero(), WHITE);
+            RLDrawTextureRec(backgroundTexture, (RLRectangle){ 0, 0, (float)RLGetScreenWidth(), (float)RLGetScreenHeight() }, RLVector2Zero(), WHITE);
 
             // Overlay the shadows from all the lights
-            RLDrawTextureRec(lightMask.texture, (RLRectangle){ 0, 0, (float)RLGetScreenWidth(), -(float)RLGetScreenHeight() }, Vector2Zero(), RLColorAlpha(WHITE, showLines? 0.75f : 1.0f));
+            RLDrawTextureRec(lightMask.texture, (RLRectangle){ 0, 0, (float)RLGetScreenWidth(), -(float)RLGetScreenHeight() }, RLVector2Zero(), RLColorAlpha(WHITE, showLines? 0.75f : 1.0f));
 
             // Draw the lights
             for (int i = 0; i < MAX_LIGHTS; i++)
@@ -242,11 +242,11 @@ static void ComputeShadowVolumeForEdge(int slot, RLVector2 sp, RLVector2 ep)
 
     float extension = lights[slot].outerRadius*2;
 
-    RLVector2 spVector = Vector2Normalize(Vector2Subtract(sp, lights[slot].position));
-    RLVector2 spProjection = Vector2Add(sp, Vector2Scale(spVector, extension));
+    RLVector2 spVector = RLVector2Normalize(RLVector2Subtract(sp, lights[slot].position));
+    RLVector2 spProjection = RLVector2Add(sp, RLVector2Scale(spVector, extension));
 
-    RLVector2 epVector = Vector2Normalize(Vector2Subtract(ep, lights[slot].position));
-    RLVector2 epProjection = Vector2Add(ep, Vector2Scale(epVector, extension));
+    RLVector2 epVector = RLVector2Normalize(RLVector2Subtract(ep, lights[slot].position));
+    RLVector2 epProjection = RLVector2Add(ep, RLVector2Scale(epVector, extension));
 
     lights[slot].shadows[lights[slot].shadowCount].vertices[0] = sp;
     lights[slot].shadows[lights[slot].shadowCount].vertices[1] = ep;
@@ -338,7 +338,7 @@ static void DrawLightMask(int slot)
 
         // Force the blend mode to only set the alpha of the destination
         rlSetBlendFactors(RLGL_SRC_ALPHA, RLGL_SRC_ALPHA, RLGL_MIN);
-        rlSetBlendMode(BLEND_CUSTOM);
+        rlSetBlendMode(RL_E_BLEND_CUSTOM);
 
         // If we are valid, then draw the light radius to the alpha mask
         if (lights[slot].valid) RLDrawCircleGradient((int)lights[slot].position.x, (int)lights[slot].position.y, lights[slot].outerRadius, RLColorAlpha(WHITE, 0), WHITE);
@@ -346,9 +346,9 @@ static void DrawLightMask(int slot)
         rlDrawRenderBatchActive();
 
         // Cut out the shadows from the light radius by forcing the alpha to maximum
-        rlSetBlendMode(BLEND_ALPHA);
+        rlSetBlendMode(RL_E_BLEND_ALPHA);
         rlSetBlendFactors(RLGL_SRC_ALPHA, RLGL_SRC_ALPHA, RLGL_MAX);
-        rlSetBlendMode(BLEND_CUSTOM);
+        rlSetBlendMode(RL_E_BLEND_CUSTOM);
 
         // Draw the shadows to the alpha mask
         for (int i = 0; i < lights[slot].shadowCount; i++)
@@ -359,7 +359,7 @@ static void DrawLightMask(int slot)
         rlDrawRenderBatchActive();
 
         // Go back to normal blend mode
-        rlSetBlendMode(BLEND_ALPHA);
+        rlSetBlendMode(RL_E_BLEND_ALPHA);
 
     RLEndTextureMode();
 }

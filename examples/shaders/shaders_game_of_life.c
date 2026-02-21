@@ -103,7 +103,7 @@ int main(void)
     // Set shader uniform size of the world
     int resolutionLoc = RLGetShaderLocation(shdrGameOfLife, "resolution");
     const float resolution[2] = { (float)worldWidth, (float)worldHeight };
-    RLSetShaderValue(shdrGameOfLife, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shdrGameOfLife, resolutionLoc, resolution, RL_E_SHADER_UNIFORM_VEC2);
 
     // Define two textures: the current world and the previous world
     RLRenderTexture2D world1 = RLLoadRenderTexture(worldWidth, worldHeight);
@@ -159,7 +159,7 @@ int main(void)
             // Pan with mouse left button
             static RLVector2 previousMousePosition = { 0.0f, 0.0f };
             const RLVector2 mousePosition = RLGetMousePosition();
-            if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) && (mousePosition.x < windowWidth))
+            if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT) && (mousePosition.x < windowWidth))
             {
                 offsetX -= (mousePosition.x - previousMousePosition.x)/zoom;
                 offsetY -= (mousePosition.y - previousMousePosition.y)/zoom;
@@ -191,7 +191,7 @@ int main(void)
 
             const RLVector2 mousePosition = RLGetMousePosition();
             static int firstColor = -1;
-            if (RLIsMouseButtonDown(MOUSE_BUTTON_LEFT) && (mousePosition.x < windowWidth))
+            if (RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT) && (mousePosition.x < windowWidth))
             {
                 int mouseX = (int)(mousePosition.x + offsetDecimalX*zoom)/zoom;
                 int mouseY = (int)(mousePosition.y + offsetDecimalY*zoom)/zoom;

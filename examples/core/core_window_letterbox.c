@@ -31,7 +31,7 @@ int main(void)
     const int screenHeight = 450;
 
     // Enable config flags for resizable window and vertical synchro
-    RLSetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_VSYNC_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [core] example - window letterbox");
     RLSetWindowMinSize(320, 240);
 
@@ -40,7 +40,7 @@ int main(void)
 
     // Render texture initialization, used to hold the rendering result so we can easily resize it
     RLRenderTexture2D target = RLLoadRenderTexture(gameScreenWidth, gameScreenHeight);
-    RLSetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);  // Texture scale filter to use
+    RLSetTextureFilter(target.texture, RL_E_TEXTURE_FILTER_BILINEAR);  // Texture scale filter to use
 
     RLColor colors[10] = { 0 };
     for (int i = 0; i < 10; i++) colors[i] = (RLColor){ RLGetRandomValue(100, 250), RLGetRandomValue(50, 150), RLGetRandomValue(10, 100), 255 };
@@ -56,7 +56,7 @@ int main(void)
         // Compute required framebuffer scaling
         float scale = MIN((float)RLGetScreenWidth()/gameScreenWidth, (float)RLGetScreenHeight()/gameScreenHeight);
 
-        if (RLIsKeyPressed(KEY_SPACE))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE))
         {
             // Recalculate random colors for the bars
             for (int i = 0; i < 10; i++) colors[i] = (RLColor){ RLGetRandomValue(100, 250), RLGetRandomValue(50, 150), RLGetRandomValue(10, 100), 255 };
@@ -67,7 +67,7 @@ int main(void)
         RLVector2 virtualMouse = { 0 };
         virtualMouse.x = (mouse.x - (RLGetScreenWidth() - (gameScreenWidth*scale))*0.5f)/scale;
         virtualMouse.y = (mouse.y - (RLGetScreenHeight() - (gameScreenHeight*scale))*0.5f)/scale;
-        virtualMouse = Vector2Clamp(virtualMouse, (RLVector2){ 0, 0 }, (RLVector2){ (float)gameScreenWidth, (float)gameScreenHeight });
+        virtualMouse = RLVector2Clamp(virtualMouse, (RLVector2){ 0, 0 }, (RLVector2){ (float)gameScreenWidth, (float)gameScreenHeight });
 
         // Apply the same transformation as the virtual mouse to the real mouse (i.e. to work with raygui)
         //SetMouseOffset(-(GetScreenWidth() - (gameScreenWidth*scale))*0.5f, -(GetScreenHeight() - (gameScreenHeight*scale))*0.5f);

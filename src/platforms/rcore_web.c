@@ -173,7 +173,7 @@ bool RLWindowShouldClose(void)
     // and encapsulating one frame execution on a UpdateDrawFrame() function,
     // allowing the browser to manage execution asynchronously
 
-    // Optionally we can manage the time we give-control-back-to-browser if required,
+    // Optionally, time to give-control-back-to-browser can be managed here,
     // but it seems below line could generate stuttering on some browsers
     emscripten_sleep(12);
 
@@ -189,8 +189,8 @@ void RLToggleFullscreen(void)
     const bool wasFullscreen = EM_ASM_INT( { if (document.fullscreenElement) return 1; }, 0);
     if (wasFullscreen)
     {
-        if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE)) enterFullscreen = false;
-        else if (FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE)) enterFullscreen = true;
+        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE)) enterFullscreen = false;
+        else if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE)) enterFullscreen = true;
         else
         {
             const int canvasWidth = EM_ASM_INT( { return Module.canvas.width; }, 0);
@@ -201,8 +201,8 @@ void RLToggleFullscreen(void)
 
         EM_ASM(document.exitFullscreen(););
 
-        FLAG_CLEAR(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
-        FLAG_CLEAR(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
     }
     else enterFullscreen = true;
 
@@ -215,7 +215,7 @@ void RLToggleFullscreen(void)
             }, 100);
         );
 
-        FLAG_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
     }
 
     // NOTE: Old notes below:
@@ -293,8 +293,8 @@ void RLToggleBorderlessWindowed(void)
     const bool wasFullscreen = EM_ASM_INT( { if (document.fullscreenElement) return 1; }, 0);
     if (wasFullscreen)
     {
-        if (FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE)) enterBorderless = false;
-        else if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE)) enterBorderless = true;
+        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE)) enterBorderless = false;
+        else if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE)) enterBorderless = true;
         else
         {
             const int canvasWidth = EM_ASM_INT( { return Module.canvas.width; }, 0);
@@ -305,8 +305,8 @@ void RLToggleBorderlessWindowed(void)
 
         EM_ASM(document.exitFullscreen(););
 
-        FLAG_CLEAR(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
-        FLAG_CLEAR(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
     }
     else enterBorderless = true;
 
@@ -326,14 +326,14 @@ void RLToggleBorderlessWindowed(void)
                 }, 100);
             }, 100);
         , platform.canvasId);
-        FLAG_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE);
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
     }
 }
 
 // Set window state: maximized, if resizable
 void RLMaximizeWindow(void)
 {
-    if ((glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE) && !(FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)))
+    if ((glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE) && !(FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED)))
     {
         platform.unmaximizedWidth = CORE.Window.screen.width;
         platform.unmaximizedHeight = CORE.Window.screen.height;
@@ -343,43 +343,43 @@ void RLMaximizeWindow(void)
 
         if (tabWidth && tabHeight) glfwSetWindowSize(platform.handle, tabWidth, tabHeight);
 
-        FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
     }
 }
 
 // Set window state: minimized
 void RLMinimizeWindow(void)
 {
-    TRACELOG(LOG_WARNING, "MinimizeWindow() not available on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "MinimizeWindow() not available on target platform");
 }
 
 // Restore window from being minimized/maximized
 void RLRestoreWindow(void)
 {
-    if ((glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE) && (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)))
+    if ((glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE) && (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED)))
     {
         if (platform.unmaximizedWidth && platform.unmaximizedHeight) glfwSetWindowSize(platform.handle, platform.unmaximizedWidth, platform.unmaximizedHeight);
 
-        FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
     }
 }
 
 // Set window configuration state using flags
 void RLSetWindowState(unsigned int flags)
 {
-    if (!CORE.Window.ready) TRACELOG(LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
+    if (!CORE.Window.ready) TRACELOG(RL_E_LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
 
     // Check previous state and requested state to apply required changes
     // NOTE: In most cases the functions already change the flags internally
 
     // State change: FLAG_VSYNC_HINT
-    if (FLAG_IS_SET(flags, FLAG_VSYNC_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_VSYNC_HINT))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_VSYNC_HINT) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_VSYNC_HINT) not available on target platform");
     }
 
     // State change: FLAG_BORDERLESS_WINDOWED_MODE
-    if (FLAG_IS_SET(flags, FLAG_BORDERLESS_WINDOWED_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
         // NOTE: Window state flag updated inside ToggleBorderlessWindowed() function
         const bool wasFullscreen = EM_ASM_INT( { if (document.fullscreenElement) return 1; }, 0);
@@ -387,13 +387,13 @@ void RLSetWindowState(unsigned int flags)
         {
             const int canvasWidth = EM_ASM_INT( { return Module.canvas.width; }, 0);
             const int canvasStyleWidth = EM_ASM_INT( { return parseInt(Module.canvas.style.width); }, 0);
-            if ((FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE)) || canvasStyleWidth > canvasWidth) RLToggleBorderlessWindowed();
+            if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE)) || canvasStyleWidth > canvasWidth) RLToggleBorderlessWindowed();
         }
         else RLToggleBorderlessWindowed();
     }
 
     // State change: FLAG_FULLSCREEN_MODE
-    if (FLAG_IS_SET(flags, FLAG_FULLSCREEN_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
         // NOTE: Window state flag updated inside ToggleFullscreen() function
         const bool wasFullscreen = EM_ASM_INT( { if (document.fullscreenElement) return 1; }, 0);
@@ -401,38 +401,38 @@ void RLSetWindowState(unsigned int flags)
         {
             const int canvasWidth = EM_ASM_INT( { return Module.canvas.width; }, 0);
             const int screenWidth = EM_ASM_INT( { return screen.width; }, 0);
-            if ((FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE)) || screenWidth == canvasWidth ) RLToggleFullscreen();
+            if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE)) || screenWidth == canvasWidth ) RLToggleFullscreen();
         }
         else RLToggleFullscreen();
     }
 
     // State change: FLAG_WINDOW_RESIZABLE
-    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE) != FLAG_IS_SET(flags, FLAG_WINDOW_RESIZABLE)) && (FLAG_IS_SET(flags, FLAG_WINDOW_RESIZABLE)))
+    if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE)))
     {
         glfwSetWindowAttrib(platform.handle, GLFW_RESIZABLE, GLFW_TRUE);
-        FLAG_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE);
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE);
     }
 
     // State change: FLAG_WINDOW_UNDECORATED
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNDECORATED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_UNDECORATED) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_UNDECORATED) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_HIDDEN
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIDDEN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_HIDDEN) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_HIDDEN) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_MINIMIZED
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MINIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MINIMIZED))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_MINIMIZED) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_MINIMIZED) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_MAXIMIZED
-    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED) != FLAG_IS_SET(flags, FLAG_WINDOW_MAXIMIZED)) && (FLAG_IS_SET(flags, FLAG_WINDOW_MAXIMIZED)))
+    if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MAXIMIZED)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MAXIMIZED)))
     {
         if (glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE)
         {
@@ -444,59 +444,59 @@ void RLSetWindowState(unsigned int flags)
 
             if (tabWidth && tabHeight) glfwSetWindowSize(platform.handle, tabWidth, tabHeight);
 
-            FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
         }
     }
 
     // State change: FLAG_WINDOW_UNFOCUSED
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNFOCUSED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_UNFOCUSED) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_UNFOCUSED) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_TOPMOST
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TOPMOST))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_TOPMOST) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_TOPMOST) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_ALWAYS_RUN
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_ALWAYS_RUN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_ALWAYS_RUN))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_ALWAYS_RUN) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_ALWAYS_RUN) not available on target platform");
     }
 
     // The following states can not be changed after window creation
     // NOTE: Review for PLATFORM_WEB
 
     // State change: FLAG_WINDOW_TRANSPARENT
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TRANSPARENT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TRANSPARENT))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_TRANSPARENT) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_TRANSPARENT) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_HIGHDPI
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIGHDPI))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_HIGHDPI) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_HIGHDPI) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_MOUSE_PASSTHROUGH
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MOUSE_PASSTHROUGH))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_WINDOW_MOUSE_PASSTHROUGH) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_WINDOW_MOUSE_PASSTHROUGH) not available on target platform");
     }
 
     // State change: FLAG_MSAA_4X_HINT
-    if (FLAG_IS_SET(flags, FLAG_MSAA_4X_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_MSAA_4X_HINT))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_MSAA_4X_HINT) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_MSAA_4X_HINT) not available on target platform");
     }
 
     // State change: FLAG_INTERLACED_HINT
-    if (FLAG_IS_SET(flags, FLAG_INTERLACED_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_INTERLACED_HINT))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState(FLAG_INTERLACED_HINT) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState(FLAG_INTERLACED_HINT) not available on target platform");
     }
 }
 
@@ -507,137 +507,137 @@ void RLClearWindowState(unsigned int flags)
     // NOTE: In most cases the functions already change the flags internally
 
     // State change: FLAG_VSYNC_HINT
-    if (FLAG_IS_SET(flags, FLAG_VSYNC_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_VSYNC_HINT))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_VSYNC_HINT) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_VSYNC_HINT) not available on target platform");
     }
 
     // State change: FLAG_BORDERLESS_WINDOWED_MODE
-    if (FLAG_IS_SET(flags, FLAG_BORDERLESS_WINDOWED_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
         const bool wasFullscreen = EM_ASM_INT( { if (document.fullscreenElement) return 1; }, 0);
         if (wasFullscreen)
         {
             const int canvasWidth = EM_ASM_INT( { return Module.canvas.width; }, 0);
             const int screenWidth = EM_ASM_INT( { return screen.width; }, 0);
-            if (FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE) || (screenWidth == canvasWidth)) EM_ASM(document.exitFullscreen(););
+            if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE) || (screenWidth == canvasWidth)) EM_ASM(document.exitFullscreen(););
         }
 
-        FLAG_CLEAR(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
     }
 
     // State change: FLAG_FULLSCREEN_MODE
-    if (FLAG_IS_SET(flags, FLAG_FULLSCREEN_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
         const bool wasFullscreen = EM_ASM_INT( { if (document.fullscreenElement) return 1; }, 0);
         if (wasFullscreen)
         {
             const int canvasWidth = EM_ASM_INT( { return Module.canvas.width; }, 0);
             const int canvasStyleWidth = EM_ASM_INT( { return parseInt(Module.canvas.style.width); }, 0);
-            if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE) || (canvasStyleWidth > canvasWidth)) EM_ASM(document.exitFullscreen(););
+            if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE) || (canvasStyleWidth > canvasWidth)) EM_ASM(document.exitFullscreen(););
         }
 
-        FLAG_CLEAR(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
     }
 
     // State change: FLAG_WINDOW_RESIZABLE
-    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE)) && (FLAG_IS_SET(flags, FLAG_WINDOW_RESIZABLE)))
+    if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE)))
     {
         glfwSetWindowAttrib(platform.handle, GLFW_RESIZABLE, GLFW_FALSE);
-        FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_RESIZABLE);
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE);
     }
 
     // State change: FLAG_WINDOW_HIDDEN
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIDDEN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_HIDDEN) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_HIDDEN) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_MINIMIZED
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MINIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MINIMIZED))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_MINIMIZED) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_MINIMIZED) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_MAXIMIZED
-    if ((FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)) && (FLAG_IS_SET(flags, FLAG_WINDOW_MAXIMIZED)))
+    if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MAXIMIZED)))
     {
         if (glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE)
         {
             if (platform.unmaximizedWidth && platform.unmaximizedHeight) glfwSetWindowSize(platform.handle, platform.unmaximizedWidth, platform.unmaximizedHeight);
 
-            FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
         }
     }
 
     // State change: FLAG_WINDOW_UNDECORATED
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNDECORATED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_UNDECORATED) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_UNDECORATED) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_UNFOCUSED
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNFOCUSED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_UNFOCUSED) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_UNFOCUSED) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_TOPMOST
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TOPMOST))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_TOPMOST) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_TOPMOST) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_ALWAYS_RUN
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_ALWAYS_RUN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_ALWAYS_RUN))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_ALWAYS_RUN) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_ALWAYS_RUN) not available on target platform");
     }
 
     // The following states can not be changed after window creation
     // NOTE: Review for PLATFORM_WEB
 
     // State change: FLAG_WINDOW_TRANSPARENT
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TRANSPARENT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TRANSPARENT))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_TRANSPARENT) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_TRANSPARENT) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_HIGHDPI
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIGHDPI))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_HIGHDPI) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_HIGHDPI) not available on target platform");
     }
 
     // State change: FLAG_WINDOW_MOUSE_PASSTHROUGH
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MOUSE_PASSTHROUGH))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_WINDOW_MOUSE_PASSTHROUGH) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_WINDOW_MOUSE_PASSTHROUGH) not available on target platform");
     }
 
     // State change: FLAG_MSAA_4X_HINT
-    if (FLAG_IS_SET(flags, FLAG_MSAA_4X_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_MSAA_4X_HINT))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_MSAA_4X_HINT) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_MSAA_4X_HINT) not available on target platform");
     }
 
     // State change: FLAG_INTERLACED_HINT
-    if (FLAG_IS_SET(flags, FLAG_INTERLACED_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_INTERLACED_HINT))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState(FLAG_INTERLACED_HINT) not available on target platform");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState(FLAG_INTERLACED_HINT) not available on target platform");
     }
 }
 
 // Set icon for window
 void RLSetWindowIcon(RLImage image)
 {
-    TRACELOG(LOG_WARNING, "SetWindowIcon() not available on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "SetWindowIcon() not available on target platform");
 }
 
 // Set icon for window, multiple images
 void RLSetWindowIcons(RLImage *images, int count)
 {
-    TRACELOG(LOG_WARNING, "SetWindowIcons() not available on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "SetWindowIcons() not available on target platform");
 }
 
 // Set title for window
@@ -650,13 +650,13 @@ void RLSetWindowTitle(const char *title)
 // Set window position on screen (windowed mode)
 void RLSetWindowPosition(int x, int y)
 {
-    TRACELOG(LOG_WARNING, "SetWindowPosition() not available on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "SetWindowPosition() not available on target platform");
 }
 
 // Set monitor for the current window
 void RLSetWindowMonitor(int monitor)
 {
-    TRACELOG(LOG_WARNING, "SetWindowMonitor() not available on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "SetWindowMonitor() not available on target platform");
 }
 
 // Set window minimum dimensions (FLAG_WINDOW_RESIZABLE)
@@ -666,7 +666,7 @@ void RLSetWindowMinSize(int width, int height)
     CORE.Window.screenMin.height = height;
 
     // Trigger the resize event once to update the window minimum width and height
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE) != 0) EmscriptenResizeCallback(EMSCRIPTEN_EVENT_RESIZE, NULL, NULL);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE) != 0) EmscriptenResizeCallback(EMSCRIPTEN_EVENT_RESIZE, NULL, NULL);
 }
 
 // Set window maximum dimensions (FLAG_WINDOW_RESIZABLE)
@@ -676,7 +676,7 @@ void RLSetWindowMaxSize(int width, int height)
     CORE.Window.screenMax.height = height;
 
     // Trigger the resize event once to update the window maximum width and height
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE) != 0) EmscriptenResizeCallback(EMSCRIPTEN_EVENT_RESIZE, NULL, NULL);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE) != 0) EmscriptenResizeCallback(EMSCRIPTEN_EVENT_RESIZE, NULL, NULL);
 }
 
 // Set window dimensions
@@ -696,34 +696,34 @@ void RLSetWindowOpacity(float opacity)
 // Set window focused
 void RLSetWindowFocused(void)
 {
-    TRACELOG(LOG_WARNING, "SetWindowFocused() not available on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "SetWindowFocused() not available on target platform");
 }
 
 // Get native window handle
 void *RLGetWindowHandle(void)
 {
-    TRACELOG(LOG_WARNING, "GetWindowHandle() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetWindowHandle() not implemented on target platform");
     return NULL;
 }
 
 // Get number of monitors
 int RLGetMonitorCount(void)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorCount() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetMonitorCount() not implemented on target platform");
     return 1;
 }
 
 // Get current monitor where window is placed
 int RLGetCurrentMonitor(void)
 {
-    TRACELOG(LOG_WARNING, "GetCurrentMonitor() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetCurrentMonitor() not implemented on target platform");
     return 0;
 }
 
 // Get selected monitor position
 RLVector2 RLGetMonitorPosition(int monitor)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorPosition() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetMonitorPosition() not implemented on target platform");
     return (RLVector2){ 0, 0 };
 }
 
@@ -748,28 +748,28 @@ int RLGetMonitorHeight(int monitor)
 // Get selected monitor physical width in millimetres
 int RLGetMonitorPhysicalWidth(int monitor)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorPhysicalWidth() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetMonitorPhysicalWidth() not implemented on target platform");
     return 0;
 }
 
 // Get selected monitor physical height in millimetres
 int RLGetMonitorPhysicalHeight(int monitor)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorPhysicalHeight() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetMonitorPhysicalHeight() not implemented on target platform");
     return 0;
 }
 
 // Get selected monitor refresh rate
 int RLGetMonitorRefreshRate(int monitor)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorRefreshRate() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetMonitorRefreshRate() not implemented on target platform");
     return 0;
 }
 
 // Get the human-readable, UTF-8 encoded name of the selected monitor
 const char *RLGetMonitorName(int monitor)
 {
-    TRACELOG(LOG_WARNING, "GetMonitorName() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetMonitorName() not implemented on target platform");
     return "";
 }
 
@@ -797,7 +797,7 @@ RLVector2 RLGetWindowScaleDPI(void)
 void RLSetClipboardText(const char *text)
 {
     // Security check to (partially) avoid malicious code
-    if (strchr(text, '\'') != NULL) TRACELOG(LOG_WARNING, "SYSTEM: Provided Clipboard could be potentially malicious, avoid [\'] character");
+    if (strchr(text, '\'') != NULL) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Provided Clipboard could be potentially malicious, avoid [\'] character");
     else EM_ASM({ navigator.clipboard.writeText(UTF8ToString($0)); }, text);
 }
 
@@ -828,7 +828,7 @@ RLImage RLGetClipboardImage(void)
 {
     RLImage image = { 0 };
 
-    TRACELOG(LOG_WARNING, "GetClipboardImage() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetClipboardImage() not implemented on target platform");
 
     return image;
 }
@@ -882,7 +882,7 @@ void RLSwapScreenBuffer(void)
 {
 #if defined(GRAPHICS_API_OPENGL_11_SOFTWARE)
     // Update framebuffer
-    rlCopyFramebuffer(0, 0, CORE.Window.render.width, CORE.Window.render.height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, platform.pixels);
+    rlCopyFramebuffer(0, 0, CORE.Window.render.width, CORE.Window.render.height, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, platform.pixels);
 
     // Copy framebuffer data into canvas
     EM_ASM({
@@ -921,13 +921,13 @@ double RLGetTime(void)
 }
 
 // Open URL with default system browser (if available)
-// NOTE: This function is only safe to use if you control the URL given
+// NOTE: This function is only safe to use if the provided URL is safe
 // A user could craft a malicious string performing another action
-// Only call this function yourself not with user input or make sure to check the string yourself
+// Avoid calling this function with user input non-validated strings
 void RLOpenURL(const char *url)
 {
     // Security check to (partially) avoid malicious code on target platform
-    if (strchr(url, '\'') != NULL) TRACELOG(LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
+    if (strchr(url, '\'') != NULL) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
     else emscripten_run_script(RLTextFormat("window.open('%s', '_blank')", url));
 }
 
@@ -938,7 +938,7 @@ void RLOpenURL(const char *url)
 // Set internal gamepad mappings
 int RLSetGamepadMappings(const char *mappings)
 {
-    TRACELOG(LOG_INFO, "SetGamepadMappings not implemented in rcore_web.c");
+    TRACELOG(RL_E_LOG_INFO, "SetGamepadMappings not implemented in rcore_web.c");
 
     return 0;
 }
@@ -1000,7 +1000,7 @@ void RLSetMouseCursor(int cursor)
 // Get physical key name
 const char *RLGetKeyName(int key)
 {
-    TRACELOG(LOG_WARNING, "GetKeyName() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetKeyName() not implemented on target platform");
     return "";
 }
 
@@ -1074,22 +1074,22 @@ void RLPollInputEvents(void)
                 // Gamepad Buttons reference: https://www.w3.org/TR/gamepad/#gamepad-interface
                 switch (j)
                 {
-                    case 0: button = GAMEPAD_BUTTON_RIGHT_FACE_DOWN; break;
-                    case 1: button = GAMEPAD_BUTTON_RIGHT_FACE_RIGHT; break;
-                    case 2: button = GAMEPAD_BUTTON_RIGHT_FACE_LEFT; break;
-                    case 3: button = GAMEPAD_BUTTON_RIGHT_FACE_UP; break;
-                    case 4: button = GAMEPAD_BUTTON_LEFT_TRIGGER_1; break;
-                    case 5: button = GAMEPAD_BUTTON_RIGHT_TRIGGER_1; break;
-                    case 6: button = GAMEPAD_BUTTON_LEFT_TRIGGER_2; break;
-                    case 7: button = GAMEPAD_BUTTON_RIGHT_TRIGGER_2; break;
-                    case 8: button = GAMEPAD_BUTTON_MIDDLE_LEFT; break;
-                    case 9: button = GAMEPAD_BUTTON_MIDDLE_RIGHT; break;
-                    case 10: button = GAMEPAD_BUTTON_LEFT_THUMB; break;
-                    case 11: button = GAMEPAD_BUTTON_RIGHT_THUMB; break;
-                    case 12: button = GAMEPAD_BUTTON_LEFT_FACE_UP; break;
-                    case 13: button = GAMEPAD_BUTTON_LEFT_FACE_DOWN; break;
-                    case 14: button = GAMEPAD_BUTTON_LEFT_FACE_LEFT; break;
-                    case 15: button = GAMEPAD_BUTTON_LEFT_FACE_RIGHT; break;
+                    case 0: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN; break;
+                    case 1: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT; break;
+                    case 2: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT; break;
+                    case 3: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP; break;
+                    case 4: button = RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_1; break;
+                    case 5: button = RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_1; break;
+                    case 6: button = RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_2; break;
+                    case 7: button = RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_2; break;
+                    case 8: button = RL_E_GAMEPAD_BUTTON_MIDDLE_LEFT; break;
+                    case 9: button = RL_E_GAMEPAD_BUTTON_MIDDLE_RIGHT; break;
+                    case 10: button = RL_E_GAMEPAD_BUTTON_LEFT_THUMB; break;
+                    case 11: button = RL_E_GAMEPAD_BUTTON_RIGHT_THUMB; break;
+                    case 12: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP; break;
+                    case 13: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN; break;
+                    case 14: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT; break;
+                    case 15: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT; break;
                     default: break;
                 }
 
@@ -1132,7 +1132,7 @@ int InitPlatform(void)
 
     // Initialize GLFW internal global state
     int result = glfwInit();
-    if (result == GLFW_FALSE) { TRACELOG(LOG_WARNING, "GLFW: Failed to initialize GLFW"); return -1; }
+    if (result == GLFW_FALSE) { TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize GLFW"); return -1; }
 
     // Initialize graphic device: display/window and graphic context
     //----------------------------------------------------------------------------
@@ -1147,25 +1147,25 @@ int InitPlatform(void)
     // glfwWindowHint(GLFW_AUX_BUFFERS, 0);          // Number of auxiliar buffers
 
     // Check window creation flags
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIDDEN)) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Visible window
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN)) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Visible window
     else glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE); // Window initially hidden
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNDECORATED)) glfwWindowHint(GLFW_DECORATED, GLFW_FALSE); // Border and buttons on Window
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED)) glfwWindowHint(GLFW_DECORATED, GLFW_FALSE); // Border and buttons on Window
     else glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Decorated window
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE)) glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // Resizable window
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE)) glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // Resizable window
     else glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // Avoid window being resizable
 
     // Disable FLAG_WINDOW_MINIMIZED, not supported on initialization
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED)) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
 
     // Disable FLAG_WINDOW_MAXIMIZED, not supported on initialization
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)) FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED)) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED)) glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
     else glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_TOPMOST)) glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_TOPMOST)) glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
     else glfwWindowHint(GLFW_FLOATING, GLFW_FALSE);
 
     // NOTE: Some GLFW flags are not supported on HTML5
@@ -1176,10 +1176,10 @@ int InitPlatform(void)
     //if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI)) glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     //else glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_FALSE);
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_MSAA_4X_HINT))
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_MSAA_4X_HINT))
     {
         // NOTE: MSAA is only enabled for main framebuffer, not user-created FBOs
-        TRACELOG(LOG_INFO, "DISPLAY: Trying to enable MSAA x4");
+        TRACELOG(RL_E_LOG_INFO, "DISPLAY: Trying to enable MSAA x4");
         glfwWindowHint(GLFW_SAMPLES, 4); // Tries to enable multisampling x4 (MSAA), default is 0
     }
 
@@ -1250,13 +1250,13 @@ int InitPlatform(void)
     // TODO: Consider requesting another type of canvas, not a WebGL one --> Replace GLFW-web by Emscripten?
     platform.pixels = (unsigned int *)RL_CALLOC(CORE.Window.screen.width*CORE.Window.screen.height, sizeof(unsigned int));
 #else
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE))
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
-        // remember center for switchinging from fullscreen to window
+        // Remember center for switchinging from fullscreen to window
         if ((CORE.Window.screen.height == CORE.Window.display.height) && (CORE.Window.screen.width == CORE.Window.display.width))
         {
-            // If screen width/height equal to the display, we can't calculate the window pos for toggling full-screened/windowed
-            // Toggling full-screened/windowed with pos(0, 0) can cause problems in some platforms, such as X11
+            // If screen width/height equal to the display, it's not possible to 
+            // calculate the window position for toggling full-screened/windowed
             CORE.Window.position.x = CORE.Window.display.width/4;
             CORE.Window.position.y = CORE.Window.display.height/4;
         }
@@ -1287,7 +1287,7 @@ int InitPlatform(void)
             }
         }
 
-        TRACELOG(LOG_WARNING, "SYSTEM: Closest fullscreen videomode: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
+        TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Closest fullscreen videomode: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
 
         platform.handle = glfwCreateWindow(CORE.Window.display.width, CORE.Window.display.height, (CORE.Window.title != 0)? CORE.Window.title : " ", glfwGetPrimaryMonitor(), NULL);
 
@@ -1309,7 +1309,7 @@ int InitPlatform(void)
     if (!platform.handle)
     {
         glfwTerminate();
-        TRACELOG(LOG_WARNING, "GLFW: Failed to initialize Window");
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window");
         return -1;
     }
 #endif
@@ -1323,7 +1323,7 @@ int InitPlatform(void)
     glfwSetWindowFocusCallback(platform.handle, WindowFocusCallback);
     glfwSetDropCallback(platform.handle, WindowDropCallback);
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI))
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
         // Window content (framebuffer) scale callback
         glfwSetWindowContentScaleCallback(platform.handle, WindowContentScaleCallback);
@@ -1353,22 +1353,22 @@ int InitPlatform(void)
         CORE.Window.currentFbo.width = fbWidth;
         CORE.Window.currentFbo.height = fbHeight;
 
-        TRACELOG(LOG_INFO, "DISPLAY: Device initialized successfully");
-        TRACELOG(LOG_INFO, "    > Display size: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
-        TRACELOG(LOG_INFO, "    > Screen size:  %i x %i", CORE.Window.screen.width, CORE.Window.screen.height);
-        TRACELOG(LOG_INFO, "    > Render size:  %i x %i", CORE.Window.render.width, CORE.Window.render.height);
-        TRACELOG(LOG_INFO, "    > Viewport offsets: %i, %i", CORE.Window.renderOffset.x, CORE.Window.renderOffset.y);
+        TRACELOG(RL_E_LOG_INFO, "DISPLAY: Device initialized successfully");
+        TRACELOG(RL_E_LOG_INFO, "    > Display size: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
+        TRACELOG(RL_E_LOG_INFO, "    > Screen size:  %i x %i", CORE.Window.screen.width, CORE.Window.screen.height);
+        TRACELOG(RL_E_LOG_INFO, "    > Render size:  %i x %i", CORE.Window.render.width, CORE.Window.render.height);
+        TRACELOG(RL_E_LOG_INFO, "    > Viewport offsets: %i, %i", CORE.Window.renderOffset.x, CORE.Window.renderOffset.y);
     }
     else
     {
-        TRACELOG(LOG_FATAL, "PLATFORM: Failed to initialize graphics device");
+        TRACELOG(RL_E_LOG_FATAL, "PLATFORM: Failed to initialize graphics device");
         return -1;
     }
 
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) RLMinimizeWindow();
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED)) RLMinimizeWindow();
 
-    // If graphic device is no properly initialized, we end program
-    if (!CORE.Window.ready) { TRACELOG(LOG_FATAL, "PLATFORM: Failed to initialize graphic device"); return -1; }
+    // If graphic device is no properly initialized, end program
+    if (!CORE.Window.ready) { TRACELOG(RL_E_LOG_FATAL, "PLATFORM: Failed to initialize graphic device"); return -1; }
 
     // Load OpenGL extensions
     // NOTE: GL procedures address loader is required to load extensions
@@ -1417,7 +1417,7 @@ int InitPlatform(void)
     CORE.Storage.basePath = RLGetWorkingDirectory();
     //----------------------------------------------------------------------------
 
-    TRACELOG(LOG_INFO, "PLATFORM: WEB: Initialized successfully");
+    TRACELOG(RL_E_LOG_INFO, "PLATFORM: WEB: Initialized successfully");
 
     return 0;
 }
@@ -1434,7 +1434,7 @@ void ClosePlatform(void)
 // GLFW3: Called on errors
 static void ErrorCallback(int error, const char *description)
 {
-    TRACELOG(LOG_WARNING, "GLFW: Error: %i Description: %s", error, description);
+    TRACELOG(RL_E_LOG_WARNING, "GLFW: Error: %i Description: %s", error, description);
 }
 
 // GLFW3: Called on window resizing, runs when window is resizedLastFrame
@@ -1450,7 +1450,7 @@ static void WindowSizeCallback(GLFWwindow *window, int width, int height)
     if (RLIsWindowFullscreen()) return;
 
     // Set current screen size
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI))
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
         RLVector2 windowScaleDPI = RLGetWindowScaleDPI();
 
@@ -1469,21 +1469,21 @@ static void WindowSizeCallback(GLFWwindow *window, int width, int height)
 // GLFW3: Called on window content (framebuffer) scaled
 static void WindowContentScaleCallback(GLFWwindow *window, float scalex, float scaley)
 {
-    CORE.Window.screenScale = MatrixScale(scalex, scaley, 1.0f);
+    CORE.Window.screenScale = RLMatrixScale(scalex, scaley, 1.0f);
 }
 
 // GLFW3: Called on windows minimized/restored
 static void WindowIconifyCallback(GLFWwindow *window, int iconified)
 {
-    if (iconified) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);   // The window was iconified
-    else FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);           // The window was restored
+    if (iconified) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);   // The window was iconified
+    else FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);           // The window was restored
 }
 
 // GLFW3: Called on windows get/lose focus
 static void WindowFocusCallback(GLFWwindow *window, int focused)
 {
-    if (focused) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED);   // The window was focused
-    else FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED);           // The window lost focus
+    if (focused) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);   // The window was focused
+    else FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);           // The window lost focus
 }
 
 // GLFW3: Called on file-drop over the window
@@ -1491,7 +1491,7 @@ static void WindowDropCallback(GLFWwindow *window, int count, const char **paths
 {
     if (count > 0)
     {
-        // In case previous dropped filepaths have not been freed, we free them
+        // In case previous dropped filepaths have not been freed, free them
         if (CORE.Window.dropFileCount > 0)
         {
             for (unsigned int i = 0; i < CORE.Window.dropFileCount; i++) RL_FREE(CORE.Window.dropFilepaths[i]);
@@ -1502,7 +1502,7 @@ static void WindowDropCallback(GLFWwindow *window, int count, const char **paths
             CORE.Window.dropFilepaths = NULL;
         }
 
-        // WARNING: Paths are freed by GLFW when the callback returns, we must keep an internal copy
+        // WARNING: Paths are freed by GLFW when the callback returns, an internal copy must freed
         CORE.Window.dropFileCount = count;
         CORE.Window.dropFilepaths = (char **)RL_CALLOC(CORE.Window.dropFileCount, sizeof(char *));
 
@@ -1519,7 +1519,7 @@ static void KeyCallback(GLFWwindow *window, int key, int scancode, int action, i
 {
     if (key < 0) return;    // Security check, macOS fn key generates -1
 
-    // WARNING: GLFW could return GLFW_REPEAT, we need to consider it as 1
+    // WARNING: GLFW could return GLFW_REPEAT, it needs to be considered as 1
     // to work properly with our implementation (IsKeyDown/IsKeyUp checks)
     if (action == GLFW_RELEASE) CORE.Input.Keyboard.currentKeyState[key] = 0;
     else if (action == GLFW_PRESS) CORE.Input.Keyboard.currentKeyState[key] = 1;
@@ -1566,11 +1566,11 @@ static void MouseButtonCallback(GLFWwindow *window, int button, int action, int 
 
 #if defined(SUPPORT_GESTURES_SYSTEM) && defined(SUPPORT_MOUSE_GESTURES)
     // Process mouse events as touches to be able to use mouse-gestures
-    GestureEvent gestureEvent = { 0 };
+    RLGestureEvent gestureEvent = { 0 };
 
     // Register touch actions
-    if ((CORE.Input.Mouse.currentButtonState[button] == 1) && (CORE.Input.Mouse.previousButtonState[button] == 0)) gestureEvent.touchAction = TOUCH_ACTION_DOWN;
-    else if ((CORE.Input.Mouse.currentButtonState[button] == 0) && (CORE.Input.Mouse.previousButtonState[button] == 1)) gestureEvent.touchAction = TOUCH_ACTION_UP;
+    if ((CORE.Input.Mouse.currentButtonState[button] == 1) && (CORE.Input.Mouse.previousButtonState[button] == 0)) gestureEvent.touchAction = RL_E_TOUCH_ACTION_DOWN;
+    else if ((CORE.Input.Mouse.currentButtonState[button] == 0) && (CORE.Input.Mouse.previousButtonState[button] == 1)) gestureEvent.touchAction = RL_E_TOUCH_ACTION_UP;
 
     // NOTE: TOUCH_ACTION_MOVE event is registered in MouseMoveCallback()
 
@@ -1607,9 +1607,9 @@ static void MouseMoveCallback(GLFWwindow *window, double x, double y)
 
 #if defined(SUPPORT_GESTURES_SYSTEM) && defined(SUPPORT_MOUSE_GESTURES)
     // Process mouse events as touches to be able to use mouse-gestures
-    GestureEvent gestureEvent = { 0 };
+    RLGestureEvent gestureEvent = { 0 };
 
-    gestureEvent.touchAction = TOUCH_ACTION_MOVE;
+    gestureEvent.touchAction = RL_E_TOUCH_ACTION_MOVE;
 
     // Assign a pointer ID
     gestureEvent.pointId[0] = 0;
@@ -1721,7 +1721,7 @@ static EM_BOOL EmscriptenTouchCallback(int eventType, const EmscriptenTouchEvent
     double canvasWidth = 0.0;
     double canvasHeight = 0.0;
     // NOTE: emscripten_get_canvas_element_size() returns canvas.width and canvas.height but
-    // we are looking for actual CSS size: canvas.style.width and canvas.style.height
+    // actual CSS size needs to be considered: canvas.style.width and canvas.style.height
     // EMSCRIPTEN_RESULT res = emscripten_get_canvas_element_size("#canvas", &canvasWidth, &canvasHeight);
     emscripten_get_element_css_size(platform.canvasId, &canvasWidth, &canvasHeight);
 
@@ -1741,7 +1741,7 @@ static EM_BOOL EmscriptenTouchCallback(int eventType, const EmscriptenTouchEvent
         else if (eventType == EMSCRIPTEN_EVENT_TOUCHEND) CORE.Input.Touch.currentTouchState[i] = 0;
     }
 
-    // Update mouse position if we detect a single touch
+    // Update mouse position when single touch detected
     if (CORE.Input.Touch.pointCount == 1)
     {
         CORE.Input.Mouse.currentPosition.x = CORE.Input.Touch.position[0].x;
@@ -1749,14 +1749,14 @@ static EM_BOOL EmscriptenTouchCallback(int eventType, const EmscriptenTouchEvent
     }
 
 #if defined(SUPPORT_GESTURES_SYSTEM)
-    GestureEvent gestureEvent = { 0 };
+    RLGestureEvent gestureEvent = { 0 };
     gestureEvent.pointCount = CORE.Input.Touch.pointCount;
 
     // Register touch actions
-    if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART) gestureEvent.touchAction = TOUCH_ACTION_DOWN;
-    else if (eventType == EMSCRIPTEN_EVENT_TOUCHEND) gestureEvent.touchAction = TOUCH_ACTION_UP;
-    else if (eventType == EMSCRIPTEN_EVENT_TOUCHMOVE) gestureEvent.touchAction = TOUCH_ACTION_MOVE;
-    else if (eventType == EMSCRIPTEN_EVENT_TOUCHCANCEL) gestureEvent.touchAction = TOUCH_ACTION_CANCEL;
+    if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART) gestureEvent.touchAction = RL_E_TOUCH_ACTION_DOWN;
+    else if (eventType == EMSCRIPTEN_EVENT_TOUCHEND) gestureEvent.touchAction = RL_E_TOUCH_ACTION_UP;
+    else if (eventType == EMSCRIPTEN_EVENT_TOUCHMOVE) gestureEvent.touchAction = RL_E_TOUCH_ACTION_MOVE;
+    else if (eventType == EMSCRIPTEN_EVENT_TOUCHCANCEL) gestureEvent.touchAction = RL_E_TOUCH_ACTION_CANCEL;
 
     for (int i = 0; (i < gestureEvent.pointCount) && (i < MAX_TOUCH_POINTS); i++)
     {
@@ -1808,8 +1808,8 @@ static EM_BOOL EmscriptenFullscreenChangeCallback(int eventType, const Emscripte
         const bool wasFullscreen = EM_ASM_INT( { if (document.fullscreenElement) return 1; }, 0);
         if (!wasFullscreen)
         {
-            FLAG_CLEAR(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
-            FLAG_CLEAR(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE);
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
         }
     }
 
@@ -1820,7 +1820,7 @@ static EM_BOOL EmscriptenFullscreenChangeCallback(int eventType, const Emscripte
 static EM_BOOL EmscriptenResizeCallback(int eventType, const EmscriptenUiEvent *event, void *userData)
 {
     // Don't resize non-resizeable windows
-    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE)) return 1;
+    if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE)) return 1;
 
     // This event is called whenever the window changes sizes,
     // so the size of the canvas object is explicitly retrieved below
@@ -1870,8 +1870,8 @@ static EM_BOOL EmscriptenFocusCallback(int eventType, const EmscriptenFocusEvent
 // Emscripten: Called on visibility change events
 static EM_BOOL EmscriptenVisibilityChangeCallback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
 {
-    if (visibilityChangeEvent->hidden) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_HIDDEN); // The window was hidden
-    else FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_HIDDEN);                             // The window was restored
+    if (visibilityChangeEvent->hidden) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN); // The window was hidden
+    else FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN);                             // The window was restored
     return 1; // The event was consumed by the callback handler
 }
 //-------------------------------------------------------------------------------------------------------

@@ -44,7 +44,7 @@ int main(void)
 
     float time = 0.0f;
     int timeLoc = RLGetShaderLocation(shader, "uTime");
-    RLSetShaderValue(shader, timeLoc, &time, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, timeLoc, &time, RL_E_SHADER_UNIFORM_FLOAT);
 
     RLSetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     // -------------------------------------------------------------------------------------------------------------
@@ -55,7 +55,7 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         time = (float)RLGetTime();
-        RLSetShaderValue(shader, timeLoc, &time, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, timeLoc, &time, RL_E_SHADER_UNIFORM_FLOAT);
         //----------------------------------------------------------------------------------
 
         // Draw

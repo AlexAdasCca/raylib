@@ -111,106 +111,106 @@ extern CoreData CORE;                   // Global CORE state context
 static PlatformData platform = { 0 };   // Platform specific data
 
 static const RLKeyboardKey mapScancodeToKey[SCANCODE_MAPPED_NUM] = {
-    KEY_NULL,           // SDL_SCANCODE_UNKNOWN
+    RL_E_KEY_NULL,           // SDL_SCANCODE_UNKNOWN
     0,
     0,
     0,
-    KEY_A,              // SDL_SCANCODE_A
-    KEY_B,              // SDL_SCANCODE_B
-    KEY_C,              // SDL_SCANCODE_C
-    KEY_D,              // SDL_SCANCODE_D
-    KEY_E,              // SDL_SCANCODE_E
-    KEY_F,              // SDL_SCANCODE_F
-    KEY_G,              // SDL_SCANCODE_G
-    KEY_H,              // SDL_SCANCODE_H
-    KEY_I,              // SDL_SCANCODE_I
-    KEY_J,              // SDL_SCANCODE_J
-    KEY_K,              // SDL_SCANCODE_K
-    KEY_L,              // SDL_SCANCODE_L
-    KEY_M,              // SDL_SCANCODE_M
-    KEY_N,              // SDL_SCANCODE_N
-    KEY_O,              // SDL_SCANCODE_O
-    KEY_P,              // SDL_SCANCODE_P
-    KEY_Q,              // SDL_SCANCODE_Q
-    KEY_R,              // SDL_SCANCODE_R
-    KEY_S,              // SDL_SCANCODE_S
-    KEY_T,              // SDL_SCANCODE_T
-    KEY_U,              // SDL_SCANCODE_U
-    KEY_V,              // SDL_SCANCODE_V
-    KEY_W,              // SDL_SCANCODE_W
-    KEY_X,              // SDL_SCANCODE_X
-    KEY_Y,              // SDL_SCANCODE_Y
-    KEY_Z,              // SDL_SCANCODE_Z
-    KEY_ONE,            // SDL_SCANCODE_1
-    KEY_TWO,            // SDL_SCANCODE_2
-    KEY_THREE,          // SDL_SCANCODE_3
-    KEY_FOUR,           // SDL_SCANCODE_4
-    KEY_FIVE,           // SDL_SCANCODE_5
-    KEY_SIX,            // SDL_SCANCODE_6
-    KEY_SEVEN,          // SDL_SCANCODE_7
-    KEY_EIGHT,          // SDL_SCANCODE_8
-    KEY_NINE,           // SDL_SCANCODE_9
-    KEY_ZERO,           // SDL_SCANCODE_0
-    KEY_ENTER,          // SDL_SCANCODE_RETURN
-    KEY_ESCAPE,         // SDL_SCANCODE_ESCAPE
-    KEY_BACKSPACE,      // SDL_SCANCODE_BACKSPACE
-    KEY_TAB,            // SDL_SCANCODE_TAB
-    KEY_SPACE,          // SDL_SCANCODE_SPACE
-    KEY_MINUS,          // SDL_SCANCODE_MINUS
-    KEY_EQUAL,          // SDL_SCANCODE_EQUALS
-    KEY_LEFT_BRACKET,   // SDL_SCANCODE_LEFTBRACKET
-    KEY_RIGHT_BRACKET,  // SDL_SCANCODE_RIGHTBRACKET
-    KEY_BACKSLASH,      // SDL_SCANCODE_BACKSLASH
+    RL_E_KEY_A,              // SDL_SCANCODE_A
+    RL_E_KEY_B,              // SDL_SCANCODE_B
+    RL_E_KEY_C,              // SDL_SCANCODE_C
+    RL_E_KEY_D,              // SDL_SCANCODE_D
+    RL_E_KEY_E,              // SDL_SCANCODE_E
+    RL_E_KEY_F,              // SDL_SCANCODE_F
+    RL_E_KEY_G,              // SDL_SCANCODE_G
+    RL_E_KEY_H,              // SDL_SCANCODE_H
+    RL_E_KEY_I,              // SDL_SCANCODE_I
+    RL_E_KEY_J,              // SDL_SCANCODE_J
+    RL_E_KEY_K,              // SDL_SCANCODE_K
+    RL_E_KEY_L,              // SDL_SCANCODE_L
+    RL_E_KEY_M,              // SDL_SCANCODE_M
+    RL_E_KEY_N,              // SDL_SCANCODE_N
+    RL_E_KEY_O,              // SDL_SCANCODE_O
+    RL_E_KEY_P,              // SDL_SCANCODE_P
+    RL_E_KEY_Q,              // SDL_SCANCODE_Q
+    RL_E_KEY_R,              // SDL_SCANCODE_R
+    RL_E_KEY_S,              // SDL_SCANCODE_S
+    RL_E_KEY_T,              // SDL_SCANCODE_T
+    RL_E_KEY_U,              // SDL_SCANCODE_U
+    RL_E_KEY_V,              // SDL_SCANCODE_V
+    RL_E_KEY_W,              // SDL_SCANCODE_W
+    RL_E_KEY_X,              // SDL_SCANCODE_X
+    RL_E_KEY_Y,              // SDL_SCANCODE_Y
+    RL_E_KEY_Z,              // SDL_SCANCODE_Z
+    RL_E_KEY_ONE,            // SDL_SCANCODE_1
+    RL_E_KEY_TWO,            // SDL_SCANCODE_2
+    RL_E_KEY_THREE,          // SDL_SCANCODE_3
+    RL_E_KEY_FOUR,           // SDL_SCANCODE_4
+    RL_E_KEY_FIVE,           // SDL_SCANCODE_5
+    RL_E_KEY_SIX,            // SDL_SCANCODE_6
+    RL_E_KEY_SEVEN,          // SDL_SCANCODE_7
+    RL_E_KEY_EIGHT,          // SDL_SCANCODE_8
+    RL_E_KEY_NINE,           // SDL_SCANCODE_9
+    RL_E_KEY_ZERO,           // SDL_SCANCODE_0
+    RL_E_KEY_ENTER,          // SDL_SCANCODE_RETURN
+    RL_E_KEY_ESCAPE,         // SDL_SCANCODE_ESCAPE
+    RL_E_KEY_BACKSPACE,      // SDL_SCANCODE_BACKSPACE
+    RL_E_KEY_TAB,            // SDL_SCANCODE_TAB
+    RL_E_KEY_SPACE,          // SDL_SCANCODE_SPACE
+    RL_E_KEY_MINUS,          // SDL_SCANCODE_MINUS
+    RL_E_KEY_EQUAL,          // SDL_SCANCODE_EQUALS
+    RL_E_KEY_LEFT_BRACKET,   // SDL_SCANCODE_LEFTBRACKET
+    RL_E_KEY_RIGHT_BRACKET,  // SDL_SCANCODE_RIGHTBRACKET
+    RL_E_KEY_BACKSLASH,      // SDL_SCANCODE_BACKSLASH
     0,                  // SDL_SCANCODE_NONUSHASH
-    KEY_SEMICOLON,      // SDL_SCANCODE_SEMICOLON
-    KEY_APOSTROPHE,     // SDL_SCANCODE_APOSTROPHE
-    KEY_GRAVE,          // SDL_SCANCODE_GRAVE
-    KEY_COMMA,          // SDL_SCANCODE_COMMA
-    KEY_PERIOD,         // SDL_SCANCODE_PERIOD
-    KEY_SLASH,          // SDL_SCANCODE_SLASH
-    KEY_CAPS_LOCK,      // SDL_SCANCODE_CAPSLOCK
-    KEY_F1,             // SDL_SCANCODE_F1
-    KEY_F2,             // SDL_SCANCODE_F2
-    KEY_F3,             // SDL_SCANCODE_F3
-    KEY_F4,             // SDL_SCANCODE_F4
-    KEY_F5,             // SDL_SCANCODE_F5
-    KEY_F6,             // SDL_SCANCODE_F6
-    KEY_F7,             // SDL_SCANCODE_F7
-    KEY_F8,             // SDL_SCANCODE_F8
-    KEY_F9,             // SDL_SCANCODE_F9
-    KEY_F10,            // SDL_SCANCODE_F10
-    KEY_F11,            // SDL_SCANCODE_F11
-    KEY_F12,            // SDL_SCANCODE_F12
-    KEY_PRINT_SCREEN,   // SDL_SCANCODE_PRINTSCREEN
-    KEY_SCROLL_LOCK,    // SDL_SCANCODE_SCROLLLOCK
-    KEY_PAUSE,          // SDL_SCANCODE_PAUSE
-    KEY_INSERT,         // SDL_SCANCODE_INSERT
-    KEY_HOME,           // SDL_SCANCODE_HOME
-    KEY_PAGE_UP,        // SDL_SCANCODE_PAGEUP
-    KEY_DELETE,         // SDL_SCANCODE_DELETE
-    KEY_END,            // SDL_SCANCODE_END
-    KEY_PAGE_DOWN,      // SDL_SCANCODE_PAGEDOWN
-    KEY_RIGHT,          // SDL_SCANCODE_RIGHT
-    KEY_LEFT,           // SDL_SCANCODE_LEFT
-    KEY_DOWN,           // SDL_SCANCODE_DOWN
-    KEY_UP,             // SDL_SCANCODE_UP
-    KEY_NUM_LOCK,       // SDL_SCANCODE_NUMLOCKCLEAR
-    KEY_KP_DIVIDE,      // SDL_SCANCODE_KP_DIVIDE
-    KEY_KP_MULTIPLY,    // SDL_SCANCODE_KP_MULTIPLY
-    KEY_KP_SUBTRACT,    // SDL_SCANCODE_KP_MINUS
-    KEY_KP_ADD,         // SDL_SCANCODE_KP_PLUS
-    KEY_KP_ENTER,       // SDL_SCANCODE_KP_ENTER
-    KEY_KP_1,           // SDL_SCANCODE_KP_1
-    KEY_KP_2,           // SDL_SCANCODE_KP_2
-    KEY_KP_3,           // SDL_SCANCODE_KP_3
-    KEY_KP_4,           // SDL_SCANCODE_KP_4
-    KEY_KP_5,           // SDL_SCANCODE_KP_5
-    KEY_KP_6,           // SDL_SCANCODE_KP_6
-    KEY_KP_7,           // SDL_SCANCODE_KP_7
-    KEY_KP_8,           // SDL_SCANCODE_KP_8
-    KEY_KP_9,           // SDL_SCANCODE_KP_9
-    KEY_KP_0,           // SDL_SCANCODE_KP_0
-    KEY_KP_DECIMAL,     // SDL_SCANCODE_KP_PERIOD
+    RL_E_KEY_SEMICOLON,      // SDL_SCANCODE_SEMICOLON
+    RL_E_KEY_APOSTROPHE,     // SDL_SCANCODE_APOSTROPHE
+    RL_E_KEY_GRAVE,          // SDL_SCANCODE_GRAVE
+    RL_E_KEY_COMMA,          // SDL_SCANCODE_COMMA
+    RL_E_KEY_PERIOD,         // SDL_SCANCODE_PERIOD
+    RL_E_KEY_SLASH,          // SDL_SCANCODE_SLASH
+    RL_E_KEY_CAPS_LOCK,      // SDL_SCANCODE_CAPSLOCK
+    RL_E_KEY_F1,             // SDL_SCANCODE_F1
+    RL_E_KEY_F2,             // SDL_SCANCODE_F2
+    RL_E_KEY_F3,             // SDL_SCANCODE_F3
+    RL_E_KEY_F4,             // SDL_SCANCODE_F4
+    RL_E_KEY_F5,             // SDL_SCANCODE_F5
+    RL_E_KEY_F6,             // SDL_SCANCODE_F6
+    RL_E_KEY_F7,             // SDL_SCANCODE_F7
+    RL_E_KEY_F8,             // SDL_SCANCODE_F8
+    RL_E_KEY_F9,             // SDL_SCANCODE_F9
+    RL_E_KEY_F10,            // SDL_SCANCODE_F10
+    RL_E_KEY_F11,            // SDL_SCANCODE_F11
+    RL_E_KEY_F12,            // SDL_SCANCODE_F12
+    RL_E_KEY_PRINT_SCREEN,   // SDL_SCANCODE_PRINTSCREEN
+    RL_E_KEY_SCROLL_LOCK,    // SDL_SCANCODE_SCROLLLOCK
+    RL_E_KEY_PAUSE,          // SDL_SCANCODE_PAUSE
+    RL_E_KEY_INSERT,         // SDL_SCANCODE_INSERT
+    RL_E_KEY_HOME,           // SDL_SCANCODE_HOME
+    RL_E_KEY_PAGE_UP,        // SDL_SCANCODE_PAGEUP
+    RL_E_KEY_DELETE,         // SDL_SCANCODE_DELETE
+    RL_E_KEY_END,            // SDL_SCANCODE_END
+    RL_E_KEY_PAGE_DOWN,      // SDL_SCANCODE_PAGEDOWN
+    RL_E_KEY_RIGHT,          // SDL_SCANCODE_RIGHT
+    RL_E_KEY_LEFT,           // SDL_SCANCODE_LEFT
+    RL_E_KEY_DOWN,           // SDL_SCANCODE_DOWN
+    RL_E_KEY_UP,             // SDL_SCANCODE_UP
+    RL_E_KEY_NUM_LOCK,       // SDL_SCANCODE_NUMLOCKCLEAR
+    RL_E_KEY_KP_DIVIDE,      // SDL_SCANCODE_KP_DIVIDE
+    RL_E_KEY_KP_MULTIPLY,    // SDL_SCANCODE_KP_MULTIPLY
+    RL_E_KEY_KP_SUBTRACT,    // SDL_SCANCODE_KP_MINUS
+    RL_E_KEY_KP_ADD,         // SDL_SCANCODE_KP_PLUS
+    RL_E_KEY_KP_ENTER,       // SDL_SCANCODE_KP_ENTER
+    RL_E_KEY_KP_1,           // SDL_SCANCODE_KP_1
+    RL_E_KEY_KP_2,           // SDL_SCANCODE_KP_2
+    RL_E_KEY_KP_3,           // SDL_SCANCODE_KP_3
+    RL_E_KEY_KP_4,           // SDL_SCANCODE_KP_4
+    RL_E_KEY_KP_5,           // SDL_SCANCODE_KP_5
+    RL_E_KEY_KP_6,           // SDL_SCANCODE_KP_6
+    RL_E_KEY_KP_7,           // SDL_SCANCODE_KP_7
+    RL_E_KEY_KP_8,           // SDL_SCANCODE_KP_8
+    RL_E_KEY_KP_9,           // SDL_SCANCODE_KP_9
+    RL_E_KEY_KP_0,           // SDL_SCANCODE_KP_0
+    RL_E_KEY_KP_DECIMAL,     // SDL_SCANCODE_KP_PERIOD
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -224,14 +224,14 @@ static const RLKeyboardKey mapScancodeToKey[SCANCODE_MAPPED_NUM] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0,
-    KEY_LEFT_CONTROL,   //SDL_SCANCODE_LCTRL
-    KEY_LEFT_SHIFT,     //SDL_SCANCODE_LSHIFT
-    KEY_LEFT_ALT,       //SDL_SCANCODE_LALT
-    KEY_LEFT_SUPER,     //SDL_SCANCODE_LGUI
-    KEY_RIGHT_CONTROL,  //SDL_SCANCODE_RCTRL
-    KEY_RIGHT_SHIFT,    //SDL_SCANCODE_RSHIFT
-    KEY_RIGHT_ALT,      //SDL_SCANCODE_RALT
-    KEY_RIGHT_SUPER     //SDL_SCANCODE_RGUI
+    RL_E_KEY_LEFT_CONTROL,   //SDL_SCANCODE_LCTRL
+    RL_E_KEY_LEFT_SHIFT,     //SDL_SCANCODE_LSHIFT
+    RL_E_KEY_LEFT_ALT,       //SDL_SCANCODE_LALT
+    RL_E_KEY_LEFT_SUPER,     //SDL_SCANCODE_LGUI
+    RL_E_KEY_RIGHT_CONTROL,  //SDL_SCANCODE_RCTRL
+    RL_E_KEY_RIGHT_SHIFT,    //SDL_SCANCODE_RSHIFT
+    RL_E_KEY_RIGHT_ALT,      //SDL_SCANCODE_RALT
+    RL_E_KEY_RIGHT_SUPER     //SDL_SCANCODE_RGUI
 };
 
 static const int CursorsLUT[] = {
@@ -255,9 +255,9 @@ static const int CursorsLUT[] = {
 
 // SDL3 Migration:
 // SDL_WINDOW_FULLSCREEN_DESKTOP has been removed,
-// and you can call SDL_GetWindowFullscreenMode()
+// SDL_GetWindowFullscreenMode() can be called
 // to see whether an exclusive fullscreen mode will be used
-// or the borderless fullscreen desktop mode will be used
+// or the borderless fullscreen desktop mode
 #define SDL_WINDOW_FULLSCREEN_DESKTOP SDL_WINDOW_FULLSCREEN
 
 #define SDL_IGNORE  false
@@ -317,7 +317,7 @@ Uint8 SDL_EventState(Uint32 type, int state)
     {
         case SDL_DISABLE: SDL_SetEventEnabled(type, false); break;
         case SDL_ENABLE: SDL_SetEventEnabled(type, true); break;
-        default: TRACELOG(LOG_WARNING, "SDL: Event state of unknow type");
+        default: TRACELOG(RL_E_LOG_WARNING, "SDL: Event state of unknow type");
     }
 
     return stateBefore;
@@ -327,7 +327,7 @@ void SDL_GetCurrentDisplayMode_Adapter(SDL_DisplayID displayID, SDL_DisplayMode 
 {
     const SDL_DisplayMode *currentMode = SDL_GetCurrentDisplayMode(displayID);
 
-    if (currentMode == NULL) TRACELOG(LOG_WARNING, "SDL: No possible to get current display mode");
+    if (currentMode == NULL) TRACELOG(RL_E_LOG_WARNING, "SDL: No possible to get current display mode");
     else *mode = *currentMode;
 }
 
@@ -418,7 +418,7 @@ int SDL_GetNumTouchFingers(SDL_TouchID touchID)
 // SDL_GetClipboardData function is available since SDL 3.1.3. (e.g. SDL3)
 void *SDL_GetClipboardData(const char *mime_type, size_t *size)
 {
-    TRACELOG(LOG_WARNING, "SDL: Getting clipboard data that is not text not available in SDL2");
+    TRACELOG(RL_E_LOG_WARNING, "SDL: Getting clipboard data that is not text not available in SDL2");
 
     // We could possibly implement it ourselves in this case for some easier platforms
     return NULL;
@@ -464,18 +464,18 @@ void RLToggleFullscreen(void)
     if ((monitor >= 0) && (monitor < monitorCount))
 #endif
     {
-        if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE))
+        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE))
         {
             SDL_SetWindowFullscreen(platform.window, 0);
-            FLAG_CLEAR(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
         }
         else
         {
             SDL_SetWindowFullscreen(platform.window, SDL_WINDOW_FULLSCREEN);
-            FLAG_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
         }
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 }
 
 // Toggle borderless windowed mode
@@ -490,32 +490,32 @@ void RLToggleBorderlessWindowed(void)
     if ((monitor >= 0) && (monitor < monitorCount))
 #endif
     {
-        if (FLAG_IS_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE))
+        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
         {
             SDL_SetWindowFullscreen(platform.window, 0);
-            FLAG_CLEAR(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE);
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
         }
         else
         {
             SDL_SetWindowFullscreen(platform.window, SDL_WINDOW_FULLSCREEN_DESKTOP);
-            FLAG_SET(CORE.Window.flags, FLAG_BORDERLESS_WINDOWED_MODE);
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
         }
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 }
 
 // Set window state: maximized, if resizable
 void RLMaximizeWindow(void)
 {
     SDL_MaximizeWindow(platform.window);
-    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+    if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED)) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
 }
 
 // Set window state: minimized
 void RLMinimizeWindow(void)
 {
     SDL_MinimizeWindow(platform.window);
-    if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
+    if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED)) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
 }
 
 // Restore window from being minimized/maximized
@@ -528,15 +528,15 @@ void RLRestoreWindow(void)
 // Set window configuration state using flags
 void RLSetWindowState(unsigned int flags)
 {
-    if (!CORE.Window.ready) TRACELOG(LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
+    if (!CORE.Window.ready) TRACELOG(RL_E_LOG_WARNING, "WINDOW: SetWindowState does nothing before window initialization, Use \"SetConfigFlags\" instead");
 
     FLAG_SET(CORE.Window.flags, flags);
 
-    if (FLAG_IS_SET(flags, FLAG_VSYNC_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_VSYNC_HINT))
     {
         SDL_GL_SetSwapInterval(1);
     }
-    if (FLAG_IS_SET(flags, FLAG_FULLSCREEN_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
         const int monitor = SDL_GetWindowDisplayIndex(platform.window);
         const int monitorCount = SDL_GetNumVideoDisplays();
@@ -548,59 +548,59 @@ void RLSetWindowState(unsigned int flags)
     #endif
         {
             SDL_SetWindowFullscreen(platform.window, SDL_WINDOW_FULLSCREEN);
-            FLAG_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE);
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
         }
-        else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+        else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_RESIZABLE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE))
     {
         SDL_SetWindowResizable(platform.window, SDL_TRUE);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNDECORATED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED))
     {
         SDL_SetWindowBordered(platform.window, SDL_FALSE);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIDDEN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN))
     {
         SDL_HideWindow(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MINIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MINIMIZED))
     {
         SDL_MinimizeWindow(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MAXIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MAXIMIZED))
     {
         SDL_MaximizeWindow(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNFOCUSED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED))
     {
         // NOTE: To be able to implement this part it seems that we should
         // do it ourselves, via 'windows.h', 'X11/Xlib.h' or even 'Cocoa.h'
-        TRACELOG(LOG_WARNING, "SetWindowState() - FLAG_WINDOW_UNFOCUSED is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState() - FLAG_WINDOW_UNFOCUSED is not supported on PLATFORM_DESKTOP_SDL");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TOPMOST))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST))
     {
         SDL_SetWindowAlwaysOnTop(platform.window, SDL_FALSE);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_ALWAYS_RUN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_ALWAYS_RUN))
     {
-        FLAG_SET(CORE.Window.flags, FLAG_WINDOW_ALWAYS_RUN);
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_ALWAYS_RUN);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TRANSPARENT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TRANSPARENT))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState() - FLAG_WINDOW_TRANSPARENT is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState() - FLAG_WINDOW_TRANSPARENT is not supported on PLATFORM_DESKTOP_SDL");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIGHDPI))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
         // NOTE: Such a function does not seem to exist
-        TRACELOG(LOG_WARNING, "SetWindowState() - FLAG_WINDOW_HIGHDPI is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState() - FLAG_WINDOW_HIGHDPI is not supported on PLATFORM_DESKTOP_SDL");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MOUSE_PASSTHROUGH))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH))
     {
         //SDL_SetWindowGrab(platform.window, SDL_FALSE);
-        TRACELOG(LOG_WARNING, "SetWindowState() - FLAG_WINDOW_MOUSE_PASSTHROUGH is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState() - FLAG_WINDOW_MOUSE_PASSTHROUGH is not supported on PLATFORM_DESKTOP_SDL");
     }
-    if (FLAG_IS_SET(flags, FLAG_BORDERLESS_WINDOWED_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
         const int monitor = SDL_GetWindowDisplayIndex(platform.window);
         const int monitorCount = SDL_GetNumVideoDisplays();
@@ -613,16 +613,16 @@ void RLSetWindowState(unsigned int flags)
         {
             SDL_SetWindowFullscreen(platform.window, SDL_WINDOW_FULLSCREEN_DESKTOP);
         }
-        else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+        else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
     }
-    if (FLAG_IS_SET(flags, FLAG_MSAA_4X_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_MSAA_4X_HINT))
     {
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); // Enable multisampling buffers
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4); // Enable multisampling
     }
-    if (FLAG_IS_SET(flags, FLAG_INTERLACED_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_INTERLACED_HINT))
     {
-        TRACELOG(LOG_WARNING, "SetWindowState() - FLAG_INTERLACED_HINT is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowState() - FLAG_INTERLACED_HINT is not supported on PLATFORM_DESKTOP_SDL");
     }
 }
 
@@ -631,69 +631,69 @@ void RLClearWindowState(unsigned int flags)
 {
     FLAG_CLEAR(CORE.Window.flags, flags);
 
-    if (FLAG_IS_SET(flags, FLAG_VSYNC_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_VSYNC_HINT))
     {
         SDL_GL_SetSwapInterval(0);
     }
-    if (FLAG_IS_SET(flags, FLAG_FULLSCREEN_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
         SDL_SetWindowFullscreen(platform.window, 0);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_RESIZABLE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE))
     {
         SDL_SetWindowResizable(platform.window, SDL_FALSE);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNDECORATED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED))
     {
         SDL_SetWindowBordered(platform.window, SDL_TRUE);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIDDEN))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN))
     {
         SDL_ShowWindow(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MINIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MINIMIZED))
     {
         SDL_RestoreWindow(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MAXIMIZED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MAXIMIZED))
     {
         SDL_RestoreWindow(platform.window);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_UNFOCUSED))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED))
     {
         //SDL_RaiseWindow(platform.window);
-        TRACELOG(LOG_WARNING, "ClearWindowState() - FLAG_WINDOW_UNFOCUSED is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState() - FLAG_WINDOW_UNFOCUSED is not supported on PLATFORM_DESKTOP_SDL");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TOPMOST))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST))
     {
         SDL_SetWindowAlwaysOnTop(platform.window, SDL_FALSE);
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_TRANSPARENT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TRANSPARENT))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState() - FLAG_WINDOW_TRANSPARENT is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState() - FLAG_WINDOW_TRANSPARENT is not supported on PLATFORM_DESKTOP_SDL");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_HIGHDPI))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIGHDPI))
     {
         // NOTE: There also doesn't seem to be a feature to disable high DPI once enabled
-        TRACELOG(LOG_WARNING, "ClearWindowState() - FLAG_WINDOW_HIGHDPI is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState() - FLAG_WINDOW_HIGHDPI is not supported on PLATFORM_DESKTOP_SDL");
     }
-    if (FLAG_IS_SET(flags, FLAG_WINDOW_MOUSE_PASSTHROUGH))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH))
     {
         //SDL_SetWindowGrab(platform.window, SDL_TRUE);
-        TRACELOG(LOG_WARNING, "ClearWindowState() - FLAG_WINDOW_MOUSE_PASSTHROUGH is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState() - FLAG_WINDOW_MOUSE_PASSTHROUGH is not supported on PLATFORM_DESKTOP_SDL");
     }
-    if (FLAG_IS_SET(flags, FLAG_BORDERLESS_WINDOWED_MODE))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
         SDL_SetWindowFullscreen(platform.window, 0);
     }
-    if (FLAG_IS_SET(flags, FLAG_MSAA_4X_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_MSAA_4X_HINT))
     {
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0); // Disable multisampling buffers
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0); // Disable multisampling
     }
-    if (FLAG_IS_SET(flags, FLAG_INTERLACED_HINT))
+    if (FLAG_IS_SET(flags, RL_E_FLAG_INTERLACED_HINT))
     {
-        TRACELOG(LOG_WARNING, "ClearWindowState() - FLAG_INTERLACED_HINT is not supported on PLATFORM_DESKTOP_SDL");
+        TRACELOG(RL_E_LOG_WARNING, "ClearWindowState() - FLAG_INTERLACED_HINT is not supported on PLATFORM_DESKTOP_SDL");
     }
 }
 
@@ -708,80 +708,80 @@ void RLSetWindowIcon(RLImage image)
 
     switch (image.format)
     {
-        case PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
         {
             rmask = 0xFF, gmask = 0;
             bmask = 0, amask = 0;
             depth = 8, pitch = image.width;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
         {
             rmask = 0xFF, gmask = 0xFF00;
             bmask = 0, amask = 0;
             depth = 16, pitch = image.width*2;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
         {
             rmask = 0xF800, gmask = 0x07E0;
             bmask = 0x001F, amask = 0;
             depth = 16, pitch = image.width*2;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
         {
             // WARNING: SDL2 could be using BGR but SDL3 RGB
             rmask = 0xFF0000, gmask = 0x00FF00;
             bmask = 0x0000FF, amask = 0;
             depth = 24, pitch = image.width*3;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
         {
             rmask = 0xF800, gmask = 0x07C0;
             bmask = 0x003E, amask = 0x0001;
             depth = 16, pitch = image.width*2;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
         {
             rmask = 0xF000, gmask = 0x0F00;
             bmask = 0x00F0, amask = 0x000F;
             depth = 16, pitch = image.width*2;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
         {
             rmask = 0xFF000000, gmask = 0x00FF0000;
             bmask = 0x0000FF00, amask = 0x000000FF;
             depth = 32, pitch = image.width*4;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
         {
             rmask = 0xFFFFFFFF, gmask = 0;
             bmask = 0, amask = 0;
             depth = 32, pitch = image.width*4;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
         {
             rmask = 0xFFFFFFFF, gmask = 0xFFFFFFFF;
             bmask = 0xFFFFFFFF, amask = 0;
             depth = 96, pitch = image.width*12;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
         {
             rmask = 0xFFFFFFFF, gmask = 0xFFFFFFFF;
             bmask = 0xFFFFFFFF, amask = 0xFFFFFFFF;
             depth = 128, pitch = image.width*16;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
         {
             rmask = 0xFFFF, gmask = 0;
             bmask = 0, amask = 0;
             depth = 16, pitch = image.width*2;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
         {
             rmask = 0xFFFF, gmask = 0xFFFF;
             bmask = 0xFFFF, amask = 0;
             depth = 48, pitch = image.width*6;
         } break;
-        case PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
         {
             rmask = 0xFFFF, gmask = 0xFFFF;
             bmask = 0xFFFF, amask = 0xFFFF;
@@ -802,7 +802,7 @@ void RLSetWindowIcon(RLImage image)
 // Set icon for window
 void RLSetWindowIcons(RLImage *images, int count)
 {
-    TRACELOG(LOG_WARNING, "SetWindowIcons() not available on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "SetWindowIcons() not available on target platform");
 }
 
 // Set title for window
@@ -835,7 +835,7 @@ void RLSetWindowMonitor(int monitor)
         // NOTE 1: SDL started supporting moving exclusive fullscreen windows between displays on SDL3,
         // see commit https://github.com/libsdl-org/SDL/commit/3f5ef7dd422057edbcf3e736107e34be4b75d9ba
         // NOTE 2: A workaround for SDL2 is leaving fullscreen, moving the window, then entering full screen again
-        const bool wasFullscreen = (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE))? true : false;
+        const bool wasFullscreen = (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE))? true : false;
 
         const int screenWidth = CORE.Window.screen.width;
         const int screenHeight = CORE.Window.screen.height;
@@ -874,9 +874,9 @@ void RLSetWindowMonitor(int monitor)
 
             if (wasFullscreen == 1) RLToggleFullscreen(); // Re-enter fullscreen
         }
-        else TRACELOG(LOG_WARNING, "SDL: Failed to get selected display usable bounds");
+        else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to get selected display usable bounds");
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 }
 
 // Set window minimum dimensions (FLAG_WINDOW_RESIZABLE)
@@ -968,9 +968,9 @@ RLVector2 RLGetMonitorPosition(int monitor)
         {
             return (RLVector2){ (float)displayBounds.x, (float)displayBounds.y };
         }
-        else TRACELOG(LOG_WARNING, "SDL: Failed to get selected display usable bounds");
+        else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to get selected display usable bounds");
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
     return (RLVector2){ 0.0f, 0.0f };
 }
 
@@ -990,7 +990,7 @@ int RLGetMonitorWidth(int monitor)
         SDL_GetCurrentDisplayMode(monitor, &mode);
         width = mode.w;
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 
     return width;
 }
@@ -1011,7 +1011,7 @@ int RLGetMonitorHeight(int monitor)
         SDL_GetCurrentDisplayMode(monitor, &mode);
         height = mode.h;
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 
     return height;
 }
@@ -1035,7 +1035,7 @@ int RLGetMonitorPhysicalWidth(int monitor)
         // Calculate size on inches, then convert to millimeter
         if (ddpi > 0.0f) width = (int)((mode.w/ddpi)*25.4f);
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 
     return width;
 }
@@ -1059,7 +1059,7 @@ int RLGetMonitorPhysicalHeight(int monitor)
         // Calculate size on inches, then convert to millimeter
         if (ddpi > 0.0f) height = (int)((mode.h/ddpi)*25.4f);
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 
     return height;
 }
@@ -1080,7 +1080,7 @@ int RLGetMonitorRefreshRate(int monitor)
         SDL_GetCurrentDisplayMode(monitor, &mode);
         refresh = mode.refresh_rate;
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 
     return refresh;
 }
@@ -1098,7 +1098,7 @@ const char *RLGetMonitorName(int monitor)
     {
         return SDL_GetDisplayName(monitor);
     }
-    else TRACELOG(LOG_WARNING, "SDL: Failed to find selected monitor");
+    else TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to find selected monitor");
 
     return "";
 }
@@ -1127,7 +1127,7 @@ RLVector2 RLGetWindowScaleDPI(void)
 #else
     // NOTE: SDL_GetWindowDisplayScale not available on SDL2
     // TODO: Implement the window scale factor calculation manually
-    TRACELOG(LOG_WARNING, "GetWindowScaleDPI() not implemented on target platform");
+    TRACELOG(RL_E_LOG_WARNING, "GetWindowScaleDPI() not implemented on target platform");
 #endif
 
     return scale;
@@ -1191,13 +1191,13 @@ RLImage RLGetClipboardImage(void)
             image = RLLoadImageFromMemory(imageExtensions[i], fileData, (int)dataSize);
             if (RLIsImageValid(image))
             {
-                TRACELOG(LOG_INFO, "Clipboard: Got image from clipboard successfully: %s", imageExtensions[i]);
+                TRACELOG(RL_E_LOG_INFO, "Clipboard: Got image from clipboard successfully: %s", imageExtensions[i]);
                 return image;
             }
         }
     }
 
-    if (!RLIsImageValid(image)) TRACELOG(LOG_WARNING, "Clipboard: Couldn't get clipboard data. ERROR: %s", SDL_GetError());
+    if (!RLIsImageValid(image)) TRACELOG(RL_E_LOG_WARNING, "Clipboard: Couldn't get clipboard data. ERROR: %s", SDL_GetError());
 #endif
 
     return image;
@@ -1249,7 +1249,7 @@ void RLSwapScreenBuffer(void)
 #if defined(GRAPHICS_API_OPENGL_11_SOFTWARE)
     // NOTE: We use a preprocessor condition here because rlCopyFramebuffer() is only declared for software rendering
     SDL_Surface *surface = SDL_GetWindowSurface(platform.window);
-    rlCopyFramebuffer(0, 0, CORE.Window.render.width, CORE.Window.render.height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, surface->pixels);
+    rlCopyFramebuffer(0, 0, CORE.Window.render.width, CORE.Window.render.height, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, surface->pixels);
     SDL_UpdateWindowSurface(platform.window);
 #else
     SDL_GL_SwapWindow(platform.window);
@@ -1269,14 +1269,14 @@ double RLGetTime(void)
 }
 
 // Open URL with default system browser (if available)
-// NOTE: This function is only safe to use if you control the URL given
+// NOTE: This function is only safe to use if the provided URL is safe
 // A user could craft a malicious string performing another action
-// Only call this function yourself not with user input or make sure to check the string yourself
+// Avoid calling this function with user input non-validated strings
 // REF: https://github.com/raysan5/raylib/issues/686
 void RLOpenURL(const char *url)
 {
     // Security check to (partially) avoid malicious code
-    if (strchr(url, '\'') != NULL) TRACELOG(LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
+    if (strchr(url, '\'') != NULL) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
     else SDL_OpenURL(url);
 }
 
@@ -1287,7 +1287,25 @@ void RLOpenURL(const char *url)
 // Set internal gamepad mappings
 int RLSetGamepadMappings(const char *mappings)
 {
-    return SDL_GameControllerAddMapping(mappings);
+    const int mappingsLength = strlen(mappings);
+    char *buffer = (char *)RL_CALLOC(mappingsLength + 1, sizeof(char));
+    memcpy(buffer, mappings, mappingsLength);
+    char *p = strtok(buffer, "\n");
+    bool succeed = true;
+
+    while (p != NULL)
+    {
+        if (SDL_GameControllerAddMapping(p) == -1)
+        {
+            succeed = false;
+        }
+        p = strtok(NULL, "\n");
+    }
+
+    RL_FREE(buffer);
+
+    // To make return value is consistent with the GLFW version.
+    return (succeed)? 1 : 0;
 }
 
 // Set gamepad vibration
@@ -1392,7 +1410,7 @@ void RLPollInputEvents(void)
 
     CORE.Window.resizedLastFrame = false;
 
-    if ((CORE.Window.eventWaiting) || (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED) && !FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_ALWAYS_RUN)))
+    if ((CORE.Window.eventWaiting) || (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED) && !FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_ALWAYS_RUN)))
     {
         SDL_WaitEvent(NULL);
         CORE.Time.previous = RLGetTime();
@@ -1419,9 +1437,9 @@ void RLPollInputEvents(void)
 
                 #if defined(USING_VERSION_SDL3)
                     // const char *data;   // The text for SDL_EVENT_DROP_TEXT and the file name for SDL_EVENT_DROP_FILE, NULL for other events
-                    // Event memory is now managed by SDL, so you should not free the data in SDL_EVENT_DROP_FILE,
-                    // and if you want to hold onto the text in SDL_EVENT_TEXT_EDITING and SDL_EVENT_TEXT_INPUT events,
-                    // you should make a copy of it. SDL_TEXTINPUTEVENT_TEXT_SIZE is no longer necessary and has been removed
+                    // Event memory is now managed by SDL, so it should not be freed in SDL_EVENT_DROP_FILE,
+                    // in case data needs to be hold onto the text in SDL_EVENT_TEXT_EDITING and SDL_EVENT_TEXT_INPUT events,
+                    // a copy is required, SDL_TEXTINPUTEVENT_TEXT_SIZE is no longer necessary and has been removed
                     strncpy(CORE.Window.dropFilepaths[CORE.Window.dropFileCount], event.drop.data, MAX_FILEPATH_LENGTH - 1);
                 #else
                     strncpy(CORE.Window.dropFilepaths[CORE.Window.dropFileCount], event.drop.file, MAX_FILEPATH_LENGTH - 1);
@@ -1443,17 +1461,17 @@ void RLPollInputEvents(void)
 
                     CORE.Window.dropFileCount++;
                 }
-                else TRACELOG(LOG_WARNING, "FILE: Maximum drag and drop files at once is limited to 1024 files!");
+                else TRACELOG(RL_E_LOG_WARNING, "FILE: Maximum drag and drop files at once is limited to 1024 files!");
 
             } break;
 
             // Window events are also polled (minimized, maximized, close...)
 
             #ifndef USING_VERSION_SDL3
-            // SDL3 states:
             // The SDL_WINDOWEVENT_* events have been moved to top level events, and SDL_WINDOWEVENT has been removed
             // In general, handling this change just means checking for the individual events instead of first checking for SDL_WINDOWEVENT
-            // and then checking for window events. You can compare the event >= SDL_EVENT_WINDOW_FIRST and <= SDL_EVENT_WINDOW_LAST if you need to see whether it's a window event
+            // and then checking for window events; Events >= SDL_EVENT_WINDOW_FIRST and <= SDL_EVENT_WINDOW_LAST can be compared
+            // to see whether it's a window event
             case SDL_WINDOWEVENT:
             {
                 switch (event.window.event)
@@ -1466,7 +1484,7 @@ void RLPollInputEvents(void)
                         const int height = event.window.data2;
                         SetupViewport(width, height);
                         // if we are doing automatic DPI scaling, then the "screen" size is divided by the window scale
-                        if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI))
+                        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI))
                         {
                             CORE.Window.screen.width = (int)(width/RLGetWindowScaleDPI().x);
                             CORE.Window.screen.height = (int)(height/RLGetWindowScaleDPI().y);
@@ -1483,7 +1501,7 @@ void RLPollInputEvents(void)
                         #ifndef USING_VERSION_SDL3
                         // Manually detect if the window was maximized (due to SDL2 restore being unreliable on some platforms)
                         // to remove the FLAG_WINDOW_MAXIMIZED accordingly
-                        if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED))
+                        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED))
                         {
                             int borderTop = 0;
                             int borderLeft = 0;
@@ -1493,7 +1511,7 @@ void RLPollInputEvents(void)
                             SDL_Rect usableBounds;
                             SDL_GetDisplayUsableBounds(SDL_GetWindowDisplayIndex(platform.window), &usableBounds);
 
-                            if ((width + borderLeft + borderRight != usableBounds.w) && (height + borderTop + borderBottom != usableBounds.h)) FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+                            if ((width + borderLeft + borderRight != usableBounds.w) && (height + borderTop + borderBottom != usableBounds.h)) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
                         }
                         #endif
                     } break;
@@ -1503,17 +1521,17 @@ void RLPollInputEvents(void)
 
                     case SDL_WINDOWEVENT_MINIMIZED:
                     {
-                        if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
+                        if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED)) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
                     } break;
                     case SDL_WINDOWEVENT_MAXIMIZED:
                     {
-                        if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED);
+                        if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED)) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
                     } break;
                     case SDL_WINDOWEVENT_RESTORED:
                     {
                         if (!FLAG_IS_SET(SDL_GetWindowFlags(platform.window), SDL_WINDOW_MINIMIZED))
                         {
-                            if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_MINIMIZED);
+                            if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED)) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
                         }
 
                         #ifdef USING_VERSION_SDL3
@@ -1526,20 +1544,20 @@ void RLPollInputEvents(void)
 
                     case SDL_WINDOWEVENT_HIDDEN:
                     {
-                        if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIDDEN)) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_HIDDEN);
+                        if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN)) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN);
                     } break;
                     case SDL_WINDOWEVENT_SHOWN:
                     {
-                        if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIDDEN)) FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_HIDDEN);
+                        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN)) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN);
                     } break;
 
                     case SDL_WINDOWEVENT_FOCUS_GAINED:
                     {
-                        if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED)) FLAG_CLEAR(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED);
+                        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
                     } break;
                     case SDL_WINDOWEVENT_FOCUS_LOST:
                     {
-                        if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED)) FLAG_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED);
+                        if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
                     } break;
 
             #ifndef USING_VERSION_SDL3
@@ -1558,7 +1576,7 @@ void RLPollInputEvents(void)
                 RLKeyboardKey key = ConvertScancodeToKey(event.key.keysym.scancode);
             #endif
 
-                if (key != KEY_NULL)
+                if (key != RL_E_KEY_NULL)
                 {
                     // If key was up, add it to the key pressed queue
                     if ((CORE.Input.Keyboard.currentKeyState[key] == 0) && (CORE.Input.Keyboard.keyPressedQueueCount < MAX_KEY_PRESSED_QUEUE))
@@ -1585,7 +1603,7 @@ void RLPollInputEvents(void)
             #else
                 RLKeyboardKey key = ConvertScancodeToKey(event.key.keysym.scancode);
             #endif
-                if (key != KEY_NULL) CORE.Input.Keyboard.currentKeyState[key] = 0;
+                if (key != RL_E_KEY_NULL) CORE.Input.Keyboard.currentKeyState[key] = 0;
             } break;
 
             case SDL_TEXTINPUT:
@@ -1708,14 +1726,14 @@ void RLPollInputEvents(void)
                     {
                         CORE.Input.Gamepad.ready[nextAvailableSlot] = true;
                         CORE.Input.Gamepad.axisCount[nextAvailableSlot] = SDL_JoystickNumAxes(SDL_GameControllerGetJoystick(platform.gamepad[nextAvailableSlot]));
-                        CORE.Input.Gamepad.axisState[nextAvailableSlot][GAMEPAD_AXIS_LEFT_TRIGGER] = -1.0f;
-                        CORE.Input.Gamepad.axisState[nextAvailableSlot][GAMEPAD_AXIS_RIGHT_TRIGGER] = -1.0f;
+                        CORE.Input.Gamepad.axisState[nextAvailableSlot][RL_E_GAMEPAD_AXIS_LEFT_TRIGGER] = -1.0f;
+                        CORE.Input.Gamepad.axisState[nextAvailableSlot][RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER] = -1.0f;
                         memset(CORE.Input.Gamepad.name[nextAvailableSlot], 0, MAX_GAMEPAD_NAME_LENGTH);
                         const char *controllerName = SDL_GameControllerNameForIndex(nextAvailableSlot);
                         if (controllerName != NULL) strncpy(CORE.Input.Gamepad.name[nextAvailableSlot], controllerName, MAX_GAMEPAD_NAME_LENGTH - 1);
                         else strncpy(CORE.Input.Gamepad.name[nextAvailableSlot], "noname", 6);
                     }
-                    else TRACELOG(LOG_WARNING, "PLATFORM: Unable to open game controller [ERROR: %s]", SDL_GetError());
+                    else TRACELOG(RL_E_LOG_WARNING, "PLATFORM: Unable to open game controller [ERROR: %s]", SDL_GetError());
                 }
             } break;
             case SDL_JOYDEVICEREMOVED:
@@ -1744,25 +1762,25 @@ void RLPollInputEvents(void)
                 switch (event.jbutton.button)
             #endif
                 {
-                    case SDL_CONTROLLER_BUTTON_Y: button = GAMEPAD_BUTTON_RIGHT_FACE_UP; break;
-                    case SDL_CONTROLLER_BUTTON_B: button = GAMEPAD_BUTTON_RIGHT_FACE_RIGHT; break;
-                    case SDL_CONTROLLER_BUTTON_A: button = GAMEPAD_BUTTON_RIGHT_FACE_DOWN; break;
-                    case SDL_CONTROLLER_BUTTON_X: button = GAMEPAD_BUTTON_RIGHT_FACE_LEFT; break;
+                    case SDL_CONTROLLER_BUTTON_Y: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP; break;
+                    case SDL_CONTROLLER_BUTTON_B: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT; break;
+                    case SDL_CONTROLLER_BUTTON_A: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN; break;
+                    case SDL_CONTROLLER_BUTTON_X: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT; break;
 
-                    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: button = GAMEPAD_BUTTON_LEFT_TRIGGER_1; break;
-                    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: button = GAMEPAD_BUTTON_RIGHT_TRIGGER_1; break;
+                    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: button = RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_1; break;
+                    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: button = RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_1; break;
 
-                    case SDL_CONTROLLER_BUTTON_BACK: button = GAMEPAD_BUTTON_MIDDLE_LEFT; break;
-                    case SDL_CONTROLLER_BUTTON_GUIDE: button = GAMEPAD_BUTTON_MIDDLE; break;
-                    case SDL_CONTROLLER_BUTTON_START: button = GAMEPAD_BUTTON_MIDDLE_RIGHT; break;
+                    case SDL_CONTROLLER_BUTTON_BACK: button = RL_E_GAMEPAD_BUTTON_MIDDLE_LEFT; break;
+                    case SDL_CONTROLLER_BUTTON_GUIDE: button = RL_E_GAMEPAD_BUTTON_MIDDLE; break;
+                    case SDL_CONTROLLER_BUTTON_START: button = RL_E_GAMEPAD_BUTTON_MIDDLE_RIGHT; break;
 
-                    case SDL_CONTROLLER_BUTTON_DPAD_UP: button = GAMEPAD_BUTTON_LEFT_FACE_UP; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: button = GAMEPAD_BUTTON_LEFT_FACE_RIGHT; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: button = GAMEPAD_BUTTON_LEFT_FACE_DOWN; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: button = GAMEPAD_BUTTON_LEFT_FACE_LEFT; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_UP: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT; break;
 
-                    case SDL_CONTROLLER_BUTTON_LEFTSTICK: button = GAMEPAD_BUTTON_LEFT_THUMB; break;
-                    case SDL_CONTROLLER_BUTTON_RIGHTSTICK: button = GAMEPAD_BUTTON_RIGHT_THUMB; break;
+                    case SDL_CONTROLLER_BUTTON_LEFTSTICK: button = RL_E_GAMEPAD_BUTTON_LEFT_THUMB; break;
+                    case SDL_CONTROLLER_BUTTON_RIGHTSTICK: button = RL_E_GAMEPAD_BUTTON_RIGHT_THUMB; break;
                     default: break;
                 }
 
@@ -1793,25 +1811,25 @@ void RLPollInputEvents(void)
                 switch (event.jbutton.button)
             #endif
                 {
-                    case SDL_CONTROLLER_BUTTON_Y: button = GAMEPAD_BUTTON_RIGHT_FACE_UP; break;
-                    case SDL_CONTROLLER_BUTTON_B: button = GAMEPAD_BUTTON_RIGHT_FACE_RIGHT; break;
-                    case SDL_CONTROLLER_BUTTON_A: button = GAMEPAD_BUTTON_RIGHT_FACE_DOWN; break;
-                    case SDL_CONTROLLER_BUTTON_X: button = GAMEPAD_BUTTON_RIGHT_FACE_LEFT; break;
+                    case SDL_CONTROLLER_BUTTON_Y: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_UP; break;
+                    case SDL_CONTROLLER_BUTTON_B: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_RIGHT; break;
+                    case SDL_CONTROLLER_BUTTON_A: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_DOWN; break;
+                    case SDL_CONTROLLER_BUTTON_X: button = RL_E_GAMEPAD_BUTTON_RIGHT_FACE_LEFT; break;
 
-                    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: button = GAMEPAD_BUTTON_LEFT_TRIGGER_1; break;
-                    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: button = GAMEPAD_BUTTON_RIGHT_TRIGGER_1; break;
+                    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: button = RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_1; break;
+                    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: button = RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_1; break;
 
-                    case SDL_CONTROLLER_BUTTON_BACK: button = GAMEPAD_BUTTON_MIDDLE_LEFT; break;
-                    case SDL_CONTROLLER_BUTTON_GUIDE: button = GAMEPAD_BUTTON_MIDDLE; break;
-                    case SDL_CONTROLLER_BUTTON_START: button = GAMEPAD_BUTTON_MIDDLE_RIGHT; break;
+                    case SDL_CONTROLLER_BUTTON_BACK: button = RL_E_GAMEPAD_BUTTON_MIDDLE_LEFT; break;
+                    case SDL_CONTROLLER_BUTTON_GUIDE: button = RL_E_GAMEPAD_BUTTON_MIDDLE; break;
+                    case SDL_CONTROLLER_BUTTON_START: button = RL_E_GAMEPAD_BUTTON_MIDDLE_RIGHT; break;
 
-                    case SDL_CONTROLLER_BUTTON_DPAD_UP: button = GAMEPAD_BUTTON_LEFT_FACE_UP; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: button = GAMEPAD_BUTTON_LEFT_FACE_RIGHT; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: button = GAMEPAD_BUTTON_LEFT_FACE_DOWN; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: button = GAMEPAD_BUTTON_LEFT_FACE_LEFT; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_UP: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_UP; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_RIGHT; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_DOWN; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: button = RL_E_GAMEPAD_BUTTON_LEFT_FACE_LEFT; break;
 
-                    case SDL_CONTROLLER_BUTTON_LEFTSTICK: button = GAMEPAD_BUTTON_LEFT_THUMB; break;
-                    case SDL_CONTROLLER_BUTTON_RIGHTSTICK: button = GAMEPAD_BUTTON_RIGHT_THUMB; break;
+                    case SDL_CONTROLLER_BUTTON_LEFTSTICK: button = RL_E_GAMEPAD_BUTTON_LEFT_THUMB; break;
+                    case SDL_CONTROLLER_BUTTON_RIGHTSTICK: button = RL_E_GAMEPAD_BUTTON_RIGHT_THUMB; break;
                     default: break;
                 }
 
@@ -1838,12 +1856,12 @@ void RLPollInputEvents(void)
 
                 switch (event.jaxis.axis)
                 {
-                    case SDL_CONTROLLER_AXIS_LEFTX: axis = GAMEPAD_AXIS_LEFT_X; break;
-                    case SDL_CONTROLLER_AXIS_LEFTY: axis = GAMEPAD_AXIS_LEFT_Y; break;
-                    case SDL_CONTROLLER_AXIS_RIGHTX: axis = GAMEPAD_AXIS_RIGHT_X; break;
-                    case SDL_CONTROLLER_AXIS_RIGHTY: axis = GAMEPAD_AXIS_RIGHT_Y; break;
-                    case SDL_CONTROLLER_AXIS_TRIGGERLEFT: axis = GAMEPAD_AXIS_LEFT_TRIGGER; break;
-                    case SDL_CONTROLLER_AXIS_TRIGGERRIGHT: axis = GAMEPAD_AXIS_RIGHT_TRIGGER; break;
+                    case SDL_CONTROLLER_AXIS_LEFTX: axis = RL_E_GAMEPAD_AXIS_LEFT_X; break;
+                    case SDL_CONTROLLER_AXIS_LEFTY: axis = RL_E_GAMEPAD_AXIS_LEFT_Y; break;
+                    case SDL_CONTROLLER_AXIS_RIGHTX: axis = RL_E_GAMEPAD_AXIS_RIGHT_X; break;
+                    case SDL_CONTROLLER_AXIS_RIGHTY: axis = RL_E_GAMEPAD_AXIS_RIGHT_Y; break;
+                    case SDL_CONTROLLER_AXIS_TRIGGERLEFT: axis = RL_E_GAMEPAD_AXIS_LEFT_TRIGGER; break;
+                    case SDL_CONTROLLER_AXIS_TRIGGERRIGHT: axis = RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER; break;
                     default: break;
                 }
 
@@ -1858,9 +1876,9 @@ void RLPollInputEvents(void)
                             CORE.Input.Gamepad.axisState[i][axis] = value;
 
                             // Register button state for triggers in addition to their axes
-                            if ((axis == GAMEPAD_AXIS_LEFT_TRIGGER) || (axis == GAMEPAD_AXIS_RIGHT_TRIGGER))
+                            if ((axis == RL_E_GAMEPAD_AXIS_LEFT_TRIGGER) || (axis == RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER))
                             {
-                                int button = (axis == GAMEPAD_AXIS_LEFT_TRIGGER)? GAMEPAD_BUTTON_LEFT_TRIGGER_2 : GAMEPAD_BUTTON_RIGHT_TRIGGER_2;
+                                int button = (axis == RL_E_GAMEPAD_AXIS_LEFT_TRIGGER)? RL_E_GAMEPAD_BUTTON_LEFT_TRIGGER_2 : RL_E_GAMEPAD_BUTTON_RIGHT_TRIGGER_2;
                                 int pressed = (value > 0.1f);
                                 CORE.Input.Gamepad.currentButtonState[i][button] = pressed;
                                 if (pressed) CORE.Input.Gamepad.lastButtonPressed = button;
@@ -1878,7 +1896,7 @@ void RLPollInputEvents(void)
         if (touchAction > -1)
         {
             // Process mouse events as touches to be able to use mouse-gestures
-            GestureEvent gestureEvent = { 0 };
+            RLGestureEvent gestureEvent = { 0 };
 
             // Register touch actions
             gestureEvent.touchAction = touchAction;
@@ -1917,7 +1935,7 @@ int InitPlatform(void)
     // Initialize SDL internal global state, only required systems
     // NOTE: Not all systems need to be initialized, SDL_INIT_AUDIO is not required, managed by miniaudio
     int result = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER);
-    if (result < 0) { TRACELOG(LOG_WARNING, "SDL: Failed to initialize SDL"); return -1; }
+    if (result < 0) { TRACELOG(RL_E_LOG_WARNING, "SDL: Failed to initialize SDL"); return -1; }
 
     // Initialize graphic device: display/window and graphic context
     //----------------------------------------------------------------------------
@@ -1928,21 +1946,21 @@ int InitPlatform(void)
     FLAG_SET(flags, SDL_WINDOW_MOUSE_CAPTURE);  // Window has mouse captured
 
     // Check window creation flags
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_MODE)) FLAG_SET(flags, SDL_WINDOW_FULLSCREEN);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE)) FLAG_SET(flags, SDL_WINDOW_FULLSCREEN);
 
     //if (!FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIDDEN)) FLAG_SET(flags, SDL_WINDOW_HIDDEN);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNDECORATED)) FLAG_SET(flags, SDL_WINDOW_BORDERLESS);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_RESIZABLE)) FLAG_SET(flags, SDL_WINDOW_RESIZABLE);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MINIMIZED)) FLAG_SET(flags, SDL_WINDOW_MINIMIZED);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MAXIMIZED)) FLAG_SET(flags, SDL_WINDOW_MAXIMIZED);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_UNFOCUSED))
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED)) FLAG_SET(flags, SDL_WINDOW_BORDERLESS);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE)) FLAG_SET(flags, SDL_WINDOW_RESIZABLE);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED)) FLAG_SET(flags, SDL_WINDOW_MINIMIZED);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED)) FLAG_SET(flags, SDL_WINDOW_MAXIMIZED);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED))
     {
         FLAG_CLEAR(flags, SDL_WINDOW_INPUT_FOCUS);
         FLAG_CLEAR(flags, SDL_WINDOW_MOUSE_FOCUS);
     }
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_TOPMOST)) FLAG_SET(flags, SDL_WINDOW_ALWAYS_ON_TOP);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_MOUSE_PASSTHROUGH)) FLAG_CLEAR(flags, SDL_WINDOW_MOUSE_CAPTURE);
-    if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_HIGHDPI)) FLAG_SET(flags, SDL_WINDOW_ALLOW_HIGHDPI);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_TOPMOST)) FLAG_SET(flags, SDL_WINDOW_ALWAYS_ON_TOP);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH)) FLAG_CLEAR(flags, SDL_WINDOW_MOUSE_CAPTURE);
+    if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI)) FLAG_SET(flags, SDL_WINDOW_ALLOW_HIGHDPI);
 
     //if (FLAG_IS_SET(CORE.Window.flags, FLAG_WINDOW_TRANSPARENT)) FLAG_SET(flags, SDL_WINDOW_TRANSPARENT);     // Alternative: SDL_GL_ALPHA_SIZE = 8
     //if (FLAG_IS_SET(CORE.Window.flags, FLAG_FULLSCREEN_DESKTOP)) FLAG_SET(flags, SDL_WINDOW_FULLSCREEN_DESKTOP);
@@ -1988,7 +2006,7 @@ int InitPlatform(void)
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
         }
 
-        if (FLAG_IS_SET(CORE.Window.flags, FLAG_MSAA_4X_HINT))
+        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_MSAA_4X_HINT))
         {
             SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
             SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
@@ -2023,15 +2041,15 @@ int InitPlatform(void)
         CORE.Window.currentFbo.width = CORE.Window.render.width;
         CORE.Window.currentFbo.height = CORE.Window.render.height;
 
-        TRACELOG(LOG_INFO, "DISPLAY: Device initialized successfully");
-        TRACELOG(LOG_INFO, "    > Display size: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
-        TRACELOG(LOG_INFO, "    > Screen size:  %i x %i", CORE.Window.screen.width, CORE.Window.screen.height);
-        TRACELOG(LOG_INFO, "    > Render size:  %i x %i", CORE.Window.render.width, CORE.Window.render.height);
-        TRACELOG(LOG_INFO, "    > Viewport offsets: %i, %i", CORE.Window.renderOffset.x, CORE.Window.renderOffset.y);
+        TRACELOG(RL_E_LOG_INFO, "DISPLAY: Device initialized successfully");
+        TRACELOG(RL_E_LOG_INFO, "    > Display size: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
+        TRACELOG(RL_E_LOG_INFO, "    > Screen size:  %i x %i", CORE.Window.screen.width, CORE.Window.screen.height);
+        TRACELOG(RL_E_LOG_INFO, "    > Render size:  %i x %i", CORE.Window.render.width, CORE.Window.render.height);
+        TRACELOG(RL_E_LOG_INFO, "    > Viewport offsets: %i, %i", CORE.Window.renderOffset.x, CORE.Window.renderOffset.y);
 
         if (platform.glContext != NULL)
         {
-            SDL_GL_SetSwapInterval((FLAG_IS_SET(CORE.Window.flags, FLAG_VSYNC_HINT))? 1: 0);
+            SDL_GL_SetSwapInterval((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_VSYNC_HINT))? 1: 0);
 
             // Load OpenGL extensions
             // NOTE: GL procedures address loader is required to load extensions
@@ -2040,7 +2058,7 @@ int InitPlatform(void)
     }
     else
     {
-        TRACELOG(LOG_FATAL, "PLATFORM: Failed to initialize graphics device");
+        TRACELOG(RL_E_LOG_FATAL, "PLATFORM: Failed to initialize graphics device");
         return -1;
     }
 
@@ -2065,12 +2083,12 @@ int InitPlatform(void)
         {
             CORE.Input.Gamepad.ready[i] = true;
             CORE.Input.Gamepad.axisCount[i] = SDL_JoystickNumAxes(SDL_GameControllerGetJoystick(platform.gamepad[i]));
-            CORE.Input.Gamepad.axisState[i][GAMEPAD_AXIS_LEFT_TRIGGER] = -1.0f;
-            CORE.Input.Gamepad.axisState[i][GAMEPAD_AXIS_RIGHT_TRIGGER] = -1.0f;
+            CORE.Input.Gamepad.axisState[i][RL_E_GAMEPAD_AXIS_LEFT_TRIGGER] = -1.0f;
+            CORE.Input.Gamepad.axisState[i][RL_E_GAMEPAD_AXIS_RIGHT_TRIGGER] = -1.0f;
             strncpy(CORE.Input.Gamepad.name[i], SDL_GameControllerNameForIndex(i), MAX_GAMEPAD_NAME_LENGTH - 1);
             CORE.Input.Gamepad.name[i][MAX_GAMEPAD_NAME_LENGTH - 1] = '\0';
         }
-        else TRACELOG(LOG_WARNING, "PLATFORM: Unable to open game controller [ERROR: %s]", SDL_GetError());
+        else TRACELOG(RL_E_LOG_WARNING, "PLATFORM: Unable to open game controller [ERROR: %s]", SDL_GetError());
     }
 
     // Disable mouse events being interpreted as touch events
@@ -2098,9 +2116,9 @@ int InitPlatform(void)
     //----------------------------------------------------------------------------
 
 #if defined(USING_VERSION_SDL3)
-    TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (SDL3): Initialized successfully");
+    TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (SDL3): Initialized successfully");
 #else
-    TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (SDL2): Initialized successfully");
+    TRACELOG(RL_E_LOG_INFO, "PLATFORM: DESKTOP (SDL2): Initialized successfully");
 #endif
 
     return 0;
@@ -2123,7 +2141,7 @@ static RLKeyboardKey ConvertScancodeToKey(SDL_Scancode sdlScancode)
         return mapScancodeToKey[sdlScancode];
     }
 
-    return KEY_NULL; // No equivalent key in Raylib
+    return RL_E_KEY_NULL; // No equivalent key in Raylib
 }
 
 // Get next codepoint in a byte sequence and bytes processed

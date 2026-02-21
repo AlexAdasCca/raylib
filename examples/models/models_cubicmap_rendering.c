@@ -33,7 +33,7 @@ int main(void)
     camera.target = (RLVector3){ 0.0f, 0.0f, 0.0f };          // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };              // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                    // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;                 // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;                 // Camera projection type
 
     RLImage image = RLLoadImage("resources/cubicmap.png");      // Load cubicmap image (RAM)
     RLTexture2D cubicmap = RLLoadTextureFromImage(image);       // Convert image to texture to display (VRAM)
@@ -59,9 +59,9 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_P)) pause = !pause;
+        if (RLIsKeyPressed(RL_E_KEY_P)) pause = !pause;
 
-        if (!pause) RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        if (!pause) RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
         //----------------------------------------------------------------------------------
 
         // Draw

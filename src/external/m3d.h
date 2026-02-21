@@ -6304,39 +6304,39 @@ memerr: if(vrtxidx) M3D_FREE(vrtxidx);
 namespace M3D {
 #ifdef M3D_IMPLEMENTATION
 
-    class Model {
+    class RLModel {
         public:
             m3d_t *model;
 
         public:
-            Model() {
+            RLModel() {
                 this->model = (m3d_t*)malloc(sizeof(m3d_t)); memset(this->model, 0, sizeof(m3d_t));
             }
-            Model(_unused const std::string &data, _unused m3dread_t ReadFileCB,
-                _unused m3dfree_t FreeCB, _unused M3D::Model mtllib) {
+            RLModel(_unused const std::string &data, _unused m3dread_t ReadFileCB,
+                _unused m3dfree_t FreeCB, _unused M3D::RLModel mtllib) {
 #ifndef M3D_NOIMPORTER
                 this->model = m3d_load((unsigned char *)data.data(), ReadFileCB, FreeCB, mtllib.model);
 #else
-                Model();
+                RLModel();
 #endif
             }
-            Model(_unused const std::vector<unsigned char> data, _unused m3dread_t ReadFileCB,
-                _unused m3dfree_t FreeCB, _unused M3D::Model mtllib) {
+            RLModel(_unused const std::vector<unsigned char> data, _unused m3dread_t ReadFileCB,
+                _unused m3dfree_t FreeCB, _unused M3D::RLModel mtllib) {
 #ifndef M3D_NOIMPORTER
                 this->model = m3d_load((unsigned char *)&data[0], ReadFileCB, FreeCB, mtllib.model);
 #else
-                Model();
+                RLModel();
 #endif
             }
-            Model(_unused const unsigned char *data, _unused m3dread_t ReadFileCB,
-                _unused m3dfree_t FreeCB, _unused M3D::Model mtllib) {
+            RLModel(_unused const unsigned char *data, _unused m3dread_t ReadFileCB,
+                _unused m3dfree_t FreeCB, _unused M3D::RLModel mtllib) {
 #ifndef M3D_NOIMPORTER
                 this->model = m3d_load((unsigned char*)data, ReadFileCB, FreeCB, mtllib.model);
 #else
-                Model();
+                RLModel();
 #endif
             }
-            ~Model() { m3d_free(this->model); }
+            ~RLModel() { m3d_free(this->model); }
 
         public:
             m3d_t *getCStruct() { return this->model; }
@@ -6475,16 +6475,16 @@ namespace M3D {
     };
 
 #else
-    class Model {
+    class RLModel {
         private:
             m3d_t *model;
 
         public:
-            Model(const std::string &data, m3dread_t ReadFileCB, m3dfree_t FreeCB);
-            Model(const std::vector<unsigned char> data, m3dread_t ReadFileCB, m3dfree_t FreeCB);
-            Model(const unsigned char *data, m3dread_t ReadFileCB, m3dfree_t FreeCB);
-            Model();
-            ~Model();
+            RLModel(const std::string &data, m3dread_t ReadFileCB, m3dfree_t FreeCB);
+            RLModel(const std::vector<unsigned char> data, m3dread_t ReadFileCB, m3dfree_t FreeCB);
+            RLModel(const unsigned char *data, m3dread_t ReadFileCB, m3dfree_t FreeCB);
+            RLModel();
+            ~RLModel();
 
         public:
             m3d_t *getCStruct();

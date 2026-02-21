@@ -67,7 +67,7 @@ int main(void)
                 // TODO: Update TITLE screen variables here!
 
                 // Press enter to change to GAMEPLAY screen
-                if (RLIsKeyPressed(KEY_ENTER) || RLIsGestureDetected(GESTURE_TAP))
+                if (RLIsKeyPressed(RL_E_KEY_ENTER) || RLIsGestureDetected(RL_E_GESTURE_TAP))
                 {
                     currentScreen = GAMEPLAY;
                 }
@@ -77,7 +77,7 @@ int main(void)
                 // TODO: Update GAMEPLAY screen variables here!
 
                 // Press enter to change to ENDING screen
-                if (RLIsKeyPressed(KEY_ENTER) || RLIsGestureDetected(GESTURE_TAP))
+                if (RLIsKeyPressed(RL_E_KEY_ENTER) || RLIsGestureDetected(RL_E_GESTURE_TAP))
                 {
                     currentScreen = ENDING;
                 }
@@ -87,7 +87,7 @@ int main(void)
                 // TODO: Update ENDING screen variables here!
 
                 // Press enter to return to TITLE screen
-                if (RLIsKeyPressed(KEY_ENTER) || RLIsGestureDetected(GESTURE_TAP))
+                if (RLIsKeyPressed(RL_E_KEY_ENTER) || RLIsGestureDetected(RL_E_GESTURE_TAP))
                 {
                     currentScreen = TITLE;
                 }

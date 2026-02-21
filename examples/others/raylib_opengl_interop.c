@@ -106,7 +106,7 @@ int main(void)
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, MAX_PARTICLES*sizeof(Particle), particles, GL_STATIC_DRAW);
         // Note: LoadShader() automatically fetches the attribute index of "vertexPosition" and saves it in shader.locs[SHADER_LOC_VERTEX_POSITION]
-        glVertexAttribPointer(shader.locs[SHADER_LOC_VERTEX_POSITION], 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glVertexAttribPointer(shader.locs[RL_E_SHADER_LOC_VERTEX_POSITION], 3, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -142,9 +142,9 @@ int main(void)
                 glUniform4fv(colorLoc, 1, (float *)&color);
 
                 // Get the current modelview and projection matrix so the particle system is displayed and transformed
-                RLMatrix modelViewProjection = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+                RLMatrix modelViewProjection = RLMatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
 
-                glUniformMatrix4fv(shader.locs[SHADER_LOC_MATRIX_MVP], 1, false, MatrixToFloat(modelViewProjection));
+                glUniformMatrix4fv(shader.locs[RL_E_SHADER_LOC_MATRIX_MVP], 1, false, MatrixToFloat(modelViewProjection));
 
                 glBindVertexArray(vao);
                     glDrawArrays(GL_POINTS, 0, MAX_PARTICLES);

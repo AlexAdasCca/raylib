@@ -78,13 +78,13 @@ int main(void)
 
         // Modify processing variables
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_LEFT)) exponent -= 0.05f;
-        if (RLIsKeyPressed(KEY_RIGHT)) exponent += 0.05f;
+        if (RLIsKeyPressed(RL_E_KEY_LEFT)) exponent -= 0.05f;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) exponent += 0.05f;
 
         if (exponent <= 0.5f) exponent = 0.5f;
         if (exponent >= 3.0f) exponent = 3.0f;
 
-        if (RLIsKeyPressed(KEY_SPACE)) RLPlaySound(sound);
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) RLPlaySound(sound);
 
         // Draw
         //----------------------------------------------------------------------------------

@@ -39,10 +39,10 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyDown(KEY_SPACE)) framesCounter += 8;
+        if (RLIsKeyDown(RL_E_KEY_SPACE)) framesCounter += 8;
         else framesCounter++;
 
-        if (RLIsKeyPressed(KEY_ENTER)) framesCounter = 0;
+        if (RLIsKeyPressed(RL_E_KEY_ENTER)) framesCounter = 0;
         //----------------------------------------------------------------------------------
 
         // Draw

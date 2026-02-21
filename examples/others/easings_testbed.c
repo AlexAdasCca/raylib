@@ -128,48 +128,48 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_T)) boundedT = !boundedT;
+        if (RLIsKeyPressed(RL_E_KEY_T)) boundedT = !boundedT;
 
         // Choose easing for the X axis
-        if (RLIsKeyPressed(KEY_RIGHT))
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT))
         {
             easingX++;
 
             if (easingX > EASING_NONE) easingX = 0;
         }
-        else if (RLIsKeyPressed(KEY_LEFT))
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT))
         {
             if (easingX == 0) easingX = EASING_NONE;
             else easingX--;
         }
 
         // Choose easing for the Y axis
-        if (RLIsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(RL_E_KEY_DOWN))
         {
             easingY++;
 
             if (easingY > EASING_NONE) easingY = 0;
         }
-        else if (RLIsKeyPressed(KEY_UP))
+        else if (RLIsKeyPressed(RL_E_KEY_UP))
         {
             if (easingY == 0) easingY = EASING_NONE;
             else easingY--;
         }
 
         // Change d (duration) value
-        if (RLIsKeyPressed(KEY_W) && d < D_MAX - D_STEP) d += D_STEP;
-        else if (RLIsKeyPressed(KEY_Q) && d > D_MIN + D_STEP) d -= D_STEP;
+        if (RLIsKeyPressed(RL_E_KEY_W) && d < D_MAX - D_STEP) d += D_STEP;
+        else if (RLIsKeyPressed(RL_E_KEY_Q) && d > D_MIN + D_STEP) d -= D_STEP;
 
-        if (RLIsKeyDown(KEY_S) && d < D_MAX - D_STEP_FINE) d += D_STEP_FINE;
-        else if (RLIsKeyDown(KEY_A) && d > D_MIN + D_STEP_FINE) d -= D_STEP_FINE;
+        if (RLIsKeyDown(RL_E_KEY_S) && d < D_MAX - D_STEP_FINE) d += D_STEP_FINE;
+        else if (RLIsKeyDown(RL_E_KEY_A) && d > D_MIN + D_STEP_FINE) d -= D_STEP_FINE;
 
         // Play, pause and restart controls
-        if (RLIsKeyPressed(KEY_SPACE) || RLIsKeyPressed(KEY_T) ||
-            RLIsKeyPressed(KEY_RIGHT) || RLIsKeyPressed(KEY_LEFT) ||
-            RLIsKeyPressed(KEY_DOWN) || RLIsKeyPressed(KEY_UP) ||
-            RLIsKeyPressed(KEY_W) || RLIsKeyPressed(KEY_Q) ||
-            RLIsKeyDown(KEY_S)  || RLIsKeyDown(KEY_A) ||
-            (RLIsKeyPressed(KEY_ENTER) && (boundedT == true) && (t >= d)))
+        if (RLIsKeyPressed(RL_E_KEY_SPACE) || RLIsKeyPressed(RL_E_KEY_T) ||
+            RLIsKeyPressed(RL_E_KEY_RIGHT) || RLIsKeyPressed(RL_E_KEY_LEFT) ||
+            RLIsKeyPressed(RL_E_KEY_DOWN) || RLIsKeyPressed(RL_E_KEY_UP) ||
+            RLIsKeyPressed(RL_E_KEY_W) || RLIsKeyPressed(RL_E_KEY_Q) ||
+            RLIsKeyDown(RL_E_KEY_S)  || RLIsKeyDown(RL_E_KEY_A) ||
+            (RLIsKeyPressed(RL_E_KEY_ENTER) && (boundedT == true) && (t >= d)))
         {
             t = 0.0f;
             ballPosition.x = 100.0f;
@@ -177,7 +177,7 @@ int main(void)
             paused = true;
         }
 
-        if (RLIsKeyPressed(KEY_ENTER)) paused = !paused;
+        if (RLIsKeyPressed(RL_E_KEY_ENTER)) paused = !paused;
 
         // Movement computation
         if (!paused && ((boundedT && t < d) || !boundedT))

@@ -65,13 +65,13 @@ int main(void)
     float speedY = 8.0f;
 
     float screenSize[2] = { (float)RLGetScreenWidth(), (float)RLGetScreenHeight() };
-    RLSetShaderValue(shader, RLGetShaderLocation(shader, "size"), &screenSize, SHADER_UNIFORM_VEC2);
-    RLSetShaderValue(shader, freqXLoc, &freqX, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shader, freqYLoc, &freqY, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shader, ampXLoc, &ampX, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shader, ampYLoc, &ampY, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shader, speedXLoc, &speedX, SHADER_UNIFORM_FLOAT);
-    RLSetShaderValue(shader, speedYLoc, &speedY, SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, RLGetShaderLocation(shader, "size"), &screenSize, RL_E_SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, freqXLoc, &freqX, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, freqYLoc, &freqY, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, ampXLoc, &ampX, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, ampYLoc, &ampY, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, speedXLoc, &speedX, RL_E_SHADER_UNIFORM_FLOAT);
+    RLSetShaderValue(shader, speedYLoc, &speedY, RL_E_SHADER_UNIFORM_FLOAT);
 
     float seconds = 0.0f;
 
@@ -85,7 +85,7 @@ int main(void)
         //----------------------------------------------------------------------------------
         seconds += RLGetFrameTime();
 
-        RLSetShaderValue(shader, secondsLoc, &seconds, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, secondsLoc, &seconds, RL_E_SHADER_UNIFORM_FLOAT);
         //----------------------------------------------------------------------------------
 
         // Draw

@@ -69,24 +69,24 @@ int main(void)
         float offsetThisFrame = 10.0f*RLGetFrameTime();
 
         // Move Player1 forward and backwards (no turning)
-        if (RLIsKeyDown(KEY_W))
+        if (RLIsKeyDown(RL_E_KEY_W))
         {
             cameraPlayer1.position.z += offsetThisFrame;
             cameraPlayer1.target.z += offsetThisFrame;
         }
-        else if (RLIsKeyDown(KEY_S))
+        else if (RLIsKeyDown(RL_E_KEY_S))
         {
             cameraPlayer1.position.z -= offsetThisFrame;
             cameraPlayer1.target.z -= offsetThisFrame;
         }
 
         // Move Player2 forward and backwards (no turning)
-        if (RLIsKeyDown(KEY_UP))
+        if (RLIsKeyDown(RL_E_KEY_UP))
         {
             cameraPlayer2.position.x += offsetThisFrame;
             cameraPlayer2.target.x += offsetThisFrame;
         }
-        else if (RLIsKeyDown(KEY_DOWN))
+        else if (RLIsKeyDown(RL_E_KEY_DOWN))
         {
             cameraPlayer2.position.x -= offsetThisFrame;
             cameraPlayer2.target.x -= offsetThisFrame;

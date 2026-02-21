@@ -52,7 +52,7 @@ int main(void)
     int timeLoc = RLGetShaderLocation(shader, "time");
 
     float resolution[2] = { (float)screenWidth, (float)screenHeight };
-    RLSetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, resolutionLoc, resolution, RL_E_SHADER_UNIFORM_VEC2);
 
     float totalTime = 0.0f;
     bool shaderAutoReloading = false;
@@ -70,11 +70,11 @@ int main(void)
         float mousePos[2] = { mouse.x, mouse.y };
 
         // Set shader required uniform values
-        RLSetShaderValue(shader, timeLoc, &totalTime, SHADER_UNIFORM_FLOAT);
-        RLSetShaderValue(shader, mouseLoc, mousePos, SHADER_UNIFORM_VEC2);
+        RLSetShaderValue(shader, timeLoc, &totalTime, RL_E_SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, mouseLoc, mousePos, RL_E_SHADER_UNIFORM_VEC2);
 
         // Hot shader reloading
-        if (shaderAutoReloading || (RLIsMouseButtonPressed(MOUSE_BUTTON_LEFT)))
+        if (shaderAutoReloading || (RLIsMouseButtonPressed(RL_E_MOUSE_BUTTON_LEFT)))
         {
             long currentFragShaderModTime = RLGetFileModTime(RLTextFormat(fragShaderFileName, GLSL_VERSION));
 
@@ -95,14 +95,14 @@ int main(void)
                     timeLoc = RLGetShaderLocation(shader, "time");
 
                     // Reset required uniforms
-                    RLSetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+                    RLSetShaderValue(shader, resolutionLoc, resolution, RL_E_SHADER_UNIFORM_VEC2);
                 }
 
                 fragShaderFileModTime = currentFragShaderModTime;
             }
         }
 
-        if (RLIsKeyPressed(KEY_A)) shaderAutoReloading = !shaderAutoReloading;
+        if (RLIsKeyPressed(RL_E_KEY_A)) shaderAutoReloading = !shaderAutoReloading;
         //----------------------------------------------------------------------------------
 
         // Draw

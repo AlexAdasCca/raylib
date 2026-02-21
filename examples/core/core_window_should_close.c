@@ -27,7 +27,7 @@ int main(void)
 
     RLInitWindow(screenWidth, screenHeight, "raylib [core] example - window should close");
 
-    RLSetExitKey(KEY_NULL);       // Disable KEY_ESCAPE to close window, X-button still works
+    RLSetExitKey(RL_E_KEY_NULL);       // Disable KEY_ESCAPE to close window, X-button still works
 
     bool exitWindowRequested = false;   // Flag to request window to exit
     bool exitWindow = false;    // Flag to set window to exit
@@ -41,15 +41,15 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         // Detect if X-button or KEY_ESCAPE have been pressed to close window
-        if (RLWindowShouldClose() || RLIsKeyPressed(KEY_ESCAPE)) exitWindowRequested = true;
+        if (RLWindowShouldClose() || RLIsKeyPressed(RL_E_KEY_ESCAPE)) exitWindowRequested = true;
 
         if (exitWindowRequested)
         {
             // A request for close window has been issued, we can save data before closing
             // or just show a message asking for confirmation
 
-            if (RLIsKeyPressed(KEY_Y)) exitWindow = true;
-            else if (RLIsKeyPressed(KEY_N)) exitWindowRequested = false;
+            if (RLIsKeyPressed(RL_E_KEY_Y)) exitWindow = true;
+            else if (RLIsKeyPressed(RL_E_KEY_N)) exitWindowRequested = false;
         }
         //----------------------------------------------------------------------------------
 

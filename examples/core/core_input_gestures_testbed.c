@@ -91,7 +91,7 @@ int main(void)
             lastGesture = currentGesture; // Filter the meaningful gestures (1, 2, 8 to 512) for the display
 
         // Handle gesture log
-        if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+        if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT))
         {
             if (RLCheckCollisionPointRec(RLGetMousePosition(), logButton1))
             {
@@ -160,7 +160,7 @@ int main(void)
         // Handle touch and mouse pointer points
         RLVector2 touchPosition[MAX_TOUCH_COUNT] = { 0 };
         RLVector2 mousePosition = { 0 };
-        if (currentGesture != GESTURE_NONE)
+        if (currentGesture != RL_E_GESTURE_NONE)
         {
             if (touchCount != 0)
             {
@@ -184,18 +184,18 @@ int main(void)
             // Draw last gesture
             RLDrawText("Last gesture", (int)lastGesturePosition.x + 33, (int)lastGesturePosition.y - 47, 20, BLACK);
             RLDrawText("Swipe         Tap       Pinch  Touch", (int)lastGesturePosition.x + 17, (int)lastGesturePosition.y - 18, 10, BLACK);
-            RLDrawRectangle((int)lastGesturePosition.x + 20, (int)lastGesturePosition.y, 20, 20, lastGesture == GESTURE_SWIPE_UP ? RED : LIGHTGRAY);
-            RLDrawRectangle((int)lastGesturePosition.x, (int)lastGesturePosition.y + 20, 20, 20, lastGesture == GESTURE_SWIPE_LEFT ? RED : LIGHTGRAY);
-            RLDrawRectangle((int)lastGesturePosition.x + 40, (int)lastGesturePosition.y + 20, 20, 20, lastGesture == GESTURE_SWIPE_RIGHT ? RED : LIGHTGRAY);
-            RLDrawRectangle((int)lastGesturePosition.x + 20, (int)lastGesturePosition.y + 40, 20, 20, lastGesture == GESTURE_SWIPE_DOWN ? RED : LIGHTGRAY);
-            RLDrawCircle((int)lastGesturePosition.x + 80, (int)lastGesturePosition.y + 16, 10, lastGesture == GESTURE_TAP ? BLUE : LIGHTGRAY);
-            RLDrawRing( (RLVector2){lastGesturePosition.x + 103, lastGesturePosition.y + 16}, 6.0f, 11.0f, 0.0f, 360.0f, 0, lastGesture == GESTURE_DRAG ? LIME : LIGHTGRAY);
-            RLDrawCircle((int)lastGesturePosition.x + 80, (int)lastGesturePosition.y + 43, 10, lastGesture == GESTURE_DOUBLETAP ? SKYBLUE : LIGHTGRAY);
-            RLDrawCircle((int)lastGesturePosition.x + 103, (int)lastGesturePosition.y + 43, 10, lastGesture == GESTURE_DOUBLETAP ? SKYBLUE : LIGHTGRAY);
-            RLDrawTriangle((RLVector2){ lastGesturePosition.x + 122, lastGesturePosition.y + 16 }, (RLVector2){ lastGesturePosition.x + 137, lastGesturePosition.y + 26 }, (RLVector2){lastGesturePosition.x + 137, lastGesturePosition.y + 6 }, lastGesture == GESTURE_PINCH_OUT? ORANGE : LIGHTGRAY);
-            RLDrawTriangle((RLVector2){ lastGesturePosition.x + 147, lastGesturePosition.y + 6 }, (RLVector2){ lastGesturePosition.x + 147, lastGesturePosition.y + 26 }, (RLVector2){ lastGesturePosition.x + 162, lastGesturePosition.y + 16 }, lastGesture == GESTURE_PINCH_OUT? ORANGE : LIGHTGRAY);
-            RLDrawTriangle((RLVector2){ lastGesturePosition.x + 125, lastGesturePosition.y + 33 }, (RLVector2){ lastGesturePosition.x + 125, lastGesturePosition.y + 53 }, (RLVector2){ lastGesturePosition.x + 140, lastGesturePosition.y + 43 }, lastGesture == GESTURE_PINCH_IN? VIOLET : LIGHTGRAY);
-            RLDrawTriangle((RLVector2){ lastGesturePosition.x + 144, lastGesturePosition.y + 43 }, (RLVector2){ lastGesturePosition.x + 159, lastGesturePosition.y + 53 }, (RLVector2){ lastGesturePosition.x + 159, lastGesturePosition.y + 33 }, lastGesture == GESTURE_PINCH_IN? VIOLET : LIGHTGRAY);
+            RLDrawRectangle((int)lastGesturePosition.x + 20, (int)lastGesturePosition.y, 20, 20, lastGesture == RL_E_GESTURE_SWIPE_UP ? RED : LIGHTGRAY);
+            RLDrawRectangle((int)lastGesturePosition.x, (int)lastGesturePosition.y + 20, 20, 20, lastGesture == RL_E_GESTURE_SWIPE_LEFT ? RED : LIGHTGRAY);
+            RLDrawRectangle((int)lastGesturePosition.x + 40, (int)lastGesturePosition.y + 20, 20, 20, lastGesture == RL_E_GESTURE_SWIPE_RIGHT ? RED : LIGHTGRAY);
+            RLDrawRectangle((int)lastGesturePosition.x + 20, (int)lastGesturePosition.y + 40, 20, 20, lastGesture == RL_E_GESTURE_SWIPE_DOWN ? RED : LIGHTGRAY);
+            RLDrawCircle((int)lastGesturePosition.x + 80, (int)lastGesturePosition.y + 16, 10, lastGesture == RL_E_GESTURE_TAP ? BLUE : LIGHTGRAY);
+            RLDrawRing( (RLVector2){lastGesturePosition.x + 103, lastGesturePosition.y + 16}, 6.0f, 11.0f, 0.0f, 360.0f, 0, lastGesture == RL_E_GESTURE_DRAG ? LIME : LIGHTGRAY);
+            RLDrawCircle((int)lastGesturePosition.x + 80, (int)lastGesturePosition.y + 43, 10, lastGesture == RL_E_GESTURE_DOUBLETAP ? SKYBLUE : LIGHTGRAY);
+            RLDrawCircle((int)lastGesturePosition.x + 103, (int)lastGesturePosition.y + 43, 10, lastGesture == RL_E_GESTURE_DOUBLETAP ? SKYBLUE : LIGHTGRAY);
+            RLDrawTriangle((RLVector2){ lastGesturePosition.x + 122, lastGesturePosition.y + 16 }, (RLVector2){ lastGesturePosition.x + 137, lastGesturePosition.y + 26 }, (RLVector2){lastGesturePosition.x + 137, lastGesturePosition.y + 6 }, lastGesture == RL_E_GESTURE_PINCH_OUT? ORANGE : LIGHTGRAY);
+            RLDrawTriangle((RLVector2){ lastGesturePosition.x + 147, lastGesturePosition.y + 6 }, (RLVector2){ lastGesturePosition.x + 147, lastGesturePosition.y + 26 }, (RLVector2){ lastGesturePosition.x + 162, lastGesturePosition.y + 16 }, lastGesture == RL_E_GESTURE_PINCH_OUT? ORANGE : LIGHTGRAY);
+            RLDrawTriangle((RLVector2){ lastGesturePosition.x + 125, lastGesturePosition.y + 33 }, (RLVector2){ lastGesturePosition.x + 125, lastGesturePosition.y + 53 }, (RLVector2){ lastGesturePosition.x + 140, lastGesturePosition.y + 43 }, lastGesture == RL_E_GESTURE_PINCH_IN? VIOLET : LIGHTGRAY);
+            RLDrawTriangle((RLVector2){ lastGesturePosition.x + 144, lastGesturePosition.y + 43 }, (RLVector2){ lastGesturePosition.x + 159, lastGesturePosition.y + 53 }, (RLVector2){ lastGesturePosition.x + 159, lastGesturePosition.y + 33 }, lastGesture == RL_E_GESTURE_PINCH_IN? VIOLET : LIGHTGRAY);
             for (i = 0; i < 4; i++) RLDrawCircle((int)lastGesturePosition.x + 180, (int)lastGesturePosition.y + 7 + i*15, 5, touchCount <= i? LIGHTGRAY : gestureColor);
 
             // Draw gesture log
@@ -240,7 +240,7 @@ int main(void)
             if (currentAngleDegrees != 0.0f) RLDrawLineEx(protractorPosition, finalVector, 3.0f, gestureColor);
 
             // Draw touch and mouse pointer points
-            if (currentGesture != GESTURE_NONE)
+            if (currentGesture != RL_E_GESTURE_NONE)
             {
                 if ( touchCount != 0 )
                 {

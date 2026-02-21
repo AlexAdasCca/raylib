@@ -25,7 +25,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - lines bezier");
 
     RLVector2 startPoint = { 30, 30 };
@@ -43,19 +43,19 @@ int main(void)
         //----------------------------------------------------------------------------------
         RLVector2 mouse = RLGetMousePosition();
 
-        if (RLCheckCollisionPointCircle(mouse, startPoint, 10.0f) && RLIsMouseButtonDown(MOUSE_BUTTON_LEFT)) moveStartPoint = true;
-        else if (RLCheckCollisionPointCircle(mouse, endPoint, 10.0f) && RLIsMouseButtonDown(MOUSE_BUTTON_LEFT)) moveEndPoint = true;
+        if (RLCheckCollisionPointCircle(mouse, startPoint, 10.0f) && RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT)) moveStartPoint = true;
+        else if (RLCheckCollisionPointCircle(mouse, endPoint, 10.0f) && RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT)) moveEndPoint = true;
 
         if (moveStartPoint)
         {
             startPoint = mouse;
-            if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) moveStartPoint = false;
+            if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT)) moveStartPoint = false;
         }
 
         if (moveEndPoint)
         {
             endPoint = mouse;
-            if (RLIsMouseButtonReleased(MOUSE_BUTTON_LEFT)) moveEndPoint = false;
+            if (RLIsMouseButtonReleased(RL_E_MOUSE_BUTTON_LEFT)) moveEndPoint = false;
         }
         //----------------------------------------------------------------------------------
 

@@ -76,8 +76,8 @@ int main(void)
         }
 
         // Control frames delay
-        if (RLIsKeyPressed(KEY_RIGHT)) frameDelay++;
-        else if (RLIsKeyPressed(KEY_LEFT)) frameDelay--;
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT)) frameDelay++;
+        else if (RLIsKeyPressed(RL_E_KEY_LEFT)) frameDelay--;
 
         if (frameDelay > MAX_FRAME_DELAY) frameDelay = MAX_FRAME_DELAY;
         else if (frameDelay < MIN_FRAME_DELAY) frameDelay = MIN_FRAME_DELAY;

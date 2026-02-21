@@ -35,7 +35,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shapes] example - math sine cosine");
 
     RLVector2 sinePoints[WAVE_POINTS];
@@ -74,12 +74,12 @@ int main(void)
         float supplementary = 180.0f - angle;
         float explementary = 360.0f - angle;
 
-        float tangent = Clamp(tanf(angleRad), -10.0f, 10.0f);
-        float cotangent = (fabsf(tangent) > 0.001f) ? Clamp(1.0f/tangent, -radius, radius) : 0.0f;
+        float tangent = RLClamp(tanf(angleRad), -10.0f, 10.0f);
+        float cotangent = (fabsf(tangent) > 0.001f) ? RLClamp(1.0f/tangent, -radius, radius) : 0.0f;
         RLVector2 tangentPoint = { center.x + radius, center.y - tangent*radius };
         RLVector2 cotangentPoint = { center.x + cotangent*radius, center.y - radius };
 
-        angle = Wrap(angle + (!pause ? 1.0f : 0.0f), 0.0f, 360.0f);
+        angle = RLWrap(angle + (!pause ? 1.0f : 0.0f), 0.0f, 360.0f);
         //----------------------------------------------------------------------------------
 
         // Draw

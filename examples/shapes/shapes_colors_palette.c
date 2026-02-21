@@ -84,7 +84,7 @@ int main(void)
             {
                 RLDrawRectangleRec(colorsRecs[i], RLFade(colors[i], colorState[i]? 0.6f : 1.0f));
 
-                if (RLIsKeyDown(KEY_SPACE) || colorState[i])
+                if (RLIsKeyDown(RL_E_KEY_SPACE) || colorState[i])
                 {
                     RLDrawRectangle((int)colorsRecs[i].x, (int)(colorsRecs[i].y + colorsRecs[i].height - 26), (int)colorsRecs[i].width, 20, BLACK);
                     RLDrawRectangleLinesEx(colorsRecs[i], 6, RLFade(BLACK, 0.3f));

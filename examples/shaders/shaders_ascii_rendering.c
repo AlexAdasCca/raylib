@@ -53,7 +53,7 @@ int main(void)
 
     // Send the updated values to the shader
     float resolution[2] = { (float)screenWidth, (float)screenHeight };
-    RLSetShaderValue(shader, resolutionLoc, resolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, resolutionLoc, resolution, RL_E_SHADER_UNIFORM_VEC2);
 
     RLVector2 circlePos = (RLVector2){40.0f, (float)screenHeight*0.5f};
     float circleSpeed = 1.0f;
@@ -72,11 +72,11 @@ int main(void)
         circlePos.x += circleSpeed;
         if ((circlePos.x > 200.0f) || (circlePos.x < 40.0f)) circleSpeed *= -1; // Revert speed
 
-        if (RLIsKeyPressed(KEY_LEFT) && (fontSize > 9.0)) fontSize -= 1;  // Reduce fontSize
-        if (RLIsKeyPressed(KEY_RIGHT) && (fontSize < 15.0)) fontSize += 1;  // Increase fontSize
+        if (RLIsKeyPressed(RL_E_KEY_LEFT) && (fontSize > 9.0)) fontSize -= 1;  // Reduce fontSize
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT) && (fontSize < 15.0)) fontSize += 1;  // Increase fontSize
 
         // Set fontsize for the shader
-        RLSetShaderValue(shader, fontSizeLoc, &fontSize, SHADER_UNIFORM_FLOAT);
+        RLSetShaderValue(shader, fontSizeLoc, &fontSize, RL_E_SHADER_UNIFORM_FLOAT);
 
         // Draw
         //----------------------------------------------------------------------------------

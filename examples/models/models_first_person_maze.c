@@ -35,7 +35,7 @@ int main(void)
     camera.target = (RLVector3){ 0.185f, 0.4f, 0.0f };    // Camera looking at point
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;             // Camera projection type
 
     RLImage imMap = RLLoadImage("resources/cubicmap.png");      // Load cubicmap image (RAM)
     RLTexture2D cubicmap = RLLoadTextureFromImage(imMap);       // Convert image to texture to display (VRAM)
@@ -64,7 +64,7 @@ int main(void)
         //----------------------------------------------------------------------------------
         RLVector3 oldCamPos = camera.position;    // Store old camera position
 
-        RLUpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        RLUpdateCamera(&camera, RL_E_CAMERA_FIRST_PERSON);
 
         // Check player collision (we simplify to 2D collision detection)
         RLVector2 playerPos = { camera.position.x, camera.position.z };

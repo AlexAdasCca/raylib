@@ -1,4 +1,4 @@
-﻿/**********************************************************************************************
+/**********************************************************************************************
 *
 *   rtext - Basic functions to load fonts and draw text
 *
@@ -234,7 +234,7 @@ extern void LoadFontDefault(void)
         .width = 128,
         .height = 128,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
     };
 
     // Fill image.data with defaultFontData (convert from bit to pixel!)
@@ -317,7 +317,7 @@ extern void LoadFontDefault(void)
 
     defaultFontReady = true;
 
-    TRACELOG(LOG_INFO, "FONT: Default font loaded successfully (%i glyphs)", defaultFont.glyphCount);
+    TRACELOG(RL_E_LOG_INFO, "FONT: Default font loaded successfully (%i glyphs)", defaultFont.glyphCount);
 }
 
 // Unload raylib default font
@@ -388,11 +388,11 @@ RLFont RLLoadFont(const char *fileName)
         RLUnloadImage(image);
     }
 
-    if (font.texture.id == 0) TRACELOG(LOG_WARNING, "FONT: [%s] Failed to load font texture -> Using default font", fileName);
+    if (font.texture.id == 0) TRACELOG(RL_E_LOG_WARNING, "FONT: [%s] Failed to load font texture -> Using default font", fileName);
     else
     {
-        RLSetTextureFilter(font.texture, TEXTURE_FILTER_POINT); // By default, we set point filter (the best performance)
-        TRACELOG(LOG_INFO, "FONT: Data loaded successfully (%i pixel size | %i glyphs)", font.baseSize, font.glyphCount);
+        RLSetTextureFilter(font.texture, RL_E_TEXTURE_FILTER_POINT); // By default, we set point filter (the best performance)
+        TRACELOG(RL_E_LOG_INFO, "FONT: Data loaded successfully (%i pixel size | %i glyphs)", font.baseSize, font.glyphCount);
     }
 
     return font;
@@ -509,7 +509,7 @@ RLFont RLLoadFontFromImage(RLImage image, RLColor key, int firstChar)
         .width = image.width,
         .height = image.height,
         .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
     };
 
     // Set font with all data parsed from image
@@ -560,7 +560,7 @@ RLFont RLLoadFontFromMemory(const char *fileType, const unsigned char *fileData,
     if (RLTextIsEqual(fileExtLower, ".ttf") ||
         RLTextIsEqual(fileExtLower, ".otf"))
     {
-        font.glyphs = RLLoadFontData(fileData, dataSize, font.baseSize, codepoints, (codepointCount > 0)? codepointCount : 95, FONT_DEFAULT, &font.glyphCount);
+        font.glyphs = RLLoadFontData(fileData, dataSize, font.baseSize, codepoints, (codepointCount > 0)? codepointCount : 95, RL_E_FONT_DEFAULT, &font.glyphCount);
     }
     else
 #endif
@@ -593,7 +593,7 @@ RLFont RLLoadFontFromMemory(const char *fileType, const unsigned char *fileData,
 
         RLUnloadImage(atlas);
 
-        TRACELOG(LOG_INFO, "FONT: Data loaded successfully (%i pixel size | %i glyphs)", font.baseSize, font.glyphCount);
+        TRACELOG(RL_E_LOG_INFO, "FONT: Data loaded successfully (%i pixel size | %i glyphs)", font.baseSize, font.glyphCount);
     }
     else font = RLGetFontDefault();
 #else
@@ -690,7 +690,7 @@ RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fon
                 //  Render a unicode codepoint to a bitmap
                 //      stbtt_GetCodepointBitmap()           -- allocates and returns a bitmap
                 //      stbtt_GetCodepointBitmapBox()        -- how big the bitmap must be
-                //      stbtt_MakeCodepointBitmap()          -- renders into bitmap you provide
+                //      stbtt_MakeCodepointBitmap()          -- renders into a provided bitmap
 
                 // Check if a glyph is available in the font
                 // WARNING: if (index == 0), glyph not found, it could fallback to default .notdef glyph (if defined in font)
@@ -703,13 +703,13 @@ RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fon
 
                     switch (type)
                     {
-                        case FONT_DEFAULT:
-                        case FONT_BITMAP:
+                        case RL_E_FONT_DEFAULT:
+                        case RL_E_FONT_BITMAP:
                         {
                             glyphs[k].image.data = stbtt_GetCodepointBitmap(&fontInfo, scaleFactor, scaleFactor, cp,
                                 &cpWidth, &cpHeight, &glyphs[k].offsetX, &glyphs[k].offsetY);
                         } break;
-                        case FONT_SDF:
+                        case RL_E_FONT_SDF:
                         {
                             if (cp != 32)
                             {
@@ -728,13 +728,13 @@ RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fon
                         glyphs[k].advanceX = (int)((float)glyphs[k].advanceX*scaleFactor);
 
                         // WARNING: If requested SDF font, sdf-glyph height is definitely bigger than fontSize due to FONT_SDF_CHAR_PADDING
-                        if ((type != FONT_SDF) && (cpHeight > fontSize)) TRACELOG(LOG_WARNING, "FONT: [0x%04x] Glyph height is bigger than requested font size: %i > %i", cp, cpHeight, (int)fontSize);
+                        if ((type != RL_E_FONT_SDF) && (cpHeight > fontSize)) TRACELOG(RL_E_LOG_WARNING, "FONT: [0x%04x] Glyph height is bigger than requested font size: %i > %i", cp, cpHeight, (int)fontSize);
 
                         // Load glyph image
                         glyphs[k].image.width = cpWidth;
                         glyphs[k].image.height = cpHeight;
                         glyphs[k].image.mipmaps = 1;
-                        glyphs[k].image.format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+                        glyphs[k].image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
 
                         glyphs[k].offsetY += (int)((float)ascent*scaleFactor);
                     }
@@ -752,7 +752,7 @@ RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fon
                             .width = glyphs[k].advanceX,
                             .height = fontSize,
                             .mipmaps = 1,
-                            .format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE
+                            .format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE
                         };
 
                         // Only allocate space image if required
@@ -762,7 +762,7 @@ RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fon
                         glyphs[k].image = imSpace;
                     }
 
-                    if (type == FONT_BITMAP)
+                    if (type == RL_E_FONT_BITMAP)
                     {
                         // Aliased bitmap (black & white) font generation, avoiding anti-aliasing
                         // NOTE: For optimum results, bitmap font should be generated at base pixel size
@@ -783,9 +783,9 @@ RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fon
                 }
             }
 
-            if (glyphCounter < codepointCount) TRACELOG(LOG_WARNING, "FONT: Requested codepoints glyphs found: [%i/%i]", k, codepointCount);
+            if (glyphCounter < codepointCount) TRACELOG(RL_E_LOG_WARNING, "FONT: Requested codepoints glyphs found: [%i/%i]", k, codepointCount);
         }
-        else TRACELOG(LOG_WARNING, "FONT: Failed to process TTF font data");
+        else TRACELOG(RL_E_LOG_WARNING, "FONT: Failed to process TTF font data");
 
         if (genFontChars) RL_FREE(requiredCodepoints);
     }
@@ -804,7 +804,7 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
 
     if (glyphs == NULL)
     {
-        TRACELOG(LOG_WARNING, "FONT: Provided chars info not valid, returning empty image atlas");
+        TRACELOG(RL_E_LOG_WARNING, "FONT: Provided chars info not valid, returning empty image atlas");
         return atlas;
     }
 
@@ -863,7 +863,7 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
 
     int atlasDataSize = atlas.width*atlas.height; // Save total size for bounds checking
     atlas.data = (unsigned char *)RL_CALLOC(atlasDataSize, 1); // Create a bitmap to store characters (8 bpp)
-    atlas.format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+    atlas.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
     atlas.mipmaps = 1;
 
     // DEBUG: We can see padding in the generated image setting a gray background...
@@ -891,7 +891,7 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
                 {
                     for (int j = i + 1; j < glyphCount; j++)
                     {
-                        TRACELOG(LOG_WARNING, "FONT: Failed to package character (0x%02x)", glyphs[j].value);
+                        TRACELOG(RL_E_LOG_WARNING, "FONT: Failed to package character (0x%02x)", glyphs[j].value);
                         // Make sure remaining recs contain valid data
                         recs[j].x = 0;
                         recs[j].y = 0;
@@ -975,7 +975,7 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
                     }
                 }
             }
-            else TRACELOG(LOG_WARNING, "FONT: Failed to package character (0x%02x)", glyphs[i].value);
+            else TRACELOG(RL_E_LOG_WARNING, "FONT: Failed to package character (0x%02x)", glyphs[i].value);
         }
 
         RL_FREE(rects);
@@ -1010,7 +1010,7 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
 
     RL_FREE(atlas.data);
     atlas.data = dataGrayAlpha;
-    atlas.format = PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA;
+    atlas.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA;
 
     *glyphRecs = recs;
 
@@ -1039,7 +1039,7 @@ void RLUnloadFont(RLFont font)
         RLUnloadTexture(font.texture);
         RL_FREE(font.recs);
 
-        TRACELOG(LOG_DEBUG, "FONT: Unloaded font data from RAM and VRAM");
+        TRACELOG(RL_E_LOG_DEBUG, "FONT: Unloaded font data from RAM and VRAM");
     }
 }
 
@@ -1059,7 +1059,7 @@ bool RLExportFontAsCode(RLFont font, const char *fileName)
     // Get font atlas image and size, required to estimate code file size
     // NOTE: This mechanism is highly coupled to raylib
     RLImage image = RLLoadImageFromTexture(font.texture);
-    if (image.format != PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) TRACELOG(LOG_WARNING, "Font export as code: Font image format is not GRAY+ALPHA!");
+    if (image.format != RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) TRACELOG(RL_E_LOG_WARNING, "Font export as code: Font image format is not GRAY+ALPHA!");
     int imageDataSize = RLGetPixelDataSize(image.width, image.height, image.format);
 
     // Image data is usually GRAYSCALE + ALPHA and can be reduced to GRAYSCALE
@@ -1192,8 +1192,8 @@ bool RLExportFontAsCode(RLFont font, const char *fileName)
 
     RL_FREE(txtData);
 
-    if (success != 0) TRACELOG(LOG_INFO, "FILEIO: [%s] Font as code exported successfully", fileName);
-    else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to export font as code", fileName);
+    if (success != 0) TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Font as code exported successfully", fileName);
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to export font as code", fileName);
 
     return success;
 }
@@ -2451,7 +2451,7 @@ static RLFont LoadBMFont(const char *fileName)
 
     if (pageCount > MAX_FONT_IMAGE_PAGES)
     {
-        TRACELOG(LOG_WARNING, "FONT: [%s] Font defines more pages than supported: %i/%i", fileName, pageCount, MAX_FONT_IMAGE_PAGES);
+        TRACELOG(RL_E_LOG_WARNING, "FONT: [%s] Font defines more pages than supported: %i/%i", fileName, pageCount, MAX_FONT_IMAGE_PAGES);
         pageCount = MAX_FONT_IMAGE_PAGES;
     }
 
@@ -2479,7 +2479,7 @@ static RLFont LoadBMFont(const char *fileName)
     {
         imFonts[i] = RLLoadImage(RLTextFormat("%s/%s", RLGetDirectoryPath(fileName), imFileName[i]));
 
-        if (imFonts[i].format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE)
+        if (imFonts[i].format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE)
         {
             // Convert image to GRAYSCALE + ALPHA, using the mask as the alpha channel
             RLImage imFontAlpha = {
@@ -2487,7 +2487,7 @@ static RLFont LoadBMFont(const char *fileName)
                 .width = imFonts[i].width,
                 .height = imFonts[i].height,
                 .mipmaps = 1,
-                .format = PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
+                .format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
             };
 
             for (int p = 0, pi = 0; p < (imFonts[i].width*imFonts[i].height*2); p += 2, pi++)
@@ -2564,7 +2564,7 @@ static RLFont LoadBMFont(const char *fileName)
         else
         {
             font.glyphs[i].image = RLGenImageColor((int)font.recs[i].width, (int)font.recs[i].height, BLACK);
-            TRACELOG(LOG_WARNING, "FONT: [%s] Some characters data not correctly provided", fileName);
+            TRACELOG(RL_E_LOG_WARNING, "FONT: [%s] Some characters data not correctly provided", fileName);
         }
     }
 
@@ -2575,9 +2575,9 @@ static RLFont LoadBMFont(const char *fileName)
     {
         RLUnloadFont(font);
         font = RLGetFontDefault();
-        TRACELOG(LOG_WARNING, "FONT: [%s] Failed to load texture, reverted to default font", fileName);
+        TRACELOG(RL_E_LOG_WARNING, "FONT: [%s] Failed to load texture, reverted to default font", fileName);
     }
-    else TRACELOG(LOG_INFO, "FONT: [%s] Font loaded successfully (%i glyphs)", fileName, font.glyphCount);
+    else TRACELOG(RL_E_LOG_INFO, "FONT: [%s] Font loaded successfully (%i glyphs)", fileName, font.glyphCount);
 
     return font;
 }
@@ -2742,7 +2742,7 @@ static RLGlyphInfo *LoadFontDataBDF(const unsigned char *fileData, int dataSize,
                     glyphs->image.width = charBBw;
                     glyphs->image.height = charBBh;
                     glyphs->image.mipmaps = 1;
-                    glyphs->image.format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+                    glyphs->image.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
                 }
 
                 charBitmapStarted = true;

@@ -46,34 +46,34 @@ int main(void)
     // which is the industry standard for shadows. This algorithm can be extended in a ridiculous number of ways to improve
     // realism and also adapt it for different scenes. This is pretty much the simplest possible implementation
 
-    RLSetConfigFlags(FLAG_MSAA_4X_HINT);
+    RLSetConfigFlags(RL_E_FLAG_MSAA_4X_HINT);
     RLInitWindow(screenWidth, screenHeight, "raylib [shaders] example - shadowmap rendering");
 
     RLCamera3D camera = (RLCamera3D){ 0 };
     camera.position = (RLVector3){ 10.0f, 10.0f, 10.0f };
-    camera.target = Vector3Zero();
-    camera.projection = CAMERA_PERSPECTIVE;
+    camera.target = RLVector3Zero();
+    camera.projection = RL_E_CAMERA_PERSPECTIVE;
     camera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
 
     RLShader shadowShader = RLLoadShader(RLTextFormat("resources/shaders/glsl%i/shadowmap.vs", GLSL_VERSION),
                                      RLTextFormat("resources/shaders/glsl%i/shadowmap.fs", GLSL_VERSION));
-    shadowShader.locs[SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shadowShader, "viewPos");
+    shadowShader.locs[RL_E_SHADER_LOC_VECTOR_VIEW] = RLGetShaderLocation(shadowShader, "viewPos");
 
-    RLVector3 lightDir = Vector3Normalize((RLVector3){ 0.35f, -1.0f, -0.35f });
+    RLVector3 lightDir = RLVector3Normalize((RLVector3){ 0.35f, -1.0f, -0.35f });
     RLColor lightColor = WHITE;
     RLVector4 lightColorNormalized = RLColorNormalize(lightColor);
     int lightDirLoc = RLGetShaderLocation(shadowShader, "lightDir");
     int lightColLoc = RLGetShaderLocation(shadowShader, "lightColor");
-    RLSetShaderValue(shadowShader, lightDirLoc, &lightDir, SHADER_UNIFORM_VEC3);
-    RLSetShaderValue(shadowShader, lightColLoc, &lightColorNormalized, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shadowShader, lightDirLoc, &lightDir, RL_E_SHADER_UNIFORM_VEC3);
+    RLSetShaderValue(shadowShader, lightColLoc, &lightColorNormalized, RL_E_SHADER_UNIFORM_VEC4);
     int ambientLoc = RLGetShaderLocation(shadowShader, "ambient");
     float ambient[4] = {0.1f, 0.1f, 0.1f, 1.0f};
-    RLSetShaderValue(shadowShader, ambientLoc, ambient, SHADER_UNIFORM_VEC4);
+    RLSetShaderValue(shadowShader, ambientLoc, ambient, RL_E_SHADER_UNIFORM_VEC4);
     int lightVPLoc = RLGetShaderLocation(shadowShader, "lightVP");
     int shadowMapLoc = RLGetShaderLocation(shadowShader, "shadowMap");
     int shadowMapResolution = SHADOWMAP_RESOLUTION;
-    RLSetShaderValue(shadowShader, RLGetShaderLocation(shadowShader, "shadowMapResolution"), &shadowMapResolution, SHADER_UNIFORM_INT);
+    RLSetShaderValue(shadowShader, RLGetShaderLocation(shadowShader, "shadowMapResolution"), &shadowMapResolution, RL_E_SHADER_UNIFORM_INT);
 
     RLModel cube = RLLoadModelFromMesh(RLGenMeshCube(1.0f, 1.0f, 1.0f));
     cube.materials[0].shader = shadowShader;
@@ -86,9 +86,9 @@ int main(void)
 
     // For the shadowmapping algorithm, we will be rendering everything from the light's point of view
     RLCamera3D lightCamera = { 0 };
-    lightCamera.position = Vector3Scale(lightDir, -15.0f);
-    lightCamera.target = Vector3Zero();
-    lightCamera.projection = CAMERA_ORTHOGRAPHIC; // Use an orthographic projection for directional lights
+    lightCamera.position = RLVector3Scale(lightDir, -15.0f);
+    lightCamera.target = RLVector3Zero();
+    lightCamera.projection = RL_E_CAMERA_ORTHOGRAPHIC; // Use an orthographic projection for directional lights
     lightCamera.up = (RLVector3){ 0.0f, 1.0f, 0.0f };
     lightCamera.fovy = 20.0f;
 
@@ -111,8 +111,8 @@ int main(void)
         float deltaTime = RLGetFrameTime();
 
         RLVector3 cameraPos = camera.position;
-        RLSetShaderValue(shadowShader, shadowShader.locs[SHADER_LOC_VECTOR_VIEW], &cameraPos, SHADER_UNIFORM_VEC3);
-        RLUpdateCamera(&camera, CAMERA_ORBITAL);
+        RLSetShaderValue(shadowShader, shadowShader.locs[RL_E_SHADER_LOC_VECTOR_VIEW], &cameraPos, RL_E_SHADER_UNIFORM_VEC3);
+        RLUpdateCamera(&camera, RL_E_CAMERA_ORBITAL);
 
         frameCounter++;
         frameCounter %= (robotAnimations[0].frameCount);
@@ -120,26 +120,26 @@ int main(void)
 
         // Move light with arrow keys
         const float cameraSpeed = 0.05f;
-        if (RLIsKeyDown(KEY_LEFT))
+        if (RLIsKeyDown(RL_E_KEY_LEFT))
         {
             if (lightDir.x < 0.6f) lightDir.x += cameraSpeed*60.0f*deltaTime;
         }
-        if (RLIsKeyDown(KEY_RIGHT))
+        if (RLIsKeyDown(RL_E_KEY_RIGHT))
         {
             if (lightDir.x > -0.6f) lightDir.x -= cameraSpeed*60.0f*deltaTime;
         }
-        if (RLIsKeyDown(KEY_UP))
+        if (RLIsKeyDown(RL_E_KEY_UP))
         {
             if (lightDir.z < 0.6f) lightDir.z += cameraSpeed*60.0f*deltaTime;
         }
-        if (RLIsKeyDown(KEY_DOWN))
+        if (RLIsKeyDown(RL_E_KEY_DOWN))
         {
             if (lightDir.z > -0.6f) lightDir.z -= cameraSpeed*60.0f*deltaTime;
         }
 
-        lightDir = Vector3Normalize(lightDir);
-        lightCamera.position = Vector3Scale(lightDir, -15.0f);
-        RLSetShaderValue(shadowShader, lightDirLoc, &lightDir, SHADER_UNIFORM_VEC3);
+        lightDir = RLVector3Normalize(lightDir);
+        lightCamera.position = RLVector3Scale(lightDir, -15.0f);
+        RLSetShaderValue(shadowShader, lightDirLoc, &lightDir, RL_E_SHADER_UNIFORM_VEC3);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -159,7 +159,7 @@ int main(void)
             RLEndMode3D();
 
         RLEndTextureMode();
-        lightViewProj = MatrixMultiply(lightView, lightProj);
+        lightViewProj = RLMatrixMultiply(lightView, lightProj);
 
         // PASS 02: Draw the scene into main framebuffer, using the generated shadowmap
         RLBeginDrawing();
@@ -170,7 +170,7 @@ int main(void)
 
             rlActiveTextureSlot(textureActiveSlot);
             rlEnableTexture(shadowMap.depth.id);
-            rlSetUniform(shadowMapLoc, &textureActiveSlot, SHADER_UNIFORM_INT, 1);
+            rlSetUniform(shadowMapLoc, &textureActiveSlot, RL_E_SHADER_UNIFORM_INT, 1);
 
             RLBeginMode3D(camera);
                 DrawScene(cube, robot); // Draw the same exact things as we drew in the shadowmap!
@@ -181,7 +181,7 @@ int main(void)
 
         RLEndDrawing();
 
-        if (RLIsKeyPressed(KEY_F)) RLTakeScreenshot("shaders_shadowmap.png");
+        if (RLIsKeyPressed(RL_E_KEY_F)) RLTakeScreenshot("shaders_shadowmap.png");
         //----------------------------------------------------------------------------------
     }
 
@@ -226,11 +226,11 @@ static RLRenderTexture2D LoadShadowmapRenderTexture(int width, int height)
         rlFramebufferAttach(target.id, target.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
 
         // Check if fbo is complete with attachments (valid)
-        if (rlFramebufferComplete(target.id)) TRACELOG(LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
+        if (rlFramebufferComplete(target.id)) TRACELOG(RL_E_LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
 
         rlDisableFramebuffer();
     }
-    else TRACELOG(LOG_WARNING, "FBO: Framebuffer object can not be created");
+    else TRACELOG(RL_E_LOG_WARNING, "FBO: Framebuffer object can not be created");
 
     return target;
 }
@@ -250,7 +250,7 @@ static void UnloadShadowmapRenderTexture(RLRenderTexture2D target)
 // NOTE: Required  to be called several time to generate shadowmap
 static void DrawScene(RLModel cube, RLModel robot)
 {
-    RLDrawModelEx(cube, Vector3Zero(), (RLVector3) { 0.0f, 1.0f, 0.0f }, 0.0f, (RLVector3) { 10.0f, 1.0f, 10.0f }, BLUE);
-    RLDrawModelEx(cube, (RLVector3) { 1.5f, 1.0f, -1.5f }, (RLVector3) { 0.0f, 1.0f, 0.0f }, 0.0f, Vector3One(), WHITE);
+    RLDrawModelEx(cube, RLVector3Zero(), (RLVector3) { 0.0f, 1.0f, 0.0f }, 0.0f, (RLVector3) { 10.0f, 1.0f, 10.0f }, BLUE);
+    RLDrawModelEx(cube, (RLVector3) { 1.5f, 1.0f, -1.5f }, (RLVector3) { 0.0f, 1.0f, 0.0f }, 0.0f, RLVector3One(), WHITE);
     RLDrawModelEx(robot, (RLVector3) { 0.0f, 0.5f, 0.0f }, (RLVector3) { 0.0f, 1.0f, 0.0f }, 0.0f, (RLVector3) { 1.0f, 1.0f, 1.0f }, RED);
 }

@@ -32,7 +32,7 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    RLSetConfigFlags(FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_HIGHDPI | RL_E_FLAG_WINDOW_RESIZABLE);
     RLInitWindow(screenWidth, screenHeight, "raylib [core] example - highdpi demo");
     RLSetWindowMinSize(450, 450);
 
@@ -57,7 +57,7 @@ int main(void)
         //----------------------------------------------------------------------------------
         int monitorCount = RLGetMonitorCount();
 
-        if ((monitorCount > 1) && RLIsKeyPressed(KEY_N))
+        if ((monitorCount > 1) && RLIsKeyPressed(RL_E_KEY_N))
         {
             RLSetWindowMonitor((RLGetCurrentMonitor() + 1)%monitorCount);
         }

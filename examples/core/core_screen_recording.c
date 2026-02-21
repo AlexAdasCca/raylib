@@ -72,7 +72,7 @@ int main(void)
         }
 
         // Start-Stop GIF recording on CTRL+R
-        if (RLIsKeyDown(KEY_LEFT_CONTROL) && RLIsKeyPressed(KEY_R))
+        if (RLIsKeyDown(RL_E_KEY_LEFT_CONTROL) && RLIsKeyPressed(RL_E_KEY_R))
         {
             if (gifRecording)
             {
@@ -82,7 +82,7 @@ int main(void)
                 RLSaveFileData(RLTextFormat("%s/screenrecording.gif", RLGetApplicationDirectory()), result.data, (unsigned int)result.dataSize);
                 msf_gif_free(result);
 
-                RLTraceLog(LOG_INFO, "Finish animated GIF recording");
+                RLTraceLog(RL_E_LOG_INFO, "Finish animated GIF recording");
             }
             else
             {
@@ -91,7 +91,7 @@ int main(void)
                 gifFrameCounter = 0;
                 msf_gif_begin(&gifState, RLGetRenderWidth(), RLGetRenderHeight());
 
-                RLTraceLog(LOG_INFO, "Start animated GIF recording");
+                RLTraceLog(RL_E_LOG_INFO, "Start animated GIF recording");
             }
         }
 

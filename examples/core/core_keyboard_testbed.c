@@ -37,16 +37,16 @@ int main(void)
     const int screenHeight = 450;
 
     RLInitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard testbed");
-    RLSetExitKey(KEY_NULL); // Avoid exit on KEY_ESCAPE
+    RLSetExitKey(RL_E_KEY_NULL); // Avoid exit on KEY_ESCAPE
 
     // Keyboard line 01
     int line01KeyWidths[15] = { 0 };
     for (int i = 0; i < 15; i++) line01KeyWidths[i] = 45;
     line01KeyWidths[13] = 62;   // PRINTSCREEN
     int line01Keys[15] = { 
-        KEY_ESCAPE, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, 
-        KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, 
-        KEY_F12, KEY_PRINT_SCREEN, KEY_PAUSE 
+        RL_E_KEY_ESCAPE, RL_E_KEY_F1, RL_E_KEY_F2, RL_E_KEY_F3, RL_E_KEY_F4, RL_E_KEY_F5, 
+        RL_E_KEY_F6, RL_E_KEY_F7, RL_E_KEY_F8, RL_E_KEY_F9, RL_E_KEY_F10, RL_E_KEY_F11, 
+        RL_E_KEY_F12, RL_E_KEY_PRINT_SCREEN, RL_E_KEY_PAUSE 
     };
     
     // Keyboard line 02
@@ -55,9 +55,9 @@ int main(void)
     line02KeyWidths[0] = 25;    // GRAVE
     line02KeyWidths[13] = 82;   // BACKSPACE
     int line02Keys[15] = { 
-        KEY_GRAVE, KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, 
-        KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, 
-        KEY_ZERO, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_DELETE };
+        RL_E_KEY_GRAVE, RL_E_KEY_ONE, RL_E_KEY_TWO, RL_E_KEY_THREE, RL_E_KEY_FOUR, 
+        RL_E_KEY_FIVE, RL_E_KEY_SIX, RL_E_KEY_SEVEN, RL_E_KEY_EIGHT, RL_E_KEY_NINE, 
+        RL_E_KEY_ZERO, RL_E_KEY_MINUS, RL_E_KEY_EQUAL, RL_E_KEY_BACKSPACE, RL_E_KEY_DELETE };
 
     // Keyboard line 03
     int line03KeyWidths[15] = { 0 };
@@ -65,9 +65,9 @@ int main(void)
     line03KeyWidths[0] = 50;    // TAB
     line03KeyWidths[13] = 57;   // BACKSLASH
     int line03Keys[15] = {
-        KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y,
-        KEY_U, KEY_I, KEY_O, KEY_P, KEY_LEFT_BRACKET,
-        KEY_RIGHT_BRACKET, KEY_BACKSLASH, KEY_INSERT
+        RL_E_KEY_TAB, RL_E_KEY_Q, RL_E_KEY_W, RL_E_KEY_E, RL_E_KEY_R, RL_E_KEY_T, RL_E_KEY_Y,
+        RL_E_KEY_U, RL_E_KEY_I, RL_E_KEY_O, RL_E_KEY_P, RL_E_KEY_LEFT_BRACKET,
+        RL_E_KEY_RIGHT_BRACKET, RL_E_KEY_BACKSLASH, RL_E_KEY_INSERT
     };
 
     // Keyboard line 04
@@ -76,9 +76,9 @@ int main(void)
     line04KeyWidths[0] = 68;    // CAPS
     line04KeyWidths[12] = 88;   // ENTER
     int line04Keys[14] = {
-        KEY_CAPS_LOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G,
-        KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON,
-        KEY_APOSTROPHE, KEY_ENTER, KEY_PAGE_UP
+        RL_E_KEY_CAPS_LOCK, RL_E_KEY_A, RL_E_KEY_S, RL_E_KEY_D, RL_E_KEY_F, RL_E_KEY_G,
+        RL_E_KEY_H, RL_E_KEY_J, RL_E_KEY_K, RL_E_KEY_L, RL_E_KEY_SEMICOLON,
+        RL_E_KEY_APOSTROPHE, RL_E_KEY_ENTER, RL_E_KEY_PAGE_UP
     };
 
     // Keyboard line 05
@@ -87,9 +87,9 @@ int main(void)
     line05KeyWidths[0] = 80;    // LSHIFT
     line05KeyWidths[11] = 76;   // RSHIFT
     int line05Keys[14] = {
-        KEY_LEFT_SHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B,
-        KEY_N, KEY_M, KEY_COMMA, KEY_PERIOD, /*KEY_MINUS*/
-        KEY_SLASH, KEY_RIGHT_SHIFT, KEY_UP, KEY_PAGE_DOWN
+        RL_E_KEY_LEFT_SHIFT, RL_E_KEY_Z, RL_E_KEY_X, RL_E_KEY_C, RL_E_KEY_V, RL_E_KEY_B,
+        RL_E_KEY_N, RL_E_KEY_M, RL_E_KEY_COMMA, RL_E_KEY_PERIOD, /*KEY_MINUS*/
+        RL_E_KEY_SLASH, RL_E_KEY_RIGHT_SHIFT, RL_E_KEY_UP, RL_E_KEY_PAGE_DOWN
     };
 
     // Keyboard line 06
@@ -99,9 +99,9 @@ int main(void)
     line06KeyWidths[3] = 208;   // SPACE
     line06KeyWidths[7] = 60;    // RCTRL
     int line06Keys[11] = {
-        KEY_LEFT_CONTROL, KEY_LEFT_SUPER, KEY_LEFT_ALT,
-        KEY_SPACE, KEY_RIGHT_ALT, 162, KEY_NULL,
-        KEY_RIGHT_CONTROL, KEY_LEFT, KEY_DOWN, KEY_RIGHT
+        RL_E_KEY_LEFT_CONTROL, RL_E_KEY_LEFT_SUPER, RL_E_KEY_LEFT_ALT,
+        RL_E_KEY_SPACE, RL_E_KEY_RIGHT_ALT, 162, RL_E_KEY_NULL,
+        RL_E_KEY_RIGHT_CONTROL, RL_E_KEY_LEFT, RL_E_KEY_DOWN, RL_E_KEY_RIGHT
     };
     
     RLVector2 keyboardOffset = { 26, 80 };
@@ -115,10 +115,10 @@ int main(void)
         // Update
         //----------------------------------------------------------------------------------
         int key = RLGetKeyPressed(); // Get pressed keycode
-        if (key > 0) RLTraceLog(LOG_INFO, "KEYBOARD TESTBED: KEY PRESSED:    %d", key);
+        if (key > 0) RLTraceLog(RL_E_LOG_INFO, "KEYBOARD TESTBED: KEY PRESSED:    %d", key);
 
         int ch = RLGetCharPressed(); // Get pressed char for text input, using OS mapping
-        if (ch > 0) RLTraceLog(LOG_INFO,  "KEYBOARD TESTBED: CHAR PRESSED:   %c (%d)", ch, ch);
+        if (ch > 0) RLTraceLog(RL_E_LOG_INFO,  "KEYBOARD TESTBED: CHAR PRESSED:   %c (%d)", ch, ch);
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -198,111 +198,111 @@ static const char *GetKeyText(int key)
 {
     switch (key)
     {
-        case KEY_APOSTROPHE      : return "'";          // Key: '
-        case KEY_COMMA           : return ",";          // Key: ,
-        case KEY_MINUS           : return "-";          // Key: -
-        case KEY_PERIOD          : return ".";          // Key: .
-        case KEY_SLASH           : return "/";          // Key: /
-        case KEY_ZERO            : return "0";          // Key: 0
-        case KEY_ONE             : return "1";          // Key: 1
-        case KEY_TWO             : return "2";          // Key: 2
-        case KEY_THREE           : return "3";          // Key: 3
-        case KEY_FOUR            : return "4";          // Key: 4
-        case KEY_FIVE            : return "5";          // Key: 5
-        case KEY_SIX             : return "6";          // Key: 6
-        case KEY_SEVEN           : return "7";          // Key: 7
-        case KEY_EIGHT           : return "8";          // Key: 8
-        case KEY_NINE            : return "9";          // Key: 9
-        case KEY_SEMICOLON       : return ";";          // Key: ;
-        case KEY_EQUAL           : return "=";          // Key: =
-        case KEY_A               : return "A";          // Key: A | a
-        case KEY_B               : return "B";          // Key: B | b
-        case KEY_C               : return "C";          // Key: C | c
-        case KEY_D               : return "D";          // Key: D | d
-        case KEY_E               : return "E";          // Key: E | e
-        case KEY_F               : return "F";          // Key: F | f
-        case KEY_G               : return "G";          // Key: G | g
-        case KEY_H               : return "H";          // Key: H | h
-        case KEY_I               : return "I";          // Key: I | i
-        case KEY_J               : return "J";          // Key: J | j
-        case KEY_K               : return "K";          // Key: K | k
-        case KEY_L               : return "L";          // Key: L | l
-        case KEY_M               : return "M";          // Key: M | m
-        case KEY_N               : return "N";          // Key: N | n
-        case KEY_O               : return "O";          // Key: O | o
-        case KEY_P               : return "P";          // Key: P | p
-        case KEY_Q               : return "Q";          // Key: Q | q
-        case KEY_R               : return "R";          // Key: R | r
-        case KEY_S               : return "S";          // Key: S | s
-        case KEY_T               : return "T";          // Key: T | t
-        case KEY_U               : return "U";          // Key: U | u
-        case KEY_V               : return "V";          // Key: V | v
-        case KEY_W               : return "W";          // Key: W | w
-        case KEY_X               : return "X";          // Key: X | x
-        case KEY_Y               : return "Y";          // Key: Y | y
-        case KEY_Z               : return "Z";          // Key: Z | z
-        case KEY_LEFT_BRACKET    : return "[";          // Key: [
-        case KEY_BACKSLASH       : return "\\";         // Key: '\'
-        case KEY_RIGHT_BRACKET   : return "]";          // Key: ]
-        case KEY_GRAVE           : return "`";          // Key: `
-        case KEY_SPACE           : return "SPACE";      // Key: Space
-        case KEY_ESCAPE          : return "ESC";        // Key: Esc
-        case KEY_ENTER           : return "ENTER";      // Key: Enter
-        case KEY_TAB             : return "TAB";        // Key: Tab
-        case KEY_BACKSPACE       : return "BACK";       // Key: Backspace
-        case KEY_INSERT          : return "INS";        // Key: Ins
-        case KEY_DELETE          : return "DEL";        // Key: Del
-        case KEY_RIGHT           : return "RIGHT";      // Key: Cursor right
-        case KEY_LEFT            : return "LEFT";       // Key: Cursor left
-        case KEY_DOWN            : return "DOWN";       // Key: Cursor down
-        case KEY_UP              : return "UP";         // Key: Cursor up
-        case KEY_PAGE_UP         : return "PGUP";       // Key: Page up
-        case KEY_PAGE_DOWN       : return "PGDOWN";     // Key: Page down
-        case KEY_HOME            : return "HOME";       // Key: Home
-        case KEY_END             : return "END";        // Key: End
-        case KEY_CAPS_LOCK       : return "CAPS";       // Key: Caps lock
-        case KEY_SCROLL_LOCK     : return "LOCK";       // Key: Scroll down
-        case KEY_NUM_LOCK        : return "NUMLOCK";    // Key: Num lock
-        case KEY_PRINT_SCREEN    : return "PRINTSCR";   // Key: Print screen
-        case KEY_PAUSE           : return "PAUSE";      // Key: Pause
-        case KEY_F1              : return "F1";         // Key: F1
-        case KEY_F2              : return "F2";         // Key: F2
-        case KEY_F3              : return "F3";         // Key: F3
-        case KEY_F4              : return "F4";         // Key: F4
-        case KEY_F5              : return "F5";         // Key: F5
-        case KEY_F6              : return "F6";         // Key: F6
-        case KEY_F7              : return "F7";         // Key: F7
-        case KEY_F8              : return "F8";         // Key: F8
-        case KEY_F9              : return "F9";         // Key: F9
-        case KEY_F10             : return "F10";        // Key: F10
-        case KEY_F11             : return "F11";        // Key: F11
-        case KEY_F12             : return "F12";        // Key: F12
-        case KEY_LEFT_SHIFT      : return "LSHIFT";     // Key: Shift left
-        case KEY_LEFT_CONTROL    : return "LCTRL";      // Key: Control left
-        case KEY_LEFT_ALT        : return "LALT";       // Key: Alt left
-        case KEY_LEFT_SUPER      : return "WIN";        // Key: Super left
-        case KEY_RIGHT_SHIFT     : return "RSHIFT";     // Key: Shift right
-        case KEY_RIGHT_CONTROL   : return "RCTRL";      // Key: Control right
-        case KEY_RIGHT_ALT       : return "ALTGR";      // Key: Alt right
-        case KEY_RIGHT_SUPER     : return "RSUPER";     // Key: Super right
-        case KEY_KB_MENU         : return "KBMENU";     // Key: KB menu
-        case KEY_KP_0            : return "KP0";        // Key: Keypad 0
-        case KEY_KP_1            : return "KP1";        // Key: Keypad 1
-        case KEY_KP_2            : return "KP2";        // Key: Keypad 2
-        case KEY_KP_3            : return "KP3";        // Key: Keypad 3
-        case KEY_KP_4            : return "KP4";        // Key: Keypad 4
-        case KEY_KP_5            : return "KP5";        // Key: Keypad 5
-        case KEY_KP_6            : return "KP6";        // Key: Keypad 6
-        case KEY_KP_7            : return "KP7";        // Key: Keypad 7
-        case KEY_KP_8            : return "KP8";        // Key: Keypad 8
-        case KEY_KP_9            : return "KP9";        // Key: Keypad 9
-        case KEY_KP_DECIMAL      : return "KPDEC";      // Key: Keypad .
-        case KEY_KP_DIVIDE       : return "KPDIV";      // Key: Keypad /
-        case KEY_KP_MULTIPLY     : return "KPMUL";      // Key: Keypad *
-        case KEY_KP_SUBTRACT     : return "KPSUB";      // Key: Keypad -
-        case KEY_KP_ADD          : return "KPADD";      // Key: Keypad +
-        case KEY_KP_ENTER        : return "KPENTER";    // Key: Keypad Enter
-        case KEY_KP_EQUAL        : return "KPEQU";      // Key: Keypad =
+        case RL_E_KEY_APOSTROPHE      : return "'";          // Key: '
+        case RL_E_KEY_COMMA           : return ",";          // Key: ,
+        case RL_E_KEY_MINUS           : return "-";          // Key: -
+        case RL_E_KEY_PERIOD          : return ".";          // Key: .
+        case RL_E_KEY_SLASH           : return "/";          // Key: /
+        case RL_E_KEY_ZERO            : return "0";          // Key: 0
+        case RL_E_KEY_ONE             : return "1";          // Key: 1
+        case RL_E_KEY_TWO             : return "2";          // Key: 2
+        case RL_E_KEY_THREE           : return "3";          // Key: 3
+        case RL_E_KEY_FOUR            : return "4";          // Key: 4
+        case RL_E_KEY_FIVE            : return "5";          // Key: 5
+        case RL_E_KEY_SIX             : return "6";          // Key: 6
+        case RL_E_KEY_SEVEN           : return "7";          // Key: 7
+        case RL_E_KEY_EIGHT           : return "8";          // Key: 8
+        case RL_E_KEY_NINE            : return "9";          // Key: 9
+        case RL_E_KEY_SEMICOLON       : return ";";          // Key: ;
+        case RL_E_KEY_EQUAL           : return "=";          // Key: =
+        case RL_E_KEY_A               : return "A";          // Key: A | a
+        case RL_E_KEY_B               : return "B";          // Key: B | b
+        case RL_E_KEY_C               : return "C";          // Key: C | c
+        case RL_E_KEY_D               : return "D";          // Key: D | d
+        case RL_E_KEY_E               : return "E";          // Key: E | e
+        case RL_E_KEY_F               : return "F";          // Key: F | f
+        case RL_E_KEY_G               : return "G";          // Key: G | g
+        case RL_E_KEY_H               : return "H";          // Key: H | h
+        case RL_E_KEY_I               : return "I";          // Key: I | i
+        case RL_E_KEY_J               : return "J";          // Key: J | j
+        case RL_E_KEY_K               : return "K";          // Key: K | k
+        case RL_E_KEY_L               : return "L";          // Key: L | l
+        case RL_E_KEY_M               : return "M";          // Key: M | m
+        case RL_E_KEY_N               : return "N";          // Key: N | n
+        case RL_E_KEY_O               : return "O";          // Key: O | o
+        case RL_E_KEY_P               : return "P";          // Key: P | p
+        case RL_E_KEY_Q               : return "Q";          // Key: Q | q
+        case RL_E_KEY_R               : return "R";          // Key: R | r
+        case RL_E_KEY_S               : return "S";          // Key: S | s
+        case RL_E_KEY_T               : return "T";          // Key: T | t
+        case RL_E_KEY_U               : return "U";          // Key: U | u
+        case RL_E_KEY_V               : return "V";          // Key: V | v
+        case RL_E_KEY_W               : return "W";          // Key: W | w
+        case RL_E_KEY_X               : return "X";          // Key: X | x
+        case RL_E_KEY_Y               : return "Y";          // Key: Y | y
+        case RL_E_KEY_Z               : return "Z";          // Key: Z | z
+        case RL_E_KEY_LEFT_BRACKET    : return "[";          // Key: [
+        case RL_E_KEY_BACKSLASH       : return "\\";         // Key: '\'
+        case RL_E_KEY_RIGHT_BRACKET   : return "]";          // Key: ]
+        case RL_E_KEY_GRAVE           : return "`";          // Key: `
+        case RL_E_KEY_SPACE           : return "SPACE";      // Key: Space
+        case RL_E_KEY_ESCAPE          : return "ESC";        // Key: Esc
+        case RL_E_KEY_ENTER           : return "ENTER";      // Key: Enter
+        case RL_E_KEY_TAB             : return "TAB";        // Key: Tab
+        case RL_E_KEY_BACKSPACE       : return "BACK";       // Key: Backspace
+        case RL_E_KEY_INSERT          : return "INS";        // Key: Ins
+        case RL_E_KEY_DELETE          : return "DEL";        // Key: Del
+        case RL_E_KEY_RIGHT           : return "RIGHT";      // Key: Cursor right
+        case RL_E_KEY_LEFT            : return "LEFT";       // Key: Cursor left
+        case RL_E_KEY_DOWN            : return "DOWN";       // Key: Cursor down
+        case RL_E_KEY_UP              : return "UP";         // Key: Cursor up
+        case RL_E_KEY_PAGE_UP         : return "PGUP";       // Key: Page up
+        case RL_E_KEY_PAGE_DOWN       : return "PGDOWN";     // Key: Page down
+        case RL_E_KEY_HOME            : return "HOME";       // Key: Home
+        case RL_E_KEY_END             : return "END";        // Key: End
+        case RL_E_KEY_CAPS_LOCK       : return "CAPS";       // Key: Caps lock
+        case RL_E_KEY_SCROLL_LOCK     : return "LOCK";       // Key: Scroll down
+        case RL_E_KEY_NUM_LOCK        : return "NUMLOCK";    // Key: Num lock
+        case RL_E_KEY_PRINT_SCREEN    : return "PRINTSCR";   // Key: Print screen
+        case RL_E_KEY_PAUSE           : return "PAUSE";      // Key: Pause
+        case RL_E_KEY_F1              : return "F1";         // Key: F1
+        case RL_E_KEY_F2              : return "F2";         // Key: F2
+        case RL_E_KEY_F3              : return "F3";         // Key: F3
+        case RL_E_KEY_F4              : return "F4";         // Key: F4
+        case RL_E_KEY_F5              : return "F5";         // Key: F5
+        case RL_E_KEY_F6              : return "F6";         // Key: F6
+        case RL_E_KEY_F7              : return "F7";         // Key: F7
+        case RL_E_KEY_F8              : return "F8";         // Key: F8
+        case RL_E_KEY_F9              : return "F9";         // Key: F9
+        case RL_E_KEY_F10             : return "F10";        // Key: F10
+        case RL_E_KEY_F11             : return "F11";        // Key: F11
+        case RL_E_KEY_F12             : return "F12";        // Key: F12
+        case RL_E_KEY_LEFT_SHIFT      : return "LSHIFT";     // Key: Shift left
+        case RL_E_KEY_LEFT_CONTROL    : return "LCTRL";      // Key: Control left
+        case RL_E_KEY_LEFT_ALT        : return "LALT";       // Key: Alt left
+        case RL_E_KEY_LEFT_SUPER      : return "WIN";        // Key: Super left
+        case RL_E_KEY_RIGHT_SHIFT     : return "RSHIFT";     // Key: Shift right
+        case RL_E_KEY_RIGHT_CONTROL   : return "RCTRL";      // Key: Control right
+        case RL_E_KEY_RIGHT_ALT       : return "ALTGR";      // Key: Alt right
+        case RL_E_KEY_RIGHT_SUPER     : return "RSUPER";     // Key: Super right
+        case RL_E_KEY_KB_MENU         : return "KBMENU";     // Key: KB menu
+        case RL_E_KEY_KP_0            : return "KP0";        // Key: Keypad 0
+        case RL_E_KEY_KP_1            : return "KP1";        // Key: Keypad 1
+        case RL_E_KEY_KP_2            : return "KP2";        // Key: Keypad 2
+        case RL_E_KEY_KP_3            : return "KP3";        // Key: Keypad 3
+        case RL_E_KEY_KP_4            : return "KP4";        // Key: Keypad 4
+        case RL_E_KEY_KP_5            : return "KP5";        // Key: Keypad 5
+        case RL_E_KEY_KP_6            : return "KP6";        // Key: Keypad 6
+        case RL_E_KEY_KP_7            : return "KP7";        // Key: Keypad 7
+        case RL_E_KEY_KP_8            : return "KP8";        // Key: Keypad 8
+        case RL_E_KEY_KP_9            : return "KP9";        // Key: Keypad 9
+        case RL_E_KEY_KP_DECIMAL      : return "KPDEC";      // Key: Keypad .
+        case RL_E_KEY_KP_DIVIDE       : return "KPDIV";      // Key: Keypad /
+        case RL_E_KEY_KP_MULTIPLY     : return "KPMUL";      // Key: Keypad *
+        case RL_E_KEY_KP_SUBTRACT     : return "KPSUB";      // Key: Keypad -
+        case RL_E_KEY_KP_ADD          : return "KPADD";      // Key: Keypad +
+        case RL_E_KEY_KP_ENTER        : return "KPENTER";    // Key: Keypad Enter
+        case RL_E_KEY_KP_EQUAL        : return "KPEQU";      // Key: Keypad =
         default: return "";
     }
 }
@@ -310,7 +310,7 @@ static const char *GetKeyText(int key)
 // Draw keyboard key
 static void GuiKeyboardKey(RLRectangle bounds, int key)
 {
-    if (key == KEY_NULL) RLDrawRectangleLinesEx(bounds, 2.0f, LIGHTGRAY);
+    if (key == RL_E_KEY_NULL) RLDrawRectangleLinesEx(bounds, 2.0f, LIGHTGRAY);
     else
     {
         if (RLIsKeyDown(key))

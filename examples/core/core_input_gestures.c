@@ -35,8 +35,8 @@ int main(void)
     int gesturesCount = 0;
     char gestureStrings[MAX_GESTURE_STRINGS][32];
 
-    int currentGesture = GESTURE_NONE;
-    int lastGesture = GESTURE_NONE;
+    int currentGesture = RL_E_GESTURE_NONE;
+    int lastGesture = RL_E_GESTURE_NONE;
 
     //SetGesturesEnabled(0b0000000000001001);   // Enable only some gestures to be detected
 
@@ -52,23 +52,23 @@ int main(void)
         currentGesture = RLGetGestureDetected();
         touchPosition = RLGetTouchPosition(0);
 
-        if (RLCheckCollisionPointRec(touchPosition, touchArea) && (currentGesture != GESTURE_NONE))
+        if (RLCheckCollisionPointRec(touchPosition, touchArea) && (currentGesture != RL_E_GESTURE_NONE))
         {
             if (currentGesture != lastGesture)
             {
                 // Store gesture string
                 switch (currentGesture)
                 {
-                    case GESTURE_TAP: RLTextCopy(gestureStrings[gesturesCount], "GESTURE TAP"); break;
-                    case GESTURE_DOUBLETAP: RLTextCopy(gestureStrings[gesturesCount], "GESTURE DOUBLETAP"); break;
-                    case GESTURE_HOLD: RLTextCopy(gestureStrings[gesturesCount], "GESTURE HOLD"); break;
-                    case GESTURE_DRAG: RLTextCopy(gestureStrings[gesturesCount], "GESTURE DRAG"); break;
-                    case GESTURE_SWIPE_RIGHT: RLTextCopy(gestureStrings[gesturesCount], "GESTURE SWIPE RIGHT"); break;
-                    case GESTURE_SWIPE_LEFT: RLTextCopy(gestureStrings[gesturesCount], "GESTURE SWIPE LEFT"); break;
-                    case GESTURE_SWIPE_UP: RLTextCopy(gestureStrings[gesturesCount], "GESTURE SWIPE UP"); break;
-                    case GESTURE_SWIPE_DOWN: RLTextCopy(gestureStrings[gesturesCount], "GESTURE SWIPE DOWN"); break;
-                    case GESTURE_PINCH_IN: RLTextCopy(gestureStrings[gesturesCount], "GESTURE PINCH IN"); break;
-                    case GESTURE_PINCH_OUT: RLTextCopy(gestureStrings[gesturesCount], "GESTURE PINCH OUT"); break;
+                    case RL_E_GESTURE_TAP: RLTextCopy(gestureStrings[gesturesCount], "GESTURE TAP"); break;
+                    case RL_E_GESTURE_DOUBLETAP: RLTextCopy(gestureStrings[gesturesCount], "GESTURE DOUBLETAP"); break;
+                    case RL_E_GESTURE_HOLD: RLTextCopy(gestureStrings[gesturesCount], "GESTURE HOLD"); break;
+                    case RL_E_GESTURE_DRAG: RLTextCopy(gestureStrings[gesturesCount], "GESTURE DRAG"); break;
+                    case RL_E_GESTURE_SWIPE_RIGHT: RLTextCopy(gestureStrings[gesturesCount], "GESTURE SWIPE RIGHT"); break;
+                    case RL_E_GESTURE_SWIPE_LEFT: RLTextCopy(gestureStrings[gesturesCount], "GESTURE SWIPE LEFT"); break;
+                    case RL_E_GESTURE_SWIPE_UP: RLTextCopy(gestureStrings[gesturesCount], "GESTURE SWIPE UP"); break;
+                    case RL_E_GESTURE_SWIPE_DOWN: RLTextCopy(gestureStrings[gesturesCount], "GESTURE SWIPE DOWN"); break;
+                    case RL_E_GESTURE_PINCH_IN: RLTextCopy(gestureStrings[gesturesCount], "GESTURE PINCH IN"); break;
+                    case RL_E_GESTURE_PINCH_OUT: RLTextCopy(gestureStrings[gesturesCount], "GESTURE PINCH OUT"); break;
                     default: break;
                 }
 
@@ -108,7 +108,7 @@ int main(void)
             RLDrawRectangleLines(10, 29, 200, screenHeight - 50, GRAY);
             RLDrawText("DETECTED GESTURES", 50, 15, 10, GRAY);
 
-            if (currentGesture != GESTURE_NONE) RLDrawCircleV(touchPosition, 30, MAROON);
+            if (currentGesture != RL_E_GESTURE_NONE) RLDrawCircleV(touchPosition, 30, MAROON);
 
         RLEndDrawing();
         //----------------------------------------------------------------------------------

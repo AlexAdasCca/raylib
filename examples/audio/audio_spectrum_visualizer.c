@@ -89,7 +89,7 @@ int main(void)
 
     int iResolutionLocation = RLGetShaderLocation(shader, "iResolution");
     int iChannel0Location = RLGetShaderLocation(shader, "iChannel0");
-    RLSetShaderValue(shader, iResolutionLocation, &iResolution, SHADER_UNIFORM_VEC2);
+    RLSetShaderValue(shader, iResolutionLocation, &iResolution, RL_E_SHADER_UNIFORM_VEC2);
     RLSetShaderValueTexture(shader, iChannel0Location, fftTexture);
 
     RLInitAudioDevice();
@@ -264,7 +264,7 @@ static void CaptureFrame(FFTData *fftData, const float *audioSamples)
 
         float db = logf(fmaxf(smoothedMagnitude, 1e-40f))*DB_TO_LINEAR_SCALE;
         float normalized = (db - MIN_DECIBELS)*INVERSE_DECIBEL_RANGE;
-        smoothedSpectrum[bin] = Clamp(normalized, 0.0f, 1.0f);
+        smoothedSpectrum[bin] = RLClamp(normalized, 0.0f, 1.0f);
     }
 
     fftData->lastFftTime = RLGetTime();
@@ -275,7 +275,7 @@ static void CaptureFrame(FFTData *fftData, const float *audioSamples)
 static void RenderFrame(const FFTData *fftData, RLImage *fftImage)
 {
     double framesSinceTapback = floor(fftData->tapbackPos/WINDOW_TIME);
-    framesSinceTapback = Clamp(framesSinceTapback, 0.0, fftData->fftHistoryLen - 1);
+    framesSinceTapback = RLClamp(framesSinceTapback, 0.0, fftData->fftHistoryLen - 1);
 
     int historyPosition = (fftData->historyPos - 1 - (int)framesSinceTapback)%fftData->fftHistoryLen;
     if (historyPosition < 0) historyPosition += fftData->fftHistoryLen;

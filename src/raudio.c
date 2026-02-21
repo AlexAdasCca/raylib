@@ -302,14 +302,14 @@ typedef struct tagBITMAPINFOHEADER {
 // Trace log level
 // NOTE: Organized by priority level
 typedef enum {
-    LOG_ALL = 0,        // Display all logs
-    LOG_TRACE,          // Trace logging, intended for internal use only
-    LOG_DEBUG,          // Debug logging, used for internal debugging, it should be disabled on release builds
-    LOG_INFO,           // Info logging, used for program execution info
-    LOG_WARNING,        // Warning logging, used on recoverable failures
-    LOG_ERROR,          // Error logging, used on unrecoverable failures
-    LOG_FATAL,          // Fatal logging, used to abort program: exit(EXIT_FAILURE)
-    LOG_NONE            // Disable logging
+    RL_E_LOG_ALL = 0,        // Display all logs
+    RL_E_LOG_TRACE,          // Trace logging, intended for internal use only
+    RL_E_LOG_DEBUG,          // Debug logging, used for internal debugging, it should be disabled on release builds
+    RL_E_LOG_INFO,           // Info logging, used for program execution info
+    RL_E_LOG_WARNING,        // Warning logging, used on recoverable failures
+    RL_E_LOG_ERROR,          // Error logging, used on unrecoverable failures
+    RL_E_LOG_FATAL,          // Fatal logging, used to abort program: exit(EXIT_FAILURE)
+    RL_E_LOG_NONE            // Disable logging
 } RLTraceLogLevel;
 #endif
 
@@ -461,7 +461,7 @@ void RLInitAudioDevice(void)
     ma_result result = ma_context_init(NULL, 0, &ctxConfig, &AUDIO.System.context);
     if (result != MA_SUCCESS)
     {
-        TRACELOG(LOG_WARNING, "AUDIO: Failed to initialize context");
+        TRACELOG(RL_E_LOG_WARNING, "AUDIO: Failed to initialize context");
         return;
     }
 
@@ -481,7 +481,7 @@ void RLInitAudioDevice(void)
     result = ma_device_init(&AUDIO.System.context, &config, &AUDIO.System.device);
     if (result != MA_SUCCESS)
     {
-        TRACELOG(LOG_WARNING, "AUDIO: Failed to initialize playback device");
+        TRACELOG(RL_E_LOG_WARNING, "AUDIO: Failed to initialize playback device");
         ma_context_uninit(&AUDIO.System.context);
         return;
     }
@@ -490,7 +490,7 @@ void RLInitAudioDevice(void)
     // want to look at something a bit smarter later on to keep everything real-time, if that's necessary
     if (ma_mutex_init(&AUDIO.System.lock) != MA_SUCCESS)
     {
-        TRACELOG(LOG_WARNING, "AUDIO: Failed to create mutex for mixing");
+        TRACELOG(RL_E_LOG_WARNING, "AUDIO: Failed to create mutex for mixing");
         ma_device_uninit(&AUDIO.System.device);
         ma_context_uninit(&AUDIO.System.context);
         return;
@@ -501,18 +501,18 @@ void RLInitAudioDevice(void)
     result = ma_device_start(&AUDIO.System.device);
     if (result != MA_SUCCESS)
     {
-        TRACELOG(LOG_WARNING, "AUDIO: Failed to start playback device");
+        TRACELOG(RL_E_LOG_WARNING, "AUDIO: Failed to start playback device");
         ma_device_uninit(&AUDIO.System.device);
         ma_context_uninit(&AUDIO.System.context);
         return;
     }
 
-    TRACELOG(LOG_INFO, "AUDIO: Device initialized successfully");
-    TRACELOG(LOG_INFO, "    > Backend:       miniaudio | %s", ma_get_backend_name(AUDIO.System.context.backend));
-    TRACELOG(LOG_INFO, "    > Format:        %s -> %s", ma_get_format_name(AUDIO.System.device.playback.format), ma_get_format_name(AUDIO.System.device.playback.internalFormat));
-    TRACELOG(LOG_INFO, "    > Channels:      %d -> %d", AUDIO.System.device.playback.channels, AUDIO.System.device.playback.internalChannels);
-    TRACELOG(LOG_INFO, "    > Sample rate:   %d -> %d", AUDIO.System.device.sampleRate, AUDIO.System.device.playback.internalSampleRate);
-    TRACELOG(LOG_INFO, "    > Periods size:  %d", AUDIO.System.device.playback.internalPeriodSizeInFrames*AUDIO.System.device.playback.internalPeriods);
+    TRACELOG(RL_E_LOG_INFO, "AUDIO: Device initialized successfully");
+    TRACELOG(RL_E_LOG_INFO, "    > Backend:       miniaudio | %s", ma_get_backend_name(AUDIO.System.context.backend));
+    TRACELOG(RL_E_LOG_INFO, "    > Format:        %s -> %s", ma_get_format_name(AUDIO.System.device.playback.format), ma_get_format_name(AUDIO.System.device.playback.internalFormat));
+    TRACELOG(RL_E_LOG_INFO, "    > Channels:      %d -> %d", AUDIO.System.device.playback.channels, AUDIO.System.device.playback.internalChannels);
+    TRACELOG(RL_E_LOG_INFO, "    > Sample rate:   %d -> %d", AUDIO.System.device.sampleRate, AUDIO.System.device.playback.internalSampleRate);
+    TRACELOG(RL_E_LOG_INFO, "    > Periods size:  %d", AUDIO.System.device.playback.internalPeriodSizeInFrames*AUDIO.System.device.playback.internalPeriods);
 
     AUDIO.System.isReady = true;
 }
@@ -531,9 +531,9 @@ void RLCloseAudioDevice(void)
         AUDIO.System.pcmBuffer = NULL;
         AUDIO.System.pcmBufferSize = 0;
 
-        TRACELOG(LOG_INFO, "AUDIO: Device closed successfully");
+        TRACELOG(RL_E_LOG_INFO, "AUDIO: Device closed successfully");
     }
-    else TRACELOG(LOG_WARNING, "AUDIO: Device could not be closed, not currently initialized");
+    else TRACELOG(RL_E_LOG_WARNING, "AUDIO: Device could not be closed, not currently initialized");
 }
 
 // Check if device has been initialized successfully
@@ -567,7 +567,7 @@ AudioBuffer *LoadAudioBuffer(ma_format format, ma_uint32 channels, ma_uint32 sam
 
     if (audioBuffer == NULL)
     {
-        TRACELOG(LOG_WARNING, "AUDIO: Failed to allocate memory for buffer");
+        TRACELOG(RL_E_LOG_WARNING, "AUDIO: Failed to allocate memory for buffer");
         return NULL;
     }
 
@@ -581,7 +581,7 @@ AudioBuffer *LoadAudioBuffer(ma_format format, ma_uint32 channels, ma_uint32 sam
 
     if (result != MA_SUCCESS)
     {
-        TRACELOG(LOG_WARNING, "AUDIO: Failed to create data conversion pipeline");
+        TRACELOG(RL_E_LOG_WARNING, "AUDIO: Failed to create data conversion pipeline");
         RL_FREE(audioBuffer);
         return NULL;
     }
@@ -806,7 +806,7 @@ RLWave RLLoadWaveFromMemory(const char *fileType, const unsigned char *fileData,
             // NOTE: We are forcing conversion to 16bit sample size on reading
             drwav_read_pcm_frames_s16(&wav, wave.frameCount, (drwav_int16 *)wave.data);
         }
-        else TRACELOG(LOG_WARNING, "WAVE: Failed to load WAV data");
+        else TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to load WAV data");
 
         drwav_uninit(&wav);
     }
@@ -830,7 +830,7 @@ RLWave RLLoadWaveFromMemory(const char *fileType, const unsigned char *fileData,
             stb_vorbis_get_samples_short_interleaved(oggData, info.channels, (short *)wave.data, wave.frameCount*wave.channels);
             stb_vorbis_close(oggData);
         }
-        else TRACELOG(LOG_WARNING, "WAVE: Failed to load OGG data");
+        else TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to load OGG data");
     }
 #endif
 #if defined(SUPPORT_FILEFORMAT_MP3)
@@ -849,7 +849,7 @@ RLWave RLLoadWaveFromMemory(const char *fileType, const unsigned char *fileData,
             wave.sampleRate = config.sampleRate;
             wave.frameCount = (int)totalFrameCount;
         }
-        else TRACELOG(LOG_WARNING, "WAVE: Failed to load MP3 data");
+        else TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to load MP3 data");
 
     }
 #endif
@@ -868,7 +868,7 @@ RLWave RLLoadWaveFromMemory(const char *fileType, const unsigned char *fileData,
             wave.sampleRate = qoa.samplerate;
             wave.frameCount = qoa.samples;
         }
-        else TRACELOG(LOG_WARNING, "WAVE: Failed to load QOA data");
+        else TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to load QOA data");
 
     }
 #endif
@@ -882,12 +882,12 @@ RLWave RLLoadWaveFromMemory(const char *fileType, const unsigned char *fileData,
         wave.sampleSize = 16;
 
         if (wave.data != NULL) wave.frameCount = (unsigned int)totalFrameCount;
-        else TRACELOG(LOG_WARNING, "WAVE: Failed to load FLAC data");
+        else TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to load FLAC data");
     }
 #endif
-    else TRACELOG(LOG_WARNING, "WAVE: Data format not supported");
+    else TRACELOG(RL_E_LOG_WARNING, "WAVE: Data format not supported");
 
-    TRACELOG(LOG_INFO, "WAVE: Data loaded successfully (%i Hz, %i bit, %i channels)", wave.sampleRate, wave.sampleSize, wave.channels);
+    TRACELOG(RL_E_LOG_INFO, "WAVE: Data loaded successfully (%i Hz, %i bit, %i channels)", wave.sampleRate, wave.sampleSize, wave.channels);
 
     return wave;
 }
@@ -940,17 +940,17 @@ RLSound RLLoadSoundFromWave(RLWave wave)
         ma_uint32 frameCountIn = wave.frameCount;
 
         ma_uint32 frameCount = (ma_uint32)ma_convert_frames(NULL, 0, AUDIO_DEVICE_FORMAT, AUDIO_DEVICE_CHANNELS, AUDIO.System.device.sampleRate, NULL, frameCountIn, formatIn, wave.channels, wave.sampleRate);
-        if (frameCount == 0) TRACELOG(LOG_WARNING, "SOUND: Failed to get frame count for format conversion");
+        if (frameCount == 0) TRACELOG(RL_E_LOG_WARNING, "SOUND: Failed to get frame count for format conversion");
 
         AudioBuffer *audioBuffer = LoadAudioBuffer(AUDIO_DEVICE_FORMAT, AUDIO_DEVICE_CHANNELS, AUDIO.System.device.sampleRate, frameCount, AUDIO_BUFFER_USAGE_STATIC);
         if (audioBuffer == NULL)
         {
-            TRACELOG(LOG_WARNING, "SOUND: Failed to create buffer");
+            TRACELOG(RL_E_LOG_WARNING, "SOUND: Failed to create buffer");
             return sound; // early return to avoid dereferencing the audioBuffer null pointer
         }
 
         frameCount = (ma_uint32)ma_convert_frames(audioBuffer->data, frameCount, AUDIO_DEVICE_FORMAT, AUDIO_DEVICE_CHANNELS, AUDIO.System.device.sampleRate, wave.data, frameCountIn, formatIn, wave.channels, wave.sampleRate);
-        if (frameCount == 0) TRACELOG(LOG_WARNING, "SOUND: Failed format conversion");
+        if (frameCount == 0) TRACELOG(RL_E_LOG_WARNING, "SOUND: Failed format conversion");
 
         sound.frameCount = frameCount;
         sound.stream.sampleRate = AUDIO.System.device.sampleRate;
@@ -974,7 +974,7 @@ RLSound RLLoadSoundAlias(RLSound source)
 
         if (audioBuffer == NULL)
         {
-            TRACELOG(LOG_WARNING, "SOUND: Failed to create buffer");
+            TRACELOG(RL_E_LOG_WARNING, "SOUND: Failed to create buffer");
             return sound; // Early return to avoid dereferencing the audioBuffer null pointer
         }
 
@@ -1090,7 +1090,7 @@ bool RLExportWave(RLWave wave, const char *fileName)
             int bytesWritten = qoa_write(fileName, (const short *)wave.data, &qoa);
             if (bytesWritten > 0) success = true;
         }
-        else TRACELOG(LOG_WARNING, "AUDIO: Wave data must be 16 bit per sample for QOA format export");
+        else TRACELOG(RL_E_LOG_WARNING, "AUDIO: Wave data must be 16 bit per sample for QOA format export");
     }
 #endif
     else if (RLIsFileExtension(fileName, ".raw"))
@@ -1100,8 +1100,8 @@ bool RLExportWave(RLWave wave, const char *fileName)
         success = RLSaveFileData(fileName, wave.data, wave.frameCount*wave.channels*wave.sampleSize/8);
     }
 
-    if (success) TRACELOG(LOG_INFO, "FILEIO: [%s] Wave data exported successfully", fileName);
-    else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to export wave data", fileName);
+    if (success) TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Wave data exported successfully", fileName);
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to export wave data", fileName);
 
     return success;
 }
@@ -1167,8 +1167,8 @@ bool RLExportWaveAsCode(RLWave wave, const char *fileName)
 
     RL_FREE(txtData);
 
-    if (success != 0) TRACELOG(LOG_INFO, "FILEIO: [%s] Wave as code exported successfully", fileName);
-    else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to export wave as code", fileName);
+    if (success != 0) TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Wave as code exported successfully", fileName);
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to export wave as code", fileName);
 
     return success;
 }
@@ -1236,7 +1236,7 @@ void RLWaveFormat(RLWave *wave, int sampleRate, int sampleSize, int channels)
 
     if (frameCount == 0)
     {
-        TRACELOG(LOG_WARNING, "WAVE: Failed to get frame count for format conversion");
+        TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to get frame count for format conversion");
         return;
     }
 
@@ -1246,7 +1246,7 @@ void RLWaveFormat(RLWave *wave, int sampleRate, int sampleSize, int channels)
     if (frameCount == 0)
     {
         RL_FREE(data);
-        TRACELOG(LOG_WARNING, "WAVE: Failed format conversion");
+        TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed format conversion");
         return;
     }
 
@@ -1296,7 +1296,7 @@ void RLWaveCrop(RLWave *wave, int initFrame, int finalFrame)
         wave->data = data;
         wave->frameCount = (unsigned int)frameCount;
     }
-    else TRACELOG(LOG_WARNING, "WAVE: Crop range out of bounds");
+    else TRACELOG(RL_E_LOG_WARNING, "WAVE: Crop range out of bounds");
 }
 
 // Load samples data from wave as a floats array
@@ -1500,20 +1500,20 @@ RLMusic RLLoadMusicStream(const char *fileName)
         }
     }
 #endif
-    else TRACELOG(LOG_WARNING, "STREAM: [%s] File format not supported", fileName);
+    else TRACELOG(RL_E_LOG_WARNING, "STREAM: [%s] File format not supported", fileName);
 
     if (!musicLoaded)
     {
-        TRACELOG(LOG_WARNING, "FILEIO: [%s] Music file could not be opened", fileName);
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Music file could not be opened", fileName);
     }
     else
     {
         // Show some music stream info
-        TRACELOG(LOG_INFO, "FILEIO: [%s] Music file loaded successfully", fileName);
-        TRACELOG(LOG_INFO, "    > Sample rate:   %i Hz", music.stream.sampleRate);
-        TRACELOG(LOG_INFO, "    > Sample size:   %i bits", music.stream.sampleSize);
-        TRACELOG(LOG_INFO, "    > Channels:      %i (%s)", music.stream.channels, (music.stream.channels == 1)? "Mono" : (music.stream.channels == 2)? "Stereo" : "Multi");
-        TRACELOG(LOG_INFO, "    > Total frames:  %i", music.frameCount);
+        TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Music file loaded successfully", fileName);
+        TRACELOG(RL_E_LOG_INFO, "    > Sample rate:   %i Hz", music.stream.sampleRate);
+        TRACELOG(RL_E_LOG_INFO, "    > Sample size:   %i bits", music.stream.sampleSize);
+        TRACELOG(RL_E_LOG_INFO, "    > Channels:      %i (%s)", music.stream.channels, (music.stream.channels == 1)? "Mono" : (music.stream.channels == 2)? "Stereo" : "Multi");
+        TRACELOG(RL_E_LOG_INFO, "    > Total frames:  %i", music.frameCount);
     }
 
     return music;
@@ -1714,20 +1714,20 @@ RLMusic RLLoadMusicStreamFromMemory(const char *fileType, const unsigned char *d
         }
     }
 #endif
-    else TRACELOG(LOG_WARNING, "STREAM: Data format not supported");
+    else TRACELOG(RL_E_LOG_WARNING, "STREAM: Data format not supported");
 
     if (!musicLoaded)
     {
-        TRACELOG(LOG_WARNING, "FILEIO: Music data could not be loaded");
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: Music data could not be loaded");
     }
     else
     {
         // Show some music stream info
-        TRACELOG(LOG_INFO, "FILEIO: Music data loaded successfully");
-        TRACELOG(LOG_INFO, "    > Sample rate:   %i Hz", music.stream.sampleRate);
-        TRACELOG(LOG_INFO, "    > Sample size:   %i bits", music.stream.sampleSize);
-        TRACELOG(LOG_INFO, "    > Channels:      %i (%s)", music.stream.channels, (music.stream.channels == 1)? "Mono" : (music.stream.channels == 2)? "Stereo" : "Multi");
-        TRACELOG(LOG_INFO, "    > Total frames:  %i", music.frameCount);
+        TRACELOG(RL_E_LOG_INFO, "FILEIO: Music data loaded successfully");
+        TRACELOG(RL_E_LOG_INFO, "    > Sample rate:   %i Hz", music.stream.sampleRate);
+        TRACELOG(RL_E_LOG_INFO, "    > Sample size:   %i bits", music.stream.sampleSize);
+        TRACELOG(RL_E_LOG_INFO, "    > Channels:      %i (%s)", music.stream.channels, (music.stream.channels == 1)? "Mono" : (music.stream.channels == 2)? "Stereo" : "Multi");
+        TRACELOG(RL_E_LOG_INFO, "    > Total frames:  %i", music.frameCount);
     }
 
     return music;
@@ -2015,7 +2015,7 @@ void RLUpdateMusicStream(RLMusic music)
         #if defined(SUPPORT_FILEFORMAT_MOD)
             case MUSIC_MODULE_MOD:
             {
-                // NOTE: 3rd parameter (nbsample) specify the number of stereo 16bits samples you want, so sampleCount/2
+                // NOTE: 3rd parameter (nbsample) specify the number of stereo 16bits samples desired, so sampleCount/2
                 jar_mod_fillbuffer((jar_mod_context_t *)music.ctxData, (short *)AUDIO.System.pcmBuffer, framesToStream, 0);
                 //jar_mod_seek_start((jar_mod_context_t *)music.ctxData);
 
@@ -2129,9 +2129,9 @@ RLAudioStream RLLoadAudioStream(unsigned int sampleRate, unsigned int sampleSize
     if (stream.buffer != NULL)
     {
         stream.buffer->looping = true;    // Always loop for streaming buffers
-        TRACELOG(LOG_INFO, "STREAM: Initialized successfully (%i Hz, %i bit, %s)", stream.sampleRate, stream.sampleSize, (stream.channels == 1)? "Mono" : "Stereo");
+        TRACELOG(RL_E_LOG_INFO, "STREAM: Initialized successfully (%i Hz, %i bit, %s)", stream.sampleRate, stream.sampleSize, (stream.channels == 1)? "Mono" : "Stereo");
     }
-    else TRACELOG(LOG_WARNING, "STREAM: Failed to load audio buffer, stream could not be created");
+    else TRACELOG(RL_E_LOG_WARNING, "STREAM: Failed to load audio buffer, stream could not be created");
 
     return stream;
 }
@@ -2150,7 +2150,7 @@ void RLUnloadAudioStream(RLAudioStream stream)
 {
     UnloadAudioBuffer(stream.buffer);
 
-    TRACELOG(LOG_INFO, "STREAM: Unloaded audio stream data from RAM");
+    TRACELOG(RL_E_LOG_INFO, "STREAM: Unloaded audio stream data from RAM");
 }
 
 // Update audio stream buffers with data
@@ -2352,7 +2352,7 @@ void RLDetachAudioMixedProcessor(RLAudioCallback process)
 // Log callback function
 static void OnLog(void *pUserData, ma_uint32 level, const char *pMessage)
 {
-    TRACELOG(LOG_WARNING, "miniaudio: %s", pMessage);   // All log messages from miniaudio are errors
+    TRACELOG(RL_E_LOG_WARNING, "miniaudio: %s", pMessage);   // All log messages from miniaudio are errors
 }
 
 // Reads audio data from an AudioBuffer object in internal format
@@ -2504,7 +2504,7 @@ static void OnSendAudioDataToDevice(ma_device *pDevice, void *pFramesOut, const 
     memset(pFramesOut, 0, frameCount*pDevice->playback.channels*ma_get_bytes_per_sample(pDevice->playback.format));
 
     // Using a mutex here for thread-safety which makes things not real-time
-    // This is unlikely to be necessary for this project, but may want to consider how you might want to avoid this
+    // This is unlikely to be necessary for this project, but it can be reconsidered
     ma_mutex_lock(&AUDIO.System.lock);
     {
         for (AudioBuffer *audioBuffer = AUDIO.Buffer.first; audioBuffer != NULL; audioBuffer = audioBuffer->next)
@@ -2705,9 +2705,9 @@ static void UpdateAudioStreamInLockedState(RLAudioStream stream, const void *dat
 
                 stream.buffer->isSubBufferProcessed[subBufferToUpdate] = false;
             }
-            else TRACELOG(LOG_WARNING, "STREAM: Attempting to write too many frames to buffer");
+            else TRACELOG(RL_E_LOG_WARNING, "STREAM: Attempting to write too many frames to buffer");
         }
-        else TRACELOG(LOG_WARNING, "STREAM: Buffer not available for updating");
+        else TRACELOG(RL_E_LOG_WARNING, "STREAM: Buffer not available for updating");
     }
 }
 
@@ -2809,16 +2809,16 @@ static unsigned char *RLLoadFileData(const char *fileName, int *dataSize)
                 unsigned int count = (unsigned int)fread(data, sizeof(unsigned char), size, file);
                 *dataSize = count;
 
-                if (count != size) TRACELOG(LOG_WARNING, "FILEIO: [%s] File partially loaded", fileName);
-                else TRACELOG(LOG_INFO, "FILEIO: [%s] File loaded successfully", fileName);
+                if (count != size) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File partially loaded", fileName);
+                else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File loaded successfully", fileName);
             }
-            else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to read file", fileName);
+            else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to read file", fileName);
 
             fclose(file);
         }
-        else TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
+        else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
     }
-    else TRACELOG(LOG_WARNING, "FILEIO: File name provided is not valid");
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
 
     return data;
 }
@@ -2834,21 +2834,21 @@ static bool RLSaveFileData(const char *fileName, void *data, int dataSize)
         {
             unsigned int count = (unsigned int)fwrite(data, sizeof(unsigned char), dataSize, file);
 
-            if (count == 0) TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to write file", fileName);
-            else if (count != dataSize) TRACELOG(LOG_WARNING, "FILEIO: [%s] File partially written", fileName);
-            else TRACELOG(LOG_INFO, "FILEIO: [%s] File saved successfully", fileName);
+            if (count == 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write file", fileName);
+            else if (count != dataSize) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File partially written", fileName);
+            else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File saved successfully", fileName);
 
             fclose(file);
         }
         else
         {
-            TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
+            TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
             return false;
         }
     }
     else
     {
-        TRACELOG(LOG_WARNING, "FILEIO: File name provided is not valid");
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
         return false;
     }
 
@@ -2867,20 +2867,20 @@ static bool RLSaveFileText(const char *fileName, char *text)
             int count = 0;
             if (text != NULL) count = fprintf(file, "%s", text);
 
-            if (count == 0) TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to write text file", fileName);
-            else TRACELOG(LOG_INFO, "FILEIO: [%s] Text file saved successfully", fileName);
+            if (count == 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write text file", fileName);
+            else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Text file saved successfully", fileName);
 
             fclose(file);
         }
         else
         {
-            TRACELOG(LOG_WARNING, "FILEIO: [%s] Failed to open text file", fileName);
+            TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open text file", fileName);
             return false;
         }
     }
     else
     {
-        TRACELOG(LOG_WARNING, "FILEIO: File name provided is not valid");
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
         return false;
     }
 

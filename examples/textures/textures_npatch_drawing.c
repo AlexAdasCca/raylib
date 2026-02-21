@@ -44,14 +44,14 @@ int main(void)
     RLRectangle dstRecV = { 92.0f, 160.0f, 32.0f, 32.0f };
 
     // A 9-patch (NPATCH_NINE_PATCH) changes its sizes in both axis
-    RLNPatchInfo ninePatchInfo1 = { (RLRectangle){ 0.0f, 0.0f, 64.0f, 64.0f }, 12, 40, 12, 12, NPATCH_NINE_PATCH };
-    RLNPatchInfo ninePatchInfo2 = { (RLRectangle){ 0.0f, 128.0f, 64.0f, 64.0f }, 16, 16, 16, 16, NPATCH_NINE_PATCH };
+    RLNPatchInfo ninePatchInfo1 = { (RLRectangle){ 0.0f, 0.0f, 64.0f, 64.0f }, 12, 40, 12, 12, RL_E_NPATCH_NINE_PATCH };
+    RLNPatchInfo ninePatchInfo2 = { (RLRectangle){ 0.0f, 128.0f, 64.0f, 64.0f }, 16, 16, 16, 16, RL_E_NPATCH_NINE_PATCH };
 
     // A horizontal 3-patch (NPATCH_THREE_PATCH_HORIZONTAL) changes its sizes along the x axis only
-    RLNPatchInfo h3PatchInfo = { (RLRectangle){ 0.0f,  64.0f, 64.0f, 64.0f }, 8, 8, 8, 8, NPATCH_THREE_PATCH_HORIZONTAL };
+    RLNPatchInfo h3PatchInfo = { (RLRectangle){ 0.0f,  64.0f, 64.0f, 64.0f }, 8, 8, 8, 8, RL_E_NPATCH_THREE_PATCH_HORIZONTAL };
 
     // A vertical 3-patch (NPATCH_THREE_PATCH_VERTICAL) changes its sizes along the y axis only
-    RLNPatchInfo v3PatchInfo = { (RLRectangle){ 0.0f, 192.0f, 64.0f, 64.0f }, 6, 6, 6, 6, NPATCH_THREE_PATCH_VERTICAL };
+    RLNPatchInfo v3PatchInfo = { (RLRectangle){ 0.0f, 192.0f, 64.0f, 64.0f }, 6, 6, 6, 6, RL_E_NPATCH_THREE_PATCH_VERTICAL };
 
     RLSetTargetFPS(60);
     //---------------------------------------------------------------------------------------

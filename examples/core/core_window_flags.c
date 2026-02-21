@@ -60,41 +60,41 @@ int main(void)
     {
         // Update
         //-----------------------------------------------------
-        if (RLIsKeyPressed(KEY_F)) RLToggleFullscreen();  // modifies window size when scaling!
+        if (RLIsKeyPressed(RL_E_KEY_F)) RLToggleFullscreen();  // modifies window size when scaling!
 
-        if (RLIsKeyPressed(KEY_R))
+        if (RLIsKeyPressed(RL_E_KEY_R))
         {
-            if (RLIsWindowState(FLAG_WINDOW_RESIZABLE)) RLClearWindowState(FLAG_WINDOW_RESIZABLE);
-            else RLSetWindowState(FLAG_WINDOW_RESIZABLE);
+            if (RLIsWindowState(RL_E_FLAG_WINDOW_RESIZABLE)) RLClearWindowState(RL_E_FLAG_WINDOW_RESIZABLE);
+            else RLSetWindowState(RL_E_FLAG_WINDOW_RESIZABLE);
         }
 
-        if (RLIsKeyPressed(KEY_D))
+        if (RLIsKeyPressed(RL_E_KEY_D))
         {
-            if (RLIsWindowState(FLAG_WINDOW_UNDECORATED)) RLClearWindowState(FLAG_WINDOW_UNDECORATED);
-            else RLSetWindowState(FLAG_WINDOW_UNDECORATED);
+            if (RLIsWindowState(RL_E_FLAG_WINDOW_UNDECORATED)) RLClearWindowState(RL_E_FLAG_WINDOW_UNDECORATED);
+            else RLSetWindowState(RL_E_FLAG_WINDOW_UNDECORATED);
         }
 
-        if (RLIsKeyPressed(KEY_H))
+        if (RLIsKeyPressed(RL_E_KEY_H))
         {
-            if (!RLIsWindowState(FLAG_WINDOW_HIDDEN)) RLSetWindowState(FLAG_WINDOW_HIDDEN);
+            if (!RLIsWindowState(RL_E_FLAG_WINDOW_HIDDEN)) RLSetWindowState(RL_E_FLAG_WINDOW_HIDDEN);
 
             framesCounter = 0;
         }
 
-        if (RLIsWindowState(FLAG_WINDOW_HIDDEN))
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_HIDDEN))
         {
             framesCounter++;
-            if (framesCounter >= 240) RLClearWindowState(FLAG_WINDOW_HIDDEN); // Show window after 3 seconds
+            if (framesCounter >= 240) RLClearWindowState(RL_E_FLAG_WINDOW_HIDDEN); // Show window after 3 seconds
         }
 
-        if (RLIsKeyPressed(KEY_N))
+        if (RLIsKeyPressed(RL_E_KEY_N))
         {
-            if (!RLIsWindowState(FLAG_WINDOW_MINIMIZED)) RLMinimizeWindow();
+            if (!RLIsWindowState(RL_E_FLAG_WINDOW_MINIMIZED)) RLMinimizeWindow();
 
             framesCounter = 0;
         }
 
-        if (RLIsWindowState(FLAG_WINDOW_MINIMIZED))
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_MINIMIZED))
         {
             framesCounter++;
             if (framesCounter >= 240)
@@ -104,38 +104,38 @@ int main(void)
             }
         }
 
-        if (RLIsKeyPressed(KEY_M))
+        if (RLIsKeyPressed(RL_E_KEY_M))
         {
             // NOTE: Requires FLAG_WINDOW_RESIZABLE enabled!
-            if (RLIsWindowState(FLAG_WINDOW_MAXIMIZED)) RLRestoreWindow();
+            if (RLIsWindowState(RL_E_FLAG_WINDOW_MAXIMIZED)) RLRestoreWindow();
             else RLMaximizeWindow();
         }
 
-        if (RLIsKeyPressed(KEY_U))
+        if (RLIsKeyPressed(RL_E_KEY_U))
         {
-            if (RLIsWindowState(FLAG_WINDOW_UNFOCUSED)) RLClearWindowState(FLAG_WINDOW_UNFOCUSED);
-            else RLSetWindowState(FLAG_WINDOW_UNFOCUSED);
+            if (RLIsWindowState(RL_E_FLAG_WINDOW_UNFOCUSED)) RLClearWindowState(RL_E_FLAG_WINDOW_UNFOCUSED);
+            else RLSetWindowState(RL_E_FLAG_WINDOW_UNFOCUSED);
         }
 
-        if (RLIsKeyPressed(KEY_T))
+        if (RLIsKeyPressed(RL_E_KEY_T))
         {
-            if (RLIsWindowState(FLAG_WINDOW_TOPMOST)) RLClearWindowState(FLAG_WINDOW_TOPMOST);
-            else RLSetWindowState(FLAG_WINDOW_TOPMOST);
+            if (RLIsWindowState(RL_E_FLAG_WINDOW_TOPMOST)) RLClearWindowState(RL_E_FLAG_WINDOW_TOPMOST);
+            else RLSetWindowState(RL_E_FLAG_WINDOW_TOPMOST);
         }
 
-        if (RLIsKeyPressed(KEY_A))
+        if (RLIsKeyPressed(RL_E_KEY_A))
         {
-            if (RLIsWindowState(FLAG_WINDOW_ALWAYS_RUN)) RLClearWindowState(FLAG_WINDOW_ALWAYS_RUN);
-            else RLSetWindowState(FLAG_WINDOW_ALWAYS_RUN);
+            if (RLIsWindowState(RL_E_FLAG_WINDOW_ALWAYS_RUN)) RLClearWindowState(RL_E_FLAG_WINDOW_ALWAYS_RUN);
+            else RLSetWindowState(RL_E_FLAG_WINDOW_ALWAYS_RUN);
         }
 
-        if (RLIsKeyPressed(KEY_V))
+        if (RLIsKeyPressed(RL_E_KEY_V))
         {
-            if (RLIsWindowState(FLAG_VSYNC_HINT)) RLClearWindowState(FLAG_VSYNC_HINT);
-            else RLSetWindowState(FLAG_VSYNC_HINT);
+            if (RLIsWindowState(RL_E_FLAG_VSYNC_HINT)) RLClearWindowState(RL_E_FLAG_VSYNC_HINT);
+            else RLSetWindowState(RL_E_FLAG_VSYNC_HINT);
         }
 
-        if (RLIsKeyPressed(KEY_B)) RLToggleBorderlessWindowed();
+        if (RLIsKeyPressed(RL_E_KEY_B)) RLToggleBorderlessWindowed();
 
 
         // Bouncing ball logic
@@ -149,7 +149,7 @@ int main(void)
         //-----------------------------------------------------
         RLBeginDrawing();
 
-        if (RLIsWindowState(FLAG_WINDOW_TRANSPARENT)) RLClearBackground(BLANK);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_TRANSPARENT)) RLClearBackground(BLANK);
         else RLClearBackground(RAYWHITE);
 
         RLDrawCircleV(ballPosition, ballRadius, MAROON);
@@ -163,35 +163,35 @@ int main(void)
 
         // Draw window state info
         RLDrawText("Following flags can be set after window creation:", 10, 60, 10, GRAY);
-        if (RLIsWindowState(FLAG_FULLSCREEN_MODE)) RLDrawText("[F] FLAG_FULLSCREEN_MODE: on", 10, 80, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_FULLSCREEN_MODE)) RLDrawText("[F] FLAG_FULLSCREEN_MODE: on", 10, 80, 10, LIME);
         else RLDrawText("[F] FLAG_FULLSCREEN_MODE: off", 10, 80, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_RESIZABLE)) RLDrawText("[R] FLAG_WINDOW_RESIZABLE: on", 10, 100, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_RESIZABLE)) RLDrawText("[R] FLAG_WINDOW_RESIZABLE: on", 10, 100, 10, LIME);
         else RLDrawText("[R] FLAG_WINDOW_RESIZABLE: off", 10, 100, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_UNDECORATED)) RLDrawText("[D] FLAG_WINDOW_UNDECORATED: on", 10, 120, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_UNDECORATED)) RLDrawText("[D] FLAG_WINDOW_UNDECORATED: on", 10, 120, 10, LIME);
         else RLDrawText("[D] FLAG_WINDOW_UNDECORATED: off", 10, 120, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_HIDDEN)) RLDrawText("[H] FLAG_WINDOW_HIDDEN: on", 10, 140, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_HIDDEN)) RLDrawText("[H] FLAG_WINDOW_HIDDEN: on", 10, 140, 10, LIME);
         else RLDrawText("[H] FLAG_WINDOW_HIDDEN: off (hides for 3 seconds)", 10, 140, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_MINIMIZED)) RLDrawText("[N] FLAG_WINDOW_MINIMIZED: on", 10, 160, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_MINIMIZED)) RLDrawText("[N] FLAG_WINDOW_MINIMIZED: on", 10, 160, 10, LIME);
         else RLDrawText("[N] FLAG_WINDOW_MINIMIZED: off (restores after 3 seconds)", 10, 160, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_MAXIMIZED)) RLDrawText("[M] FLAG_WINDOW_MAXIMIZED: on", 10, 180, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_MAXIMIZED)) RLDrawText("[M] FLAG_WINDOW_MAXIMIZED: on", 10, 180, 10, LIME);
         else RLDrawText("[M] FLAG_WINDOW_MAXIMIZED: off", 10, 180, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_UNFOCUSED)) RLDrawText("[G] FLAG_WINDOW_UNFOCUSED: on", 10, 200, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_UNFOCUSED)) RLDrawText("[G] FLAG_WINDOW_UNFOCUSED: on", 10, 200, 10, LIME);
         else RLDrawText("[U] FLAG_WINDOW_UNFOCUSED: off", 10, 200, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_TOPMOST)) RLDrawText("[T] FLAG_WINDOW_TOPMOST: on", 10, 220, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_TOPMOST)) RLDrawText("[T] FLAG_WINDOW_TOPMOST: on", 10, 220, 10, LIME);
         else RLDrawText("[T] FLAG_WINDOW_TOPMOST: off", 10, 220, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_ALWAYS_RUN)) RLDrawText("[A] FLAG_WINDOW_ALWAYS_RUN: on", 10, 240, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_ALWAYS_RUN)) RLDrawText("[A] FLAG_WINDOW_ALWAYS_RUN: on", 10, 240, 10, LIME);
         else RLDrawText("[A] FLAG_WINDOW_ALWAYS_RUN: off", 10, 240, 10, MAROON);
-        if (RLIsWindowState(FLAG_VSYNC_HINT)) RLDrawText("[V] FLAG_VSYNC_HINT: on", 10, 260, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_VSYNC_HINT)) RLDrawText("[V] FLAG_VSYNC_HINT: on", 10, 260, 10, LIME);
         else RLDrawText("[V] FLAG_VSYNC_HINT: off", 10, 260, 10, MAROON);
-        if (RLIsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) RLDrawText("[B] FLAG_BORDERLESS_WINDOWED_MODE: on", 10, 280, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_BORDERLESS_WINDOWED_MODE)) RLDrawText("[B] FLAG_BORDERLESS_WINDOWED_MODE: on", 10, 280, 10, LIME);
         else RLDrawText("[B] FLAG_BORDERLESS_WINDOWED_MODE: off", 10, 280, 10, MAROON);
 
         RLDrawText("Following flags can only be set before window creation:", 10, 320, 10, GRAY);
-        if (RLIsWindowState(FLAG_WINDOW_HIGHDPI)) RLDrawText("FLAG_WINDOW_HIGHDPI: on", 10, 340, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_HIGHDPI)) RLDrawText("FLAG_WINDOW_HIGHDPI: on", 10, 340, 10, LIME);
         else RLDrawText("FLAG_WINDOW_HIGHDPI: off", 10, 340, 10, MAROON);
-        if (RLIsWindowState(FLAG_WINDOW_TRANSPARENT)) RLDrawText("FLAG_WINDOW_TRANSPARENT: on", 10, 360, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_WINDOW_TRANSPARENT)) RLDrawText("FLAG_WINDOW_TRANSPARENT: on", 10, 360, 10, LIME);
         else RLDrawText("FLAG_WINDOW_TRANSPARENT: off", 10, 360, 10, MAROON);
-        if (RLIsWindowState(FLAG_MSAA_4X_HINT)) RLDrawText("FLAG_MSAA_4X_HINT: on", 10, 380, 10, LIME);
+        if (RLIsWindowState(RL_E_FLAG_MSAA_4X_HINT)) RLDrawText("FLAG_MSAA_4X_HINT: on", 10, 380, 10, LIME);
         else RLDrawText("FLAG_MSAA_4X_HINT: off", 10, 380, 10, MAROON);
 
         RLEndDrawing();

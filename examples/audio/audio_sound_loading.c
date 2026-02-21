@@ -40,8 +40,8 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_SPACE)) RLPlaySound(fxWav);      // Play WAV sound
-        if (RLIsKeyPressed(KEY_ENTER)) RLPlaySound(fxOgg);      // Play OGG sound
+        if (RLIsKeyPressed(RL_E_KEY_SPACE)) RLPlaySound(fxWav);      // Play WAV sound
+        if (RLIsKeyPressed(RL_E_KEY_ENTER)) RLPlaySound(fxOgg);      // Play OGG sound
         //----------------------------------------------------------------------------------
 
         // Draw

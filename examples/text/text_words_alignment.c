@@ -70,23 +70,23 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        if (RLIsKeyPressed(KEY_LEFT))
+        if (RLIsKeyPressed(RL_E_KEY_LEFT))
         {
             if (hAlign > 0) hAlign = hAlign - 1;
         }
 
-        if (RLIsKeyPressed(KEY_RIGHT))
+        if (RLIsKeyPressed(RL_E_KEY_RIGHT))
         {
             hAlign = hAlign + 1;
             if (hAlign > 2) hAlign = 2;
         }
 
-        if (RLIsKeyPressed(KEY_UP))
+        if (RLIsKeyPressed(RL_E_KEY_UP))
         {
             if (vAlign > 0) vAlign = vAlign - 1;
         }
 
-        if (RLIsKeyPressed(KEY_DOWN))
+        if (RLIsKeyPressed(RL_E_KEY_DOWN))
         {
             vAlign = vAlign + 1;
             if (vAlign > 2) vAlign = 2;
@@ -113,8 +113,8 @@ int main(void)
 
             // Calculate the top-left text position based on the rectangle and alignment
             RLVector2 textPos = (RLVector2){
-                textContainerRect.x + Lerp(0.0f, textContainerRect.width  - textSize.x, ((float)hAlign)*0.5f),
-                textContainerRect.y + Lerp(0.0f, textContainerRect.height - textSize.y, ((float)vAlign)*0.5f)
+                textContainerRect.x + RLLerp(0.0f, textContainerRect.width  - textSize.x, ((float)hAlign)*0.5f),
+                textContainerRect.y + RLLerp(0.0f, textContainerRect.height - textSize.y, ((float)vAlign)*0.5f)
             };
 
             // Draw the text

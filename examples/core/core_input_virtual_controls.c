@@ -87,7 +87,7 @@ int main(void)
 
         // Make sure user is pressing left mouse button if they're from desktop
         if ((RLGetTouchPointCount() > 0) ||
-            ((RLGetTouchPointCount() == 0) && RLIsMouseButtonDown(MOUSE_BUTTON_LEFT)))
+            ((RLGetTouchPointCount() == 0) && RLIsMouseButtonDown(RL_E_MOUSE_BUTTON_LEFT)))
         {
             // Find nearest D-Pad button to the input position
             for (int i = 0; i < BUTTON_MAX; i++)

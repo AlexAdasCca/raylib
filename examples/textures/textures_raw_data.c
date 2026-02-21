@@ -34,7 +34,7 @@ int main(void)
     // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
 
     // Load RAW image data (512x512, 32bit RGBA, no file header)
-    RLImage fudesumiRaw = RLLoadImageRaw("resources/fudesumi.raw", 384, 512, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 0);
+    RLImage fudesumiRaw = RLLoadImageRaw("resources/fudesumi.raw", 384, 512, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 0);
     RLTexture2D fudesumi = RLLoadTextureFromImage(fudesumiRaw);  // Upload CPU (RAM) image to GPU (VRAM)
     RLUnloadImage(fudesumiRaw);                                // Unload CPU (RAM) image data
 
@@ -59,7 +59,7 @@ int main(void)
         .data = pixels,             // We can assign pixels directly to data
         .width = width,
         .height = height,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+        .format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
         .mipmaps = 1
     };
 
