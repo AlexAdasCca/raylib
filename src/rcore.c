@@ -109,6 +109,7 @@
 #include "raylib.h"                 // Declares module functions
 #include "rl_context.h"
 #include "rl_shared_gpu.h"             // Route2: context management
+#include "rl_object_tracker.h"
 
 #include "config.h"                 // Defines module configuration flags
 
@@ -166,11 +167,36 @@
     #if defined(__cplusplus)
     extern "C" {
     #endif
-    __declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(struct HINSTANCE__ *hModule, char *lpFilename, unsigned long nSize);
     __declspec(dllimport) unsigned long __stdcall GetModuleFileNameW(struct HINSTANCE__ *hModule, wchar_t *lpFilename, unsigned long nSize);
+    __declspec(dllimport) unsigned long __stdcall GetFullPathNameW(const wchar_t *lpFileName, unsigned long nBufferLength, wchar_t *lpBuffer, wchar_t **lpFilePart);
+    __declspec(dllimport) unsigned long __stdcall GetCurrentDirectoryW(unsigned long nBufferLength, wchar_t *lpBuffer);
+    __declspec(dllimport) int __stdcall SetCurrentDirectoryW(const wchar_t *lpPathName);
+    __declspec(dllimport) int __stdcall CreateDirectoryW(const wchar_t *lpPathName, void *lpSecurityAttributes);
+    __declspec(dllimport) unsigned long __stdcall GetFileAttributesW(const wchar_t *lpFileName);
+    __declspec(dllimport) unsigned long __stdcall GetLastError(void);
+    __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long framesToSkip, unsigned long framesToCapture, void **backTrace, unsigned long *backTraceHash);
+    __declspec(dllimport) void *__stdcall GetCurrentProcess(void);
+    __declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
+    __declspec(dllimport) int __stdcall FreeLibrary(void *hLibModule);
+    __declspec(dllimport) void *__stdcall GetProcAddress(void *hModule, const char *lpProcName);
     __declspec(dllimport) int __stdcall WideCharToMultiByte(unsigned int cp, unsigned long flags, const wchar_t *widestr, int cchwide, char *str, int cbmb, const char *defchar, int *used_default);
+    __declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int CodePage, unsigned long dwFlags, const char *lpMultiByteStr, int cbMultiByte, wchar_t *lpWideCharStr, int cchWideChar);
     __declspec(dllimport) unsigned int __stdcall timeBeginPeriod(unsigned int uPeriod);
     __declspec(dllimport) unsigned int __stdcall timeEndPeriod(unsigned int uPeriod);
+    #if RL_MEM_DIAG
+    char *__unDName(
+        char *outputString,
+        const char *name,
+        int maxStringLength,
+        void *(*pAlloc)(size_t),
+        void (*pFree)(void *),
+        unsigned short disableFlags);
+    #endif
+    #if defined(_MSC_VER)
+        extern long _InterlockedCompareExchange(volatile long* Destination, long Exchange, long Comperand);
+        extern long _InterlockedExchangeAdd(volatile long* Addend, long Value);
+        extern long _InterlockedExchange(volatile long* Target, long Value);
+    #endif
     #if defined(__cplusplus)
     }
     #endif
@@ -204,6 +230,8 @@
 #if defined(_WIN32)
     #include <io.h>                 // Required for: _access() [Used in FileExists()]
     #include <direct.h>             // Required for: _getch(), _chdir(), _mkdir()
+    #include <wchar.h>              // Required for: wcslen(), wmemcmp() [Win32 UTF-16 file path handling]
+    #include "platforms/win32_path.h"
     #define GETCWD _getcwd          // NOTE: MSDN recommends not to use getcwd(), chdir()
     #define CHDIR _chdir
     #define MKDIR(dir) _mkdir(dir)
@@ -228,9 +256,24 @@
 #endif
 #ifndef MAX_FILEPATH_LENGTH
     #if defined(_WIN32)
-        #define MAX_FILEPATH_LENGTH      256        // On Win32, MAX_PATH = 260 (limits.h) but Windows 10, Version 1607 enables long paths...
+        #define MAX_FILEPATH_LENGTH     4096        // Keep a larger fallback on Win32 to better support long paths
     #else
         #define MAX_FILEPATH_LENGTH     4096        // On Linux, PATH_MAX = 4096 by default (limits.h)
+    #endif
+#endif
+
+#if defined(_WIN32)
+    #ifndef CP_UTF8
+        #define CP_UTF8 65001
+    #endif
+    #ifndef MB_ERR_INVALID_CHARS
+        #define MB_ERR_INVALID_CHARS 0x00000008
+    #endif
+    #ifndef INVALID_FILE_ATTRIBUTES
+        #define INVALID_FILE_ATTRIBUTES ((unsigned long)0xFFFFFFFF)
+    #endif
+    #ifndef FILE_ATTRIBUTE_DIRECTORY
+        #define FILE_ATTRIBUTE_DIRECTORY 0x00000010
     #endif
 #endif
 
@@ -412,6 +455,623 @@ static inline CoreData *RLGetCoreDataPtr(void)
 
 #define CORE (*RLGetCoreDataPtr())
 
+typedef struct RLTrackedObjectEntry
+{
+    uint64_t key;
+    RLTrackedObjectKind kind;
+    unsigned char scopeKind;   // RLTrackedScopeKind
+    uintptr_t scopeValue;      // RLContext* or share-group pointer (tagged by scopeKind)
+    unsigned int refCount;
+    RLContext *ownerContext;
+    unsigned char ownerOrphaned;
+    void *snapshot;
+    size_t snapshotSize;
+    unsigned char state;    // 0: empty, 1: used, 2: tombstone
+} RLTrackedObjectEntry;
+
+typedef struct RLTrackedObjectTable
+{
+    RLTrackedObjectEntry *entries;
+    size_t capacity;
+    size_t used;
+    size_t tombstones;
+} RLTrackedObjectTable;
+
+static RLTrackedObjectTable rlTrackedObjectTable = { 0 };
+// Reader-writer lock state:
+// -1: writer holds lock
+// >=0: number of active readers
+static volatile long rlTrackedObjectRwState = 0;
+
+typedef enum RLTrackedScopeKind
+{
+    RL_TRACKED_SCOPE_CONTEXT = 1,
+    RL_TRACKED_SCOPE_SHARE_GROUP = 2
+} RLTrackedScopeKind;
+
+static bool RLTrackedObjectResolveScope(RLContext *ctx, RLTrackedScopeKind *outScopeKind, uintptr_t *outScopeValue)
+{
+    if ((ctx == NULL) || (outScopeKind == NULL) || (outScopeValue == NULL)) return false;
+
+    if (ctx->gpuShareGroup != NULL)
+    {
+        *outScopeKind = RL_TRACKED_SCOPE_SHARE_GROUP;
+        *outScopeValue = (uintptr_t)ctx->gpuShareGroup;
+        return true;
+    }
+
+    *outScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    *outScopeValue = (uintptr_t)ctx;
+    return true;
+}
+
+static void RLTrackedObjectReadLock(void)
+{
+    for (;;)
+    {
+#if defined(_WIN32)
+        #if defined(_MSC_VER)
+            long cur = _InterlockedCompareExchange(&rlTrackedObjectRwState, 0, 0);
+            if (cur >= 0)
+            {
+                if (_InterlockedCompareExchange(&rlTrackedObjectRwState, cur + 1, cur) == cur) break;
+            }
+        #else
+            long cur = __sync_val_compare_and_swap(&rlTrackedObjectRwState, 0, 0);
+            if (cur >= 0)
+            {
+                if (__sync_val_compare_and_swap(&rlTrackedObjectRwState, cur, cur + 1) == cur) break;
+            }
+        #endif
+#elif defined(__GNUC__) || defined(__clang__)
+        long cur = __atomic_load_n(&rlTrackedObjectRwState, __ATOMIC_RELAXED);
+        if (cur >= 0)
+        {
+            long expected = cur;
+            if (__atomic_compare_exchange_n(&rlTrackedObjectRwState, &expected, cur + 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) break;
+        }
+#else
+        if (rlTrackedObjectRwState >= 0)
+        {
+            rlTrackedObjectRwState++;
+            break;
+        }
+#endif
+    }
+}
+
+static void RLTrackedObjectReadUnlock(void)
+{
+#if defined(_WIN32)
+    #if defined(_MSC_VER)
+        (void)_InterlockedExchangeAdd(&rlTrackedObjectRwState, -1);
+    #else
+        (void)__sync_fetch_and_add(&rlTrackedObjectRwState, -1);
+    #endif
+#elif defined(__GNUC__) || defined(__clang__)
+    (void)__atomic_sub_fetch(&rlTrackedObjectRwState, 1, __ATOMIC_RELEASE);
+#else
+    rlTrackedObjectRwState--;
+#endif
+}
+
+static void RLTrackedObjectWriteLock(void)
+{
+    for (;;)
+    {
+#if defined(_WIN32)
+        #if defined(_MSC_VER)
+            if (_InterlockedCompareExchange(&rlTrackedObjectRwState, -1, 0) == 0) break;
+        #else
+            if (__sync_val_compare_and_swap(&rlTrackedObjectRwState, 0, -1) == 0) break;
+        #endif
+#elif defined(__GNUC__) || defined(__clang__)
+        long expected = 0;
+        if (__atomic_compare_exchange_n(&rlTrackedObjectRwState, &expected, -1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) break;
+#else
+        if (rlTrackedObjectRwState == 0)
+        {
+            rlTrackedObjectRwState = -1;
+            break;
+        }
+#endif
+    }
+}
+
+static void RLTrackedObjectWriteUnlock(void)
+{
+#if defined(_WIN32)
+    #if defined(_MSC_VER)
+        (void)_InterlockedExchange(&rlTrackedObjectRwState, 0);
+    #else
+        __sync_lock_release(&rlTrackedObjectRwState);
+    #endif
+#elif defined(__GNUC__) || defined(__clang__)
+    __atomic_store_n(&rlTrackedObjectRwState, 0, __ATOMIC_RELEASE);
+#else
+    rlTrackedObjectRwState = 0;
+#endif
+}
+
+static uint64_t RLTrackedObjectHash(RLTrackedObjectKind kind, RLTrackedScopeKind scopeKind, uintptr_t scopeValue, uint64_t key)
+{
+    uint64_t value = key ^
+                     ((uint64_t)kind * 0x9E3779B185EBCA87ull) ^
+                     ((uint64_t)scopeKind * 0xBF58476D1CE4E5B9ull) ^
+                     ((uint64_t)scopeValue * 0x94D049BB133111EBull);
+    value ^= value >> 33;
+    value *= 0xff51afd7ed558ccdull;
+    value ^= value >> 33;
+    value *= 0xc4ceb9fe1a85ec53ull;
+    value ^= value >> 33;
+    return value;
+}
+
+static const char *RLTrackedObjectKindName(RLTrackedObjectKind kind)
+{
+    switch (kind)
+    {
+        case RL_TRACKED_OBJECT_TEXTURE: return "texture";
+        case RL_TRACKED_OBJECT_RENDER_TEXTURE: return "render_texture";
+        case RL_TRACKED_OBJECT_MESH: return "mesh";
+        case RL_TRACKED_OBJECT_MATERIAL: return "material";
+        case RL_TRACKED_OBJECT_MODEL: return "model";
+        default: return "unknown";
+    }
+}
+
+static void RLTrackedObjectReleaseTableStorageIfEmptyLocked(void)
+{
+    if ((rlTrackedObjectTable.entries == NULL) || (rlTrackedObjectTable.used != 0u)) return;
+
+    RL_FREE(rlTrackedObjectTable.entries);
+    rlTrackedObjectTable.entries = NULL;
+    rlTrackedObjectTable.capacity = 0u;
+    rlTrackedObjectTable.tombstones = 0u;
+}
+
+static bool RLTrackedObjectTableResize(size_t newCapacity)
+{
+    RLTrackedObjectEntry *newEntries = (RLTrackedObjectEntry *)RL_CALLOC(newCapacity, sizeof(RLTrackedObjectEntry));
+    if (newEntries == NULL) return false;
+
+    RLTrackedObjectEntry *oldEntries = rlTrackedObjectTable.entries;
+    const size_t oldCapacity = rlTrackedObjectTable.capacity;
+
+    rlTrackedObjectTable.entries = newEntries;
+    rlTrackedObjectTable.capacity = newCapacity;
+    rlTrackedObjectTable.used = 0;
+    rlTrackedObjectTable.tombstones = 0;
+
+    for (size_t i = 0; i < oldCapacity; i++)
+    {
+        RLTrackedObjectEntry oldEntry = oldEntries[i];
+        if (oldEntry.state != 1) continue;
+
+        const size_t mask = newCapacity - 1u;
+        size_t index = (size_t)(RLTrackedObjectHash(oldEntry.kind, (RLTrackedScopeKind)oldEntry.scopeKind, oldEntry.scopeValue, oldEntry.key) & mask);
+        while (rlTrackedObjectTable.entries[index].state == 1) index = (index + 1u) & mask;
+        rlTrackedObjectTable.entries[index] = oldEntry;
+        rlTrackedObjectTable.used++;
+    }
+
+    RL_FREE(oldEntries);
+    return true;
+}
+
+static bool RLTrackedObjectEnsureCapacity(void)
+{
+    if (rlTrackedObjectTable.capacity == 0) return RLTrackedObjectTableResize(256);
+
+    const size_t threshold = (rlTrackedObjectTable.capacity * 7u) / 10u;
+    if ((rlTrackedObjectTable.used + rlTrackedObjectTable.tombstones) < threshold) return true;
+
+    return RLTrackedObjectTableResize(rlTrackedObjectTable.capacity * 2u);
+}
+
+static RLTrackedObjectEntry *RLTrackedObjectFindEntry(RLTrackedObjectKind kind, RLTrackedScopeKind scopeKind, uintptr_t scopeValue, uint64_t key, bool allowInsert)
+{
+    if (rlTrackedObjectTable.capacity == 0)
+    {
+        if (!allowInsert) return NULL;
+        if (!RLTrackedObjectEnsureCapacity()) return NULL;
+    }
+
+    const size_t mask = rlTrackedObjectTable.capacity - 1u;
+    size_t firstTombstone = (size_t)-1;
+    size_t index = (size_t)(RLTrackedObjectHash(kind, scopeKind, scopeValue, key) & mask);
+
+    for (;;)
+    {
+        RLTrackedObjectEntry *entry = &rlTrackedObjectTable.entries[index];
+        if (entry->state == 0)
+        {
+            if (!allowInsert) return NULL;
+            if (firstTombstone != (size_t)-1) return &rlTrackedObjectTable.entries[firstTombstone];
+            return entry;
+        }
+        if (entry->state == 1)
+        {
+            if ((entry->kind == kind) &&
+                (entry->scopeKind == (unsigned char)scopeKind) &&
+                (entry->scopeValue == scopeValue) &&
+                (entry->key == key)) return entry;
+        }
+        else if ((entry->state == 2) && (firstTombstone == (size_t)-1))
+        {
+            firstTombstone = index;
+        }
+        index = (index + 1u) & mask;
+    }
+}
+
+bool RLTrackedObjectRetain(RLTrackedObjectKind kind, uint64_t key, RLContext *ownerContext, const void *snapshot, size_t snapshotSize)
+{
+    if ((key == 0) || (snapshot == NULL) || (snapshotSize == 0)) return false;
+    RLTrackedScopeKind scopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t scopeValue = 0;
+    if (!RLTrackedObjectResolveScope(ownerContext, &scopeKind, &scopeValue)) return false;
+
+    RLTrackedObjectWriteLock();
+    if (!RLTrackedObjectEnsureCapacity())
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
+
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, scopeKind, scopeValue, key, true);
+    if (entry == NULL)
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
+
+    if (entry->state == 1)
+    {
+        void *snapshotStorage = entry->snapshot;
+        if (entry->snapshotSize != snapshotSize)
+        {
+            void *newSnapshot = RL_REALLOC(entry->snapshot, snapshotSize);
+            if (newSnapshot == NULL)
+            {
+                RLTrackedObjectWriteUnlock();
+                return false;
+            }
+            snapshotStorage = newSnapshot;
+        }
+        memcpy(snapshotStorage, snapshot, snapshotSize);
+        entry->snapshot = snapshotStorage;
+        entry->snapshotSize = snapshotSize;
+        entry->refCount++;
+        // Keep owner stable for existing tracked objects:
+        // retain/release manage lifetime only, owner changes must be explicit
+        // via RLTrackedObjectTryTransferOwner().
+        RLTrackedObjectWriteUnlock();
+        return true;
+    }
+
+    void *newSnapshot = RL_MALLOC(snapshotSize);
+    if (newSnapshot == NULL)
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
+    memcpy(newSnapshot, snapshot, snapshotSize);
+
+    if (entry->state == 2) rlTrackedObjectTable.tombstones--;
+    else rlTrackedObjectTable.used++;
+
+    entry->key = key;
+    entry->kind = kind;
+    entry->scopeKind = (unsigned char)scopeKind;
+    entry->scopeValue = scopeValue;
+    entry->refCount = 1;
+    entry->ownerContext = ownerContext;
+    entry->ownerOrphaned = 0u;
+    entry->snapshot = newSnapshot;
+    entry->snapshotSize = snapshotSize;
+    entry->state = 1;
+    RLTrackedObjectWriteUnlock();
+    return true;
+}
+
+bool RLTrackedObjectRelease(RLTrackedObjectKind kind, uint64_t key, void *outSnapshot, size_t outSnapshotSize, unsigned int *outRemainingRefCount)
+{
+    if (outRemainingRefCount != NULL) *outRemainingRefCount = 0;
+    if (key == 0) return false;
+    RLContext *currentContext = RLGetCurrentContext();
+    RLTrackedScopeKind scopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t scopeValue = 0;
+    if (!RLTrackedObjectResolveScope(currentContext, &scopeKind, &scopeValue)) return false;
+
+    RLTrackedObjectWriteLock();
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, scopeKind, scopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1))
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
+
+    if (entry->refCount > 1)
+    {
+        entry->refCount--;
+        if (outRemainingRefCount != NULL) *outRemainingRefCount = entry->refCount;
+        RLTrackedObjectWriteUnlock();
+        return true;
+    }
+
+    if (outSnapshot != NULL)
+    {
+        if (outSnapshotSize != entry->snapshotSize)
+        {
+            RLTrackedObjectWriteUnlock();
+            return false;
+        }
+        memcpy(outSnapshot, entry->snapshot, entry->snapshotSize);
+    }
+
+    RL_FREE(entry->snapshot);
+    entry->snapshot = NULL;
+    entry->snapshotSize = 0;
+    entry->refCount = 0;
+    entry->ownerContext = NULL;
+    entry->ownerOrphaned = 0u;
+    entry->state = 2;
+    rlTrackedObjectTable.used--;
+    rlTrackedObjectTable.tombstones++;
+    RLTrackedObjectReleaseTableStorageIfEmptyLocked();
+    RLTrackedObjectWriteUnlock();
+    return true;
+}
+
+bool RLTrackedObjectGetOwnerContext(RLTrackedObjectKind kind, uint64_t key, RLContext **outOwnerContext)
+{
+    if (outOwnerContext != NULL) *outOwnerContext = NULL;
+    if (key == 0) return false;
+    RLContext *currentContext = RLGetCurrentContext();
+    RLTrackedScopeKind scopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t scopeValue = 0;
+    if (!RLTrackedObjectResolveScope(currentContext, &scopeKind, &scopeValue)) return false;
+
+    RLTrackedObjectReadLock();
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, scopeKind, scopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1))
+    {
+        RLTrackedObjectReadUnlock();
+        return false;
+    }
+
+    if (outOwnerContext != NULL) *outOwnerContext = entry->ownerContext;
+    RLTrackedObjectReadUnlock();
+    return true;
+}
+
+bool RLTrackedObjectIsOwnedByCurrentContext(RLTrackedObjectKind kind, uint64_t key)
+{
+    RLContext *ownerContext = NULL;
+    if (!RLTrackedObjectGetOwnerContext(kind, key, &ownerContext)) return false;
+    return (ownerContext == RLGetCurrentContext());
+}
+
+bool RLTrackedObjectTryTransferOwner(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
+{
+    if ((key == 0) || (targetContext == NULL)) return false;
+    RLContext *currentContext = RLGetCurrentContext();
+    RLTrackedScopeKind sourceScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t sourceScopeValue = 0;
+    if (!RLTrackedObjectResolveScope(currentContext, &sourceScopeKind, &sourceScopeValue)) return false;
+    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t targetScopeValue = 0;
+    if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return false;
+    if ((sourceScopeKind != targetScopeKind) || (sourceScopeValue != targetScopeValue)) return false;
+
+    RLTrackedObjectWriteLock();
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, sourceScopeKind, sourceScopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1))
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
+
+    if ((entry->ownerContext == NULL) && (entry->ownerOrphaned != 0u))
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
+
+    if ((entry->ownerContext != NULL) && (entry->ownerContext != currentContext))
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
+
+    entry->ownerContext = targetContext;
+    entry->ownerOrphaned = 0u;
+    RLTrackedObjectWriteUnlock();
+    return true;
+}
+
+static int RLTrackedObjectCanTransferOwner(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
+{
+    if ((key == 0u) || (targetContext == NULL)) return -1;
+
+    RLContext *currentContext = RLGetCurrentContext();
+    if (currentContext == NULL) return -1;
+
+    RLTrackedScopeKind sourceScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t sourceScopeValue = 0u;
+    if (!RLTrackedObjectResolveScope(currentContext, &sourceScopeKind, &sourceScopeValue)) return -1;
+
+    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t targetScopeValue = 0u;
+    if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return -1;
+
+    if ((sourceScopeKind != targetScopeKind) || (sourceScopeValue != targetScopeValue)) return -1;
+
+    RLTrackedObjectReadLock();
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, sourceScopeKind, sourceScopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1u))
+    {
+        RLTrackedObjectReadUnlock();
+        return 0;
+    }
+
+    if ((entry->ownerContext == NULL) && (entry->ownerOrphaned != 0u))
+    {
+        RLTrackedObjectReadUnlock();
+        return -1;
+    }
+
+    if (entry->ownerContext == targetContext)
+    {
+        RLTrackedObjectReadUnlock();
+        return 2;
+    }
+
+    if ((entry->ownerContext != NULL) && (entry->ownerContext != currentContext))
+    {
+        RLTrackedObjectReadUnlock();
+        return -1;
+    }
+
+    RLTrackedObjectReadUnlock();
+    return 1;
+}
+
+static int RLTrackedObjectTryAdoptOrphanedOwner(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
+{
+    if ((key == 0u) || (targetContext == NULL)) return -1;
+
+    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t targetScopeValue = 0u;
+    if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return -1;
+
+    RLTrackedObjectWriteLock();
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, targetScopeKind, targetScopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1u))
+    {
+        RLTrackedObjectWriteUnlock();
+        return 0;
+    }
+
+    if ((entry->ownerContext != NULL) || (entry->ownerOrphaned == 0u))
+    {
+        RLTrackedObjectWriteUnlock();
+        return -1;
+    }
+
+    entry->ownerContext = targetContext;
+    entry->ownerOrphaned = 0u;
+    RLTrackedObjectWriteUnlock();
+    return 1;
+}
+
+static int RLTrackedObjectCanAdoptOrphanedOwner(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
+{
+    if ((key == 0u) || (targetContext == NULL)) return -1;
+
+    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t targetScopeValue = 0u;
+    if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return -1;
+
+    RLTrackedObjectReadLock();
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, targetScopeKind, targetScopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1u))
+    {
+        RLTrackedObjectReadUnlock();
+        return 0;
+    }
+
+    int canAdopt = ((entry->ownerContext == NULL) && (entry->ownerOrphaned != 0u)) ? 1 : -1;
+    RLTrackedObjectReadUnlock();
+    return canAdopt;
+}
+
+void *RLResolveRenderThreadWindowHandleForTrackedObject(RLTrackedObjectKind kind, uint64_t key, const char *apiName)
+{
+    void *windowHandle = RLGetWindowHandle();
+    RLContext *ownerContext = NULL;
+    if (!RLTrackedObjectGetOwnerContext(kind, key, &ownerContext)) return windowHandle;
+    if ((ownerContext == NULL) || (ownerContext == RLGetCurrentContext())) return windowHandle;
+
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+    if (ownerContext->platformData != NULL)
+    {
+        PlatformData *ownerPlatform = (PlatformData *)ownerContext->platformData;
+        if ((ownerPlatform != NULL) && (ownerPlatform->win32Hwnd != NULL))
+        {
+            void *ownerWindowHandle = (void *)ownerPlatform->win32Hwnd;
+            if ((windowHandle != NULL) && (windowHandle != ownerWindowHandle))
+            {
+                TRACELOG(RL_E_LOG_WARNING,
+                         "THREADING: %s rerouted handoff to owner window handle",
+                         (apiName != NULL) ? apiName : "(unknown)");
+            }
+            return ownerWindowHandle;
+        }
+    }
+#else
+    (void)apiName;
+#endif
+
+    return windowHandle;
+}
+
+static void RLTrackedObjectAuditContextDestroy(RLContext *ownerContext)
+{
+    if (ownerContext == NULL) return;
+
+    unsigned int orphanedCount = 0u;
+    unsigned int loggedCount = 0u;
+    const unsigned int logLimit = 32u;
+
+    RLTrackedObjectWriteLock();
+    {
+        if ((rlTrackedObjectTable.entries != NULL) && (rlTrackedObjectTable.capacity > 0u))
+        {
+            for (size_t entryIndex = 0u; entryIndex < rlTrackedObjectTable.capacity; entryIndex++)
+            {
+                RLTrackedObjectEntry *entry = &rlTrackedObjectTable.entries[entryIndex];
+                if ((entry->state != 1u) || (entry->ownerContext != ownerContext)) continue;
+
+                orphanedCount++;
+                if (loggedCount < logLimit)
+                {
+                    TRACELOG(RL_E_LOG_WARNING,
+                        "TRACKED_OBJECT: context destroy orphan kind=%s key=%llu refCount=%u snapshotSize=%llu owner=%p scopeKind=%u scopeValue=0x%llx",
+                        RLTrackedObjectKindName(entry->kind),
+                        (unsigned long long)entry->key,
+                        entry->refCount,
+                        (unsigned long long)entry->snapshotSize,
+                        (void *)ownerContext,
+                        (unsigned int)entry->scopeKind,
+                        (unsigned long long)entry->scopeValue);
+                    loggedCount++;
+                }
+
+                entry->ownerContext = NULL;
+                entry->ownerOrphaned = 1u;
+            }
+        }
+
+        RLTrackedObjectReleaseTableStorageIfEmptyLocked();
+    }
+    RLTrackedObjectWriteUnlock();
+
+    if (orphanedCount > 0u)
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+            "TRACKED_OBJECT: context destroy detected %u orphaned tracked entries; ownership cleared, refcounts preserved for normal release",
+            orphanedCount);
+        if (orphanedCount > loggedCount)
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                "TRACKED_OBJECT: context destroy orphan detail suppressed: %u entries omitted",
+                orphanedCount - loggedCount);
+        }
+    }
+}
+
 
 //----------------------------------------------------------------------------------
 // Route2: context lifecycle hooks
@@ -432,8 +1092,18 @@ void RLContextOnDestroy(RLContext *ctx)
     // Drop share-group binding (refcount only; no GL calls).
     RLSharedGpuContextUnbindShareGroup(ctx);
 
+    // Audit tracked-object entries owned by this context and orphan ownership metadata.
+    RLTrackedObjectAuditContextDestroy(ctx);
+
+    if (ctx->platformData) { RL_FREE(ctx->platformData); ctx->platformData = NULL; }
     if (ctx->rlgl) { RL_FREE(ctx->rlgl); ctx->rlgl = NULL; }
     if (ctx->core) { RL_FREE(ctx->core); ctx->core = NULL; }
+}
+
+bool RLContextHasReadyWindow(const RLContext *ctx)
+{
+    if ((ctx == NULL) || (ctx->core == NULL)) return false;
+    return ((const CoreData *)ctx->core)->Window.ready;
 }
 
 static int logTypeLevel = RL_E_LOG_INFO;                 // Minimum log type level
@@ -565,6 +1235,7 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long msTimeout); // Required
 
 #if !defined(SUPPORT_MODULE_RTEXT)
 const char *RLTextFormat(const char *text, ...); // Formatting of text with variables to 'embed'
+int RLTextFormatTo(char *outText, int outTextSize, const char *text, ...); // Formatting of text into user buffer
 #endif // !SUPPORT_MODULE_RTEXT
 
 #if defined(PLATFORM_DESKTOP)
@@ -594,6 +1265,23 @@ const char *RLTextFormat(const char *text, ...); // Formatting of text with vari
 //----------------------------------------------------------------------------------
 #ifndef RL_EVENT_DIAG_STATS
     #define RL_EVENT_DIAG_STATS 0
+#endif
+
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+// GLFW Win32 task queue stats extension (implemented in external/glfw/src/window.c).
+extern void glfwGetCurrentThreadTaskQueueStats(unsigned int *queued, unsigned int *queuedPeak, unsigned long long *dropped);
+extern void glfwGetCurrentThreadTaskQueueStatsEx(unsigned int *queued, unsigned int *queuedPeak, unsigned long long *dropped,
+                                                 unsigned long long *droppedCritical, unsigned long long *droppedState,
+                                                 unsigned long long *droppedInput, unsigned long long *droppedMaintenance,
+                                                 unsigned long long *wakeSent, unsigned long long *wakeDedup);
+extern void glfwResetCurrentThreadTaskQueueStats(void);
+extern int RLGetCurrentContextFrameCallbackQueueStats(unsigned int *queued, unsigned int *queuedCritical, unsigned int *queuedPeak,
+                                                      unsigned long long *dropped, unsigned long long *droppedNormal,
+                                                      unsigned long long *droppedCritical, unsigned long long *evictedNormalForCritical);
+extern void RLResetCurrentContextFrameCallbackQueueStats(void);
+extern RLSharedGpuTrackingDiagStats RLSharedGpuGetTrackingDiagStats(void);
+extern void RLSharedGpuResetTrackingDiagStats(void);
+extern int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait);
 #endif
 
 typedef enum RLDiagPayloadKind {
@@ -695,16 +1383,35 @@ static volatile long long rlDiag_payloadOutstandingMax = 0;
 
 static volatile long long rlDiag_tasksPosted = 0;
 static volatile long long rlDiag_tasksExecuted = 0;
+static volatile long long rlDiag_tasksPostFailed = 0;
+static volatile long long rlDiag_taskQueueDepthCurrent = 0;
+static volatile long long rlDiag_taskQueueDepthMax = 0;
 
 static volatile long long rlDiag_pumpCalls = 0;
 static volatile long long rlDiag_pumpTasksTotal = 0;
 static volatile long long rlDiag_pumpTasksMax = 0;
+static volatile long long rlDiag_pumpTasksLast = 0;
 static volatile long long rlDiag_pumpTimeTotalUs = 0;
 static volatile long long rlDiag_pumpTimeMaxUs = 0;
+static volatile long long rlDiag_pumpTimeLastUs = 0;
+static volatile long long rlDiag_nativeQueueLastObservedCount = 0;
+static volatile long long rlDiag_swapCostLastUs = 0;
+static volatile long long rlDiag_swapCostMaxUs = 0;
+static volatile long long rlDiag_waitCostLastUs = 0;
+static volatile long long rlDiag_waitCostMaxUs = 0;
+static volatile long long rlDiag_frameCpuLastUs = 0;
+static volatile long long rlDiag_frameCpuMaxUs = 0;
+static volatile long long rlDiag_runtimeEnabled = 1;
 
 #if RL_EVENT_DIAG_STATS
+static inline int RLDiag_IsEnabled(void)
+{
+    return (RLDiag_Load64(&rlDiag_runtimeEnabled) != 0);
+}
+
 static inline void RLDiag_OnPayloadAlloc(RLDiagPayloadKind kind, size_t bytes)
 {
+    if (!RLDiag_IsEnabled()) return;
     if ((unsigned)kind >= (unsigned)RL_DIAG_PAYLOAD__COUNT) kind = RL_DIAG_PAYLOAD_OTHER;
     RLDiag_Add64(&rlDiag_payloadAlloc[kind], 1);
     RLDiag_Add64(&rlDiag_payloadAllocBytes, (long long)bytes);
@@ -714,6 +1421,7 @@ static inline void RLDiag_OnPayloadAlloc(RLDiagPayloadKind kind, size_t bytes)
 
 static inline void RLDiag_OnPayloadFree(RLDiagPayloadKind kind, size_t bytes)
 {
+    if (!RLDiag_IsEnabled()) return;
     if ((unsigned)kind >= (unsigned)RL_DIAG_PAYLOAD__COUNT) kind = RL_DIAG_PAYLOAD_OTHER;
     RLDiag_Add64(&rlDiag_payloadFree[kind], 1);
     RLDiag_Add64(&rlDiag_payloadFreeBytes, (long long)bytes);
@@ -722,20 +1430,42 @@ static inline void RLDiag_OnPayloadFree(RLDiagPayloadKind kind, size_t bytes)
 
 static inline void RLDiag_OnRenderCallAlloc(size_t bytes)
 {
+    if (!RLDiag_IsEnabled()) return;
     (void)bytes;
     RLDiag_Add64(&rlDiag_renderCallAlloc, 1);
 }
 
 static inline void RLDiag_OnRenderCallFree(size_t bytes)
 {
+    if (!RLDiag_IsEnabled()) return;
     (void)bytes;
     RLDiag_Add64(&rlDiag_renderCallFree, 1);
 }
 
-static inline void RLDiag_OnTaskPosted(void) { RLDiag_Add64(&rlDiag_tasksPosted, 1); }
+static inline void RLDiag_OnTaskPosted(void)
+{
+    if (!RLDiag_IsEnabled()) return;
+    RLDiag_Add64(&rlDiag_tasksPosted, 1);
+    long long depth = RLDiag_Add64(&rlDiag_taskQueueDepthCurrent, 1);
+    RLDiag_Max64(&rlDiag_taskQueueDepthMax, depth);
+}
+
+static inline void RLDiag_OnTaskPostFailed(void)
+{
+    if (!RLDiag_IsEnabled()) return;
+    RLDiag_Add64(&rlDiag_tasksPostFailed, 1);
+}
+
 static inline void RLDiag_OnTaskExecuted(void)
 {
+    if (!RLDiag_IsEnabled()) return;
     RLDiag_Add64(&rlDiag_tasksExecuted, 1);
+    long long prevDepth = RLDiag_Add64(&rlDiag_taskQueueDepthCurrent, -1);
+    if (prevDepth < 0)
+    {
+        // Keep diagnostics bounded if callers over-report executions.
+        RLDiag_Store64(&rlDiag_taskQueueDepthCurrent, 0);
+    }
     if (rlDiag_tlsInPump) rlDiag_tlsPumpTaskCount++;
 }
 
@@ -744,15 +1474,45 @@ static inline unsigned int RLDiag_PumpEnd(void) { unsigned int n = rlDiag_tlsPum
 
 static inline void RLDiag_OnPump(double dtSeconds, unsigned int tasksExecuted)
 {
+    if (!RLDiag_IsEnabled()) return;
     long long us = (long long)(dtSeconds * 1000000.0);
     if (us < 0) us = 0;
 
     RLDiag_Add64(&rlDiag_pumpCalls, 1);
     RLDiag_Add64(&rlDiag_pumpTasksTotal, (long long)tasksExecuted);
     RLDiag_Max64(&rlDiag_pumpTasksMax, (long long)tasksExecuted);
+    RLDiag_Store64(&rlDiag_pumpTasksLast, (long long)tasksExecuted);
 
     RLDiag_Add64(&rlDiag_pumpTimeTotalUs, us);
     RLDiag_Max64(&rlDiag_pumpTimeMaxUs, us);
+    RLDiag_Store64(&rlDiag_pumpTimeLastUs, us);
+
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+    {
+        unsigned int nativeQueuedNow = 0;
+        glfwGetCurrentThreadTaskQueueStats(&nativeQueuedNow, NULL, NULL);
+        RLDiag_Store64(&rlDiag_nativeQueueLastObservedCount, (long long)nativeQueuedNow);
+    }
+#endif
+}
+
+static inline void RLDiag_OnFrameTiming(double swapSeconds, double frameCpuSeconds, double waitSeconds)
+{
+    if (!RLDiag_IsEnabled()) return;
+
+    long long swapUs = (long long)(swapSeconds*1000000.0);
+    long long frameCpuUs = (long long)(frameCpuSeconds*1000000.0);
+    long long waitUs = (long long)(waitSeconds*1000000.0);
+    if (swapUs < 0) swapUs = 0;
+    if (frameCpuUs < 0) frameCpuUs = 0;
+    if (waitUs < 0) waitUs = 0;
+
+    RLDiag_Store64(&rlDiag_swapCostLastUs, swapUs);
+    RLDiag_Max64(&rlDiag_swapCostMaxUs, swapUs);
+    RLDiag_Store64(&rlDiag_waitCostLastUs, waitUs);
+    RLDiag_Max64(&rlDiag_waitCostMaxUs, waitUs);
+    RLDiag_Store64(&rlDiag_frameCpuLastUs, frameCpuUs);
+    RLDiag_Max64(&rlDiag_frameCpuMaxUs, frameCpuUs);
 }
 
 #define RL_DIAG_PAYLOAD_ALLOC(kind, bytes) RLDiag_OnPayloadAlloc((kind), (bytes))
@@ -760,10 +1520,12 @@ static inline void RLDiag_OnPump(double dtSeconds, unsigned int tasksExecuted)
 #define RL_DIAG_RENDERCALL_ALLOC(bytes)    RLDiag_OnRenderCallAlloc((bytes))
 #define RL_DIAG_RENDERCALL_FREE(bytes)     RLDiag_OnRenderCallFree((bytes))
 #define RL_DIAG_TASK_POSTED()              RLDiag_OnTaskPosted()
+#define RL_DIAG_TASK_POST_FAILED()         RLDiag_OnTaskPostFailed()
 #define RL_DIAG_TASK_EXECUTED()            RLDiag_OnTaskExecuted()
 #define RL_DIAG_PUMP_BEGIN()               RLDiag_PumpBegin()
 #define RL_DIAG_PUMP_END()                 RLDiag_PumpEnd()
 #define RL_DIAG_ON_PUMP(dt, tasks)         RLDiag_OnPump((dt), (tasks))
+#define RL_DIAG_ON_FRAME_TIMING(swapS, frameCpuS, waitS) RLDiag_OnFrameTiming((swapS), (frameCpuS), (waitS))
 
 #else
 // Compiled out
@@ -772,11 +1534,63 @@ static inline void RLDiag_OnPump(double dtSeconds, unsigned int tasksExecuted)
 #define RL_DIAG_RENDERCALL_ALLOC(bytes)    ((void)0)
 #define RL_DIAG_RENDERCALL_FREE(bytes)     ((void)0)
 #define RL_DIAG_TASK_POSTED()              ((void)0)
+#define RL_DIAG_TASK_POST_FAILED()         ((void)0)
 #define RL_DIAG_TASK_EXECUTED()            ((void)0)
 #define RL_DIAG_PUMP_BEGIN()               ((void)0)
 #define RL_DIAG_PUMP_END()                 (0u)
 #define RL_DIAG_ON_PUMP(dt, tasks)         ((void)0)
+#define RL_DIAG_ON_FRAME_TIMING(swapS, frameCpuS, waitS) ((void)0)
 #endif
+
+void RLDiag_ResetEventThreadDiagCoreOnly(void)
+{
+#if RL_EVENT_DIAG_STATS
+    RLDiag_Store64(&rlDiag_renderCallAlloc, 0);
+    RLDiag_Store64(&rlDiag_renderCallFree, 0);
+
+    for (int i = 0; i < (int)RL_DIAG_PAYLOAD__COUNT; i++)
+    {
+        RLDiag_Store64(&rlDiag_payloadAlloc[i], 0);
+        RLDiag_Store64(&rlDiag_payloadFree[i], 0);
+    }
+    RLDiag_Store64(&rlDiag_payloadAllocBytes, 0);
+    RLDiag_Store64(&rlDiag_payloadFreeBytes, 0);
+    RLDiag_Store64(&rlDiag_payloadOutstanding, 0);
+    RLDiag_Store64(&rlDiag_payloadOutstandingMax, 0);
+
+    RLDiag_Store64(&rlDiag_tasksPosted, 0);
+    RLDiag_Store64(&rlDiag_tasksExecuted, 0);
+    RLDiag_Store64(&rlDiag_tasksPostFailed, 0);
+    RLDiag_Store64(&rlDiag_taskQueueDepthCurrent, 0);
+    RLDiag_Store64(&rlDiag_taskQueueDepthMax, 0);
+
+    RLDiag_Store64(&rlDiag_pumpCalls, 0);
+    RLDiag_Store64(&rlDiag_pumpTasksTotal, 0);
+    RLDiag_Store64(&rlDiag_pumpTasksMax, 0);
+    RLDiag_Store64(&rlDiag_pumpTasksLast, 0);
+    RLDiag_Store64(&rlDiag_pumpTimeTotalUs, 0);
+    RLDiag_Store64(&rlDiag_pumpTimeMaxUs, 0);
+    RLDiag_Store64(&rlDiag_pumpTimeLastUs, 0);
+    RLDiag_Store64(&rlDiag_nativeQueueLastObservedCount, 0);
+    RLDiag_Store64(&rlDiag_swapCostLastUs, 0);
+    RLDiag_Store64(&rlDiag_swapCostMaxUs, 0);
+    RLDiag_Store64(&rlDiag_waitCostLastUs, 0);
+    RLDiag_Store64(&rlDiag_waitCostMaxUs, 0);
+    RLDiag_Store64(&rlDiag_frameCpuLastUs, 0);
+    RLDiag_Store64(&rlDiag_frameCpuMaxUs, 0);
+    RLSharedGpuResetTrackingDiagStats();
+#endif
+}
+
+void RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly(void)
+{
+#if RL_EVENT_DIAG_STATS
+    #if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+    glfwResetCurrentThreadTaskQueueStats();
+    RLResetCurrentContextFrameCallbackQueueStats();
+    #endif
+#endif
+}
 
 RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
 {
@@ -827,15 +1641,66 @@ RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
 
     out.tasksPosted   = (unsigned long long)RLDiag_Load64(&rlDiag_tasksPosted);
     out.tasksExecuted = (unsigned long long)RLDiag_Load64(&rlDiag_tasksExecuted);
+    out.tasksPostFailed = (unsigned long long)RLDiag_Load64(&rlDiag_tasksPostFailed);
+    out.taskQueueDepthCurrent = (unsigned long long)RLDiag_Load64(&rlDiag_taskQueueDepthCurrent);
+    out.taskQueueDepthMax = (unsigned long long)RLDiag_Load64(&rlDiag_taskQueueDepthMax);
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+    glfwGetCurrentThreadTaskQueueStatsEx(&out.nativeTaskQueueCount, &out.nativeTaskQueuePeakCount, &out.nativeTaskQueueDroppedCount,
+                                         &out.nativeTaskQueueDroppedCriticalCount, &out.nativeTaskQueueDroppedStateCount,
+                                         &out.nativeTaskQueueDroppedInputCount, &out.nativeTaskQueueDroppedMaintenanceCount,
+                                         &out.nativeTaskWakeSentCount, &out.nativeTaskWakeDedupCount);
+    RLGetCurrentContextFrameCallbackQueueStats(&out.frameCallbackQueueCount, &out.frameCallbackQueueCriticalCount,
+                                               &out.frameCallbackQueuePeakCount, &out.frameCallbackDroppedCount,
+                                               &out.frameCallbackDroppedNormalCount, &out.frameCallbackDroppedCriticalCount,
+                                               &out.frameCallbackEvictedNormalForCriticalCount);
+#endif
 
     out.pumpCalls = (unsigned long long)RLDiag_Load64(&rlDiag_pumpCalls);
     out.pumpTasksExecutedTotal = (unsigned long long)RLDiag_Load64(&rlDiag_pumpTasksTotal);
     out.pumpTasksExecutedMax = (unsigned int)RLDiag_Load64(&rlDiag_pumpTasksMax);
+    out.pumpTasksExecutedLast = (unsigned int)RLDiag_Load64(&rlDiag_pumpTasksLast);
+    out.nativeTaskQueueLastObservedCount = (unsigned int)RLDiag_Load64(&rlDiag_nativeQueueLastObservedCount);
 
     long long totalUs = RLDiag_Load64(&rlDiag_pumpTimeTotalUs);
     long long maxUs   = RLDiag_Load64(&rlDiag_pumpTimeMaxUs);
+    long long lastUs  = RLDiag_Load64(&rlDiag_pumpTimeLastUs);
+    long long swapLastUs = RLDiag_Load64(&rlDiag_swapCostLastUs);
+    long long swapMaxUs  = RLDiag_Load64(&rlDiag_swapCostMaxUs);
+    long long waitLastUs = RLDiag_Load64(&rlDiag_waitCostLastUs);
+    long long waitMaxUs  = RLDiag_Load64(&rlDiag_waitCostMaxUs);
+    long long frameCpuLastUs = RLDiag_Load64(&rlDiag_frameCpuLastUs);
+    long long frameCpuMaxUs  = RLDiag_Load64(&rlDiag_frameCpuMaxUs);
     out.pumpTimeTotalMs = (double)totalUs / 1000.0;
     out.pumpTimeMaxMs   = (double)maxUs / 1000.0;
+    out.pumpTimeLastMs  = (double)lastUs / 1000.0;
+    out.swapCostLastMs  = (double)swapLastUs / 1000.0;
+    out.swapCostMaxMs   = (double)swapMaxUs / 1000.0;
+    out.waitCostLastMs  = (double)waitLastUs / 1000.0;
+    out.waitCostMaxMs   = (double)waitMaxUs / 1000.0;
+    out.frameCpuLastMs  = (double)frameCpuLastUs / 1000.0;
+    out.frameCpuMaxMs   = (double)frameCpuMaxUs / 1000.0;
+
+    {
+        RLThreadMismatchDiagStats mismatchStats = RLGetThreadMismatchDiagStats();
+        out.threadMismatchDetectedCount = mismatchStats.detectedCount;
+        out.threadMismatchHandoffAttemptedCount = mismatchStats.handoffAttemptedCount;
+        out.threadMismatchHandoffSuccessCount = mismatchStats.handoffSuccessCount;
+        out.threadMismatchHandoffFailedCount = mismatchStats.handoffFailedCount;
+        out.threadMismatchDeferredQueuedCount = mismatchStats.deferredQueuedCount;
+        out.threadMismatchDeferredExecutedCount = mismatchStats.deferredExecutedCount;
+        out.threadMismatchDeferredFailedCount = mismatchStats.deferredFailedCount;
+        out.threadMismatchRejectedCount = mismatchStats.rejectedCount;
+        out.threadMismatchLastCallerThreadId = mismatchStats.lastCallerThreadId;
+        out.threadMismatchLastWindowHandle = mismatchStats.lastWindowHandle;
+        strncpy(out.threadMismatchLastApi, mismatchStats.lastApi, sizeof(out.threadMismatchLastApi) - 1);
+        out.threadMismatchLastApi[sizeof(out.threadMismatchLastApi) - 1] = '\0';
+    }
+
+    {
+        RLSharedGpuTrackingDiagStats sharedTrackingStats = RLSharedGpuGetTrackingDiagStats();
+        out.sharedUnregisteredRetainRejectCount = sharedTrackingStats.unregisteredRetainRejectCount;
+        out.sharedUnregisteredReleaseRejectCount = sharedTrackingStats.unregisteredReleaseRejectCount;
+    }
 #endif
 
     return out;
@@ -843,30 +1708,851 @@ RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
 
 void RLResetEventThreadDiagStats(void)
 {
+    RLDiag_ResetEventThreadDiagCoreOnly();
+    RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly();
+}
+
+void RLResetEventThreadDiagStatsForCurrentContext(void)
+{
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+    void* windowHandle = RLGetWindowHandle();
+    if ((windowHandle != NULL) && RLResetEventThreadDiagStatsByHandle(windowHandle, 1)) return;
+#endif
+    RLResetEventThreadDiagStats();
+}
+
+void RLEnableEventDiagStats(void)
+{
 #if RL_EVENT_DIAG_STATS
-    RLDiag_Store64(&rlDiag_renderCallAlloc, 0);
-    RLDiag_Store64(&rlDiag_renderCallFree, 0);
-
-    for (int i = 0; i < (int)RL_DIAG_PAYLOAD__COUNT; i++)
-    {
-        RLDiag_Store64(&rlDiag_payloadAlloc[i], 0);
-        RLDiag_Store64(&rlDiag_payloadFree[i], 0);
-    }
-    RLDiag_Store64(&rlDiag_payloadAllocBytes, 0);
-    RLDiag_Store64(&rlDiag_payloadFreeBytes, 0);
-    RLDiag_Store64(&rlDiag_payloadOutstanding, 0);
-    RLDiag_Store64(&rlDiag_payloadOutstandingMax, 0);
-
-    RLDiag_Store64(&rlDiag_tasksPosted, 0);
-    RLDiag_Store64(&rlDiag_tasksExecuted, 0);
-
-    RLDiag_Store64(&rlDiag_pumpCalls, 0);
-    RLDiag_Store64(&rlDiag_pumpTasksTotal, 0);
-    RLDiag_Store64(&rlDiag_pumpTasksMax, 0);
-    RLDiag_Store64(&rlDiag_pumpTimeTotalUs, 0);
-    RLDiag_Store64(&rlDiag_pumpTimeMaxUs, 0);
+    RLDiag_Store64(&rlDiag_runtimeEnabled, 1);
+    RLDiag_ResetEventThreadDiagCoreOnly();
+    RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly();
 #endif
 }
+
+void RLDisableEventDiagStats(void)
+{
+#if RL_EVENT_DIAG_STATS
+    RLDiag_Store64(&rlDiag_runtimeEnabled, 0);
+#endif
+}
+
+bool RLIsEventDiagStatsEnabled(void)
+{
+#if RL_EVENT_DIAG_STATS
+    return (RLDiag_Load64(&rlDiag_runtimeEnabled) != 0);
+#else
+    return false;
+#endif
+}
+
+//----------------------------------------------------------------------------------
+// Memory diagnostics (optional, see src/raylib.h RL_MEM_DIAG)
+//----------------------------------------------------------------------------------
+#if RL_MEM_DIAG
+
+#ifndef RL_MEM_BUCKETS_INITIAL
+    #define RL_MEM_BUCKETS_INITIAL 512u
+#endif
+#ifndef RL_MEM_BUCKETS_MAX
+    #define RL_MEM_BUCKETS_MAX 131072u
+#endif
+#ifndef RL_MEM_LOAD_FACTOR_NUM
+    #define RL_MEM_LOAD_FACTOR_NUM 3u
+#endif
+#ifndef RL_MEM_LOAD_FACTOR_DEN
+    #define RL_MEM_LOAD_FACTOR_DEN 4u
+#endif
+#ifndef RL_MEMDIAG_MAX_STACK_FRAMES
+    #define RL_MEMDIAG_MAX_STACK_FRAMES 24u
+#endif
+
+typedef struct RLMemAllocMeta {
+    void *ptr;
+    size_t size;
+    const char *sourceFile;
+    int sourceLine;
+    const char *sourceFunction;
+    const char *sourceTag;
+    unsigned short stackDepth;
+    void *stack[RL_MEMDIAG_MAX_STACK_FRAMES];
+    struct RLMemAllocMeta *next;
+} RLMemAllocMeta;
+
+static RLMemAllocMeta **rlMemBuckets = NULL;
+static unsigned int rlMemBucketCount = 0u;
+static unsigned int rlMemEntryCount = 0u;
+
+static int rlMemDiagRuntimeEnabled = 0;
+static unsigned long long rlMemDiagAllocCount = 0;
+static unsigned long long rlMemDiagCallocCount = 0;
+static unsigned long long rlMemDiagReallocCount = 0;
+static unsigned long long rlMemDiagFreeCount = 0;
+static unsigned long long rlMemDiagAllocBytes = 0;
+static unsigned long long rlMemDiagFreeBytes = 0;
+static unsigned long long rlMemDiagAllocFailCount = 0;
+static unsigned long long rlMemDiagReallocFailCount = 0;
+static unsigned long long rlMemDiagCurrentOutstandingBytes = 0;
+static unsigned long long rlMemDiagPeakOutstandingBytes = 0;
+static unsigned long long rlMemDiagBucketGrowCount = 0;
+static unsigned long long rlMemDiagBucketGrowLimitHitCount = 0;
+
+// Spin lock for map + counters (Phase-D can replace with striped locks)
+static volatile long rlMemDiagSpinLock = 0;
+
+#if defined(_WIN32)
+    #ifndef RL_MEMDIAG_MAX_SYMBOL_NAME
+        #define RL_MEMDIAG_MAX_SYMBOL_NAME 1024u
+    #endif
+    #ifndef RL_MEMDIAG_MAX_SYMBOL_TEXT
+        #define RL_MEMDIAG_MAX_SYMBOL_TEXT 1408u
+    #endif
+    #ifndef RL_MEMDIAG_MAX_SOURCE_TEXT
+        #define RL_MEMDIAG_MAX_SOURCE_TEXT 1024u
+    #endif
+    #ifndef RL_MEMDIAG_UNDNAME_DISABLE_FLAGS
+        #define RL_MEMDIAG_UNDNAME_DISABLE_FLAGS 0x2800u
+    #endif
+
+    #define RL_MEMDIAG_SYMOPT_UNDNAME        0x00000002u
+    #define RL_MEMDIAG_SYMOPT_DEFERRED_LOADS 0x00000004u
+    #define RL_MEMDIAG_SYMOPT_LOAD_LINES     0x00000010u
+
+typedef struct RLMemDiagSymbolInfo {
+    unsigned long SizeOfStruct;
+    unsigned long TypeIndex;
+    unsigned long long Reserved[2];
+    unsigned long Index;
+    unsigned long Size;
+    unsigned long long ModBase;
+    unsigned long Flags;
+    unsigned long long Value;
+    unsigned long long Address;
+    unsigned long Register;
+    unsigned long Scope;
+    unsigned long Tag;
+    unsigned long NameLen;
+    unsigned long MaxNameLen;
+    char Name[1];
+} RLMemDiagSymbolInfo;
+
+typedef struct RLMemDiagLineInfo64 {
+    unsigned long SizeOfStruct;
+    void *Key;
+    unsigned long LineNumber;
+    char *FileName;
+    unsigned long long Address;
+} RLMemDiagLineInfo64;
+
+typedef unsigned long (__stdcall *RLMemDiagSymSetOptionsFn)(unsigned long options);
+typedef unsigned long (__stdcall *RLMemDiagSymGetOptionsFn)(void);
+typedef int (__stdcall *RLMemDiagSymInitializeFn)(void *processHandle, const char *userSearchPath, int invadeProcess);
+typedef int (__stdcall *RLMemDiagSymFromAddrFn)(void *processHandle, unsigned long long address, unsigned long long *displacement, RLMemDiagSymbolInfo *symbolInfo);
+typedef int (__stdcall *RLMemDiagSymGetLineFromAddr64Fn)(void *processHandle, unsigned long long address, unsigned long *displacement, RLMemDiagLineInfo64 *lineInfo);
+
+typedef struct RLMemDiagDbgHelpState {
+    int loadAttempted;
+    int initialized;
+    int warnedUnavailable;
+    void *processHandle;
+    void *moduleHandle;
+    RLMemDiagSymSetOptionsFn SymSetOptionsFn;
+    RLMemDiagSymGetOptionsFn SymGetOptionsFn;
+    RLMemDiagSymInitializeFn SymInitializeFn;
+    RLMemDiagSymFromAddrFn SymFromAddrFn;
+    RLMemDiagSymGetLineFromAddr64Fn SymGetLineFromAddr64Fn;
+} RLMemDiagDbgHelpState;
+
+static RLMemDiagDbgHelpState rlMemDiagDbgHelp = { 0 };
+#endif
+
+static void RLMemDiagLockEnter(void)
+{
+#if defined(_MSC_VER)
+    while (_InterlockedCompareExchange(&rlMemDiagSpinLock, 1, 0) != 0)
+    {
+        #if defined(_WIN32) && !defined(PLATFORM_DESKTOP_RGFW)
+        Sleep(0);
+        #endif
+    }
+#elif defined(__GNUC__) || defined(__clang__)
+    for (;;)
+    {
+        long expectedValue = 0;
+        if (__atomic_compare_exchange_n(&rlMemDiagSpinLock, &expectedValue, 1, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) break;
+    }
+#else
+    while (rlMemDiagSpinLock != 0) { }
+    rlMemDiagSpinLock = 1;
+#endif
+}
+
+static void RLMemDiagLockLeave(void)
+{
+#if defined(_MSC_VER)
+    (void)_InterlockedExchange(&rlMemDiagSpinLock, 0);
+#elif defined(__GNUC__) || defined(__clang__)
+    __atomic_store_n(&rlMemDiagSpinLock, 0, __ATOMIC_SEQ_CST);
+#else
+    rlMemDiagSpinLock = 0;
+#endif
+}
+
+static unsigned int RLMemDiagHashPointer(void *memoryPointer, unsigned int bucketCount)
+{
+    uintptr_t pointerValue = (uintptr_t)memoryPointer;
+    return (unsigned int)((pointerValue >> 4) % bucketCount);
+}
+
+static int RLMemDiagMapEnsureInitializedLocked(void)
+{
+    if (rlMemBuckets != NULL) return 1;
+    if (RL_MEM_BUCKETS_INITIAL == 0u) return 0;
+
+    rlMemBuckets = (RLMemAllocMeta **)calloc(RL_MEM_BUCKETS_INITIAL, sizeof(RLMemAllocMeta *));
+    if (rlMemBuckets == NULL) return 0;
+
+    rlMemBucketCount = RL_MEM_BUCKETS_INITIAL;
+    rlMemEntryCount = 0u;
+    return 1;
+}
+
+static int RLMemDiagMapGrowLocked(unsigned int expectedExtraEntries)
+{
+    if ((rlMemBuckets == NULL) || (rlMemBucketCount == 0u)) return 0;
+
+    unsigned int expectedEntries = rlMemEntryCount + expectedExtraEntries;
+    if ((expectedEntries * RL_MEM_LOAD_FACTOR_DEN) <= (rlMemBucketCount * RL_MEM_LOAD_FACTOR_NUM)) return 1;
+
+    if (rlMemBucketCount >= RL_MEM_BUCKETS_MAX)
+    {
+        rlMemDiagBucketGrowLimitHitCount++;
+        return 1;
+    }
+
+    unsigned int newBucketCount = rlMemBucketCount * 2u;  // 2x growth only
+    if (newBucketCount > RL_MEM_BUCKETS_MAX) newBucketCount = RL_MEM_BUCKETS_MAX;
+    if (newBucketCount <= rlMemBucketCount) return 1;
+
+    RLMemAllocMeta **newBuckets = (RLMemAllocMeta **)calloc(newBucketCount, sizeof(RLMemAllocMeta *));
+    if (newBuckets == NULL) return 0;
+
+    for (unsigned int oldIndex = 0; oldIndex < rlMemBucketCount; oldIndex++)
+    {
+        RLMemAllocMeta *currentNode = rlMemBuckets[oldIndex];
+        while (currentNode != NULL)
+        {
+            RLMemAllocMeta *nextNode = currentNode->next;
+            unsigned int newIndex = RLMemDiagHashPointer(currentNode->ptr, newBucketCount);
+            currentNode->next = newBuckets[newIndex];
+            newBuckets[newIndex] = currentNode;
+            currentNode = nextNode;
+        }
+    }
+
+    free(rlMemBuckets);
+    rlMemBuckets = newBuckets;
+    rlMemBucketCount = newBucketCount;
+    rlMemDiagBucketGrowCount++;
+    return 1;
+}
+
+static void RLMemDiagCaptureStack(RLMemAllocMeta *metadata)
+{
+    if (metadata == NULL) return;
+    metadata->stackDepth = 0;
+
+#if defined(_WIN32)
+    metadata->stackDepth = RtlCaptureStackBackTrace(2u, RL_MEMDIAG_MAX_STACK_FRAMES, metadata->stack, NULL);
+#endif
+}
+
+static int RLMemDiagMapInsertLocked(void *memoryPointer, size_t allocationSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag)
+{
+    if ((memoryPointer == NULL) || (rlMemBuckets == NULL) || (rlMemBucketCount == 0u)) return 0;
+
+    RLMemAllocMeta *newNode = (RLMemAllocMeta *)malloc(sizeof(RLMemAllocMeta));
+    if (newNode == NULL) return 0;
+    memset(newNode, 0, sizeof(*newNode));
+
+    newNode->ptr = memoryPointer;
+    newNode->size = allocationSize;
+    newNode->sourceFile = sourceFile;
+    newNode->sourceLine = sourceLine;
+    newNode->sourceFunction = sourceFunction;
+    newNode->sourceTag = sourceTag;
+    RLMemDiagCaptureStack(newNode);
+
+    unsigned int bucketIndex = RLMemDiagHashPointer(memoryPointer, rlMemBucketCount);
+    RLMemAllocMeta *previousNode = NULL;
+    RLMemAllocMeta *currentNode = rlMemBuckets[bucketIndex];
+    while (currentNode != NULL)
+    {
+        if (currentNode->ptr == memoryPointer)
+        {
+            if (previousNode != NULL) previousNode->next = currentNode->next;
+            else rlMemBuckets[bucketIndex] = currentNode->next;
+            free(currentNode);
+            if (rlMemEntryCount > 0u) rlMemEntryCount--;
+            break;
+        }
+        previousNode = currentNode;
+        currentNode = currentNode->next;
+    }
+
+    newNode->next = rlMemBuckets[bucketIndex];
+    rlMemBuckets[bucketIndex] = newNode;
+    rlMemEntryCount++;
+    return 1;
+}
+
+static int RLMemDiagMapTryGetRecordLocked(void *memoryPointer, size_t *outAllocationSize, const char **outSourceTag)
+{
+    if ((memoryPointer == NULL) || (rlMemBuckets == NULL) || (rlMemBucketCount == 0u)) return 0;
+
+    unsigned int bucketIndex = RLMemDiagHashPointer(memoryPointer, rlMemBucketCount);
+    RLMemAllocMeta *currentNode = rlMemBuckets[bucketIndex];
+    while (currentNode != NULL)
+    {
+        if (currentNode->ptr == memoryPointer)
+        {
+            if (outAllocationSize != NULL) *outAllocationSize = currentNode->size;
+            if (outSourceTag != NULL) *outSourceTag = currentNode->sourceTag;
+            return 1;
+        }
+        currentNode = currentNode->next;
+    }
+    return 0;
+}
+
+static int RLMemDiagMapRemoveLocked(void *memoryPointer, size_t *outAllocationSize)
+{
+    if ((memoryPointer == NULL) || (rlMemBuckets == NULL) || (rlMemBucketCount == 0u)) return 0;
+
+    unsigned int bucketIndex = RLMemDiagHashPointer(memoryPointer, rlMemBucketCount);
+    RLMemAllocMeta *previousNode = NULL;
+    RLMemAllocMeta *currentNode = rlMemBuckets[bucketIndex];
+    while (currentNode != NULL)
+    {
+        if (currentNode->ptr == memoryPointer)
+        {
+            if (outAllocationSize != NULL) *outAllocationSize = currentNode->size;
+            if (previousNode != NULL) previousNode->next = currentNode->next;
+            else rlMemBuckets[bucketIndex] = currentNode->next;
+            free(currentNode);
+            if (rlMemEntryCount > 0u) rlMemEntryCount--;
+            return 1;
+        }
+        previousNode = currentNode;
+        currentNode = currentNode->next;
+    }
+    return 0;
+}
+
+static void RLMemDiagResetCountersLocked(void)
+{
+    rlMemDiagAllocCount = 0;
+    rlMemDiagCallocCount = 0;
+    rlMemDiagReallocCount = 0;
+    rlMemDiagFreeCount = 0;
+    rlMemDiagAllocBytes = 0;
+    rlMemDiagFreeBytes = 0;
+    rlMemDiagAllocFailCount = 0;
+    rlMemDiagReallocFailCount = 0;
+    rlMemDiagCurrentOutstandingBytes = 0;
+    rlMemDiagPeakOutstandingBytes = 0;
+    rlMemDiagBucketGrowCount = 0;
+    rlMemDiagBucketGrowLimitHitCount = 0;
+}
+
+static void RLMemDiagClearMapLocked(void)
+{
+    if (rlMemBuckets == NULL) return;
+
+    for (unsigned int bucketIndex = 0; bucketIndex < rlMemBucketCount; bucketIndex++)
+    {
+        RLMemAllocMeta *currentNode = rlMemBuckets[bucketIndex];
+        while (currentNode != NULL)
+        {
+            RLMemAllocMeta *nextNode = currentNode->next;
+            free(currentNode);
+            currentNode = nextNode;
+        }
+        rlMemBuckets[bucketIndex] = NULL;
+    }
+    rlMemEntryCount = 0u;
+}
+
+static void RLMemDiagUpdatePeakLocked(void)
+{
+    if (rlMemDiagCurrentOutstandingBytes > rlMemDiagPeakOutstandingBytes)
+    {
+        rlMemDiagPeakOutstandingBytes = rlMemDiagCurrentOutstandingBytes;
+    }
+}
+
+#if defined(_WIN32)
+static int RLMemDiagIsInternalSymbolName(const char *symbolName)
+{
+    if ((symbolName == NULL) || (symbolName[0] == '\0')) return 0;
+
+    if (strstr(symbolName, "RLMemDiag") != NULL) return 1;
+    if (strstr(symbolName, "RLMemAlloc") != NULL) return 1;
+    if (strstr(symbolName, "RLMemRealloc") != NULL) return 1;
+    if (strstr(symbolName, "RLMemFree") != NULL) return 1;
+    if (strstr(symbolName, "RLGlfwTask_") != NULL) return 1;
+    if (strstr(symbolName, "KeyCallback") != NULL) return 1;
+    if (strstr(symbolName, "WindowDropCallback") != NULL) return 1;
+
+    return 0;
+}
+
+static int RLMemDiagEnsureDbgHelpInitializedLocked(void)
+{
+    if (rlMemDiagDbgHelp.initialized) return 1;
+    if (rlMemDiagDbgHelp.loadAttempted) return 0;
+
+    rlMemDiagDbgHelp.loadAttempted = 1;
+    rlMemDiagDbgHelp.moduleHandle = LoadLibraryA("dbghelp.dll");
+    if (rlMemDiagDbgHelp.moduleHandle == NULL)
+    {
+        if (!rlMemDiagDbgHelp.warnedUnavailable)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "MEMDIAG: failed to load dbghelp.dll, fallback to raw addresses");
+            rlMemDiagDbgHelp.warnedUnavailable = 1;
+        }
+        return 0;
+    }
+
+    rlMemDiagDbgHelp.SymSetOptionsFn = (RLMemDiagSymSetOptionsFn)GetProcAddress(rlMemDiagDbgHelp.moduleHandle, "SymSetOptions");
+    rlMemDiagDbgHelp.SymGetOptionsFn = (RLMemDiagSymGetOptionsFn)GetProcAddress(rlMemDiagDbgHelp.moduleHandle, "SymGetOptions");
+    rlMemDiagDbgHelp.SymInitializeFn = (RLMemDiagSymInitializeFn)GetProcAddress(rlMemDiagDbgHelp.moduleHandle, "SymInitialize");
+    rlMemDiagDbgHelp.SymFromAddrFn = (RLMemDiagSymFromAddrFn)GetProcAddress(rlMemDiagDbgHelp.moduleHandle, "SymFromAddr");
+    rlMemDiagDbgHelp.SymGetLineFromAddr64Fn = (RLMemDiagSymGetLineFromAddr64Fn)GetProcAddress(rlMemDiagDbgHelp.moduleHandle, "SymGetLineFromAddr64");
+
+    if ((rlMemDiagDbgHelp.SymSetOptionsFn == NULL) || (rlMemDiagDbgHelp.SymGetOptionsFn == NULL) ||
+        (rlMemDiagDbgHelp.SymInitializeFn == NULL) || (rlMemDiagDbgHelp.SymFromAddrFn == NULL) ||
+        (rlMemDiagDbgHelp.SymGetLineFromAddr64Fn == NULL))
+    {
+        if (!rlMemDiagDbgHelp.warnedUnavailable)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "MEMDIAG: dbghelp exports missing, fallback to raw addresses");
+            rlMemDiagDbgHelp.warnedUnavailable = 1;
+        }
+        (void)FreeLibrary(rlMemDiagDbgHelp.moduleHandle);
+        rlMemDiagDbgHelp.moduleHandle = NULL;
+        return 0;
+    }
+
+    rlMemDiagDbgHelp.processHandle = GetCurrentProcess();
+
+    // Keep DbgHelp symbols decorated; C++ demangling is handled explicitly by _unDName().
+    {
+        unsigned long options = rlMemDiagDbgHelp.SymGetOptionsFn();
+        options &= ~RL_MEMDIAG_SYMOPT_UNDNAME;
+        options |= RL_MEMDIAG_SYMOPT_DEFERRED_LOADS;
+        options |= RL_MEMDIAG_SYMOPT_LOAD_LINES;
+        (void)rlMemDiagDbgHelp.SymSetOptionsFn(options);
+    }
+
+    if (!rlMemDiagDbgHelp.SymInitializeFn(rlMemDiagDbgHelp.processHandle, NULL, 1))
+    {
+        if (!rlMemDiagDbgHelp.warnedUnavailable)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "MEMDIAG: SymInitialize failed, fallback to raw addresses");
+            rlMemDiagDbgHelp.warnedUnavailable = 1;
+        }
+        (void)FreeLibrary(rlMemDiagDbgHelp.moduleHandle);
+        rlMemDiagDbgHelp.moduleHandle = NULL;
+        return 0;
+    }
+
+    rlMemDiagDbgHelp.initialized = 1;
+    return 1;
+}
+
+static int RLMemDiagResolveFrameLocked(void *address, char *symbolText, size_t symbolTextCapacity, char *sourceText, size_t sourceTextCapacity, int *outIsInternalFrame)
+{
+    if ((symbolText == NULL) || (symbolTextCapacity == 0u) || (sourceText == NULL) || (sourceTextCapacity == 0u)) return 0;
+
+    symbolText[0] = '\0';
+    sourceText[0] = '\0';
+    if (outIsInternalFrame != NULL) *outIsInternalFrame = 0;
+
+    if (!RLMemDiagEnsureDbgHelpInitializedLocked()) return 0;
+
+    int hasSymbol = 0;
+    int hasLine = 0;
+    unsigned long long displacement = 0;
+    unsigned char symbolStorage[sizeof(RLMemDiagSymbolInfo) + RL_MEMDIAG_MAX_SYMBOL_NAME] = { 0 };
+    RLMemDiagSymbolInfo *symbolInfo = (RLMemDiagSymbolInfo *)symbolStorage;
+    symbolInfo->SizeOfStruct = (unsigned long)sizeof(RLMemDiagSymbolInfo);
+    symbolInfo->MaxNameLen = RL_MEMDIAG_MAX_SYMBOL_NAME;
+
+    if (rlMemDiagDbgHelp.SymFromAddrFn(rlMemDiagDbgHelp.processHandle, (unsigned long long)(uintptr_t)address, &displacement, symbolInfo))
+    {
+        char undecoratedName[RL_MEMDIAG_MAX_SYMBOL_NAME] = { 0 };
+        const char *bestName = symbolInfo->Name;
+
+        if ((bestName != NULL) && (bestName[0] == '?'))
+        {
+            char *undResult = __unDName(undecoratedName, bestName + 1, (int)sizeof(undecoratedName), malloc, free, RL_MEMDIAG_UNDNAME_DISABLE_FLAGS);
+            if ((undResult != NULL) && (undecoratedName[0] != '\0')) bestName = undecoratedName;
+        }
+
+        if (bestName == NULL) bestName = "(symbol:unknown)";
+        snprintf(symbolText, symbolTextCapacity, "%s + 0x%llx", bestName, (unsigned long long)displacement);
+        if (outIsInternalFrame != NULL) *outIsInternalFrame = RLMemDiagIsInternalSymbolName(bestName);
+        hasSymbol = 1;
+    }
+
+    {
+        unsigned long lineDisplacement = 0;
+        RLMemDiagLineInfo64 lineInfo = { 0 };
+        lineInfo.SizeOfStruct = (unsigned long)sizeof(RLMemDiagLineInfo64);
+
+        if (rlMemDiagDbgHelp.SymGetLineFromAddr64Fn(rlMemDiagDbgHelp.processHandle, (unsigned long long)(uintptr_t)address, &lineDisplacement, &lineInfo))
+        {
+            snprintf(sourceText, sourceTextCapacity, "%s:%lu", (lineInfo.FileName != NULL)? lineInfo.FileName : "(line:unknown)", lineInfo.LineNumber);
+            hasLine = 1;
+        }
+    }
+
+    if (!hasSymbol) snprintf(symbolText, symbolTextCapacity, "(symbol:unknown)");
+    if (!hasLine) snprintf(sourceText, sourceTextCapacity, "(line:unknown)");
+
+    return (hasSymbol || hasLine);
+}
+#endif
+
+void *RLMemDiagMallocImpl(size_t allocationSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag)
+{
+    void *allocatedBlock = malloc(allocationSize);
+
+    if (!rlMemDiagRuntimeEnabled) return allocatedBlock;
+
+    RLMemDiagLockEnter();
+    {
+        rlMemDiagAllocCount++;
+        if (allocatedBlock == NULL)
+        {
+            rlMemDiagAllocFailCount++;
+        }
+        else if (RLMemDiagMapEnsureInitializedLocked() && RLMemDiagMapGrowLocked(1u) &&
+                 RLMemDiagMapInsertLocked(allocatedBlock, allocationSize, sourceFile, sourceLine, sourceFunction, sourceTag))
+        {
+            rlMemDiagAllocBytes += allocationSize;
+            rlMemDiagCurrentOutstandingBytes += allocationSize;
+            RLMemDiagUpdatePeakLocked();
+        }
+    }
+    RLMemDiagLockLeave();
+
+    return allocatedBlock;
+}
+
+void *RLMemDiagCallocImpl(size_t elementCount, size_t elementSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag)
+{
+    void *allocatedBlock = calloc(elementCount, elementSize);
+    size_t allocationSize = elementCount * elementSize;
+
+    if (!rlMemDiagRuntimeEnabled) return allocatedBlock;
+
+    RLMemDiagLockEnter();
+    {
+        rlMemDiagCallocCount++;
+        if (allocatedBlock == NULL)
+        {
+            rlMemDiagAllocFailCount++;
+        }
+        else if (RLMemDiagMapEnsureInitializedLocked() && RLMemDiagMapGrowLocked(1u) &&
+                 RLMemDiagMapInsertLocked(allocatedBlock, allocationSize, sourceFile, sourceLine, sourceFunction, sourceTag))
+        {
+            rlMemDiagAllocBytes += allocationSize;
+            rlMemDiagCurrentOutstandingBytes += allocationSize;
+            RLMemDiagUpdatePeakLocked();
+        }
+    }
+    RLMemDiagLockLeave();
+
+    return allocatedBlock;
+}
+
+void *RLMemDiagReallocImpl(void *oldBlock, size_t newSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag)
+{
+    if (!rlMemDiagRuntimeEnabled) return realloc(oldBlock, newSize);
+
+    size_t previousSize = 0;
+    const char *previousTag = NULL;
+
+    RLMemDiagLockEnter();
+    (void)RLMemDiagMapTryGetRecordLocked(oldBlock, &previousSize, &previousTag);
+    RLMemDiagLockLeave();
+
+    void *newBlock = realloc(oldBlock, newSize);
+
+    RLMemDiagLockEnter();
+    {
+        rlMemDiagReallocCount++;
+
+        if ((newBlock == NULL) && (newSize > 0))
+        {
+            rlMemDiagReallocFailCount++;
+            RLMemDiagLockLeave();
+            return NULL;
+        }
+
+        size_t removedSize = 0;
+        if (RLMemDiagMapRemoveLocked(oldBlock, &removedSize))
+        {
+            rlMemDiagFreeBytes += removedSize;
+            if (rlMemDiagCurrentOutstandingBytes >= removedSize) rlMemDiagCurrentOutstandingBytes -= removedSize;
+            else rlMemDiagCurrentOutstandingBytes = 0;
+        }
+
+        if ((newBlock != NULL) && (newSize > 0))
+        {
+            const char *effectiveTag = (sourceTag != NULL)? sourceTag : previousTag;
+            if (RLMemDiagMapEnsureInitializedLocked() && RLMemDiagMapGrowLocked(1u) &&
+                RLMemDiagMapInsertLocked(newBlock, newSize, sourceFile, sourceLine, sourceFunction, effectiveTag))
+            {
+                rlMemDiagAllocBytes += newSize;
+                rlMemDiagCurrentOutstandingBytes += newSize;
+                RLMemDiagUpdatePeakLocked();
+            }
+        }
+    }
+    RLMemDiagLockLeave();
+
+    return newBlock;
+}
+
+void RLMemDiagFreeImpl(void *blockToFree, const char *sourceFile, int sourceLine, const char *sourceFunction)
+{
+    (void)sourceFile;
+    (void)sourceLine;
+    (void)sourceFunction;
+
+    if (!rlMemDiagRuntimeEnabled)
+    {
+        free(blockToFree);
+        return;
+    }
+
+    RLMemDiagLockEnter();
+    {
+        rlMemDiagFreeCount++;
+        size_t removedSize = 0;
+        if (RLMemDiagMapRemoveLocked(blockToFree, &removedSize))
+        {
+            rlMemDiagFreeBytes += removedSize;
+            if (rlMemDiagCurrentOutstandingBytes >= removedSize) rlMemDiagCurrentOutstandingBytes -= removedSize;
+            else rlMemDiagCurrentOutstandingBytes = 0;
+        }
+    }
+    RLMemDiagLockLeave();
+
+    free(blockToFree);
+}
+
+void RLEnableMemoryDiagStats(void)
+{
+    RLMemDiagLockEnter();
+    {
+        (void)RLMemDiagMapEnsureInitializedLocked();
+        RLMemDiagClearMapLocked();
+        RLMemDiagResetCountersLocked();
+        rlMemDiagRuntimeEnabled = 1;
+    }
+    RLMemDiagLockLeave();
+}
+
+void RLDisableMemoryDiagStats(void)
+{
+    RLMemDiagLockEnter();
+    {
+        rlMemDiagRuntimeEnabled = 0;
+        RLMemDiagClearMapLocked();
+        RLMemDiagResetCountersLocked();
+    }
+    RLMemDiagLockLeave();
+}
+
+bool RLIsMemoryDiagStatsEnabled(void)
+{
+    return (rlMemDiagRuntimeEnabled != 0);
+}
+
+void RLResetMemoryDiagStats(void)
+{
+    RLMemDiagLockEnter();
+    {
+        RLMemDiagClearMapLocked();
+        RLMemDiagResetCountersLocked();
+    }
+    RLMemDiagLockLeave();
+}
+
+RLMemoryDiagStats RLGetMemoryDiagStats(void)
+{
+    RLMemoryDiagStats out = { 0 };
+
+    RLMemDiagLockEnter();
+    {
+        out.allocCount = rlMemDiagAllocCount;
+        out.callocCount = rlMemDiagCallocCount;
+        out.reallocCount = rlMemDiagReallocCount;
+        out.freeCount = rlMemDiagFreeCount;
+        out.allocBytes = rlMemDiagAllocBytes;
+        out.freeBytes = rlMemDiagFreeBytes;
+        out.allocFailCount = rlMemDiagAllocFailCount;
+        out.reallocFailCount = rlMemDiagReallocFailCount;
+        out.currentOutstandingBytes = rlMemDiagCurrentOutstandingBytes;
+        out.peakOutstandingBytes = rlMemDiagPeakOutstandingBytes;
+        out.bucketGrowCount = rlMemDiagBucketGrowCount;
+        out.bucketGrowLimitHitCount = rlMemDiagBucketGrowLimitHitCount;
+    }
+    RLMemDiagLockLeave();
+
+    return out;
+}
+
+void RLDumpMemoryLeaks(void)
+{
+    if (!rlMemDiagRuntimeEnabled) return;
+
+    RLMemDiagLockEnter();
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MEMDIAG: leak summary blocks=%u bytes=%llu",
+            rlMemEntryCount,
+            (unsigned long long)rlMemDiagCurrentOutstandingBytes);
+
+        for (unsigned int bucketIndex = 0; bucketIndex < rlMemBucketCount; bucketIndex++)
+        {
+            RLMemAllocMeta *currentNode = rlMemBuckets[bucketIndex];
+            while (currentNode != NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING,
+                    "MEMDIAG: leak ptr=%p size=%llu alloc_site=%s:%d func=%s tag=%s",
+                    currentNode->ptr,
+                    (unsigned long long)currentNode->size,
+                    (currentNode->sourceFile != NULL)? currentNode->sourceFile : "(null)",
+                    currentNode->sourceLine,
+                    (currentNode->sourceFunction != NULL)? currentNode->sourceFunction : "(null)",
+                    (currentNode->sourceTag != NULL)? currentNode->sourceTag : "(null)");
+
+                void *fallbackOriginAddress = NULL;
+#if defined(_WIN32)
+                char resolvedOriginSymbol[RL_MEMDIAG_MAX_SYMBOL_TEXT] = "(origin:unknown)";
+                char resolvedOriginSource[RL_MEMDIAG_MAX_SOURCE_TEXT] = "(line:unknown)";
+                int resolvedOriginReady = 0;
+#endif
+
+                for (unsigned int stackIndex = 0; stackIndex < currentNode->stackDepth; stackIndex++)
+                {
+                    void *frameAddress = currentNode->stack[stackIndex];
+                    if ((fallbackOriginAddress == NULL) && (frameAddress != NULL)) fallbackOriginAddress = frameAddress;
+
+#if defined(_WIN32)
+                    {
+                        char resolvedSymbol[RL_MEMDIAG_MAX_SYMBOL_TEXT] = { 0 };
+                        char resolvedSource[RL_MEMDIAG_MAX_SOURCE_TEXT] = { 0 };
+                        int isInternalFrame = 0;
+                        int resolved = RLMemDiagResolveFrameLocked(frameAddress, resolvedSymbol, sizeof(resolvedSymbol), resolvedSource, sizeof(resolvedSource), &isInternalFrame);
+
+                        if (!resolvedOriginReady && resolved && !isInternalFrame)
+                        {
+                            snprintf(resolvedOriginSymbol, sizeof(resolvedOriginSymbol), "%s", resolvedSymbol);
+                            snprintf(resolvedOriginSource, sizeof(resolvedOriginSource), "%s", resolvedSource);
+                            fallbackOriginAddress = frameAddress;
+                            resolvedOriginReady = 1;
+                        }
+
+                        if (resolved)
+                        {
+                            TRACELOG(RL_E_LOG_WARNING, "MEMDIAG:    bt#%u at %p symbol=%s source=%s",
+                                stackIndex, frameAddress, resolvedSymbol, resolvedSource);
+                        }
+                        else
+                        {
+                            TRACELOG(RL_E_LOG_WARNING, "MEMDIAG:    bt#%u at %p", stackIndex, frameAddress);
+                        }
+                    }
+#else
+                    TRACELOG(RL_E_LOG_WARNING, "MEMDIAG:    bt#%u at %p", stackIndex, frameAddress);
+#endif
+                }
+
+#if defined(_WIN32)
+                if (resolvedOriginReady)
+                {
+                    TRACELOG(RL_E_LOG_WARNING, "MEMDIAG:   origin=%s [%s] at %p",
+                        resolvedOriginSymbol, resolvedOriginSource, fallbackOriginAddress);
+                }
+                else if (fallbackOriginAddress != NULL)
+                {
+                    TRACELOG(RL_E_LOG_WARNING, "MEMDIAG:   origin=(unresolved) at %p", fallbackOriginAddress);
+                }
+#else
+                if (fallbackOriginAddress != NULL) TRACELOG(RL_E_LOG_WARNING, "MEMDIAG:   origin=(unresolved) at %p", fallbackOriginAddress);
+#endif
+
+                currentNode = currentNode->next;
+            }
+        }
+    }
+    RLMemDiagLockLeave();
+}
+
+#else
+
+void *RLMemDiagMallocImpl(size_t allocationSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag)
+{
+    (void)sourceFile;
+    (void)sourceLine;
+    (void)sourceFunction;
+    (void)sourceTag;
+    return malloc(allocationSize);
+}
+
+void *RLMemDiagCallocImpl(size_t elementCount, size_t elementSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag)
+{
+    (void)sourceFile;
+    (void)sourceLine;
+    (void)sourceFunction;
+    (void)sourceTag;
+    return calloc(elementCount, elementSize);
+}
+
+void *RLMemDiagReallocImpl(void *oldBlock, size_t newSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag)
+{
+    (void)sourceFile;
+    (void)sourceLine;
+    (void)sourceFunction;
+    (void)sourceTag;
+    return realloc(oldBlock, newSize);
+}
+
+void RLMemDiagFreeImpl(void *blockToFree, const char *sourceFile, int sourceLine, const char *sourceFunction)
+{
+    (void)sourceFile;
+    (void)sourceLine;
+    (void)sourceFunction;
+    free(blockToFree);
+}
+
+void RLEnableMemoryDiagStats(void) { }
+void RLDisableMemoryDiagStats(void) { }
+bool RLIsMemoryDiagStatsEnabled(void) { return false; }
+void RLResetMemoryDiagStats(void) { }
+RLMemoryDiagStats RLGetMemoryDiagStats(void)
+{
+    RLMemoryDiagStats out = { 0 };
+    return out;
+}
+void RLDumpMemoryLeaks(void) { }
+
+#endif // RL_MEM_DIAG
 
 // Include platform-specific submodules
 #if defined(PLATFORM_DESKTOP_GLFW)
@@ -1141,10 +2827,510 @@ void RLCloseWindow(void)
     TRACELOG(RL_E_LOG_INFO, "Window closed successfully");
 }
 
-void RLFlushSharedGpuDeletes(void)
+bool RLDeletePendingSharedGpuResources(void)
 {
-    if (!isGpuReady) return;
+    if (!isGpuReady)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLDeletePendingSharedGpuResources failed: GPU not ready");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLDeletePendingSharedGpuResources skipped: no share-group on current context");
+        return false;
+    }
     rlSharedGpuFlushDeletes();
+    return true;
+}
+
+// Shared-shader fence wait configuration (set once before first RLBeginSharedShaderUse()).
+static unsigned int rlSharedShaderFenceWaitSliceUs = 1000;    // 1 ms
+static unsigned int rlSharedShaderFenceWaitTimeoutUs = 12000; // 12 ms
+static bool rlSharedShaderFenceWaitConfigLocked = false;
+
+bool RLConfigureSharedShaderFenceWait(unsigned int waitSliceUs, unsigned int waitTimeoutUs)
+{
+    if ((waitSliceUs == 0) || (waitTimeoutUs == 0) || (waitSliceUs > waitTimeoutUs))
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+                 "SHARED_GPU: RLConfigureSharedShaderFenceWait failed: invalid values (sliceUs=%u timeoutUs=%u)",
+                 waitSliceUs, waitTimeoutUs);
+        return false;
+    }
+
+    if (rlSharedShaderFenceWaitConfigLocked)
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+                 "SHARED_GPU: RLConfigureSharedShaderFenceWait failed: configuration already locked by first shared-shader use");
+        return false;
+    }
+
+    rlSharedShaderFenceWaitSliceUs = waitSliceUs;
+    rlSharedShaderFenceWaitTimeoutUs = waitTimeoutUs;
+
+    TRACELOG(RL_E_LOG_INFO,
+             "SHARED_GPU: shared-shader fence wait configured (sliceUs=%u timeoutUs=%u)",
+             rlSharedShaderFenceWaitSliceUs, rlSharedShaderFenceWaitTimeoutUs);
+    return true;
+}
+
+bool RLBeginSharedShaderUse(RLShader shader, int policy)
+{
+    if (shader.id == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLBeginSharedShaderUse failed: invalid shader id=0");
+        return false;
+    }
+    if ((policy != RL_SHARED_SHADER_USE_PHASED) && (policy != RL_SHARED_SHADER_USE_LOCKED))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLBeginSharedShaderUse failed: invalid policy=%d", policy);
+        return false;
+    }
+    if (!isGpuReady)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLBeginSharedShaderUse failed: GPU not ready");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLBeginSharedShaderUse failed: no share-group on current context");
+        return false;
+    }
+    if (!RLSharedGpuBeginProgramUseScope((unsigned int)shader.id, policy))
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+                 "SHARED_GPU: RLBeginSharedShaderUse failed: shader id=%u is not tracked in current share-group or scope acquisition failed",
+                 (unsigned int)shader.id);
+        return false;
+    }
+
+    rlSharedShaderFenceWaitConfigLocked = true;
+
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_43)
+    // Wait for the previous shader scope fence (if any) before reusing shared program state.
+    if ((glClientWaitSync != NULL) && (glDeleteSync != NULL))
+    {
+        void *rawFence = NULL;
+        if (RLSharedGpuTakeProgramFence((unsigned int)shader.id, &rawFence) && (rawFence != NULL))
+        {
+            const GLuint64 waitSliceNs = (GLuint64)rlSharedShaderFenceWaitSliceUs*1000ULL;
+            const GLuint64 waitTimeoutNs = (GLuint64)rlSharedShaderFenceWaitTimeoutUs*1000ULL;
+            GLuint64 waitedNs = 0;
+            GLsync syncFence = (GLsync)rawFence;
+            bool fenceSignaled = false;
+
+            while (waitedNs < waitTimeoutNs)
+            {
+                GLenum waitResult = glClientWaitSync(syncFence, GL_SYNC_FLUSH_COMMANDS_BIT, waitSliceNs);
+                if ((waitResult == GL_ALREADY_SIGNALED) || (waitResult == GL_CONDITION_SATISFIED))
+                {
+                    fenceSignaled = true;
+                    break;
+                }
+                if (waitResult == GL_WAIT_FAILED) break;
+                waitedNs += waitSliceNs;
+            }
+
+            if (!fenceSignaled)
+            {
+                // Fallback on timeout/failure to preserve correctness.
+                glFinish();
+            }
+
+            glDeleteSync(syncFence);
+        }
+    }
+#endif
+
+    return true;
+}
+
+void RLSharedShaderUseEnd(RLShader shader, int policy)
+{
+    if (shader.id == 0) return;
+    if ((policy != RL_SHARED_SHADER_USE_PHASED) && (policy != RL_SHARED_SHADER_USE_LOCKED)) return;
+    if (!isGpuReady) return;
+
+    // Submit current draw batch while serialized scope is still active.
+    rlDrawRenderBatchActive();
+
+    bool fenceSubmitted = false;
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_43)
+    if ((glFenceSync != NULL) && (glFlush != NULL) && (glDeleteSync != NULL))
+    {
+        GLsync syncFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (syncFence != 0)
+        {
+            glFlush();
+            if (RLSharedGpuStoreProgramFence((unsigned int)shader.id, (void *)syncFence)) fenceSubmitted = true;
+            else glDeleteSync(syncFence);
+        }
+    }
+#endif
+
+    if (!fenceSubmitted)
+    {
+#if defined(GRAPHICS_API_OPENGL_11) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_43) || defined(GRAPHICS_API_OPENGL_ES2)
+        glFinish();
+#endif
+    }
+
+    RLSharedGpuEndProgramUseScope((unsigned int)shader.id, policy);
+}
+
+static bool RLMapSharedObjectType(RLSharedObjectType inType, RLSharedGpuObjectType *outType)
+{
+    if (outType == NULL) return false;
+
+    switch (inType)
+    {
+        case RL_SHARED_OBJECT_TEXTURE: *outType = RL_SHARED_GPU_OBJECT_TEXTURE; return true;
+        case RL_SHARED_OBJECT_BUFFER: *outType = RL_SHARED_GPU_OBJECT_BUFFER; return true;
+        case RL_SHARED_OBJECT_VERTEX_ARRAY: *outType = RL_SHARED_GPU_OBJECT_VERTEX_ARRAY; return true;
+        case RL_SHARED_OBJECT_FRAMEBUFFER: *outType = RL_SHARED_GPU_OBJECT_FRAMEBUFFER; return true;
+        case RL_SHARED_OBJECT_RENDERBUFFER: *outType = RL_SHARED_GPU_OBJECT_RENDERBUFFER; return true;
+        case RL_SHARED_OBJECT_PROGRAM: *outType = RL_SHARED_GPU_OBJECT_PROGRAM; return true;
+        default: break;
+    }
+
+    return false;
+}
+
+static bool RLMapSharedObjectTypeToTrackedKind(RLSharedObjectType inType, RLTrackedObjectKind *outKind)
+{
+    if (outKind == NULL) return false;
+
+    switch (inType)
+    {
+        case RL_SHARED_OBJECT_TEXTURE: *outKind = RL_TRACKED_OBJECT_TEXTURE; return true;
+        case RL_SHARED_OBJECT_FRAMEBUFFER: *outKind = RL_TRACKED_OBJECT_RENDER_TEXTURE; return true;
+        default: break;
+    }
+
+    return false;
+}
+
+RLContext* RLGetSharedObjectOwnerContext(RLSharedObjectType type, unsigned int objectId)
+{
+    RLSharedGpuObjectType mappedType = (RLSharedGpuObjectType)0;
+    if (!RLMapSharedObjectType(type, &mappedType))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLGetSharedObjectOwnerContext failed: invalid object type=%d", (int)type);
+        return NULL;
+    }
+    if (objectId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLGetSharedObjectOwnerContext failed: invalid object id=0");
+        return NULL;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLGetSharedObjectOwnerContext failed: no share-group on current context");
+        return NULL;
+    }
+
+    RLContext *owner = NULL;
+    if (!RLSharedGpuGetObjectOwner(mappedType, objectId, &owner)) return NULL;
+    return owner;
+}
+
+bool RLIsSharedObjectOwnedByCurrentContext(RLSharedObjectType type, unsigned int objectId)
+{
+    RLSharedGpuObjectType mappedType = (RLSharedGpuObjectType)0;
+    if (!RLMapSharedObjectType(type, &mappedType))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLIsSharedObjectOwnedByCurrentContext failed: invalid object type=%d", (int)type);
+        return false;
+    }
+    if (objectId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLIsSharedObjectOwnedByCurrentContext failed: invalid object id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLIsSharedObjectOwnedByCurrentContext failed: no share-group on current context");
+        return false;
+    }
+
+    return RLSharedGpuIsObjectOwnedByCurrentContext(mappedType, objectId);
+}
+
+bool RLTryTransferSharedObjectOwner(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx)
+{
+    RLSharedGpuObjectType mappedType = (RLSharedGpuObjectType)0;
+    if (!RLMapSharedObjectType(type, &mappedType))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryTransferSharedObjectOwner failed: invalid object type=%d", (int)type);
+        return false;
+    }
+    if (objectId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryTransferSharedObjectOwner failed: invalid object id=0");
+        return false;
+    }
+    if (targetCtx == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryTransferSharedObjectOwner failed: target context is null");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryTransferSharedObjectOwner failed: no share-group on current context");
+        return false;
+    }
+
+    RLTrackedObjectKind trackedKind = (RLTrackedObjectKind)0;
+    int trackedCanTransfer = 0;
+    if (RLMapSharedObjectTypeToTrackedKind(type, &trackedKind))
+    {
+        trackedCanTransfer = RLTrackedObjectCanTransferOwner(trackedKind, (uint64_t)objectId, targetCtx);
+        if (trackedCanTransfer < 0)
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: RLTryTransferSharedObjectOwner failed: tracked owner transfer rejected (type=%d id=%u)",
+                     (int)type, objectId);
+            return false;
+        }
+    }
+
+    if (!RLSharedGpuTryTransferObjectOwner(mappedType, objectId, targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+                 "SHARED_GPU: RLTryTransferSharedObjectOwner failed (type=%d id=%u): owner mismatch, object missing, or target context not in same share-group",
+                 (int)type, objectId);
+        return false;
+    }
+
+    if (trackedCanTransfer == 1)
+    {
+        if (!RLTrackedObjectTryTransferOwner(trackedKind, (uint64_t)objectId, targetCtx))
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: RLTryTransferSharedObjectOwner warning: shared owner transferred, tracked owner update skipped (type=%d id=%u)",
+                     (int)type, objectId);
+        }
+    }
+
+    return true;
+}
+
+bool RLTryAdoptOrphanedSharedObject(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx)
+{
+    RLSharedGpuObjectType mappedType = (RLSharedGpuObjectType)0;
+    if (!RLMapSharedObjectType(type, &mappedType))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: invalid object type=%d", (int)type);
+        return false;
+    }
+    if (objectId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: invalid object id=0");
+        return false;
+    }
+    if (targetCtx == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: target context is null");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: no share-group on current context");
+        return false;
+    }
+    if (!RLSharedGpuHasContextGroup(targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: target context has no share-group");
+        return false;
+    }
+
+    RLTrackedObjectKind trackedKind = (RLTrackedObjectKind)0;
+    int trackedCanAdopt = 0;
+    if (RLMapSharedObjectTypeToTrackedKind(type, &trackedKind))
+    {
+        trackedCanAdopt = RLTrackedObjectCanAdoptOrphanedOwner(trackedKind, (uint64_t)objectId, targetCtx);
+        if (trackedCanAdopt < 0)
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: tracked owner state is not orphaned (type=%d id=%u)",
+                     (int)type, objectId);
+            return false;
+        }
+    }
+
+    if (!RLSharedGpuTryAdoptOrphanedObjectOwner(mappedType, objectId, targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+                 "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed (type=%d id=%u): object not orphaned, missing, or target context not in same share-group",
+                 (int)type, objectId);
+        return false;
+    }
+
+    if (trackedCanAdopt > 0)
+    {
+        int trackedAdoptResult = RLTrackedObjectTryAdoptOrphanedOwner(trackedKind, (uint64_t)objectId, targetCtx);
+        if (trackedAdoptResult != 1)
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: RLTryAdoptOrphanedSharedObject warning: shared owner adopted, tracked owner update skipped (type=%d id=%u)",
+                     (int)type, objectId);
+        }
+    }
+
+    return true;
+}
+
+RLContext* RLGetObjectOwnerContext(RLSharedObjectType type, unsigned int objectId)
+{
+    return RLGetSharedObjectOwnerContext(type, objectId);
+}
+
+bool RLIsObjectOwnedByCurrentContext(RLSharedObjectType type, unsigned int objectId)
+{
+    return RLIsSharedObjectOwnedByCurrentContext(type, objectId);
+}
+
+bool RLTryTransferObjectOwner(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx)
+{
+    return RLTryTransferSharedObjectOwner(type, objectId, targetCtx);
+}
+
+bool RLTryAdoptOrphanedObject(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx)
+{
+    return RLTryAdoptOrphanedSharedObject(type, objectId, targetCtx);
+}
+
+void RLSetSharedGpuTrackingMode(int mode)
+{
+    RLSharedGpuTrackingModeInternal internalMode = RL_SHARED_GPU_TRACKING_MODE_STRICT;
+
+    switch (mode)
+    {
+        case RL_SHARED_GPU_TRACKING_COMPATIBLE: internalMode = RL_SHARED_GPU_TRACKING_MODE_COMPATIBLE; break;
+        case RL_SHARED_GPU_TRACKING_STRICT: internalMode = RL_SHARED_GPU_TRACKING_MODE_STRICT; break;
+        default:
+        {
+            TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSetSharedGpuTrackingMode failed: invalid mode=%d", mode);
+            return;
+        }
+    }
+
+    RLSharedGpuSetTrackingMode(internalMode);
+}
+
+int RLGetSharedGpuTrackingMode(void)
+{
+    RLSharedGpuTrackingModeInternal internalMode = RLSharedGpuGetTrackingMode();
+
+    switch (internalMode)
+    {
+        case RL_SHARED_GPU_TRACKING_MODE_COMPATIBLE: return RL_SHARED_GPU_TRACKING_COMPATIBLE;
+        case RL_SHARED_GPU_TRACKING_MODE_STRICT: return RL_SHARED_GPU_TRACKING_STRICT;
+        default:
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: RLGetSharedGpuTrackingMode got unknown internal mode=%d, fallback strict",
+                     (int)internalMode);
+            return RL_SHARED_GPU_TRACKING_STRICT;
+        }
+    }
+}
+
+static RLThreadMismatchDiagStats rlThreadMismatchDiagStats = { 0 };
+
+static unsigned long long RLGetCurrentThreadIdForDiag(void)
+{
+#if defined(_WIN32)
+    __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId(void);
+    return (unsigned long long)GetCurrentThreadId();
+#else
+    return 0;
+#endif
+}
+
+static void RLRecordThreadMismatch(const char *apiName, void *windowHandle)
+{
+    rlThreadMismatchDiagStats.detectedCount += 1;
+    rlThreadMismatchDiagStats.lastCallerThreadId = RLGetCurrentThreadIdForDiag();
+    rlThreadMismatchDiagStats.lastWindowHandle = windowHandle;
+
+    if (apiName == NULL) apiName = "(unknown)";
+    strncpy(rlThreadMismatchDiagStats.lastApi, apiName, sizeof(rlThreadMismatchDiagStats.lastApi) - 1);
+    rlThreadMismatchDiagStats.lastApi[sizeof(rlThreadMismatchDiagStats.lastApi) - 1] = '\0';
+}
+
+void RLRecordThreadMismatchHandoffAttempt(const char *apiName)
+{
+    (void)apiName;
+    rlThreadMismatchDiagStats.handoffAttemptedCount += 1;
+}
+
+void RLRecordThreadMismatchHandoffSuccess(const char *apiName)
+{
+    (void)apiName;
+    rlThreadMismatchDiagStats.handoffSuccessCount += 1;
+}
+
+void RLRecordThreadMismatchHandoffFailed(const char *apiName)
+{
+    (void)apiName;
+    rlThreadMismatchDiagStats.handoffFailedCount += 1;
+}
+
+void RLRecordThreadMismatchDeferredQueued(const char *apiName)
+{
+    (void)apiName;
+    rlThreadMismatchDiagStats.deferredQueuedCount += 1;
+}
+
+void RLRecordThreadMismatchDeferredExecuted(const char *apiName)
+{
+    (void)apiName;
+    rlThreadMismatchDiagStats.deferredExecutedCount += 1;
+}
+
+void RLRecordThreadMismatchDeferredFailed(const char *apiName)
+{
+    (void)apiName;
+    rlThreadMismatchDiagStats.deferredFailedCount += 1;
+}
+
+void RLRecordThreadMismatchReject(const char *apiName)
+{
+    (void)apiName;
+    rlThreadMismatchDiagStats.rejectedCount += 1;
+}
+
+RLThreadMismatchDiagStats RLGetThreadMismatchDiagStats(void)
+{
+    return rlThreadMismatchDiagStats;
+}
+
+void RLResetThreadMismatchDiagStats(void)
+{
+    rlThreadMismatchDiagStats = (RLThreadMismatchDiagStats){ 0 };
+}
+
+// Internal safety gate: when event-thread mode is active, GPU object writes must run on render thread.
+bool RLCanWriteGpuResourcesOnCurrentThread(const char *apiName)
+{
+#if defined(PLATFORM_DESKTOP_GLFW)
+    RLContext *ctx = RLGetCurrentContext();
+    if ((ctx == NULL) || (ctx->platformData == NULL)) return true;
+
+    PlatformData *pd = (PlatformData *)ctx->platformData;
+    if ((pd == NULL) || (!pd->useEventThread) || (pd->renderThread == NULL)) return true;
+    if (RLGlfwIsThread(pd->renderThread)) return true;
+
+    RLRecordThreadMismatch(apiName, RLGetWindowHandle());
+    TRACELOG(RL_E_LOG_WARNING,
+             "THREADING: %s called on non-render thread (event-thread mode enabled); synchronous handoff may be required",
+             (apiName != NULL) ? apiName : "(unknown)");
+    return false;
+#else
+    (void)apiName;
+    return true;
+#endif
 }
 
 // Check if window has been initialized successfully
@@ -1290,6 +3476,11 @@ void RLBeginDrawing(void)
 // End canvas drawing and swap buffers (double buffering)
 void RLEndDrawing(void)
 {
+#if defined(PLATFORM_DESKTOP_GLFW) && defined(_WIN32)
+    // Execute frame-safe callbacks at a stable frame point before flushing/swap.
+    RLGlfwDrainFrameCallbacksCurrentContext();
+#endif
+
     rlDrawRenderBatchActive();      // Update and draw internal render batch
 
 #if defined(SUPPORT_AUTOMATION_EVENTS)
@@ -1297,10 +3488,14 @@ void RLEndDrawing(void)
 #endif
 
 #if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
+    const double swapBegin = RLGetTime();
     RLSwapScreenBuffer();                  // Copy back buffer to front buffer (screen)
+    const double swapEnd = RLGetTime();
+    const double swapSeconds = swapEnd - swapBegin;
+    double waitSeconds = 0.0;
 
     // Frame time control system
-    CORE.Time.current = RLGetTime();
+    CORE.Time.current = swapEnd;
     CORE.Time.draw = CORE.Time.current - CORE.Time.previous;
     CORE.Time.previous = CORE.Time.current;
 
@@ -1316,11 +3511,19 @@ void RLEndDrawing(void)
             CORE.Time.current = RLGetTime();
             double waitTime = CORE.Time.current - CORE.Time.previous;
             CORE.Time.previous = CORE.Time.current;
+            waitSeconds = waitTime;
 
             CORE.Time.frame += waitTime;    // Total frame time: update + draw + wait
         }
 
         RLPollInputEvents();      // Poll user events (before next frame update)
+    }
+
+    {
+        // CPU frame time excludes swap/present and wait/sleep components.
+        double frameCpuSeconds = CORE.Time.update + (CORE.Time.draw - swapSeconds);
+        if (frameCpuSeconds < 0.0) frameCpuSeconds = 0.0;
+        RL_DIAG_ON_FRAME_TIMING(swapSeconds, frameCpuSeconds, waitSeconds);
     }
 #endif
 
@@ -1748,8 +3951,73 @@ bool RLIsShaderValid(RLShader shader)
 }
 
 // Unload shader from GPU memory (VRAM)
+#if defined(_WIN32)
+static void RLFreeShaderPayload(void *user)
+{
+    RL_FREE(user);
+}
+
+static intptr_t RLInvokeUnloadShaderOnRenderThread(void *hwnd, void *user)
+{
+    (void)hwnd;
+    RLShader *shaderPtr = (RLShader *)user;
+    if (shaderPtr != NULL) RLUnloadShader(*shaderPtr);
+    RLRecordThreadMismatchDeferredExecuted("RLUnloadShader");
+    RL_FREE(shaderPtr);
+    return (intptr_t)1;
+}
+#endif
+
 void RLUnloadShader(RLShader shader)
 {
+    if (!RLCanWriteGpuResourcesOnCurrentThread("RLUnloadShader"))
+    {
+#if defined(_WIN32)
+        void *windowHandle = RLGetWindowHandle();
+        if (windowHandle != NULL)
+        {
+            RLRecordThreadMismatchHandoffAttempt("RLUnloadShader");
+            RLShader *payload = (RLShader *)RL_MALLOC(sizeof(RLShader));
+            if (payload != NULL)
+            {
+                *payload = shader;
+                intptr_t ok = RLInvokeOnWindowRenderThreadByHandle(
+                    windowHandle,
+                    RLInvokeUnloadShaderOnRenderThread,
+                    payload, 1);
+                if (ok != 0)
+                {
+                    RLRecordThreadMismatchHandoffSuccess("RLUnloadShader");
+                    return;
+                }
+                RLRecordThreadMismatchHandoffFailed("RLUnloadShader");
+                RL_FREE(payload);
+            }
+            else RLRecordThreadMismatchHandoffFailed("RLUnloadShader");
+
+            payload = (RLShader *)RL_MALLOC(sizeof(RLShader));
+            if (payload != NULL)
+            {
+                *payload = shader;
+                if (RLPostWindowFrameCallbackByHandleEx2(windowHandle, RLInvokeUnloadShaderOnRenderThread, payload, RL_FRAME_CALLBACK_KIND_CRITICAL, RLFreeShaderPayload) != 0)
+                {
+                    RLRecordThreadMismatchDeferredQueued("RLUnloadShader");
+                    return;
+                }
+                RLRecordThreadMismatchDeferredFailed("RLUnloadShader");
+            }
+            else RLRecordThreadMismatchDeferredFailed("RLUnloadShader");
+        }
+        else
+        {
+            RLRecordThreadMismatchHandoffFailed("RLUnloadShader");
+            RLRecordThreadMismatchDeferredFailed("RLUnloadShader");
+        }
+#endif
+        RLRecordThreadMismatchReject("RLUnloadShader");
+        return;
+    }
+
     // NOTE: shader.id == 0 means load failed; only CPU-side locations exist.
     if (shader.id == 0) {
         if (shader.locs != NULL) RL_FREE(shader.locs);
@@ -1764,18 +4032,216 @@ void RLUnloadShader(RLShader shader)
     rlUnloadShaderProgram(shader.id);
 }
 
-void RLSharedRetainShader(RLShader shader)
+bool RLSharedRetainShader(RLShader shader)
 {
-    if (shader.id == 0) return;
-    if (shader.id == rlGetShaderIdDefault()) return;
+    if (shader.id == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainShader failed: invalid shader id=0");
+        return false;
+    }
+    if (shader.id == rlGetShaderIdDefault())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainShader failed: default shader is internally owned");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainShader failed: no share-group on current context");
+        return false;
+    }
     RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_PROGRAM, shader.id);
+    return true;
 }
 
-void RLSharedReleaseShader(RLShader shader)
+bool RLSharedReleaseShader(RLShader shader)
 {
-    if (shader.id == 0) return;
-    if (shader.id == rlGetShaderIdDefault()) return;
+    if (shader.id == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseShader failed: invalid shader id=0");
+        return false;
+    }
+    if (shader.id == rlGetShaderIdDefault())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseShader failed: default shader is internally owned");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseShader failed: no share-group on current context");
+        return false;
+    }
     RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_PROGRAM, shader.id);
+    return true;
+}
+
+bool RLSharedRetainBuffer(unsigned int bufferId)
+{
+    if (bufferId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainBuffer failed: invalid buffer id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainBuffer failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_BUFFER, bufferId);
+    return true;
+}
+
+bool RLSharedReleaseBuffer(unsigned int bufferId)
+{
+    if (bufferId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseBuffer failed: invalid buffer id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseBuffer failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_BUFFER, bufferId);
+    return true;
+}
+
+bool RLSharedRetainVertexArray(unsigned int vertexArrayId)
+{
+    if (vertexArrayId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainVertexArray failed: invalid vertex array id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainVertexArray failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_VERTEX_ARRAY, vertexArrayId);
+    return true;
+}
+
+bool RLSharedReleaseVertexArray(unsigned int vertexArrayId)
+{
+    if (vertexArrayId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseVertexArray failed: invalid vertex array id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseVertexArray failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_VERTEX_ARRAY, vertexArrayId);
+    return true;
+}
+
+bool RLSharedRetainFramebuffer(unsigned int framebufferId)
+{
+    if (framebufferId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainFramebuffer failed: invalid framebuffer id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainFramebuffer failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuRetainFramebufferTree(framebufferId);
+    return true;
+}
+
+bool RLSharedReleaseFramebuffer(unsigned int framebufferId)
+{
+    if (framebufferId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseFramebuffer failed: invalid framebuffer id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseFramebuffer failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuReleaseFramebufferTree(framebufferId);
+    return true;
+}
+
+bool RLSharedRetainFramebufferBase(unsigned int framebufferId)
+{
+    if (framebufferId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainFramebufferBase failed: invalid framebuffer id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainFramebufferBase failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_FRAMEBUFFER, framebufferId);
+    return true;
+}
+
+bool RLSharedReleaseFramebufferBase(unsigned int framebufferId)
+{
+    if (framebufferId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseFramebufferBase failed: invalid framebuffer id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseFramebufferBase failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_FRAMEBUFFER, framebufferId);
+    return true;
+}
+
+bool RLSharedRetainRenderbuffer(unsigned int renderbufferId)
+{
+    if (renderbufferId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainRenderbuffer failed: invalid renderbuffer id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedRetainRenderbuffer failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_RENDERBUFFER, renderbufferId);
+    return true;
+}
+
+bool RLSharedReleaseRenderbuffer(unsigned int renderbufferId)
+{
+    if (renderbufferId == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseRenderbuffer failed: invalid renderbuffer id=0");
+        return false;
+    }
+    if (!RLSharedGpuHasCurrentGroup())
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLSharedReleaseRenderbuffer failed: no share-group on current context");
+        return false;
+    }
+
+    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_RENDERBUFFER, renderbufferId);
+    return true;
 }
 
 // Get shader uniform location
@@ -2256,7 +4722,7 @@ void RLTakeScreenshot(const char *fileName)
     RLImage image = { imgData, (int)((float)CORE.Window.render.width*scale.x), (int)((float)CORE.Window.render.height*scale.y), 1, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
 
     char path[MAX_FILEPATH_LENGTH] = { 0 };
-    strncpy(path, RLTextFormat("%s/%s", CORE.Storage.basePath, fileName), MAX_FILEPATH_LENGTH - 1);
+    RLTextFormatTo(path, MAX_FILEPATH_LENGTH, "%s/%s", CORE.Storage.basePath, fileName);
 
     RLExportImage(image, path); // WARNING: Module required: rtextures
     RL_FREE(imgData);
@@ -2384,6 +4850,49 @@ void RLMemFree(void *ptr)
 //----------------------------------------------------------------------------------
 // Module Functions Definition: File System management
 //----------------------------------------------------------------------------------
+#if defined(_WIN32)
+static FILE *RLWin32OpenFileForMode(const char *fileName, const char *mode)
+{
+    RLWin32PathError err;
+    FILE *file = RLWin32PathOpenFileForModeUtf8(fileName, mode, &err);
+    if (file == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Win32 open failed (mode=%s, stage=%s, win32=%lu, errno=%d, requiredChars=%d, path=%s)",
+                 (fileName != NULL)? fileName : "(null)", mode,
+                 (err.stage != NULL)? err.stage : "unknown", err.win32Error, err.crtError, err.requiredChars,
+                 (err.inputUtf8 != NULL)? err.inputUtf8 : "(null)");
+    }
+
+    return file;
+}
+
+static int RLWin32GetPathAttributesUtf8(const char *pathUtf8, unsigned long *outAttrs)
+{
+    return RLWin32PathGetPathAttributesUtf8(pathUtf8, outAttrs);
+}
+
+static int RLWin32SetCurrentDirectoryUtf8(const char *pathUtf8)
+{
+    return RLWin32PathSetCurrentDirectoryUtf8(pathUtf8);
+}
+
+static int RLWin32CreateDirectoryUtf8(const char *pathUtf8)
+{
+    return RLWin32PathCreateDirectoryUtf8(pathUtf8);
+}
+
+static int RLWin32GetCurrentDirectoryUtf8(char *outUtf8, int outUtf8Capacity)
+{
+    int requiredChars = 0;
+    int ok = RLWin32PathGetCurrentDirectoryUtf8(outUtf8, outUtf8Capacity, &requiredChars);
+    if (ok && (requiredChars >= outUtf8Capacity))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: Working directory truncated to %d bytes (required=%d)", outUtf8Capacity - 1, requiredChars);
+    }
+    return ok;
+}
+#endif // _WIN32
+
 // Load data from file into a buffer
 unsigned char *RLLoadFileData(const char *fileName, int *dataSize)
 {
@@ -2398,7 +4907,12 @@ unsigned char *RLLoadFileData(const char *fileName, int *dataSize)
             return data;
         }
 #if defined(SUPPORT_STANDARD_FILEIO)
-        FILE *file = fopen(fileName, "rb");
+        FILE *file = NULL;
+#if defined(_WIN32)
+        file = RLWin32OpenFileForMode(fileName, "rb");
+#else
+        file = fopen(fileName, "rb");
+#endif
 
         if (file != NULL)
         {
@@ -2468,7 +4982,12 @@ bool RLSaveFileData(const char *fileName, void *data, int dataSize)
             return saveFileData(fileName, data, dataSize);
         }
 #if defined(SUPPORT_STANDARD_FILEIO)
-        FILE *file = fopen(fileName, "wb");
+        FILE *file = NULL;
+#if defined(_WIN32)
+        file = RLWin32OpenFileForMode(fileName, "wb");
+#else
+        file = fopen(fileName, "wb");
+#endif
 
         if (file != NULL)
         {
@@ -2560,7 +5079,12 @@ char *RLLoadFileText(const char *fileName)
             return text;
         }
 #if defined(SUPPORT_STANDARD_FILEIO)
-        FILE *file = fopen(fileName, "rt");
+        FILE *file = NULL;
+#if defined(_WIN32)
+        file = RLWin32OpenFileForMode(fileName, "rt");
+#else
+        file = fopen(fileName, "rt");
+#endif
 
         if (file != NULL)
         {
@@ -2622,7 +5146,12 @@ bool RLSaveFileText(const char *fileName, const char *text)
             return saveFileText(fileName, text);
         }
 #if defined(SUPPORT_STANDARD_FILEIO)
-        FILE *file = fopen(fileName, "wt");
+        FILE *file = NULL;
+#if defined(_WIN32)
+        file = RLWin32OpenFileForMode(fileName, "wt");
+#else
+        file = fopen(fileName, "wt");
+#endif
 
         if (file != NULL)
         {
@@ -2784,8 +5313,15 @@ int RLFileTextFindIndex(const char *fileName, const char *search)
 bool RLFileExists(const char *fileName)
 {
     bool result = false;
-
+#if defined(_WIN32)
+    unsigned long attrs = 0;
+    if (RLWin32GetPathAttributesUtf8(fileName, &attrs))
+    {
+        if ((attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) result = true;
+    }
+#else
     if (ACCESS(fileName) != -1) result = true;
+#endif
 
     // NOTE: Alternatively, stat() can be used instead of access()
     //#include <sys/stat.h>
@@ -2863,6 +5399,13 @@ bool RLIsFileExtension(const char *fileName, const char *ext)
 bool RLDirectoryExists(const char *dirPath)
 {
     bool result = false;
+#if defined(_WIN32)
+    unsigned long attrs = 0;
+    if (RLWin32GetPathAttributesUtf8(dirPath, &attrs))
+    {
+        if ((attrs & FILE_ATTRIBUTE_DIRECTORY) != 0) result = true;
+    }
+#else
     DIR *dir = opendir(dirPath);
 
     if (dir != NULL)
@@ -2870,6 +5413,7 @@ bool RLDirectoryExists(const char *dirPath)
         result = true;
         closedir(dir);
     }
+#endif
 
     return result;
 }
@@ -2886,7 +5430,12 @@ int RLGetFileLength(const char *fileName)
     //stat(fileName, &result);
     //return result.st_size;
 
-    FILE *file = fopen(fileName, "rb");
+    FILE *file = NULL;
+#if defined(_WIN32)
+    file = RLWin32OpenFileForMode(fileName, "rb");
+#else
+    file = fopen(fileName, "rb");
+#endif
 
     if (file != NULL)
     {
@@ -2906,14 +5455,19 @@ int RLGetFileLength(const char *fileName)
 // Get file modification time (last write time)
 long RLGetFileModTime(const char *fileName)
 {
-    struct stat result = { 0 };
     long modTime = 0;
 
+#if defined(_WIN32)
+    if (!RLWin32PathGetFileModTimeUtf8(fileName, &modTime))
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to get file modification time using Win32 UTF-16 path API", (fileName != NULL)? fileName : "(null)");
+#else
+    struct stat result = { 0 };
     if (stat(fileName, &result) == 0)
     {
         time_t mod = result.st_mtime;
         modTime = (long)mod;
     }
+#endif
 
     return modTime;
 }
@@ -3055,10 +5609,17 @@ const char *RLGetWorkingDirectory(void)
 {
     static char currentDir[MAX_FILEPATH_LENGTH] = { 0 };
     memset(currentDir, 0, MAX_FILEPATH_LENGTH);
-
+#if defined(_WIN32)
+    if (!RLWin32GetCurrentDirectoryUtf8(currentDir, MAX_FILEPATH_LENGTH))
+    {
+        currentDir[0] = '.';
+        currentDir[1] = '\0';
+    }
+    return currentDir;
+#else
     char *path = GETCWD(currentDir, MAX_FILEPATH_LENGTH - 1);
-
     return path;
+#endif
 }
 
 const char *RLGetApplicationDirectory(void)
@@ -3069,13 +5630,40 @@ const char *RLGetApplicationDirectory(void)
 #if defined(_WIN32)
     int len = 0;
 
-    #if defined(UNICODE)
-    unsigned short widePath[MAX_PATH];
-    len = GetModuleFileNameW(NULL, (wchar_t *)widePath, MAX_PATH);
-    len = WideCharToMultiByte(0, 0, (wchar_t *)widePath, len, appDir, MAX_PATH, NULL, NULL);
-    #else
-    len = GetModuleFileNameA(NULL, appDir, MAX_PATH);
-    #endif
+    unsigned long cap = MAX_FILEPATH_LENGTH;
+    wchar_t *widePath = NULL;
+    unsigned long copied = 0;
+
+    while (cap <= 65536u)
+    {
+        wchar_t *newBuffer = (wchar_t *)RL_CALLOC((unsigned int)cap, sizeof(wchar_t));
+        if (newBuffer == NULL) break;
+        if (widePath != NULL) RL_FREE(widePath);
+        widePath = newBuffer;
+
+        copied = GetModuleFileNameW(NULL, widePath, cap);
+        if ((copied > 0u) && (copied < cap - 1u)) break;
+        if (copied == 0u) break;
+        cap *= 2u;
+    }
+
+    if ((widePath != NULL) && (copied > 0u))
+    {
+        int requiredBytes = WideCharToMultiByte(CP_UTF8, 0, widePath, (int)copied, NULL, 0, NULL, NULL);
+        if (requiredBytes > 0)
+        {
+            int writableBytes = requiredBytes;
+            if (writableBytes >= MAX_FILEPATH_LENGTH)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "FILEIO: Application directory truncated to %d bytes (required=%d)", MAX_FILEPATH_LENGTH - 1, requiredBytes);
+                writableBytes = MAX_FILEPATH_LENGTH - 1;
+            }
+            len = WideCharToMultiByte(CP_UTF8, 0, widePath, (int)copied, appDir, writableBytes, NULL, NULL);
+            if (len < 0) len = 0;
+            appDir[len] = '\0';
+        }
+    }
+    if (widePath != NULL) RL_FREE(widePath);
 
     if (len > 0)
     {
@@ -3229,6 +5817,10 @@ int RLMakeDirectory(const char *dirPath)
     if ((dirPath == NULL) || (dirPath[0] == '\0')) return -1; // Path is not valid
     if (RLDirectoryExists(dirPath)) return 0; // Path already exists (is valid)
 
+#if defined(_WIN32)
+    return RLWin32PathMakeDirectoryTreeUtf8(dirPath) ? 0 : -1;
+#endif
+
     // Copy path string to avoid modifying original
     int dirPathLength = (int)strlen(dirPath) + 1;
     char *pathcpy = (char *)RL_CALLOC(dirPathLength, 1);
@@ -3242,20 +5834,39 @@ int RLMakeDirectory(const char *dirPath)
         {
             if ((pathcpy[i] == '\\') || (pathcpy[i] == '/'))
             {
+                char separator = pathcpy[i];
                 pathcpy[i] = '\0';
-                if (!RLDirectoryExists(pathcpy)) MKDIR(pathcpy);
-                pathcpy[i] = '/';
+                if (!RLDirectoryExists(pathcpy))
+                {
+#if defined(_WIN32)
+                    RLWin32CreateDirectoryUtf8(pathcpy);
+#else
+                    MKDIR(pathcpy);
+#endif
+                }
+                pathcpy[i] = separator;
             }
         }
     }
 
     // Create final directory
-    if (!RLDirectoryExists(pathcpy)) MKDIR(pathcpy);
+    if (!RLDirectoryExists(pathcpy))
+    {
+#if defined(_WIN32)
+        RLWin32CreateDirectoryUtf8(pathcpy);
+#else
+        MKDIR(pathcpy);
+#endif
+    }
     RL_FREE(pathcpy);
 
-    // In case something failed and requested directory
-    // was not successfully created, return -1
+    // On Win32 long paths, attribute queries may still fail in some edge cases;
+    // try one final create attempt and accept "already exists" as success.
+#if defined(_WIN32)
+    if (!RLDirectoryExists(dirPath) && !RLWin32CreateDirectoryUtf8(dirPath)) return -1;
+#else
     if (!RLDirectoryExists(dirPath)) return -1;
+#endif
 
     return 0;
 }
@@ -3263,12 +5874,17 @@ int RLMakeDirectory(const char *dirPath)
 // Change working directory, returns true on success
 bool RLChangeDirectory(const char *dirPath)
 {
-    bool result = CHDIR(dirPath);
+    bool result = false;
+#if defined(_WIN32)
+    result = RLWin32SetCurrentDirectoryUtf8(dirPath) ? true : false;
+#else
+    result = CHDIR(dirPath) == 0;
+#endif
 
-    if (result != 0) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to change to directory: %s", dirPath);
+    if (!result) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to change to directory: %s", dirPath);
     else TRACELOG(RL_E_LOG_INFO, "SYSTEM: Working Directory: %s", dirPath);
 
-    return (result == 0);
+    return result;
 }
 
 // Check if a given path point to a file
@@ -4021,7 +6637,12 @@ RLAutomationEventList RLLoadAutomationEventList(const char *fileName)
 
         // Load events file (text)
         //unsigned char *buffer = LoadFileText(fileName);
-        FILE *raeFile = fopen(fileName, "rt");
+        FILE *raeFile = NULL;
+#if defined(_WIN32)
+        raeFile = RLWin32OpenFileForMode(fileName, "rt");
+#else
+        raeFile = fopen(fileName, "rt");
+#endif
 
         if (raeFile != NULL)
         {
@@ -5067,6 +7688,41 @@ const char *RLTextFormat(const char *text, ...)
     }
 
     return currentBuffer;
+}
+
+int RLTextFormatTo(char *outText, int outTextSize, const char *text, ...)
+{
+    if ((outText == NULL) || (outTextSize <= 0)) return 0;
+    outText[0] = '\0';
+    if (text == NULL) return 0;
+
+    va_list args;
+    va_start(args, text);
+    int requiredByteCount = vsnprintf(outText, outTextSize, text, args);
+    va_end(args);
+
+    if (requiredByteCount < 0)
+    {
+        outText[0] = '\0';
+        return 0;
+    }
+
+    // If requiredByteCount is larger than the outTextSize, then overflow occurred
+    if (requiredByteCount >= outTextSize)
+    {
+        if (outTextSize >= 4)
+        {
+            // Inserting "..." at the end of the string to mark as truncated
+            char *truncBuffer = outText + outTextSize - 4; // Adding 4 bytes = "...\0"
+            snprintf(truncBuffer, 4, "...");
+        }
+        else
+        {
+            outText[outTextSize - 1] = '\0';
+        }
+    }
+
+    return requiredByteCount;
 }
 
 #endif // !SUPPORT_MODULE_RTEXT

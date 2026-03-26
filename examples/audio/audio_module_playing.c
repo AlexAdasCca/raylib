@@ -18,8 +18,8 @@
 #if defined(_WIN32)
 #include <windows.h>
 #include <process.h>     // _beginthreadex
+typedef struct GLFWwindow GLFWwindow; // Opaque handle type, only used as pointer in this example
 #endif
-#include <GLFW/glfw3.h>
 #include <rl_context.h>
 
 #define MAX_CIRCLES  64
@@ -109,6 +109,7 @@ static unsigned __stdcall OtherThread(void* arg)
 
     }
     RLWin32RemoveMessageHookByHandle(hwnd, token);
+    return 0;
 }
 
 static unsigned __stdcall SecondaryWindowThread(void* arg)
@@ -314,7 +315,7 @@ int main(void)
         for (int i = 0; i < nWindows; i++) {
             void* hwnd = hwnds[i];
             if (hwnd == RLGetWindowHandle()) continue;
-            RLInvokeOnWindowRenderThreadByHandle(hwnd, DoRender, NULL, 0);
+            RLPostWindowFrameCallbackByHandle(hwnd, DoRender, NULL);
         }
         //----------------------------------------------------------------------------------
     }

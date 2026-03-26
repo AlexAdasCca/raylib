@@ -24,6 +24,11 @@ typedef enum RLSharedGpuObjectType {
     RL_SHARED_GPU_OBJECT_PROGRAM = 6,
 } RLSharedGpuObjectType;
 
+typedef enum RLSharedGpuTrackingModeInternal {
+    RL_SHARED_GPU_TRACKING_MODE_COMPATIBLE = 0, // Unregistered retain/release follows compatibility fallback.
+    RL_SHARED_GPU_TRACKING_MODE_STRICT = 1      // Unregistered retain/release is rejected and counted.
+} RLSharedGpuTrackingModeInternal;
+
 // Bind ctx to a share-group. If shareWithCtx is non-NULL, ctx joins shareWithCtx's group.
 // Otherwise a new share-group is created for ctx.
 // Safe to call multiple times.
@@ -51,11 +56,39 @@ void RLSharedGpuUnregisterFramebufferDepth(unsigned int framebufferId);
 // Returns true if a mapping exists in the CURRENT context share-group.
 bool RLSharedGpuQueryFramebufferDepth(unsigned int framebufferId, RLSharedGpuObjectType *typeOut, unsigned int *objIdOut);
 
+// Register or unregister any framebuffer attachment (color/depth/stencil slot).
+// attachment uses rlgl attachment ids: color channels [0..7], depth=100, stencil=200.
+void RLSharedGpuRegisterFramebufferAttachment(unsigned int framebufferId, int attachment, RLSharedGpuObjectType type, unsigned int objId);
+void RLSharedGpuUnregisterFramebufferAttachment(unsigned int framebufferId, int attachment);
+void RLSharedGpuUnregisterFramebufferAttachments(unsigned int framebufferId);
+
 // Convenience helpers to retain/release framebuffer and its registered depth attachment together.
 void RLSharedGpuRetainFramebufferTree(unsigned int framebufferId);
 void RLSharedGpuReleaseFramebufferTree(unsigned int framebufferId);
 
+typedef struct RLSharedGpuFramebufferMapStats {
+    unsigned long long mapHitCount;
+    unsigned long long mapMissCount;
+    unsigned long long releaseSkippedCount;
+} RLSharedGpuFramebufferMapStats;
+
+RLSharedGpuFramebufferMapStats RLSharedGpuGetFramebufferMapStats(void);
+
+// Owner-query/transfer helpers (write-ownership control, per share-group object key).
+bool RLSharedGpuGetObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLContext **ownerOut);
+bool RLSharedGpuIsObjectOwnedByCurrentContext(RLSharedGpuObjectType type, unsigned int id);
+bool RLSharedGpuTryTransferObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx);
+bool RLSharedGpuTryAdoptOrphanedObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx);
+
+// Serialized scope for shared shader program concurrent use.
+// policy values are RLSharedShaderUsePolicy from raylib.h.
+bool RLSharedGpuBeginProgramUseScope(unsigned int programId, int policy);
+void RLSharedGpuEndProgramUseScope(unsigned int programId, int policy);
+bool RLSharedGpuTakeProgramFence(unsigned int programId, void **fenceOut);
+bool RLSharedGpuStoreProgramFence(unsigned int programId, void *fence);
+
 // Increment the refcount for a GL object in the CURRENT context share-group.
+// This does NOT assign or change owner. Owner is set by RegisterObject/explicit transfer.
 void RLSharedGpuRetainObject(RLSharedGpuObjectType type, unsigned int id);
 
 // Decrement the refcount for a GL object in the CURRENT context share-group.
@@ -73,6 +106,27 @@ bool RLSharedGpuPopPendingDelete(RLSharedGpuObjectType *typeOut, unsigned int *i
 // Debug helper: dump current share-group state (live refs and pending deletes) to stderr.
 // Safe to call only when a context belonging to the target share-group is current.
 void RLSharedGpuDebugDumpState(const char *label);
+
+// Debug tracing helpers for texture lifetime analysis (especially font atlas textures).
+// sourceFile/sourceLine should usually pass __FILE__/__LINE__ from the callsite.
+void RLSharedGpuSetTextureDebugLabel(unsigned int id, const char *label, const char *sourceFile, int sourceLine);
+void RLSharedGpuTraceTextureRelease(unsigned int id, const char *sourceFile, int sourceLine, const char *reason);
+
+// Lightweight validation helpers used by public API wrappers.
+bool RLSharedGpuHasCurrentGroup(void);
+bool RLSharedGpuHasContextGroup(RLContext *ctx);
+
+// Runtime tracking policy for unregistered object retain/release handling.
+void RLSharedGpuSetTrackingMode(RLSharedGpuTrackingModeInternal mode);
+RLSharedGpuTrackingModeInternal RLSharedGpuGetTrackingMode(void);
+
+typedef struct RLSharedGpuTrackingDiagStats {
+    unsigned long long unregisteredRetainRejectCount;
+    unsigned long long unregisteredReleaseRejectCount;
+} RLSharedGpuTrackingDiagStats;
+
+RLSharedGpuTrackingDiagStats RLSharedGpuGetTrackingDiagStats(void);
+void RLSharedGpuResetTrackingDiagStats(void);
 
 #ifdef __cplusplus
 }

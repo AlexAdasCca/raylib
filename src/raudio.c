@@ -179,6 +179,11 @@ typedef struct tagBITMAPINFOHEADER {
 #include <stdlib.h>                     // Required for: malloc(), free()
 #include <stdio.h>                      // Required for: FILE, fopen(), fclose(), fread()
 #include <string.h>                     // Required for: strcmp() [Used in IsFileExtension(), LoadWaveFromMemory(), LoadMusicStreamFromMemory()]
+#include <errno.h>                      // Required for: errno [non-MSVC _wfopen error path]
+#include <wchar.h>                      // Required for: wchar_t, wcslen() [Win32 UTF-16 file paths]
+#if defined(_WIN32)
+    #include "platforms/win32_path.h"
+#endif
 
 #if defined(RAUDIO_STANDALONE)
     #ifndef TRACELOG
@@ -207,6 +212,21 @@ typedef struct tagBITMAPINFOHEADER {
 
     #define DR_WAV_IMPLEMENTATION
     #include "external/dr_wav.h"        // WAV loading functions
+#endif
+
+#ifndef MAX_FILEPATH_LENGTH
+    #define MAX_FILEPATH_LENGTH 4096
+#endif
+#if defined(_WIN32)
+    #ifndef CP_UTF8
+        #define CP_UTF8 65001
+    #endif
+    #ifndef MB_ERR_INVALID_CHARS
+        #define MB_ERR_INVALID_CHARS 0x00000008
+    #endif
+    #ifndef INVALID_FILE_ATTRIBUTES
+        #define INVALID_FILE_ATTRIBUTES ((DWORD)0xFFFFFFFF)
+    #endif
 #endif
 
 #if defined(SUPPORT_FILEFORMAT_OGG)
@@ -2784,6 +2804,22 @@ static const char *RLGetFileNameWithoutExt(const char *filePath)
 }
 
 // Load data from file into a buffer
+#if defined(_WIN32)
+static FILE *RAudioWin32OpenFileForMode(const char *fileName, const char *mode)
+{
+    RLWin32PathError err;
+    FILE *file = RLWin32PathOpenFileForModeUtf8(fileName, mode, &err);
+    if (file == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Win32 open failed (mode=%s, stage=%s, win32=%lu, errno=%d, requiredChars=%d, path=%s)",
+                 (fileName != NULL)? fileName : "(null)", (mode != NULL)? mode : "(null)",
+                 (err.stage != NULL)? err.stage : "unknown", err.win32Error, err.crtError, err.requiredChars,
+                 (err.inputUtf8 != NULL)? err.inputUtf8 : "(null)");
+    }
+    return file;
+}
+#endif
+
 static unsigned char *RLLoadFileData(const char *fileName, int *dataSize)
 {
     unsigned char *data = NULL;
@@ -2791,7 +2827,12 @@ static unsigned char *RLLoadFileData(const char *fileName, int *dataSize)
 
     if (fileName != NULL)
     {
-        FILE *file = fopen(fileName, "rb");
+        FILE *file = NULL;
+#if defined(_WIN32)
+        file = RAudioWin32OpenFileForMode(fileName, "rb");
+#else
+        file = fopen(fileName, "rb");
+#endif
 
         if (file != NULL)
         {
@@ -2828,7 +2869,12 @@ static bool RLSaveFileData(const char *fileName, void *data, int dataSize)
 {
     if (fileName != NULL)
     {
-        FILE *file = fopen(fileName, "wb");
+        FILE *file = NULL;
+#if defined(_WIN32)
+        file = RAudioWin32OpenFileForMode(fileName, "wb");
+#else
+        file = fopen(fileName, "wb");
+#endif
 
         if (file != NULL)
         {
@@ -2860,7 +2906,12 @@ static bool RLSaveFileText(const char *fileName, char *text)
 {
     if (fileName != NULL)
     {
-        FILE *file = fopen(fileName, "wt");
+        FILE *file = NULL;
+#if defined(_WIN32)
+        file = RAudioWin32OpenFileForMode(fileName, "wt");
+#else
+        file = fopen(fileName, "wt");
+#endif
 
         if (file != NULL)
         {

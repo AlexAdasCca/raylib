@@ -4674,6 +4674,23 @@ typedef struct GLFWthread GLFWthread;
 
 /*! @brief Thread task callback. */
 typedef void (*GLFWthreadtaskfun)(void* user);
+/*! @brief Optional destructor callback for task user payload when task is dropped before execution. */
+typedef void (*GLFWthreadtaskdtorfun)(void* user);
+
+typedef enum GLFWthreadtaskclass
+{
+    GLFW_THREAD_TASK_CLASS_CRITICAL = 0,
+    GLFW_THREAD_TASK_CLASS_STATE = 1,
+    GLFW_THREAD_TASK_CLASS_INPUT = 2,
+    GLFW_THREAD_TASK_CLASS_MAINTENANCE = 3
+} GLFWthreadtaskclass;
+
+typedef struct GLFWthreadtaskmeta
+{
+    unsigned char taskClass;
+    unsigned char droppable;
+    GLFWthreadtaskdtorfun userDtor;
+} GLFWthreadtaskmeta;
 
 /*! @brief Returns an opaque handle representing the calling thread. */
 GLFWAPI GLFWthread* glfwGetCurrentThread(void);
@@ -4682,10 +4699,19 @@ GLFWAPI GLFWthread* glfwGetCurrentThread(void);
 GLFWAPI void glfwWakeThread(GLFWthread* thread);
 
 /*! @brief Posts a task callback to be executed on the target thread. */
-GLFWAPI void glfwPostTask(GLFWthread* thread, GLFWthreadtaskfun fn, void* user);
+GLFWAPI int glfwPostTask(GLFWthread* thread, GLFWthreadtaskfun fn, void* user);
+GLFWAPI int glfwPostTaskEx(GLFWthread* thread, GLFWthreadtaskfun fn, void* user, const GLFWthreadtaskmeta* meta);
 
 /*! @brief Pumps and executes any pending thread tasks for the calling thread. */
 GLFWAPI void glfwPumpThreadTasks(void);
+
+/*! @brief Gets current thread task-queue stats (Win32 backend extension). */
+GLFWAPI void glfwGetCurrentThreadTaskQueueStats(unsigned int* queued, unsigned int* queuedPeak, unsigned long long* dropped);
+GLFWAPI void glfwGetCurrentThreadTaskQueueStatsEx(unsigned int* queued, unsigned int* queuedPeak, unsigned long long* dropped,
+                                                  unsigned long long* droppedCritical, unsigned long long* droppedState,
+                                                  unsigned long long* droppedInput, unsigned long long* droppedMaintenance,
+                                                  unsigned long long* wakeSent, unsigned long long* wakeDedup);
+GLFWAPI void glfwResetCurrentThreadTaskQueueStats(void);
 
 /*! @brief Returns the value of an input option for the specified window.
  *
@@ -6584,4 +6610,3 @@ GLFWAPI VkResult glfwCreateWindowSurface(VkInstance instance, GLFWwindow* window
 #endif
 
 #endif /* _glfw3_h_ */
-

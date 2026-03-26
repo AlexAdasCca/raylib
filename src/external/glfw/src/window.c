@@ -1229,19 +1229,30 @@ GLFWAPI void glfwWakeThread(GLFWthread* thread)
 #endif
 }
 
-GLFWAPI void glfwPostTask(GLFWthread* thread, GLFWthreadtaskfun fn, void* user)
+GLFWAPI int glfwPostTask(GLFWthread* thread, GLFWthreadtaskfun fn, void* user)
 {
-    _GLFW_REQUIRE_INIT();
+    GLFWthreadtaskmeta meta;
+    meta.taskClass = (unsigned char)GLFW_THREAD_TASK_CLASS_STATE;
+    meta.droppable = 0;
+    meta.userDtor = NULL;
+    return glfwPostTaskEx(thread, fn, user, &meta);
+}
+
+GLFWAPI int glfwPostTaskEx(GLFWthread* thread, GLFWthreadtaskfun fn, void* user, const GLFWthreadtaskmeta* meta)
+{
+    _GLFW_REQUIRE_INIT_OR_RETURN(0);
 
     if (!thread || !fn)
-        return;
+        return 0;
 
 #if defined(_GLFW_WIN32)
-    _glfwPostTaskWin32((_GLFWwin32ThreadContext*) thread, fn, user);
+    return _glfwPostTaskWin32Ex((_GLFWwin32ThreadContext*) thread, fn, user, meta);
 #else
     // Not implemented on other platforms in this branch.
     _glfwInputError(GLFW_PLATFORM_ERROR, "Thread tasks are only supported on Win32 in this build");
     (void) user;
+    (void) meta;
+    return 0;
 #endif
 }
 
@@ -1255,3 +1266,51 @@ GLFWAPI void glfwPumpThreadTasks(void)
 #endif
 }
 
+GLFWAPI void glfwGetCurrentThreadTaskQueueStats(unsigned int* queued, unsigned int* queuedPeak, unsigned long long* dropped)
+{
+    _GLFW_REQUIRE_INIT();
+
+#if defined(_GLFW_WIN32)
+    _GLFWwin32ThreadContext* ctx = _glfwGetThreadContextWin32();
+    _glfwGetThreadTaskStatsWin32(ctx, queued, queuedPeak, dropped);
+#else
+    if (queued) *queued = 0;
+    if (queuedPeak) *queuedPeak = 0;
+    if (dropped) *dropped = 0;
+#endif
+}
+
+GLFWAPI void glfwGetCurrentThreadTaskQueueStatsEx(unsigned int* queued, unsigned int* queuedPeak, unsigned long long* dropped,
+                                                  unsigned long long* droppedCritical, unsigned long long* droppedState,
+                                                  unsigned long long* droppedInput, unsigned long long* droppedMaintenance,
+                                                  unsigned long long* wakeSent, unsigned long long* wakeDedup)
+{
+    _GLFW_REQUIRE_INIT();
+
+#if defined(_GLFW_WIN32)
+    _GLFWwin32ThreadContext* ctx = _glfwGetThreadContextWin32();
+    _glfwGetThreadTaskStatsExWin32(ctx, queued, queuedPeak, dropped,
+                                   droppedCritical, droppedState, droppedInput, droppedMaintenance,
+                                   wakeSent, wakeDedup);
+#else
+    if (queued) *queued = 0;
+    if (queuedPeak) *queuedPeak = 0;
+    if (dropped) *dropped = 0;
+    if (droppedCritical) *droppedCritical = 0;
+    if (droppedState) *droppedState = 0;
+    if (droppedInput) *droppedInput = 0;
+    if (droppedMaintenance) *droppedMaintenance = 0;
+    if (wakeSent) *wakeSent = 0;
+    if (wakeDedup) *wakeDedup = 0;
+#endif
+}
+
+GLFWAPI void glfwResetCurrentThreadTaskQueueStats(void)
+{
+    _GLFW_REQUIRE_INIT();
+
+#if defined(_GLFW_WIN32)
+    _GLFWwin32ThreadContext* ctx = _glfwGetThreadContextWin32();
+    _glfwResetThreadTaskStatsWin32(ctx);
+#endif
+}

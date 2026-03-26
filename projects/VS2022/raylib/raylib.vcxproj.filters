@@ -58,6 +58,9 @@
     <ClCompile Include="..\..\..\src\platforms\rcore_memory.c">
       <Filter>Source Files\Platform Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\platforms\win32_path.c">
+      <Filter>Source Files\Platform Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\src\external\cgltf.h">
@@ -118,6 +121,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\external\stb_vorbis.c">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\platforms\win32_path.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

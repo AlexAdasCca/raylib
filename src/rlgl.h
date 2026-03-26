@@ -850,6 +850,12 @@ RLAPI void rlLoadDrawQuad(void);     // Load and draw a quad
     static inline void RLSharedGpuRegisterFramebufferDepth(unsigned int fboId, RLSharedGpuObjectType type, unsigned int id)
     { (void)fboId; (void)type; (void)id; }
     static inline void RLSharedGpuUnregisterFramebufferDepth(unsigned int fboId) { (void)fboId; }
+    static inline void RLSharedGpuRegisterFramebufferAttachment(unsigned int fboId, int attachment, RLSharedGpuObjectType type, unsigned int id)
+    { (void)fboId; (void)attachment; (void)type; (void)id; }
+    static inline void RLSharedGpuUnregisterFramebufferAttachment(unsigned int fboId, int attachment)
+    { (void)fboId; (void)attachment; }
+    static inline void RLSharedGpuUnregisterFramebufferAttachments(unsigned int fboId)
+    { (void)fboId; }
     static inline bool RLSharedGpuQueryFramebufferDepth(unsigned int fboId, RLSharedGpuObjectType *outType, unsigned int *outId)
     { (void)fboId; if (outType) *outType = (RLSharedGpuObjectType)0; if (outId) *outId = 0; return false; }
     static inline bool RLSharedGpuPopPendingDelete(RLSharedGpuObjectType *outType, unsigned int *outId)
@@ -3916,6 +3922,13 @@ void rlFramebufferAttach(unsigned int fboId, unsigned int texId, int attachType,
             if (texType == RL_ATTACHMENT_TEXTURE2D) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + attachType, GL_TEXTURE_2D, texId, mipLevel);
             else if (texType == RL_ATTACHMENT_RENDERBUFFER) glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + attachType, GL_RENDERBUFFER, texId);
             else if (texType >= RL_ATTACHMENT_CUBEMAP_POSITIVE_X) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + attachType, GL_TEXTURE_CUBE_MAP_POSITIVE_X + texType, texId, mipLevel);
+
+            if (texId != 0)
+            {
+                RLSharedGpuObjectType trackedType = (texType == RL_ATTACHMENT_RENDERBUFFER)? RL_SHARED_GPU_OBJECT_RENDERBUFFER : RL_SHARED_GPU_OBJECT_TEXTURE;
+                RLSharedGpuRegisterFramebufferAttachment(fboId, attachType, trackedType, texId);
+            }
+            else RLSharedGpuUnregisterFramebufferAttachment(fboId, attachType);
         } break;
         case RL_ATTACHMENT_DEPTH:
         {
@@ -3923,13 +3936,29 @@ void rlFramebufferAttach(unsigned int fboId, unsigned int texId, int attachType,
             else if (texType == RL_ATTACHMENT_RENDERBUFFER)  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, texId);
 
             // Track depth attachment for context-free retain/release of render textures (share-group wide).
-            if (texId != 0) RLSharedGpuRegisterFramebufferDepth(fboId, (texType == RL_ATTACHMENT_RENDERBUFFER)? RL_SHARED_GPU_OBJECT_RENDERBUFFER : RL_SHARED_GPU_OBJECT_TEXTURE, texId);
-            else RLSharedGpuUnregisterFramebufferDepth(fboId);
+            if (texId != 0)
+            {
+                RLSharedGpuObjectType trackedType = (texType == RL_ATTACHMENT_RENDERBUFFER)? RL_SHARED_GPU_OBJECT_RENDERBUFFER : RL_SHARED_GPU_OBJECT_TEXTURE;
+                RLSharedGpuRegisterFramebufferDepth(fboId, trackedType, texId);
+                RLSharedGpuRegisterFramebufferAttachment(fboId, RL_ATTACHMENT_DEPTH, trackedType, texId);
+            }
+            else
+            {
+                RLSharedGpuUnregisterFramebufferDepth(fboId);
+                RLSharedGpuUnregisterFramebufferAttachment(fboId, RL_ATTACHMENT_DEPTH);
+            }
         } break;
         case RL_ATTACHMENT_STENCIL:
         {
             if (texType == RL_ATTACHMENT_TEXTURE2D) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texId, mipLevel);
             else if (texType == RL_ATTACHMENT_RENDERBUFFER)  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, texId);
+
+            if (texId != 0)
+            {
+                RLSharedGpuObjectType trackedType = (texType == RL_ATTACHMENT_RENDERBUFFER)? RL_SHARED_GPU_OBJECT_RENDERBUFFER : RL_SHARED_GPU_OBJECT_TEXTURE;
+                RLSharedGpuRegisterFramebufferAttachment(fboId, RL_ATTACHMENT_STENCIL, trackedType, texId);
+            }
+            else RLSharedGpuUnregisterFramebufferAttachment(fboId, RL_ATTACHMENT_STENCIL);
         } break;
         default: break;
     }
@@ -4007,6 +4036,7 @@ void rlUnloadFramebuffer(unsigned int id)
     }
 
     RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_FRAMEBUFFER, id);
+    RLSharedGpuUnregisterFramebufferAttachments(id);
 #endif
 }
 

@@ -577,6 +577,7 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\raudio.c" />
     <ClCompile Include="..\..\..\src\rcore.c" />
+    <ClCompile Include="..\..\..\src\platforms\win32_path.c" />
     <ClCompile Include="..\..\..\src\rmodels.c" />
     <ClCompile Include="..\..\..\src\rglfw.c" />
     <ClCompile Include="..\..\..\src\rshapes.c" />
@@ -603,6 +604,7 @@
     <ClInclude Include="..\..\..\src\rgestures.h" />
     <ClInclude Include="..\..\..\src\raylib.h" />
     <ClInclude Include="..\..\..\src\raymath.h" />
+    <ClInclude Include="..\..\..\src\platforms\win32_path.h" />
     <ClInclude Include="..\..\..\src\rlgl.h" />
     <ClInclude Include="..\..\..\src\rglfwglobal.h" />
     <ClInclude Include="..\..\..\src\rl_context.h" />

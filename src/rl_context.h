@@ -50,11 +50,14 @@ struct RLContext
     // See RLContextSetResourceShareMode() in raylib.h.
     int resourceShareMode;
     struct RLContext *resourceShareWith;
+    int resourceShareValidated;
+    int resourceShareValidationError;
 };
 
 // Internal helper called by rl_context.cpp before freeing RLContext.
 // Implemented in rcore.c (has access to CoreData/PlatformData/rlglData).
 void RLContextOnDestroy(RLContext *ctx);
+bool RLContextHasReadyWindow(const RLContext *ctx);
 
 #ifdef __cplusplus
 }

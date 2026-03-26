@@ -59,14 +59,55 @@
 
 #if defined(SUPPORT_MODULE_RTEXT)
 
+#include "rl_object_tracker.h"
+
+extern bool RLCanWriteGpuResourcesOnCurrentThread(const char *apiName);
+extern void UnloadFontDefault(void);
+extern void RLRecordThreadMismatchHandoffAttempt(const char *apiName);
+extern void RLRecordThreadMismatchHandoffSuccess(const char *apiName);
+extern void RLRecordThreadMismatchHandoffFailed(const char *apiName);
+extern void RLRecordThreadMismatchDeferredQueued(const char *apiName);
+extern void RLRecordThreadMismatchDeferredExecuted(const char *apiName);
+extern void RLRecordThreadMismatchDeferredFailed(const char *apiName);
+extern void RLRecordThreadMismatchReject(const char *apiName);
+extern void *RLResolveRenderThreadWindowHandleForTrackedObject(RLTrackedObjectKind kind, uint64_t key, const char *apiName);
+
 #include "rlgl.h"           // OpenGL abstraction layer to OpenGL 1.1, 2.1, 3.3+ or ES2 -> Only DrawTextPro()
 #include "rl_context.h"         // Route2: context management
+#include "rl_shared_gpu.h"      // Shared GPU lifetime diagnostics hooks
 
 #include <stdlib.h>         // Required for: malloc(), free()
 #include <stdio.h>          // Required for: vsprintf()
 #include <string.h>         // Required for: strcmp(), strstr(), strncpy() [Used in TextReplace()], sscanf() [Used in LoadBMFont()]
 #include <stdarg.h>         // Required for: va_list, va_start(), vsprintf(), va_end() [Used in TextFormat()]
 #include <ctype.h>          // Required for: toupper(), tolower() [Used in TextToUpper(), TextToLower()]
+#include <stdint.h>         // Required for: uint64_t
+
+#if defined(_WIN32)
+static void RLFreeFontPayload(void *user)
+{
+    RL_FREE(user);
+}
+
+static intptr_t RLInvokeUnloadFontDefaultOnRenderThread(void *hwnd, void *user)
+{
+    (void)hwnd;
+    (void)user;
+    UnloadFontDefault();
+    RLRecordThreadMismatchDeferredExecuted("UnloadFontDefault");
+    return (intptr_t)1;
+}
+
+static intptr_t RLInvokeUnloadFontOnRenderThread(void *hwnd, void *user)
+{
+    (void)hwnd;
+    RLFont *fontPtr = (RLFont *)user;
+    if (fontPtr != NULL) RLUnloadFont(*fontPtr);
+    RLRecordThreadMismatchDeferredExecuted("RLReleaseFont");
+    RL_FREE(fontPtr);
+    return (intptr_t)1;
+}
+#endif
 
 #if defined(SUPPORT_FILEFORMAT_TTF) || defined(SUPPORT_FILEFORMAT_BDF)
     #if defined(__GNUC__) // GCC and Clang
@@ -149,6 +190,22 @@ static RLGlyphInfo *LoadFontDataBDF(const unsigned char *fileData, int dataSize,
 extern void LoadFontDefault(void);
 extern void UnloadFontDefault(void);
 #endif
+
+static bool RLTrackFontInit(RLFont font)
+{
+    if ((font.texture.id == 0) || (font.texture.id == RLGetFontDefault().texture.id)) return false;
+    return RLTrackedObjectRetain(RL_TRACKED_OBJECT_FONT, (uint64_t)font.texture.id, RLGetCurrentContext(), &font, sizeof(font));
+}
+
+static void RLDestroyTrackedFontData(RLFont font)
+{
+    RLUnloadFontData(font.glyphs, font.glyphCount);
+    RLSharedGpuTraceTextureRelease(font.texture.id, __FILE__, __LINE__, "RLReleaseFont");
+    RLUnloadTexture(font.texture);
+    RL_FREE(font.recs);
+
+    TRACELOG(RL_E_LOG_DEBUG, "FONT: Unloaded font data from RAM and VRAM");
+}
 
 //----------------------------------------------------------------------------------
 // Module Functions Definition
@@ -259,6 +316,7 @@ extern void LoadFontDefault(void)
     }
 
     defaultFont.texture = RLLoadTextureFromImage(imFont);
+    RLSharedGpuSetTextureDebugLabel(defaultFont.texture.id, "font-default-atlas", __FILE__, __LINE__);
 
     // we have already loaded the font glyph data an image, and the GPU is ready, we are done
     // if we don't do this, we will leak memory by reallocating the glyphs and rects
@@ -323,9 +381,41 @@ extern void LoadFontDefault(void)
 // Unload raylib default font
 extern void UnloadFontDefault(void)
 {
+    if (!RLCanWriteGpuResourcesOnCurrentThread("UnloadFontDefault"))
+    {
+#if defined(_WIN32)
+        void *windowHandle = RLGetWindowHandle();
+        if (windowHandle != NULL)
+        {
+            RLRecordThreadMismatchHandoffAttempt("UnloadFontDefault");
+            if (RLInvokeOnWindowRenderThreadByHandle(windowHandle, RLInvokeUnloadFontDefaultOnRenderThread, NULL, 1) != 0)
+            {
+                RLRecordThreadMismatchHandoffSuccess("UnloadFontDefault");
+                return;
+            }
+            RLRecordThreadMismatchHandoffFailed("UnloadFontDefault");
+
+            if (RLPostWindowFrameCallbackByHandleEx(windowHandle, RLInvokeUnloadFontDefaultOnRenderThread, NULL, RL_FRAME_CALLBACK_KIND_CRITICAL) != 0)
+            {
+                RLRecordThreadMismatchDeferredQueued("UnloadFontDefault");
+                return;
+            }
+            RLRecordThreadMismatchDeferredFailed("UnloadFontDefault");
+        }
+        else
+        {
+            RLRecordThreadMismatchHandoffFailed("UnloadFontDefault");
+            RLRecordThreadMismatchDeferredFailed("UnloadFontDefault");
+        }
+#endif
+        RLRecordThreadMismatchReject("UnloadFontDefault");
+        return;
+    }
+
     if (!defaultFontReady) return;
 
     for (int i = 0; i < defaultFont.glyphCount; i++) RLUnloadImage(defaultFont.glyphs[i].image);
+    RLSharedGpuTraceTextureRelease(defaultFont.texture.id, __FILE__, __LINE__, "UnloadFontDefault");
     RLUnloadTexture(defaultFont.texture);
     RL_FREE(defaultFont.glyphs);
     RL_FREE(defaultFont.recs);
@@ -514,6 +604,7 @@ RLFont RLLoadFontFromImage(RLImage image, RLColor key, int firstChar)
 
     // Set font with all data parsed from image
     font.texture = RLLoadTextureFromImage(fontClear); // Convert processed image to OpenGL texture
+    RLSharedGpuSetTextureDebugLabel(font.texture.id, "font-atlas-image", __FILE__, __LINE__);
     font.glyphCount = index;
     font.glyphPadding = 0;
 
@@ -541,6 +632,7 @@ RLFont RLLoadFontFromImage(RLImage image, RLColor key, int firstChar)
     RLUnloadImage(fontClear);     // Unload processed image once converted to texture
 
     font.baseSize = (int)font.recs[0].height;
+    RLTrackFontInit(font);
 
     return font;
 }
@@ -583,6 +675,7 @@ RLFont RLLoadFontFromMemory(const char *fileType, const unsigned char *fileData,
 
         RLImage atlas = RLGenImageFontAtlas(font.glyphs, &font.recs, font.glyphCount, font.baseSize, font.glyphPadding, 0);
         font.texture = RLLoadTextureFromImage(atlas);
+        RLSharedGpuSetTextureDebugLabel(font.texture.id, "font-atlas-memory", __FILE__, __LINE__);
 
         // Update glyphs[i].image to use alpha, required to be used on ImageDrawText()
         for (int i = 0; i < font.glyphCount; i++)
@@ -599,6 +692,8 @@ RLFont RLLoadFontFromMemory(const char *fileType, const unsigned char *fileData,
 #else
     font = RLGetFontDefault();
 #endif
+
+    RLTrackFontInit(font);
 
     return font;
 }
@@ -1030,16 +1125,131 @@ void RLUnloadFontData(RLGlyphInfo *glyphs, int glyphCount)
 }
 
 // Unload Font from GPU memory (VRAM)
-void RLUnloadFont(RLFont font)
+bool RLRetainFont(RLFont font)
 {
-    // NOTE: Make sure font is not default font (fallback)
-    if (font.texture.id != RLGetFontDefault().texture.id)
+    if ((font.texture.id == 0) || (font.texture.id == RLGetFontDefault().texture.id))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FONT: RLRetainFont failed: invalid or default font");
+        return false;
+    }
+
+    return RLTrackFontInit(font);
+}
+
+bool RLReleaseFont(RLFont font)
+{
+    if (font.texture.id == 0)
     {
         RLUnloadFontData(font.glyphs, font.glyphCount);
-        RLUnloadTexture(font.texture);
         RL_FREE(font.recs);
+        return true;
+    }
 
-        TRACELOG(RL_E_LOG_DEBUG, "FONT: Unloaded font data from RAM and VRAM");
+    if (!RLCanWriteGpuResourcesOnCurrentThread("RLReleaseFont"))
+    {
+#if defined(_WIN32)
+        void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_FONT, (uint64_t)font.texture.id, "RLReleaseFont");
+        if (windowHandle != NULL)
+        {
+            RLRecordThreadMismatchHandoffAttempt("RLReleaseFont");
+            RLFont *payload = (RLFont *)RL_MALLOC(sizeof(RLFont));
+            if (payload != NULL)
+            {
+                *payload = font;
+                intptr_t ok = RLInvokeOnWindowRenderThreadByHandle(windowHandle, RLInvokeUnloadFontOnRenderThread, payload, 1);
+                if (ok != 0)
+                {
+                    RLRecordThreadMismatchHandoffSuccess("RLReleaseFont");
+                    return true;
+                }
+                RLRecordThreadMismatchHandoffFailed("RLReleaseFont");
+                RL_FREE(payload);
+            }
+            else RLRecordThreadMismatchHandoffFailed("RLReleaseFont");
+
+            payload = (RLFont *)RL_MALLOC(sizeof(RLFont));
+            if (payload != NULL)
+            {
+                *payload = font;
+                if (RLPostWindowFrameCallbackByHandleEx2(windowHandle, RLInvokeUnloadFontOnRenderThread, payload, RL_FRAME_CALLBACK_KIND_CRITICAL, RLFreeFontPayload) != 0)
+                {
+                    RLRecordThreadMismatchDeferredQueued("RLReleaseFont");
+                    return true;
+                }
+                RLRecordThreadMismatchDeferredFailed("RLReleaseFont");
+            }
+            else RLRecordThreadMismatchDeferredFailed("RLReleaseFont");
+        }
+        else
+        {
+            RLRecordThreadMismatchHandoffFailed("RLReleaseFont");
+            RLRecordThreadMismatchDeferredFailed("RLReleaseFont");
+        }
+#endif
+        RLRecordThreadMismatchReject("RLReleaseFont");
+        return false;
+    }
+
+    if (font.texture.id == RLGetFontDefault().texture.id)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FONT: RLReleaseFont failed: invalid or default font");
+        return false;
+    }
+
+    RLFont toDestroy = { 0 };
+    unsigned int remainingRefCount = 0;
+    if (!RLTrackedObjectRelease(RL_TRACKED_OBJECT_FONT, (uint64_t)font.texture.id, &toDestroy, sizeof(toDestroy), &remainingRefCount))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FONT: RLReleaseFont fallback: font id=%u is not tracked, releasing directly", font.texture.id);
+        RLDestroyTrackedFontData(font);
+        return true;
+    }
+    if (remainingRefCount > 0) return true;
+
+    RLDestroyTrackedFontData(toDestroy);
+    return true;
+}
+
+RLContext* RLGetFontOwnerContext(RLFont font)
+{
+    RLContext *ownerContext = NULL;
+    if (font.texture.id == 0) return NULL;
+    if (!RLTrackedObjectGetOwnerContext(RL_TRACKED_OBJECT_FONT, (uint64_t)font.texture.id, &ownerContext)) return NULL;
+    return ownerContext;
+}
+
+bool RLIsFontOwnedByCurrentContext(RLFont font)
+{
+    if (font.texture.id == 0) return false;
+    return RLTrackedObjectIsOwnedByCurrentContext(RL_TRACKED_OBJECT_FONT, (uint64_t)font.texture.id);
+}
+
+bool RLTryTransferFontOwner(RLFont font, RLContext* targetCtx)
+{
+    if (font.texture.id == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FONT: RLTryTransferFontOwner failed: invalid font id=0");
+        return false;
+    }
+    if (targetCtx == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FONT: RLTryTransferFontOwner failed: target context is NULL");
+        return false;
+    }
+    if (!RLTrackedObjectTryTransferOwner(RL_TRACKED_OBJECT_FONT, (uint64_t)font.texture.id, targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FONT: RLTryTransferFontOwner failed: transfer rejected for font id=%u", font.texture.id);
+        return false;
+    }
+    return true;
+}
+
+// Unload Font from GPU memory (VRAM)
+void RLUnloadFont(RLFont font)
+{
+    if (!RLReleaseFont(font))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FONT: RLUnloadFont skipped because RLReleaseFont failed (id=%u)", font.texture.id);
     }
 }
 
@@ -1204,11 +1414,13 @@ void RLDrawFPS(int posX, int posY)
 {
     RLColor color = LIME;                         // Good FPS
     int fps = RLGetFPS();
+    char fpsText[32] = { 0 };
 
     if ((fps < 30) && (fps >= 15)) color = ORANGE;  // Warning FPS
     else if (fps < 15) color = RED;             // Low FPS
 
-    RLDrawText(RLTextFormat("%2i FPS", fps), posX, posY, 20, color);
+    RLTextFormatTo(fpsText, (int)sizeof(fpsText), "%2i FPS", fps);
+    RLDrawText(fpsText, posX, posY, 20, color);
 }
 
 // Draw text (using default font)
@@ -1535,15 +1747,61 @@ unsigned int RLTextLength(const char *text)
 
 // Formatting of text with variables to 'embed'
 // WARNING: String returned will expire after this function is called MAX_TEXTFORMAT_BUFFERS times
+static int RLTextFormatVTo(char *outText, int outTextSize, const char *text, va_list args)
+{
+    if ((outText == NULL) || (outTextSize <= 0)) return 0;
+
+    outText[0] = '\0';
+    if (text == NULL) return 0;
+
+    int requiredByteCount = vsnprintf(outText, outTextSize, text, args);
+    if (requiredByteCount < 0)
+    {
+        outText[0] = '\0';
+        return 0;
+    }
+
+    if (requiredByteCount >= outTextSize)
+    {
+        if (outTextSize >= 4)
+        {
+            // Inserting "..." at the end of the string to mark as truncated
+            char *truncBuffer = outText + outTextSize - 4; // Adding 4 bytes = "...\0"
+            snprintf(truncBuffer, 4, "...");
+        }
+        else
+        {
+            outText[outTextSize - 1] = '\0';
+        }
+    }
+
+    return requiredByteCount;
+}
+
+int RLTextFormatTo(char *outText, int outTextSize, const char *text, ...)
+{
+    va_list args;
+    va_start(args, text);
+    int requiredByteCount = RLTextFormatVTo(outText, outTextSize, text, args);
+    va_end(args);
+
+    return requiredByteCount;
+}
+
 const char *RLTextFormat(const char *text, ...)
 {
 #ifndef MAX_TEXTFORMAT_BUFFERS
     #define MAX_TEXTFORMAT_BUFFERS 4        // Maximum number of static buffers for text formatting
 #endif
 
-    // We create an array of buffers so strings don't expire until MAX_TEXTFORMAT_BUFFERS invocations
-    static char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH] = { 0 };
-    static int index = 0;
+    // Use thread-local rotating buffers to avoid cross-thread string corruption.
+#if defined(_MSC_VER)
+    __declspec(thread) static char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH];
+    __declspec(thread) static int index = 0;
+#else
+    static __thread char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH];
+    static __thread int index = 0;
+#endif
 
     char *currentBuffer = buffers[index];
     memset(currentBuffer, 0, MAX_TEXT_BUFFER_LENGTH); // Clear buffer before using
@@ -1552,16 +1810,8 @@ const char *RLTextFormat(const char *text, ...)
     {
         va_list args;
         va_start(args, text);
-        int requiredByteCount = vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, args);
+        RLTextFormatVTo(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, args);
         va_end(args);
-
-        // If requiredByteCount is larger than the MAX_TEXT_BUFFER_LENGTH, then overflow occurred
-        if (requiredByteCount >= MAX_TEXT_BUFFER_LENGTH)
-        {
-            // Inserting "..." at the end of the string to mark as truncated
-            char *truncBuffer = buffers[index] + MAX_TEXT_BUFFER_LENGTH - 4; // Adding 4 bytes = "...\0"
-            snprintf(truncBuffer, 4, "...");
-        }
 
         index += 1;     // Move to next buffer for next function call
         if (index >= MAX_TEXTFORMAT_BUFFERS) index = 0;
@@ -2477,7 +2727,9 @@ static RLFont LoadBMFont(const char *fileName)
 
     for (int i = 0; i < pageCount; i++)
     {
-        imFonts[i] = RLLoadImage(RLTextFormat("%s/%s", RLGetDirectoryPath(fileName), imFileName[i]));
+        char atlasPath[MAX_FILEPATH_LENGTH] = { 0 };
+        RLTextFormatTo(atlasPath, MAX_FILEPATH_LENGTH, "%s/%s", RLGetDirectoryPath(fileName), imFileName[i]);
+        imFonts[i] = RLLoadImage(atlasPath);
 
         if (imFonts[i].format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE)
         {
@@ -2522,6 +2774,7 @@ static RLFont LoadBMFont(const char *fileName)
     RL_FREE(imFonts);
 
     font.texture = RLLoadTextureFromImage(fullFont);
+    RLSharedGpuSetTextureDebugLabel(font.texture.id, "font-atlas-bdf", __FILE__, __LINE__);
 
     // Fill font characters info data
     font.baseSize = fontSize;
@@ -2577,7 +2830,11 @@ static RLFont LoadBMFont(const char *fileName)
         font = RLGetFontDefault();
         TRACELOG(RL_E_LOG_WARNING, "FONT: [%s] Failed to load texture, reverted to default font", fileName);
     }
-    else TRACELOG(RL_E_LOG_INFO, "FONT: [%s] Font loaded successfully (%i glyphs)", fileName, font.glyphCount);
+    else
+    {
+        RLTrackFontInit(font);
+        TRACELOG(RL_E_LOG_INFO, "FONT: [%s] Font loaded successfully (%i glyphs)", fileName, font.glyphCount);
+    }
 
     return font;
 }

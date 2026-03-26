@@ -2208,7 +2208,7 @@ int jar_xm_create_context_from_file(jar_xm_context_t** ctx, uint32_t rate, const
 
     xmf = fopen(filename, "rb");
     if(xmf == NULL) {
-        DEBUG_ERR("Could not open input file");
+        DEBUG_ERR("Could not open input file\n");
         *ctx = NULL;
         return 3;
     }

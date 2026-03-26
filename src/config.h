@@ -313,7 +313,7 @@
 // NOTE: This option is intended for profiling and verification.
 // You can enable it by editing this file or by passing -DRL_EVENT_DIAG_STATS=1 to your compiler.
 #ifndef RL_EVENT_DIAG_STATS
-    #define RL_EVENT_DIAG_STATS 0
+    #define RL_EVENT_DIAG_STATS 1
 #endif
 
 

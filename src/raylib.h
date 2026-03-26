@@ -84,6 +84,7 @@
 #define RAYLIB_H
 
 #include <stdarg.h>     // Required for: va_list - Only used by TraceLogCallback
+#include <stddef.h>     // Required for: size_t
 #include <stdint.h>
 
 #define RAYLIB_VERSION_MAJOR 5
@@ -128,17 +129,78 @@
 
 // Allow custom memory allocators
 // NOTE: Require recompiling raylib sources
-#ifndef RL_MALLOC
-    #define RL_MALLOC(sz)       malloc(sz)
+#ifndef RL_MEM_DIAG
+    #define RL_MEM_DIAG 0
 #endif
-#ifndef RL_CALLOC
-    #define RL_CALLOC(n,sz)     calloc(n,sz)
+
+#ifndef RL_MEM_DIAG_FILELINE
+    #define RL_MEM_DIAG_FILELINE 1
 #endif
-#ifndef RL_REALLOC
-    #define RL_REALLOC(ptr,sz)  realloc(ptr,sz)
-#endif
-#ifndef RL_FREE
-    #define RL_FREE(ptr)        free(ptr)
+
+#if RL_MEM_DIAG
+    #if defined(__cplusplus)
+    extern "C" {
+    #endif
+    RLAPI void *RLMemDiagMallocImpl(size_t allocationSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag);
+    RLAPI void *RLMemDiagCallocImpl(size_t elementCount, size_t elementSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag);
+    RLAPI void *RLMemDiagReallocImpl(void *oldBlock, size_t newSize, const char *sourceFile, int sourceLine, const char *sourceFunction, const char *sourceTag);
+    RLAPI void RLMemDiagFreeImpl(void *blockToFree, const char *sourceFile, int sourceLine, const char *sourceFunction);
+    #if defined(__cplusplus)
+    }
+    #endif
+
+    #if RL_MEM_DIAG_FILELINE
+        #ifndef RL_MALLOC
+            #define RL_MALLOC(allocationSize) RLMemDiagMallocImpl((size_t)(allocationSize), __FILE__, __LINE__, __func__, NULL)
+        #endif
+        #ifndef RL_CALLOC
+            #define RL_CALLOC(elementCount,elementSize) RLMemDiagCallocImpl((size_t)(elementCount), (size_t)(elementSize), __FILE__, __LINE__, __func__, NULL)
+        #endif
+        #ifndef RL_REALLOC
+            #define RL_REALLOC(oldBlock,newSize) RLMemDiagReallocImpl((oldBlock), (size_t)(newSize), __FILE__, __LINE__, __func__, NULL)
+        #endif
+        #ifndef RL_FREE
+            #define RL_FREE(blockToFree) RLMemDiagFreeImpl((blockToFree), __FILE__, __LINE__, __func__)
+        #endif
+
+        #define RL_MALLOC_TAG(sourceTag, allocationSize) RLMemDiagMallocImpl((size_t)(allocationSize), __FILE__, __LINE__, __func__, (sourceTag))
+        #define RL_CALLOC_TAG(sourceTag, elementCount, elementSize) RLMemDiagCallocImpl((size_t)(elementCount), (size_t)(elementSize), __FILE__, __LINE__, __func__, (sourceTag))
+        #define RL_REALLOC_TAG(sourceTag, oldBlock, newSize) RLMemDiagReallocImpl((oldBlock), (size_t)(newSize), __FILE__, __LINE__, __func__, (sourceTag))
+    #else
+        #ifndef RL_MALLOC
+            #define RL_MALLOC(allocationSize) RLMemDiagMallocImpl((size_t)(allocationSize), NULL, 0, NULL, NULL)
+        #endif
+        #ifndef RL_CALLOC
+            #define RL_CALLOC(elementCount,elementSize) RLMemDiagCallocImpl((size_t)(elementCount), (size_t)(elementSize), NULL, 0, NULL, NULL)
+        #endif
+        #ifndef RL_REALLOC
+            #define RL_REALLOC(oldBlock,newSize) RLMemDiagReallocImpl((oldBlock), (size_t)(newSize), NULL, 0, NULL, NULL)
+        #endif
+        #ifndef RL_FREE
+            #define RL_FREE(blockToFree) RLMemDiagFreeImpl((blockToFree), NULL, 0, NULL)
+        #endif
+
+        #define RL_MALLOC_TAG(sourceTag, allocationSize) RLMemDiagMallocImpl((size_t)(allocationSize), NULL, 0, NULL, (sourceTag))
+        #define RL_CALLOC_TAG(sourceTag, elementCount, elementSize) RLMemDiagCallocImpl((size_t)(elementCount), (size_t)(elementSize), NULL, 0, NULL, (sourceTag))
+        #define RL_REALLOC_TAG(sourceTag, oldBlock, newSize) RLMemDiagReallocImpl((oldBlock), (size_t)(newSize), NULL, 0, NULL, (sourceTag))
+    #endif
+#else
+    #ifndef RL_MALLOC
+        #define RL_MALLOC(allocationSize) malloc(allocationSize)
+    #endif
+    #ifndef RL_CALLOC
+        #define RL_CALLOC(elementCount,elementSize) calloc(elementCount, elementSize)
+    #endif
+    #ifndef RL_REALLOC
+        #define RL_REALLOC(oldBlock,newSize) realloc(oldBlock, newSize)
+    #endif
+    #ifndef RL_FREE
+        #define RL_FREE(blockToFree) free(blockToFree)
+    #endif
+
+    #define RL_MALLOC_TAG(sourceTag, allocationSize) RL_MALLOC(allocationSize)
+    #define RL_CALLOC_TAG(sourceTag, elementCount, elementSize) RL_CALLOC((elementCount), (elementSize))
+    #define RL_REALLOC_TAG(sourceTag, oldBlock, newSize) RL_REALLOC((oldBlock), (newSize))
 #endif
 
 // NOTE: MSVC C++ compiler does not support compound literals (C99 feature)
@@ -989,7 +1051,7 @@ typedef struct RLContext RLContext;
 // - You must configure sharing BEFORE calling RLInitWindow/RLInitWindowEx for that context.
 // - GPU object lifetime is share-group wide and reference-counted: unloading in any context decrements
 //   the share-group refcount; when it reaches 0, deletion is deferred until drained on a thread with a
-//   current OpenGL context (implicitly at RLBeginDrawing(), or explicitly via RLFlushSharedGpuDeletes()).
+//   current OpenGL context (explicitly via RLDeletePendingSharedGpuResources(), and during RLCloseWindow()).
 // - If contexts render on different threads, you are responsible for synchronization (glFlush/glFinish/fences).
 
 typedef enum RLContextResourceShareMode {
@@ -997,6 +1059,16 @@ typedef enum RLContextResourceShareMode {
     RL_CONTEXT_SHARE_WITH_PRIMARY = 1,     // Share with the process primary window/context (first created).
     RL_CONTEXT_SHARE_WITH_CONTEXT = 2      // Share with an explicit RLContext (see RLContextSetResourceShareMode).
 } RLContextResourceShareMode;
+
+typedef enum RLContextResourceShareValidationError {
+    RL_CONTEXT_SHARE_VALIDATION_OK = 0,
+    RL_CONTEXT_SHARE_VALIDATION_CTX_NULL = 1,
+    RL_CONTEXT_SHARE_VALIDATION_INVALID_MODE = 2,
+    RL_CONTEXT_SHARE_VALIDATION_TARGET_NULL = 3,
+    RL_CONTEXT_SHARE_VALIDATION_TARGET_SELF = 4,
+    RL_CONTEXT_SHARE_VALIDATION_TARGET_WINDOW_UNAVAILABLE = 5,
+    RL_CONTEXT_SHARE_VALIDATION_PRIMARY_WINDOW_UNAVAILABLE = 6
+} RLContextResourceShareValidationError;
 
 #if defined(__cplusplus)
 extern "C" {            // Prevents name mangling of functions
@@ -1009,21 +1081,85 @@ RLAPI void RLSetCurrentContext(RLContext *ctx);
 RLAPI RLContext *RLGetCurrentContext(void);
 
 // Configure how the next window created for this context will share GPU resources.
-RLAPI void RLContextSetResourceShareMode(RLContext* ctx, RLContextResourceShareMode mode, RLContext* shareWith);
+RLAPI bool RLContextSetResourceShareMode(RLContext* ctx, RLContextResourceShareMode mode, RLContext* shareWith);
 RLAPI RLContextResourceShareMode RLContextGetResourceShareMode(RLContext* ctx);
 RLAPI RLContext* RLContextGetResourceShareContext(RLContext* ctx);
+RLAPI bool RLContextValidateResourceShareConfig(RLContext* ctx); // Validate share configuration and record the latest validation state
+RLAPI bool RLContextIsResourceShareConfigValid(RLContext* ctx);  // Query latest share configuration validation state
+RLAPI int RLContextGetResourceShareValidationError(RLContext* ctx); // Query latest share validation error code (RLContextResourceShareValidationError)
 
 // Share-group wide GPU lifetime helpers (reference-counted, deferred delete).
 // NOTE: A context belonging to the target share-group must be current when calling these.
-//       Unload*() already uses this mechanism internally; call Retain/Release if you keep
-//       extra references to the same GPU object across windows/threads.
-RLAPI void RLSharedRetainTexture(RLTexture2D texture);
-RLAPI void RLSharedReleaseTexture(RLTexture2D texture);
-RLAPI void RLSharedRetainRenderTexture(RLRenderTexture2D target);
-RLAPI void RLSharedReleaseRenderTexture(RLRenderTexture2D target);
-RLAPI void RLSharedRetainShader(RLShader shader);
-RLAPI void RLSharedReleaseShader(RLShader shader);
-RLAPI void RLFlushSharedGpuDeletes(void);
+//       For texture/rendertexture CPU objects, use RLRetain/Release*Object APIs below.
+RLAPI bool RLSharedRetainShader(RLShader shader);
+RLAPI bool RLSharedReleaseShader(RLShader shader);
+// Object-id helpers for low-level shared objects.
+// These helpers operate on one object id at a time.
+// Default framebuffer helpers also process tracked objects currently bound to that framebuffer.
+// Use the Base helpers when you only want to retain or release the framebuffer object itself.
+RLAPI bool RLSharedRetainBuffer(unsigned int bufferId);
+RLAPI bool RLSharedReleaseBuffer(unsigned int bufferId);
+RLAPI bool RLSharedRetainVertexArray(unsigned int vertexArrayId);
+RLAPI bool RLSharedReleaseVertexArray(unsigned int vertexArrayId);
+// Default framebuffer retain/release process tracked objects bound to this framebuffer.
+RLAPI bool RLSharedRetainFramebuffer(unsigned int framebufferId);
+RLAPI bool RLSharedReleaseFramebuffer(unsigned int framebufferId);
+// Base framebuffer retain/release only process framebuffer object itself.
+RLAPI bool RLSharedRetainFramebufferBase(unsigned int framebufferId);
+RLAPI bool RLSharedReleaseFramebufferBase(unsigned int framebufferId);
+RLAPI bool RLSharedRetainRenderbuffer(unsigned int renderbufferId);
+RLAPI bool RLSharedReleaseRenderbuffer(unsigned int renderbufferId);
+RLAPI bool RLDeletePendingSharedGpuResources(void);
+
+// Shared shader concurrent-use scope policies.
+// Use these APIs when one shader program is used from multiple contexts/threads.
+typedef enum RLSharedShaderUsePolicy {
+    RL_SHARED_SHADER_USE_PHASED = 1,   // Fair serialized use (ticket order)
+    RL_SHARED_SHADER_USE_LOCKED = 2    // Mutex serialized use
+} RLSharedShaderUsePolicy;
+
+// Enter/leave a serialized shared-shader scope for the given shader program.
+// Call RLBeginSharedShaderUse() before RLBeginShaderMode(), then call
+// RLEndShaderMode() and RLSharedShaderUseEnd() in that order.
+RLAPI bool RLBeginSharedShaderUse(RLShader shader, int policy);
+RLAPI void RLSharedShaderUseEnd(RLShader shader, int policy);
+// Configure shared-shader fence wait strategy once (usually after RLInitWindow() and before first shared-shader use).
+// waitSliceUs: polling slice in microseconds, waitTimeoutUs: total timeout in microseconds.
+RLAPI bool RLConfigureSharedShaderFenceWait(unsigned int waitSliceUs, unsigned int waitTimeoutUs);
+
+typedef enum RLSharedObjectType {
+    RL_SHARED_OBJECT_TEXTURE = 1,
+    RL_SHARED_OBJECT_BUFFER = 2,
+    RL_SHARED_OBJECT_VERTEX_ARRAY = 3,
+    RL_SHARED_OBJECT_FRAMEBUFFER = 4,
+    RL_SHARED_OBJECT_RENDERBUFFER = 5,
+    RL_SHARED_OBJECT_PROGRAM = 6
+} RLSharedObjectType;
+
+typedef enum RLSharedGpuTrackingMode {
+    RL_SHARED_GPU_TRACKING_COMPATIBLE = 0, // Unregistered retain/release follows compatibility fallback.
+    RL_SHARED_GPU_TRACKING_STRICT = 1      // Unregistered retain/release is rejected and reported.
+} RLSharedGpuTrackingMode;
+
+// Query and transfer object write-ownership inside the same share-group.
+// Transfer requires current context to be the current owner (or owner unset) and target context in same share-group.
+// For object types that are also tracked by high-level object metadata (for example textures/render textures),
+// RLTryTransferSharedObjectOwner updates both shared and tracked owner metadata.
+RLAPI RLContext* RLGetSharedObjectOwnerContext(RLSharedObjectType type, unsigned int objectId);
+RLAPI bool RLIsSharedObjectOwnedByCurrentContext(RLSharedObjectType type, unsigned int objectId);
+RLAPI bool RLTryTransferSharedObjectOwner(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx);
+// Adopt orphaned owner metadata for a shared object.
+// This only succeeds when the object owner was explicitly orphaned during context destroy.
+RLAPI bool RLTryAdoptOrphanedSharedObject(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx);
+// Generic aliases for shared-object ownership APIs (same semantics as RLGet/Is/TryTransferSharedObjectOwner).
+RLAPI RLContext* RLGetObjectOwnerContext(RLSharedObjectType type, unsigned int objectId);
+RLAPI bool RLIsObjectOwnedByCurrentContext(RLSharedObjectType type, unsigned int objectId);
+RLAPI bool RLTryTransferObjectOwner(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx);
+RLAPI bool RLTryAdoptOrphanedObject(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx);
+// Runtime shared-tracking policy switch.
+// Default mode is RL_SHARED_GPU_TRACKING_STRICT.
+RLAPI void RLSetSharedGpuTrackingMode(int mode);
+RLAPI int RLGetSharedGpuTrackingMode(void);
 
 // Window-related functions
 RLAPI void RLInitWindow(int width, int height, const char *title);  // Initialize window and OpenGL context
@@ -1095,13 +1231,39 @@ typedef intptr_t (*RLWin32WindowThreadInvoke)(void* hwnd, void* user);
 #endif
 RLAPI intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait);
 
-// NOTE: Render-thread invoke runs on the render thread of the target window (safe for raylib drawing/GL for that window).
+// NOTE: Render-thread invoke is a raw thread-affinity primitive.
+// It runs on the target window render thread but does NOT guarantee frame-boundary timing.
 // In non-event-thread mode, this only works when called from the same thread that owns the target OpenGL context.
 #ifndef RL_WINDOW_RENDER_THREAD_INVOKE_DEFINED
 #define RL_WINDOW_RENDER_THREAD_INVOKE_DEFINED
 typedef intptr_t (*RLWindowRenderThreadInvoke)(void* hwnd, void* user);
 #endif
 RLAPI intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait);
+
+// Frame callback queue priority.
+// - NORMAL: best-effort callback (may be dropped under queue pressure).
+// - CRITICAL: queue-preserving callback for lifecycle/cleanup operations.
+typedef enum RLFrameCallbackKind {
+    RL_FRAME_CALLBACK_KIND_NORMAL = 0,
+    RL_FRAME_CALLBACK_KIND_CRITICAL = 1
+} RLFrameCallbackKind;
+
+// NOTE: Frame callback is frame-safe for drawing.
+// The callback is executed on target window render thread at a fixed point inside RLEndDrawing() before final batch flush/swap.
+// Returns 1 on successful enqueue, 0 on invalid arguments, close/stop state, unsupported mode, allocation failure or queue-full.
+RLAPI int RLPostWindowFrameCallbackByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user);
+// Extended frame callback API with callback kind.
+RLAPI int RLPostWindowFrameCallbackByHandleEx(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, RLFrameCallbackKind kind);
+// Extended frame callback API with explicit payload ownership.
+// If userDtor is non-NULL, queue takes ownership of user on API entry:
+// - enqueue reject/full: userDtor is called before return,
+// - queued callback evicted/cleared before execution: userDtor is called,
+// - callback executed: ownership transfers to callback implementation.
+RLAPI int RLPostWindowFrameCallbackByHandleEx2(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, RLFrameCallbackKind kind, void (*userDtor)(void*));
+
+// Flush pending shared-GPU deferred deletes on the target window render thread.
+// wait: non-zero waits for completion; 0 posts and returns immediately.
+RLAPI int RLDeletePendingSharedGpuResourcesByHandle(void* hwnd, int wait);
 
 #endif
 
@@ -1218,6 +1380,28 @@ RLAPI void RLSetTraceLogCallback(RLTraceLogCallback callback);      // Set custo
 RLAPI void *RLMemAlloc(unsigned int size);                        // Internal memory allocator
 RLAPI void *RLMemRealloc(void *ptr, unsigned int size);           // Internal memory reallocator
 RLAPI void RLMemFree(void *ptr);                                  // Internal memory free
+
+typedef struct RLMemoryDiagStats {
+    unsigned long long allocCount;
+    unsigned long long callocCount;
+    unsigned long long reallocCount;
+    unsigned long long freeCount;
+    unsigned long long allocBytes;
+    unsigned long long freeBytes;
+    unsigned long long allocFailCount;
+    unsigned long long reallocFailCount;
+    unsigned long long currentOutstandingBytes;
+    unsigned long long peakOutstandingBytes;
+    unsigned long long bucketGrowCount;
+    unsigned long long bucketGrowLimitHitCount;
+} RLMemoryDiagStats;
+
+RLAPI void RLEnableMemoryDiagStats(void);
+RLAPI void RLDisableMemoryDiagStats(void);
+RLAPI bool RLIsMemoryDiagStatsEnabled(void);
+RLAPI void RLResetMemoryDiagStats(void);
+RLAPI RLMemoryDiagStats RLGetMemoryDiagStats(void);
+RLAPI void RLDumpMemoryLeaks(void);
 
 // File system management functions
 RLAPI unsigned char *RLLoadFileData(const char *fileName, int *dataSize); // Load file data as byte array (read)
@@ -1539,8 +1723,18 @@ RLAPI RLTexture2D RLLoadTextureFromImage(RLImage image);                        
 RLAPI RLTextureCubemap RLLoadTextureCubemap(RLImage image, int layout);                                        // Load cubemap from image, multiple image cubemap layouts supported
 RLAPI RLRenderTexture2D RLLoadRenderTexture(int width, int height);                                          // Load texture for rendering (framebuffer)
 RLAPI bool RLIsTextureValid(RLTexture2D texture);                                                            // Check if a texture is valid (loaded in GPU)
+RLAPI bool RLRetainTextureObject(RLTexture2D texture);                                                       // Increase CPU-side reference count for a texture object
+RLAPI bool RLReleaseTextureObject(RLTexture2D texture);                                                      // Decrease CPU-side reference count and destroy when it reaches zero
+RLAPI RLContext* RLGetTextureObjectOwnerContext(RLTexture2D texture);                                        // Query texture object owner context (NULL if not tracked)
+RLAPI bool RLIsTextureObjectOwnedByCurrentContext(RLTexture2D texture);                                      // Check if texture object owner is current context
+RLAPI bool RLTryTransferTextureObjectOwner(RLTexture2D texture, RLContext* targetCtx);                      // Transfer texture object owner to target context
 RLAPI void RLUnloadTexture(RLTexture2D texture);                                                             // Unload texture from GPU memory (VRAM)
 RLAPI bool RLIsRenderTextureValid(RLRenderTexture2D target);                                                 // Check if a render texture is valid (loaded in GPU)
+RLAPI bool RLRetainRenderTextureObject(RLRenderTexture2D target);                                            // Increase CPU-side reference count for a render texture object
+RLAPI bool RLReleaseRenderTextureObject(RLRenderTexture2D target);                                           // Decrease CPU-side reference count and destroy when it reaches zero
+RLAPI RLContext* RLGetRenderTextureObjectOwnerContext(RLRenderTexture2D target);                            // Query render texture owner context (NULL if not tracked)
+RLAPI bool RLIsRenderTextureObjectOwnedByCurrentContext(RLRenderTexture2D target);                          // Check if render texture owner is current context
+RLAPI bool RLTryTransferRenderTextureObjectOwner(RLRenderTexture2D target, RLContext* targetCtx);          // Transfer render texture owner to target context
 RLAPI void RLUnloadRenderTexture(RLRenderTexture2D target);                                                  // Unload render texture from GPU memory (VRAM)
 RLAPI void RLUpdateTexture(RLTexture2D texture, const void *pixels);                                         // Update GPU texture with new data (pixels should be able to fill texture)
 RLAPI void RLUpdateTextureRec(RLTexture2D texture, RLRectangle rec, const void *pixels);                       // Update GPU texture rectangle with new data (pixels and rec should fit in texture)
@@ -1591,6 +1785,11 @@ RLAPI bool RLIsFontValid(RLFont font);                                          
 RLAPI RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fontSize, const int *codepoints, int codepointCount, int type, int *glyphCount); // Load font data for further use
 RLAPI RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, int glyphCount, int fontSize, int padding, int packMethod); // Generate image font atlas using chars info
 RLAPI void RLUnloadFontData(RLGlyphInfo *glyphs, int glyphCount);                               // Unload font chars info data (RAM)
+RLAPI bool RLRetainFont(RLFont font);                                                           // Increase CPU-side reference count for a loaded font object
+RLAPI bool RLReleaseFont(RLFont font);                                                          // Decrease CPU-side reference count and destroy when it reaches zero
+RLAPI RLContext* RLGetFontOwnerContext(RLFont font);                                            // Query font owner context (NULL if not tracked)
+RLAPI bool RLIsFontOwnedByCurrentContext(RLFont font);                                          // Check if font owner is current context
+RLAPI bool RLTryTransferFontOwner(RLFont font, RLContext* targetCtx);                           // Transfer font owner to target context
 RLAPI void RLUnloadFont(RLFont font);                                                           // Unload font from GPU memory (VRAM)
 RLAPI bool RLExportFontAsCode(RLFont font, const char *fileName);                               // Export font as code file, returns true on success
 
@@ -1630,6 +1829,7 @@ RLAPI int RLTextCopy(char *dst, const char *src);                               
 RLAPI bool RLTextIsEqual(const char *text1, const char *text2);                               // Check if two text string are equal
 RLAPI unsigned int RLTextLength(const char *text);                                            // Get text length, checks for '\0' ending
 RLAPI const char *RLTextFormat(const char *text, ...);                                        // Text formatting with variables (sprintf() style)
+RLAPI int RLTextFormatTo(char *outText, int outTextSize, const char *text, ...);             // Text formatting into user buffer, returns required bytes (excluding terminator)
 RLAPI const char *RLTextSubtext(const char *text, int position, int length);                  // Get a piece of a text string
 RLAPI const char *RLTextRemoveSpaces(const char *text);                                       // Remove text spaces, concat words
 RLAPI char *RLGetTextBetween(const char *text, const char *begin, const char *end);           // Get text between two strings
@@ -1683,6 +1883,11 @@ RLAPI void RLDrawGrid(int slices, float spacing);                               
 RLAPI RLModel RLLoadModel(const char *fileName);                                                // Load model from files (meshes and materials)
 RLAPI RLModel RLLoadModelFromMesh(RLMesh mesh);                                                   // Load model from generated mesh (default material)
 RLAPI bool RLIsModelValid(RLModel model);                                                       // Check if a model is valid (loaded in GPU, VAO/VBOs)
+RLAPI bool RLRetainModelObject(RLModel model);                                                  // Increase CPU-side reference count for a model object
+RLAPI bool RLReleaseModelObject(RLModel model);                                                 // Decrease CPU-side reference count and destroy when it reaches zero
+RLAPI RLContext* RLGetModelObjectOwnerContext(RLModel model);                                   // Query model owner context (NULL if not tracked)
+RLAPI bool RLIsModelObjectOwnedByCurrentContext(RLModel model);                                 // Check if model owner is current context
+RLAPI bool RLTryTransferModelObjectOwner(RLModel model, RLContext* targetCtx);                 // Transfer model owner to target context
 RLAPI void RLUnloadModel(RLModel model);                                                        // Unload model (including meshes) from memory (RAM and/or VRAM)
 RLAPI RLBoundingBox RLGetModelBoundingBox(RLModel model);                                         // Compute model bounding box limits (considers all meshes)
 
@@ -1701,6 +1906,11 @@ RLAPI void RLDrawBillboardPro(RLCamera camera, RLTexture2D texture, RLRectangle 
 // Mesh management functions
 RLAPI void RLUploadMesh(RLMesh *mesh, bool dynamic);                                            // Upload mesh vertex data in GPU and provide VAO/VBO ids
 RLAPI void RLUpdateMeshBuffer(RLMesh mesh, int index, const void *data, int dataSize, int offset); // Update mesh vertex data in GPU for a specific buffer index
+RLAPI bool RLRetainMeshObject(RLMesh mesh);                                                     // Increase CPU-side reference count for a mesh object
+RLAPI bool RLReleaseMeshObject(RLMesh mesh);                                                    // Decrease CPU-side reference count and destroy when it reaches zero
+RLAPI RLContext* RLGetMeshObjectOwnerContext(RLMesh mesh);                                      // Query mesh owner context (NULL if not tracked)
+RLAPI bool RLIsMeshObjectOwnedByCurrentContext(RLMesh mesh);                                    // Check if mesh owner is current context
+RLAPI bool RLTryTransferMeshObjectOwner(RLMesh mesh, RLContext* targetCtx);                    // Transfer mesh owner to target context
 RLAPI void RLUnloadMesh(RLMesh mesh);                                                           // Unload mesh data from CPU and GPU
 RLAPI void RLDrawMesh(RLMesh mesh, RLMaterial material, RLMatrix transform);                        // Draw a 3d mesh with material and transform
 RLAPI void RLDrawMeshInstanced(RLMesh mesh, RLMaterial material, const RLMatrix *transforms, int instances); // Draw multiple mesh instances with material and different transforms
@@ -1726,6 +1936,11 @@ RLAPI RLMesh RLGenMeshCubicmap(RLImage cubicmap, RLVector3 cubeSize);           
 RLAPI RLMaterial *RLLoadMaterials(const char *fileName, int *materialCount);                    // Load materials from model file
 RLAPI RLMaterial RLLoadMaterialDefault(void);                                                   // Load default material (Supports: DIFFUSE, SPECULAR, NORMAL maps)
 RLAPI bool RLIsMaterialValid(RLMaterial material);                                              // Check if a material is valid (shader assigned, map textures loaded in GPU)
+RLAPI bool RLRetainMaterialObject(RLMaterial material);                                         // Increase CPU-side reference count for a material object
+RLAPI bool RLReleaseMaterialObject(RLMaterial material);                                        // Decrease CPU-side reference count and destroy when it reaches zero
+RLAPI RLContext* RLGetMaterialObjectOwnerContext(RLMaterial material);                          // Query material owner context (NULL if not tracked)
+RLAPI bool RLIsMaterialObjectOwnedByCurrentContext(RLMaterial material);                        // Check if material owner is current context
+RLAPI bool RLTryTransferMaterialObjectOwner(RLMaterial material, RLContext* targetCtx);        // Transfer material owner to target context
 RLAPI void RLUnloadMaterial(RLMaterial material);                                               // Unload material from GPU memory (VRAM)
 RLAPI void RLSetMaterialTexture(RLMaterial *material, int mapType, RLTexture2D texture);          // Set texture for a material map type (MATERIAL_MAP_DIFFUSE, MATERIAL_MAP_SPECULAR...)
 RLAPI void RLSetModelMeshMaterial(RLModel *model, int meshId, int materialId);                  // Set material for a mesh
@@ -1863,17 +2078,89 @@ typedef struct RLEventThreadDiagStats {
     unsigned long long otherAlloc, otherFree;
 
     // Task/pump performance
+    // NOTE:
+    // - `taskQueueDepthCurrent` / `taskQueueDepthMax` are raylib-side logical queue depth metrics.
+    //   They are derived from `tasksPosted - tasksExecuted` and may differ from native queue depth.
+    // - `nativeTaskQueue*` are GLFW Win32 native thread-task ring queue metrics
+    //   (`queued`, `peak`, `dropped`, dropped-by-class, and wake stats).
     unsigned long long tasksPosted;
     unsigned long long tasksExecuted;
+    unsigned long long tasksPostFailed;
+    unsigned long long taskQueueDepthCurrent;
+    unsigned long long taskQueueDepthMax;
+    unsigned int       nativeTaskQueueCount;
+    unsigned int       nativeTaskQueuePeakCount;
+    unsigned long long nativeTaskQueueDroppedCount;
+    unsigned long long nativeTaskQueueDroppedCriticalCount;
+    unsigned long long nativeTaskQueueDroppedStateCount;
+    unsigned long long nativeTaskQueueDroppedInputCount;
+    unsigned long long nativeTaskQueueDroppedMaintenanceCount;
+    unsigned long long nativeTaskWakeSentCount;
+    unsigned long long nativeTaskWakeDedupCount;
+    unsigned int       nativeTaskQueueLastObservedCount;
+    // Frame-safe callback queue metrics (Win32 + desktop GLFW event-thread path).
+    unsigned int       frameCallbackQueueCount;
+    unsigned int       frameCallbackQueueCriticalCount;
+    unsigned int       frameCallbackQueuePeakCount;
+    unsigned long long frameCallbackDroppedCount;
+    unsigned long long frameCallbackDroppedNormalCount;
+    unsigned long long frameCallbackDroppedCriticalCount;
+    unsigned long long frameCallbackEvictedNormalForCriticalCount;
     unsigned long long pumpCalls;
     unsigned long long pumpTasksExecutedTotal;
     unsigned int       pumpTasksExecutedMax;
+    unsigned int       pumpTasksExecutedLast;
     double             pumpTimeTotalMs;
     double             pumpTimeMaxMs;
+    double             pumpTimeLastMs;
+    double             swapCostMaxMs;
+    double             swapCostLastMs;
+    double             waitCostMaxMs;
+    double             waitCostLastMs;
+    double             frameCpuMaxMs;
+    double             frameCpuLastMs;
+    // Thread-mismatch handling counters for GPU-write APIs.
+    unsigned long long threadMismatchDetectedCount;
+    unsigned long long threadMismatchHandoffAttemptedCount;
+    unsigned long long threadMismatchHandoffSuccessCount;
+    unsigned long long threadMismatchHandoffFailedCount;
+    unsigned long long threadMismatchDeferredQueuedCount;
+    unsigned long long threadMismatchDeferredExecutedCount;
+    unsigned long long threadMismatchDeferredFailedCount;
+    unsigned long long threadMismatchRejectedCount;
+    unsigned long long threadMismatchLastCallerThreadId;
+    void *threadMismatchLastWindowHandle;
+    char threadMismatchLastApi[64];
+    unsigned long long sharedUnregisteredRetainRejectCount;
+    unsigned long long sharedUnregisteredReleaseRejectCount;
 } RLEventThreadDiagStats;
+
+typedef struct RLThreadMismatchDiagStats {
+    unsigned long long detectedCount;      // Number of non-render-thread GPU-write attempts detected
+    unsigned long long handoffAttemptedCount; // Number of synchronous handoff attempts to render thread
+    unsigned long long handoffSuccessCount;   // Number of successful synchronous handoffs
+    unsigned long long handoffFailedCount;    // Number of failed synchronous handoffs
+    unsigned long long deferredQueuedCount;   // Number of deferred frame-callback handoffs queued
+    unsigned long long deferredExecutedCount; // Number of deferred frame-callback handoffs executed
+    unsigned long long deferredFailedCount;   // Number of deferred frame-callback handoff queue failures
+    unsigned long long rejectedCount;         // Number of calls rejected after mismatch handling
+    unsigned long long lastCallerThreadId; // Last caller thread id (0 if unavailable on this platform)
+    void *lastWindowHandle;                // Window handle used when mismatch was detected (can be NULL)
+    char lastApi[64];                      // Last API name that triggered mismatch
+} RLThreadMismatchDiagStats;
 
 RLAPI RLEventThreadDiagStats RLGetEventThreadDiagStats(void);
 RLAPI void RLResetEventThreadDiagStats(void);
+RLAPI void RLResetEventThreadDiagStatsForCurrentContext(void);      // Reset diagnostics and safely reset native queue stats for current context/window
+RLAPI void RLEnableEventDiagStats(void);                            // Runtime enable diagnostics counting (effective only when RL_EVENT_DIAG_STATS=1 at build time)
+RLAPI void RLDisableEventDiagStats(void);                           // Runtime disable diagnostics counting
+RLAPI bool RLIsEventDiagStatsEnabled(void);                         // Check runtime diagnostics switch
+RLAPI RLThreadMismatchDiagStats RLGetThreadMismatchDiagStats(void); // Get thread-mismatch diagnostics for GPU-write APIs
+RLAPI void RLResetThreadMismatchDiagStats(void);                    // Reset thread-mismatch diagnostics
+
+#if defined(_WIN32)
+RLAPI int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait); // Reset diagnostics and safely reset target window native queue stats on its render thread
+#endif
 
 #if defined(__cplusplus)
 }

@@ -657,6 +657,7 @@ endif
 # Define source code object files required
 #------------------------------------------------------------------------------------------------
 OBJS = rcore.o \
+       win32_path.o \
        rshapes.o \
        rtextures.o \
        rtext.o \
@@ -760,6 +761,10 @@ rcore.o : platforms/*.c
 
 # Compile core module
 rcore.o : rcore.c raylib.h rlgl.h raymath.h rcamera.h rgestures.h
+	$(CC) -c $< $(CFLAGS) $(INCLUDE_PATHS)
+
+# Compile shared Win32 path helpers
+win32_path.o : platforms/win32_path.c platforms/win32_path.h raylib.h
 	$(CC) -c $< $(CFLAGS) $(INCLUDE_PATHS)
 
 # Compile shared GPU lifetime tracker (C++)

@@ -915,7 +915,12 @@ void RLOpenURL(const char *url)
 {
     // Security check to (partially) avoid malicious code on target platform
     if (strchr(url, '\'') != NULL) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
-    else emscripten_run_script(RLTextFormat("window.open('%s', '_blank')", url));
+    else
+    {
+        char script[1024] = { 0 };
+        RLTextFormatTo(script, (int)sizeof(script), "window.open('%s', '_blank')", url);
+        emscripten_run_script(script);
+    }
 }
 
 //----------------------------------------------------------------------------------

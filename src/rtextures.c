@@ -63,10 +63,21 @@
 
 #include "raylib.h"             // Declares module functions
 #include "rl_shared_gpu.h"
+#include "rl_object_tracker.h"
 
 #include "config.h"             // Defines module configuration flags
 
 #if defined(SUPPORT_MODULE_RTEXTURES)
+
+extern bool RLCanWriteGpuResourcesOnCurrentThread(const char *apiName);
+extern void RLRecordThreadMismatchHandoffAttempt(const char *apiName);
+extern void RLRecordThreadMismatchHandoffSuccess(const char *apiName);
+extern void RLRecordThreadMismatchHandoffFailed(const char *apiName);
+extern void RLRecordThreadMismatchDeferredQueued(const char *apiName);
+extern void RLRecordThreadMismatchDeferredExecuted(const char *apiName);
+extern void RLRecordThreadMismatchDeferredFailed(const char *apiName);
+extern void RLRecordThreadMismatchReject(const char *apiName);
+extern void *RLResolveRenderThreadWindowHandleForTrackedObject(RLTrackedObjectKind kind, uint64_t key, const char *apiName);
 
 #include "rlgl.h"               // OpenGL abstraction layer to multiple versions
 
@@ -74,6 +85,46 @@
 #include <string.h>             // Required for: strlen() [Used in ImageTextEx()], strcmp() [Used in LoadImageFromMemory()/LoadImageAnimFromMemory()/ExportImageToMemory()]
 #include <math.h>               // Required for: fabsf() [Used in DrawTextureRec()]
 #include <stdio.h>              // Required for: sprintf() [Used in ExportImageAsCode()]
+#include <stdint.h>             // Required for: uint64_t
+
+static bool RLTrackTextureObjectInit(RLTexture2D texture)
+{
+    if (texture.id == 0) return false;
+    return RLTrackedObjectRetain(RL_TRACKED_OBJECT_TEXTURE, (uint64_t)texture.id, RLGetCurrentContext(), &texture, sizeof(texture));
+}
+
+static bool RLTrackRenderTextureObjectInit(RLRenderTexture2D target)
+{
+    if (target.id == 0) return false;
+    return RLTrackedObjectRetain(RL_TRACKED_OBJECT_RENDER_TEXTURE, (uint64_t)target.id, RLGetCurrentContext(), &target, sizeof(target));
+}
+
+#if defined(_WIN32)
+static void RLFreeTexturePayload(void *user)
+{
+    RL_FREE(user);
+}
+
+static intptr_t RLInvokeUnloadTextureOnRenderThread(void *hwnd, void *user)
+{
+    (void)hwnd;
+    RLTexture2D *texturePtr = (RLTexture2D *)user;
+    if (texturePtr != NULL) RLUnloadTexture(*texturePtr);
+    RLRecordThreadMismatchDeferredExecuted("RLReleaseTextureObject");
+    RL_FREE(texturePtr);
+    return (intptr_t)1;
+}
+
+static intptr_t RLInvokeUnloadRenderTextureOnRenderThread(void *hwnd, void *user)
+{
+    (void)hwnd;
+    RLRenderTexture2D *targetPtr = (RLRenderTexture2D *)user;
+    if (targetPtr != NULL) RLUnloadRenderTexture(*targetPtr);
+    RLRecordThreadMismatchDeferredExecuted("RLReleaseRenderTextureObject");
+    RL_FREE(targetPtr);
+    return (intptr_t)1;
+}
+#endif
 
 // Support only desired texture formats on stb_image
 #if !defined(SUPPORT_FILEFORMAT_BMP)
@@ -4155,6 +4206,7 @@ RLTexture2D RLLoadTextureFromImage(RLImage image)
     texture.height = image.height;
     texture.mipmaps = image.mipmaps;
     texture.format = image.format;
+    RLTrackTextureObjectInit(texture);
 
     return texture;
 }
@@ -4256,6 +4308,7 @@ RLTextureCubemap RLLoadTextureCubemap(RLImage image, int layout)
         {
             cubemap.format = faces.format;
             cubemap.mipmaps = faces.mipmaps;
+            RLTrackTextureObjectInit((RLTexture2D){ cubemap.id, cubemap.width, cubemap.height, cubemap.mipmaps, cubemap.format });
         }
         else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to load cubemap image");
 
@@ -4300,6 +4353,8 @@ RLRenderTexture2D RLLoadRenderTexture(int width, int height)
         if (rlFramebufferComplete(target.id)) TRACELOG(RL_E_LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
 
         rlDisableFramebuffer();
+        RLTrackTextureObjectInit(target.texture);
+        RLTrackRenderTextureObjectInit(target);
     }
     else TRACELOG(RL_E_LOG_WARNING, "FBO: Framebuffer object can not be created");
 
@@ -4320,27 +4375,123 @@ bool RLIsTextureValid(RLTexture2D texture)
     return result;
 }
 
+bool RLRetainTextureObject(RLTexture2D texture)
+{
+    if (texture.id == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "TEXTURE: RLRetainTextureObject failed: texture id=0");
+        return false;
+    }
+
+    return RLTrackTextureObjectInit(texture);
+}
+
+bool RLReleaseTextureObject(RLTexture2D texture)
+{
+    if (!RLCanWriteGpuResourcesOnCurrentThread("RLReleaseTextureObject"))
+    {
+#if defined(_WIN32)
+        void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_TEXTURE, (uint64_t)texture.id, "RLReleaseTextureObject");
+        if (windowHandle != NULL)
+        {
+            RLRecordThreadMismatchHandoffAttempt("RLReleaseTextureObject");
+            RLTexture2D *payload = (RLTexture2D *)RL_MALLOC(sizeof(RLTexture2D));
+            if (payload != NULL)
+            {
+                *payload = texture;
+                intptr_t ok = RLInvokeOnWindowRenderThreadByHandle(windowHandle, RLInvokeUnloadTextureOnRenderThread, payload, 1);
+                if (ok != 0)
+                {
+                    RLRecordThreadMismatchHandoffSuccess("RLReleaseTextureObject");
+                    return true;
+                }
+                RLRecordThreadMismatchHandoffFailed("RLReleaseTextureObject");
+                RL_FREE(payload);
+            }
+            else RLRecordThreadMismatchHandoffFailed("RLReleaseTextureObject");
+
+            payload = (RLTexture2D *)RL_MALLOC(sizeof(RLTexture2D));
+            if (payload != NULL)
+            {
+                *payload = texture;
+                if (RLPostWindowFrameCallbackByHandleEx2(windowHandle, RLInvokeUnloadTextureOnRenderThread, payload, RL_FRAME_CALLBACK_KIND_CRITICAL, RLFreeTexturePayload) != 0)
+                {
+                    RLRecordThreadMismatchDeferredQueued("RLReleaseTextureObject");
+                    return true;
+                }
+                RLRecordThreadMismatchDeferredFailed("RLReleaseTextureObject");
+            }
+            else RLRecordThreadMismatchDeferredFailed("RLReleaseTextureObject");
+        }
+        else
+        {
+            RLRecordThreadMismatchHandoffFailed("RLReleaseTextureObject");
+            RLRecordThreadMismatchDeferredFailed("RLReleaseTextureObject");
+        }
+#endif
+        RLRecordThreadMismatchReject("RLReleaseTextureObject");
+        return false;
+    }
+
+    if (texture.id == 0) return true;
+
+    RLTexture2D toDestroy = { 0 };
+    unsigned int remainingRefCount = 0;
+    if (!RLTrackedObjectRelease(RL_TRACKED_OBJECT_TEXTURE, (uint64_t)texture.id, &toDestroy, sizeof(toDestroy), &remainingRefCount))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "TEXTURE: RLReleaseTextureObject fallback: texture id=%u is not tracked, releasing directly", texture.id);
+        rlUnloadTexture(texture.id);
+        TRACELOG(RL_E_LOG_INFO, "TEXTURE: [ID %i] Unloaded texture data from VRAM (GPU)", texture.id);
+        return true;
+    }
+    if (remainingRefCount > 0) return true;
+
+    rlUnloadTexture(toDestroy.id);
+    TRACELOG(RL_E_LOG_INFO, "TEXTURE: [ID %i] Unloaded texture data from VRAM (GPU)", toDestroy.id);
+    return true;
+}
+
+RLContext* RLGetTextureObjectOwnerContext(RLTexture2D texture)
+{
+    RLContext *ownerContext = NULL;
+    if (texture.id == 0) return NULL;
+    if (!RLTrackedObjectGetOwnerContext(RL_TRACKED_OBJECT_TEXTURE, (uint64_t)texture.id, &ownerContext)) return NULL;
+    return ownerContext;
+}
+
+bool RLIsTextureObjectOwnedByCurrentContext(RLTexture2D texture)
+{
+    if (texture.id == 0) return false;
+    return RLTrackedObjectIsOwnedByCurrentContext(RL_TRACKED_OBJECT_TEXTURE, (uint64_t)texture.id);
+}
+
+bool RLTryTransferTextureObjectOwner(RLTexture2D texture, RLContext* targetCtx)
+{
+    if (texture.id == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "TEXTURE: RLTryTransferTextureObjectOwner failed: texture id=0");
+        return false;
+    }
+    if (targetCtx == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "TEXTURE: RLTryTransferTextureObjectOwner failed: target context is NULL");
+        return false;
+    }
+    if (!RLTrackedObjectTryTransferOwner(RL_TRACKED_OBJECT_TEXTURE, (uint64_t)texture.id, targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "TEXTURE: RLTryTransferTextureObjectOwner failed: transfer rejected for texture id=%u", texture.id);
+        return false;
+    }
+    return true;
+}
+
 // Unload texture from GPU memory (VRAM)
 void RLUnloadTexture(RLTexture2D texture)
 {
-    if (texture.id > 0)
+    if (!RLReleaseTextureObject(texture))
     {
-        rlUnloadTexture(texture.id);
-
-        TRACELOG(RL_E_LOG_INFO, "TEXTURE: [ID %i] Unloaded texture data from VRAM (GPU)", texture.id);
+        TRACELOG(RL_E_LOG_WARNING, "TEXTURE: RLUnloadTexture skipped because RLReleaseTextureObject failed (id=%u)", texture.id);
     }
-}
-
-void RLSharedRetainTexture(RLTexture2D texture)
-{
-    if (texture.id == 0) return;
-    RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_TEXTURE, texture.id);
-}
-
-void RLSharedReleaseTexture(RLTexture2D texture)
-{
-    if (texture.id == 0) return;
-    RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_TEXTURE, texture.id);
 }
 
 // Check if a render texture is valid (loaded in GPU)
@@ -4355,43 +4506,123 @@ bool RLIsRenderTextureValid(RLRenderTexture2D target)
     return result;
 }
 
+bool RLRetainRenderTextureObject(RLRenderTexture2D target)
+{
+    if (target.id == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FBO: RLRetainRenderTextureObject failed: render texture id=0");
+        return false;
+    }
+
+    return RLTrackRenderTextureObjectInit(target);
+}
+
+bool RLReleaseRenderTextureObject(RLRenderTexture2D target)
+{
+    if (!RLCanWriteGpuResourcesOnCurrentThread("RLReleaseRenderTextureObject"))
+    {
+#if defined(_WIN32)
+        void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_RENDER_TEXTURE, (uint64_t)target.id, "RLReleaseRenderTextureObject");
+        if (windowHandle != NULL)
+        {
+            RLRecordThreadMismatchHandoffAttempt("RLReleaseRenderTextureObject");
+            RLRenderTexture2D *payload = (RLRenderTexture2D *)RL_MALLOC(sizeof(RLRenderTexture2D));
+            if (payload != NULL)
+            {
+                *payload = target;
+                intptr_t ok = RLInvokeOnWindowRenderThreadByHandle(windowHandle, RLInvokeUnloadRenderTextureOnRenderThread, payload, 1);
+                if (ok != 0)
+                {
+                    RLRecordThreadMismatchHandoffSuccess("RLReleaseRenderTextureObject");
+                    return true;
+                }
+                RLRecordThreadMismatchHandoffFailed("RLReleaseRenderTextureObject");
+                RL_FREE(payload);
+            }
+            else RLRecordThreadMismatchHandoffFailed("RLReleaseRenderTextureObject");
+
+            payload = (RLRenderTexture2D *)RL_MALLOC(sizeof(RLRenderTexture2D));
+            if (payload != NULL)
+            {
+                *payload = target;
+                if (RLPostWindowFrameCallbackByHandleEx2(windowHandle, RLInvokeUnloadRenderTextureOnRenderThread, payload, RL_FRAME_CALLBACK_KIND_CRITICAL, RLFreeTexturePayload) != 0)
+                {
+                    RLRecordThreadMismatchDeferredQueued("RLReleaseRenderTextureObject");
+                    return true;
+                }
+                RLRecordThreadMismatchDeferredFailed("RLReleaseRenderTextureObject");
+            }
+            else RLRecordThreadMismatchDeferredFailed("RLReleaseRenderTextureObject");
+        }
+        else
+        {
+            RLRecordThreadMismatchHandoffFailed("RLReleaseRenderTextureObject");
+            RLRecordThreadMismatchDeferredFailed("RLReleaseRenderTextureObject");
+        }
+#endif
+        RLRecordThreadMismatchReject("RLReleaseRenderTextureObject");
+        return false;
+    }
+
+    if (target.id == 0) return true;
+
+    RLRenderTexture2D toDestroy = { 0 };
+    unsigned int remainingRefCount = 0;
+    if (!RLTrackedObjectRelease(RL_TRACKED_OBJECT_RENDER_TEXTURE, (uint64_t)target.id, &toDestroy, sizeof(toDestroy), &remainingRefCount))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FBO: RLReleaseRenderTextureObject fallback: render texture id=%u is not tracked, releasing directly", target.id);
+        if (target.texture.id > 0) RLReleaseTextureObject(target.texture);
+        rlUnloadFramebuffer(target.id);
+        return true;
+    }
+    if (remainingRefCount > 0) return true;
+
+    if (toDestroy.texture.id > 0) RLReleaseTextureObject(toDestroy.texture);
+    rlUnloadFramebuffer(toDestroy.id);
+    return true;
+}
+
+RLContext* RLGetRenderTextureObjectOwnerContext(RLRenderTexture2D target)
+{
+    RLContext *ownerContext = NULL;
+    if (target.id == 0) return NULL;
+    if (!RLTrackedObjectGetOwnerContext(RL_TRACKED_OBJECT_RENDER_TEXTURE, (uint64_t)target.id, &ownerContext)) return NULL;
+    return ownerContext;
+}
+
+bool RLIsRenderTextureObjectOwnedByCurrentContext(RLRenderTexture2D target)
+{
+    if (target.id == 0) return false;
+    return RLTrackedObjectIsOwnedByCurrentContext(RL_TRACKED_OBJECT_RENDER_TEXTURE, (uint64_t)target.id);
+}
+
+bool RLTryTransferRenderTextureObjectOwner(RLRenderTexture2D target, RLContext* targetCtx)
+{
+    if (target.id == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FBO: RLTryTransferRenderTextureObjectOwner failed: render texture id=0");
+        return false;
+    }
+    if (targetCtx == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FBO: RLTryTransferRenderTextureObjectOwner failed: target context is NULL");
+        return false;
+    }
+    if (!RLTrackedObjectTryTransferOwner(RL_TRACKED_OBJECT_RENDER_TEXTURE, (uint64_t)target.id, targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "FBO: RLTryTransferRenderTextureObjectOwner failed: transfer rejected for render texture id=%u", target.id);
+        return false;
+    }
+    return true;
+}
+
 // Unload render texture from GPU memory (VRAM)
 void RLUnloadRenderTexture(RLRenderTexture2D target)
 {
-    if (target.id > 0)
+    if (!RLReleaseRenderTextureObject(target))
     {
-        if (target.texture.id > 0)
-        {
-            // Color texture attached to FBO is deleted
-            rlUnloadTexture(target.texture.id);
-        }
-
-        // NOTE: Depth texture/renderbuffer is automatically
-        // queried and deleted before deleting framebuffer
-        rlUnloadFramebuffer(target.id);
+        TRACELOG(RL_E_LOG_WARNING, "FBO: RLUnloadRenderTexture skipped because RLReleaseRenderTextureObject failed (id=%u)", target.id);
     }
-}
-
-void RLSharedRetainRenderTexture(RLRenderTexture2D target)
-{
-    if (target.id == 0) return;
-
-    // Retain framebuffer + its depth attachment (share-group wide, context-free)
-    RLSharedGpuRetainFramebufferTree(target.id);
-
-    // Retain color attachment
-    if (target.texture.id != 0) RLSharedGpuRetainObject(RL_SHARED_GPU_OBJECT_TEXTURE, target.texture.id);
-}
-
-void RLSharedReleaseRenderTexture(RLRenderTexture2D target)
-{
-    if (target.id == 0) return;
-
-    // Release color attachment
-    if (target.texture.id != 0) RLSharedGpuReleaseObject(RL_SHARED_GPU_OBJECT_TEXTURE, target.texture.id);
-
-    // Release depth attachment + framebuffer (share-group wide, context-free)
-    RLSharedGpuReleaseFramebufferTree(target.id);
 }
 
 // Update GPU texture with new data

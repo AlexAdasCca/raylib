@@ -1537,7 +1537,11 @@ FILE *android_fopen(const char *fileName, const char *mode)
         // using the standard stdio FILE access functions
         // REF: https://stackoverflow.com/questions/11294487/android-writing-saving-files-from-native-code-only
         #undef fopen
-        file = fopen(RLTextFormat("%s/%s", platform.app->activity->internalDataPath, fileName), mode);
+        {
+            char fullPath[MAX_FILEPATH_LENGTH] = { 0 };
+            RLTextFormatTo(fullPath, MAX_FILEPATH_LENGTH, "%s/%s", platform.app->activity->internalDataPath, fileName);
+            file = fopen(fullPath, mode);
+        }
         #define fopen(name, mode) android_fopen(name, mode)
     }
     else
@@ -1554,7 +1558,11 @@ FILE *android_fopen(const char *fileName, const char *mode)
         {
             #undef fopen
             // Just do a regular open if file is not found in the assets
-            file = fopen(RLTextFormat("%s/%s", platform.app->activity->internalDataPath, fileName), mode);
+            {
+                char fullPath[MAX_FILEPATH_LENGTH] = { 0 };
+                RLTextFormatTo(fullPath, MAX_FILEPATH_LENGTH, "%s/%s", platform.app->activity->internalDataPath, fileName);
+                file = fopen(fullPath, mode);
+            }
             if (file == NULL) file = fopen(fileName, mode);
             #define fopen(name, mode) android_fopen(name, mode)
         }

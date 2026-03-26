@@ -24,6 +24,8 @@ static RLContext *RLAllocContext(void)
         // Resource sharing defaults
         ctx->resourceShareMode = RL_CONTEXT_SHARE_NONE;
         ctx->resourceShareWith = nullptr;
+        ctx->resourceShareValidated = 0;
+        ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_OK;
     }
 
     return ctx;
@@ -45,11 +47,40 @@ extern "C" RLContext *RLCreateContext(void)
     return RLAllocContext();
 }
 
-extern "C" void RLContextSetResourceShareMode(RLContext *ctx, RLContextResourceShareMode mode, RLContext *shareWith)
+extern "C" bool RLContextSetResourceShareMode(RLContext *ctx, RLContextResourceShareMode mode, RLContext *shareWith)
 {
-    if (!ctx) return;
+    if (!ctx)
+    {
+        RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: RLContextSetResourceShareMode failed: context is null");
+        return false;
+    }
+    if ((mode != RL_CONTEXT_SHARE_NONE) &&
+        (mode != RL_CONTEXT_SHARE_WITH_PRIMARY) &&
+        (mode != RL_CONTEXT_SHARE_WITH_CONTEXT))
+    {
+        RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: RLContextSetResourceShareMode failed: invalid mode=%d", (int)mode);
+        return false;
+    }
+    if ((mode == RL_CONTEXT_SHARE_WITH_CONTEXT) && (shareWith == nullptr))
+    {
+        RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: RLContextSetResourceShareMode failed: WITH_CONTEXT requires non-null target context");
+        return false;
+    }
+    if ((mode == RL_CONTEXT_SHARE_WITH_CONTEXT) && (shareWith == ctx))
+    {
+        RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: RLContextSetResourceShareMode failed: target context cannot be self");
+        return false;
+    }
+    if (RLContextHasReadyWindow(ctx))
+    {
+        RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: RLContextSetResourceShareMode failed: mode can only change before window creation");
+        return false;
+    }
     ctx->resourceShareMode = (int)mode;
     ctx->resourceShareWith = (mode == RL_CONTEXT_SHARE_WITH_CONTEXT) ? shareWith : nullptr;
+    ctx->resourceShareValidated = 0;
+    ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_OK;
+    return true;
 }
 
 extern "C" RLContextResourceShareMode RLContextGetResourceShareMode(RLContext *ctx)
@@ -62,6 +93,64 @@ extern "C" RLContext *RLContextGetResourceShareContext(RLContext *ctx)
 {
     if (!ctx) return nullptr;
     return (RLContext *)ctx->resourceShareWith;
+}
+
+extern "C" bool RLContextValidateResourceShareConfig(RLContext *ctx)
+{
+    if (ctx == nullptr) return false;
+
+    RLContextResourceShareMode mode = (RLContextResourceShareMode)ctx->resourceShareMode;
+    RLContext *targetContext = (RLContext *)ctx->resourceShareWith;
+
+    ctx->resourceShareValidated = 1;
+    ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_OK;
+
+    if ((mode != RL_CONTEXT_SHARE_NONE) &&
+        (mode != RL_CONTEXT_SHARE_WITH_PRIMARY) &&
+        (mode != RL_CONTEXT_SHARE_WITH_CONTEXT))
+    {
+        ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_INVALID_MODE;
+        RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: share config validation failed: invalid mode=%d", (int)mode);
+        return false;
+    }
+
+    if (mode == RL_CONTEXT_SHARE_WITH_CONTEXT)
+    {
+        if (targetContext == nullptr)
+        {
+            ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_TARGET_NULL;
+            RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: share config validation failed: WITH_CONTEXT target context is null");
+            return false;
+        }
+
+        if (targetContext == ctx)
+        {
+            ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_TARGET_SELF;
+            RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: share config validation failed: WITH_CONTEXT target context is self");
+            return false;
+        }
+
+        if (!RLContextHasReadyWindow(targetContext))
+        {
+            ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_TARGET_WINDOW_UNAVAILABLE;
+            RLTraceLog(RL_E_LOG_ERROR, "SHARED_GPU: share config validation failed: WITH_CONTEXT target window is unavailable");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+extern "C" bool RLContextIsResourceShareConfigValid(RLContext *ctx)
+{
+    if (ctx == nullptr) return false;
+    return (ctx->resourceShareValidated != 0) && (ctx->resourceShareValidationError == RL_CONTEXT_SHARE_VALIDATION_OK);
+}
+
+extern "C" int RLContextGetResourceShareValidationError(RLContext *ctx)
+{
+    if (ctx == nullptr) return RL_CONTEXT_SHARE_VALIDATION_CTX_NULL;
+    return ctx->resourceShareValidationError;
 }
 
 

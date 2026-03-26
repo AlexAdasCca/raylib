@@ -1,4 +1,4 @@
-﻿/**********************************************************************************************
+/**********************************************************************************************
 *
 *   rcore_desktop_glfw - Functions to manage window, graphics device and inputs
 *
@@ -124,6 +124,27 @@
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
+#if defined(_WIN32)
+#ifndef RL_FRAME_CALLBACK_QUEUE_CAPACITY
+    #define RL_FRAME_CALLBACK_QUEUE_CAPACITY 1024u
+#endif
+#ifndef RL_FRAME_CALLBACKS_PER_FRAME_LIMIT
+    #define RL_FRAME_CALLBACKS_PER_FRAME_LIMIT 64u
+#endif
+#ifndef RL_FRAME_CALLBACKS_CRITICAL_MIN_PER_FRAME
+    #define RL_FRAME_CALLBACKS_CRITICAL_MIN_PER_FRAME 8u
+#endif
+
+typedef struct RLRenderFrameCallbackSlot
+{
+    intptr_t (*fn)(void* hwnd, void* user);
+    void* hwnd;
+    void* user;
+    void (*userDtor)(void* user);
+    unsigned char kind; // RLFrameCallbackKind
+} RLRenderFrameCallbackSlot;
+#endif
+
 typedef struct {
     GLFWwindow *handle;                 // GLFW window handle (graphic device)
     bool glfwAcquired;                // True after RLGlfwGlobalAcquire(), used to balance release
@@ -179,7 +200,24 @@ typedef struct {
     // framebuffer size (last)
     volatile long pendingFbW;
     volatile long pendingFbH;
+    // iconify/focus/maximize (last)
+    volatile long pendingIconified;
+    volatile long pendingFocused;
+    volatile long pendingMaximized;
 #endif
+
+    // Frame-safe callback queue for RLPostWindowFrameCallbackByHandle().
+    // Producers can run on any thread; consumer runs on render thread.
+    RLRenderFrameCallbackSlot frameCallbackRing[RL_FRAME_CALLBACK_QUEUE_CAPACITY];
+    unsigned int frameCallbackHead;
+    unsigned int frameCallbackTail;
+    unsigned int frameCallbackQueuedCount;
+    unsigned int frameCallbackCriticalQueuedCount;
+    unsigned int frameCallbackQueuedPeak;
+    unsigned long long frameCallbackDroppedCount;
+    unsigned long long frameCallbackDroppedNormalCount;
+    unsigned long long frameCallbackDroppedCriticalCount;
+    unsigned long long frameCallbackEvictedNormalForCriticalCount;
 #endif
 } PlatformData;
 
@@ -204,7 +242,17 @@ typedef struct RLGlfwPlatformNode
     struct RLGlfwPlatformNode *next;
 } RLGlfwPlatformNode;
 
+typedef struct RLGlfwRenderThreadCountNode
+{
+    GLFWthread *renderThread;
+    unsigned int activeWindowCount;
+    struct RLGlfwRenderThreadCountNode *next;
+} RLGlfwRenderThreadCountNode;
+
 static RLGlfwPlatformNode *gRlGlfwPdHead = NULL;
+#define RL_GLFW_RENDER_THREAD_BUCKET_COUNT 64u
+static RLGlfwRenderThreadCountNode *gRlGlfwRenderThreadCountBuckets[RL_GLFW_RENDER_THREAD_BUCKET_COUNT] = { 0 };
+static int gRlGlfwRenderThreadIndexHealthy = 1;
 
 // Primary window tracking + global quit semantics (Win32 Route2)
 // Primary is defined as the first created GLFW window in the process.
@@ -253,6 +301,80 @@ static bool RLGlfwIsPrimaryWindow(GLFWwindow *window)
 static bool RLGlfwIsPrimaryPlatform(PlatformData *pd)
 {
     return (pd != NULL) && RLGlfwIsPrimaryWindow(pd->handle);
+}
+
+static unsigned int RLGlfwRenderThreadBucketIndex(GLFWthread *renderThread)
+{
+    uintptr_t v = (uintptr_t)renderThread;
+    return (unsigned int)(((v >> 4u) ^ (v >> 9u)) % RL_GLFW_RENDER_THREAD_BUCKET_COUNT);
+}
+
+static RLGlfwRenderThreadCountNode *RLGlfwFindRenderThreadCountNode(GLFWthread *renderThread)
+{
+    if (renderThread == NULL) return NULL;
+
+    RLGlfwRenderThreadCountNode *it = gRlGlfwRenderThreadCountBuckets[RLGlfwRenderThreadBucketIndex(renderThread)];
+    for (; it != NULL; it = it->next)
+    {
+        if (it->renderThread == renderThread) return it;
+    }
+    return NULL;
+}
+
+static unsigned int RLGlfwGetActiveWindowCountOnRenderThread(GLFWthread *renderThread)
+{
+    if (renderThread == NULL) return 0;
+    RLGlfwRenderThreadCountNode *node = RLGlfwFindRenderThreadCountNode(renderThread);
+    return (node != NULL) ? node->activeWindowCount : 0;
+}
+
+static bool RLGlfwIncrementRenderThreadWindowCount(GLFWthread *renderThread)
+{
+    if (renderThread == NULL) return true;
+
+    RLGlfwRenderThreadCountNode *node = RLGlfwFindRenderThreadCountNode(renderThread);
+    if (node == NULL)
+    {
+        node = (RLGlfwRenderThreadCountNode *)RL_CALLOC(1, sizeof(RLGlfwRenderThreadCountNode));
+        if (node == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: failed to allocate render-thread window-count node");
+            return false;
+        }
+        unsigned int bucketIndex = RLGlfwRenderThreadBucketIndex(renderThread);
+        node->renderThread = renderThread;
+        node->next = gRlGlfwRenderThreadCountBuckets[bucketIndex];
+        gRlGlfwRenderThreadCountBuckets[bucketIndex] = node;
+    }
+
+    node->activeWindowCount++;
+    return true;
+}
+
+static void RLGlfwDecrementRenderThreadWindowCount(GLFWthread *renderThread)
+{
+    if (renderThread == NULL) return;
+
+    unsigned int bucketIndex = RLGlfwRenderThreadBucketIndex(renderThread);
+    RLGlfwRenderThreadCountNode **pp = &gRlGlfwRenderThreadCountBuckets[bucketIndex];
+    while (*pp)
+    {
+        RLGlfwRenderThreadCountNode *node = *pp;
+        if (node->renderThread == renderThread)
+        {
+            if (node->activeWindowCount > 0) node->activeWindowCount--;
+            else TRACELOG(RL_E_LOG_WARNING, "GLFW: render-thread window-count underflow detected");
+
+            if (node->activeWindowCount == 0)
+            {
+                *pp = node->next;
+                RL_FREE(node);
+            }
+            return;
+        }
+
+        pp = &node->next;
+    }
 }
 
 // Track *all* windows (event-thread and non-event-thread). This keeps "primary" semantics
@@ -318,6 +440,15 @@ static void RLGlfwPlatformRegister(PlatformData *pd)
     n->next = gRlGlfwPdHead;
     gRlGlfwPdHead = n;
     pd->isRegistered = 1;
+
+    if (pd->useEventThread && (pd->renderThread != NULL))
+    {
+        if (!RLGlfwIncrementRenderThreadWindowCount(pd->renderThread))
+        {
+            gRlGlfwRenderThreadIndexHealthy = 0;
+        }
+    }
+
     RLGlfwGlobalUnlock();
 }
 
@@ -333,6 +464,11 @@ static void RLGlfwPlatformUnregister(PlatformData *pd)
         RLGlfwPlatformNode *cur = *pp;
         if (cur->pd == pd)
         {
+            if (pd->useEventThread && (pd->renderThread != NULL))
+            {
+                RLGlfwDecrementRenderThreadWindowCount(pd->renderThread);
+            }
+
             *pp = cur->next;
             RL_FREE(cur);
             pd->isRegistered = 0;
@@ -389,6 +525,47 @@ static void RLGlfwSignalWakeByPolicy(PlatformData *pd, bool isShutdownOrClose)
     }
 }
 
+static bool RLGlfwHasAnotherWindowOnRenderThreadSlow(GLFWthread *renderThread, PlatformData *self)
+{
+    if (renderThread == NULL) return false;
+
+    for (RLGlfwPlatformNode *it = gRlGlfwPdHead; it != NULL; it = it->next)
+    {
+        PlatformData *pd = it->pd;
+        if (pd == NULL) continue;
+        if (pd == self) continue;
+        if (!pd->useEventThread) continue;
+        if (pd->renderThread != renderThread) continue;
+        if (pd->closing) continue;
+        return true;
+    }
+
+    return false;
+}
+
+// Event-thread mode safety rule:
+// One render thread must own at most one active window/context at a time.
+// Multi-window is supported via multiple render threads (one window per thread).
+static bool RLGlfwHasAnotherWindowOnRenderThread(GLFWthread *renderThread, PlatformData *self)
+{
+    if (renderThread == NULL) return false;
+    if (gRlGlfwRenderThreadIndexHealthy == 0)
+    {
+        return RLGlfwHasAnotherWindowOnRenderThreadSlow(renderThread, self);
+    }
+    unsigned int activeCount = RLGlfwGetActiveWindowCountOnRenderThread(renderThread);
+    if (activeCount == 0) return false;
+
+    // If self is already registered on this render thread, require at least two active windows
+    // to be considered "another window". During pre-create checks self is not registered.
+    if ((self != NULL) && self->isRegistered && (self->renderThread == renderThread))
+    {
+        return (activeCount > 1);
+    }
+
+    return true;
+}
+
 #endif
 
 //----------------------------------------------------------------------------------
@@ -420,18 +597,43 @@ static GLFWwindow *RLGlfwResolveShareWindowForContext(RLContext *ctx)
 {
     if (ctx == NULL) return NULL;
 
-    RLContextResourceShareMode mode = (RLContextResourceShareMode)ctx->resourceShareMode;
+    RLContextResourceShareMode mode = RLContextGetResourceShareMode(ctx);
+    RLContext *other = RLContextGetResourceShareContext(ctx);
+
+    // Validate pre-create share configuration once before resolving the share source window.
+    // Invalid WITH_CONTEXT configuration is explicitly marked and will fall back to non-shared creation.
+    if (!RLContextValidateResourceShareConfig(ctx))
+    {
+        int errorCode = RLContextGetResourceShareValidationError(ctx);
+        TRACELOG(RL_E_LOG_WARNING,
+                 "SHARED_GPU: pre-create share validation failed (mode=%d error=%d), fallback to non-shared context",
+                 (int)mode, errorCode);
+        return NULL;
+    }
+
     if (mode == RL_CONTEXT_SHARE_WITH_PRIMARY)
     {
         GLFWwindow *w = RLGlfwGetPrimaryShareWindow();
+        if (w == NULL)
+        {
+            ctx->resourceShareValidated = 1;
+            ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_PRIMARY_WINDOW_UNAVAILABLE;
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: share mode WITH_PRIMARY requested but primary window is unavailable; fallback to non-shared context");
+        }
         return (w != NULL) ? w : NULL;
     }
     else if (mode == RL_CONTEXT_SHARE_WITH_CONTEXT)
     {
-        RLContext *other = (RLContext *)ctx->resourceShareWith;
-        if (other == NULL) return NULL;
         PlatformData *opd = (PlatformData *)other->platformData;
-        if ((opd == NULL) || (opd->handle == NULL)) return NULL;
+        if ((opd == NULL) || (opd->handle == NULL))
+        {
+            ctx->resourceShareValidated = 1;
+            ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_TARGET_WINDOW_UNAVAILABLE;
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: share mode WITH_CONTEXT requested but target context window is unavailable; fallback to non-shared context");
+            return NULL;
+        }
         return opd->handle;
     }
 
@@ -459,6 +661,10 @@ void ClosePlatform(void);        // Close platform
 #define RL_PENDING_WIN_POS      (1L<<2)
 #define RL_PENDING_SCALE        (1L<<3)
 #define RL_PENDING_FB_SIZE      (1L<<4)
+#define RL_PENDING_ICONIFY      (1L<<5)
+#define RL_PENDING_FOCUS        (1L<<6)
+#define RL_PENDING_MAXIMIZE     (1L<<7)
+#define RL_PENDING_REFRESH      (1L<<8)
 
 // Accumulate wheel deltas as fixed-point integers, then convert back in the drain task.
 #ifndef RL_WHEEL_FP_SCALE
@@ -520,6 +726,7 @@ typedef struct
     RLContext *ctx;
     void (*fn)(void *user);
     void *user;
+    void (*userDtor)(void *user);
 } RLGlfwRenderCall;
 
 // Forward declaration: avoid implicit int prototype in C (MSVC) before definition.
@@ -560,6 +767,29 @@ static bool RLGlfwIsThread(GLFWthread *thr)
 {
     if (!thr) return false;
     return (glfwGetCurrentThread() == thr);
+}
+
+static void RLGlfwFreeTaskUser(void *user)
+{
+    if (user) RL_FREE(user);
+}
+
+static void RLGlfwDropRenderCall(void *user)
+{
+    RLGlfwRenderCall *call = (RLGlfwRenderCall *)user;
+    if (!call) return;
+    if (call->userDtor && call->user) call->userDtor(call->user);
+    RL_DIAG_RENDERCALL_FREE(sizeof(RLGlfwRenderCall));
+    RL_FREE(call);
+}
+
+static inline int RLGlfwPostTaskToThread(GLFWthread *thread, GLFWthreadtaskfun fn, void *user, unsigned char taskClass, bool droppable, GLFWthreadtaskdtorfun userDtor)
+{
+    GLFWthreadtaskmeta meta = { 0 };
+    meta.taskClass = taskClass;
+    meta.droppable = droppable ? 1 : 0;
+    meta.userDtor = userDtor;
+    return glfwPostTaskEx(thread, fn, user, &meta);
 }
 
 static void RLGlfwWakeEventThread(void)
@@ -631,7 +861,12 @@ static void RLGlfwDrainRenderThreadTasks(void)
         return;
     }
 
-    glfwPostTask(platform.renderThread, RLGlfwBarrierSignalTask, done);
+    if (!RLGlfwPostTaskToThread(platform.renderThread, RLGlfwBarrierSignalTask, done, (unsigned char)GLFW_THREAD_TASK_CLASS_MAINTENANCE, false, NULL))
+    {
+        RLEventDestroy(done);
+        RLGlfwPumpThreadTasksWithDiag();
+        return;
+    }
     RLGlfwWakeRenderThread();
 
     // Pump until the barrier is observed.
@@ -662,11 +897,25 @@ static void RLGlfwRunOnEventThread(void (*fn)(void *user), void *user, bool wait
     RLEvent *done = wait ? RLEventCreate(false) : NULL;
 
     RLGlfwThreadCall *call = (RLGlfwThreadCall *)RL_CALLOC(1, sizeof(RLGlfwThreadCall));
+    if (call == NULL)
+    {
+        RL_DIAG_TASK_POST_FAILED();
+        if (done) RLEventDestroy(done);
+        TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate thread call");
+        return;
+    }
     call->fn = fn;
     call->user = user;
     call->done = done;
 
-    glfwPostTask(platform.eventThread, RLGlfwThreadCallTrampoline, call);
+    if (!RLGlfwPostTaskToThread(platform.eventThread, RLGlfwThreadCallTrampoline, call, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser))
+    {
+        RL_DIAG_TASK_POST_FAILED();
+        if (done) RLEventDestroy(done);
+        RL_FREE(call);
+        TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to post thread call");
+        return;
+    }
     RLGlfwWakeEventThread();
 
     if (done)
@@ -676,7 +925,7 @@ static void RLGlfwRunOnEventThread(void (*fn)(void *user), void *user, bool wait
     }
 }
 
-static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void *user)
+static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void *user, unsigned char taskClass, bool droppable, void (*userDtor)(void *user))
 {
     // Render thread tasks should be idempotent and short.
     // If called on the render thread, execute immediately.
@@ -703,13 +952,24 @@ static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void
     }
 
     RLGlfwRenderCall *call = (RLGlfwRenderCall *)RL_CALLOC(1, sizeof(RLGlfwRenderCall));
+    if (call == NULL)
+    {
+        RL_DIAG_TASK_POST_FAILED();
+        TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate render call");
+        return;
+    }
     RL_DIAG_RENDERCALL_ALLOC(sizeof(RLGlfwRenderCall));
     RL_DIAG_TASK_POSTED();
     call->ctx = ctx;
     call->fn = fn;
     call->user = user;
+    call->userDtor = userDtor;
 
-    glfwPostTask(platform.renderThread, RLGlfwRenderCallTrampoline, call);
+    if (!RLGlfwPostTaskToThread(platform.renderThread, RLGlfwRenderCallTrampoline, call, taskClass, droppable, RLGlfwDropRenderCall))
+    {
+        RL_DIAG_TASK_POST_FAILED();
+        return;
+    }
     RLGlfwWakeRenderThread();
 }
 
@@ -727,7 +987,7 @@ static inline void RLGlfwQueuePendingDrain(RLContext *ctx, PlatformData *pd)
     if (!RLAtomicCASLong(&pd->pendingQueued, 0, 1)) return;
 
     RLSetCurrentContext(ctx);
-    RLGlfwRunOnRenderThread(ctx, RLGlfwTask_DrainPendingInput, pd);
+    RLGlfwRunOnRenderThread(ctx, RLGlfwTask_DrainPendingInput, pd, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, NULL);
 }
 #endif // RL_EVENTTHREAD_COALESCE_STATE
 
@@ -2313,7 +2573,7 @@ int RLWin32RemoveMessageHookByHandle(void* hwnd, void* token)
 //
 // These are low-level primitives intended for advanced integrations.
 // - Window-thread invoke: runs on the Win32 GUI thread that owns the HWND (safe for Win32 UI ops).
-// - Render-thread invoke: runs on the render thread associated with that window (safe for raylib/GL for that window).
+// - Render-thread invoke: raw thread-affinity invoke on target render thread (does not guarantee frame boundary).
 //
 // NOTE: In non-event-thread mode, render-thread invoke only works when called from the same thread
 //       that currently owns the target OpenGL context.
@@ -2388,6 +2648,9 @@ intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvo
 typedef intptr_t (*RLWindowRenderThreadInvoke)(void* hwnd, void* user);
 #endif
 
+extern void RLDiag_ResetEventThreadDiagCoreOnly(void);
+extern void RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly(void);
+
 
 typedef struct RLRenderUserInvokeCall
 {
@@ -2399,6 +2662,14 @@ typedef struct RLRenderUserInvokeCall
     int autoFree;
 } RLRenderUserInvokeCall;
 
+static void RLGlfwDropRenderInvokeCall(void* user)
+{
+    RLRenderUserInvokeCall* invokeCall = (RLRenderUserInvokeCall*)user;
+    if (!invokeCall) return;
+    if (invokeCall->done) RLEventDestroy(invokeCall->done);
+    RL_FREE(invokeCall);
+}
+
 static void RLGlfwTask_InvokeUserOnRenderThread(void* user)
 {
     RLRenderUserInvokeCall* invokeCall = (RLRenderUserInvokeCall*)user;
@@ -2409,24 +2680,242 @@ static void RLGlfwTask_InvokeUserOnRenderThread(void* user)
         return;
     }
 
-    invokeCall->result = invokeCall->fn(invokeCall->hwnd, invokeCall->user);
+    // Close path guard: once closing starts, reject user invoke callbacks.
+    PlatformData* pd = RLWin32FindPlatformByHwnd((HWND)invokeCall->hwnd);
+    if (pd && (pd->closing || pd->eventThreadStop))
+    {
+        invokeCall->result = (intptr_t)0;
+    }
+    else
+    {
+        invokeCall->result = invokeCall->fn(invokeCall->hwnd, invokeCall->user);
+    }
 
     if (invokeCall->done) RLEventSignal(invokeCall->done);
     if (invokeCall->autoFree) RL_FREE(invokeCall);
 }
 
+static unsigned int RLGlfwFrameCallbackRingIndex(const PlatformData* pd, unsigned int logicalIndex)
+{
+    return (pd->frameCallbackHead + logicalIndex) % RL_FRAME_CALLBACK_QUEUE_CAPACITY;
+}
+
+// Remove one queued frame callback by logical index [0..queuedCount-1].
+static int RLGlfwRemoveFrameCallbackAtLogicalIndexLocked(PlatformData* pd, unsigned int logicalIndex, RLRenderFrameCallbackSlot* removedOut)
+{
+    if (!pd || (pd->frameCallbackQueuedCount == 0u) || (logicalIndex >= pd->frameCallbackQueuedCount)) return 0;
+
+    const unsigned int removedRingIndex = RLGlfwFrameCallbackRingIndex(pd, logicalIndex);
+    RLRenderFrameCallbackSlot removed = pd->frameCallbackRing[removedRingIndex];
+    if (removedOut != NULL) *removedOut = removed;
+
+    for (unsigned int i = logicalIndex; (i + 1u) < pd->frameCallbackQueuedCount; i++)
+    {
+        const unsigned int dstIndex = RLGlfwFrameCallbackRingIndex(pd, i);
+        const unsigned int srcIndex = RLGlfwFrameCallbackRingIndex(pd, i + 1u);
+        pd->frameCallbackRing[dstIndex] = pd->frameCallbackRing[srcIndex];
+    }
+
+    pd->frameCallbackQueuedCount--;
+    pd->frameCallbackTail = RLGlfwFrameCallbackRingIndex(pd, pd->frameCallbackQueuedCount);
+    if (removed.kind == RL_FRAME_CALLBACK_KIND_CRITICAL)
+    {
+        if (pd->frameCallbackCriticalQueuedCount > 0u) pd->frameCallbackCriticalQueuedCount--;
+    }
+
+    return 1;
+}
+
+static int RLGlfwEnqueueFrameCallbackLocked(PlatformData* pd, RLWindowRenderThreadInvoke fn, void* hwnd, void* user, void (*userDtor)(void*), RLFrameCallbackKind kind)
+{
+    if (!pd || !fn) return 0;
+    if ((kind != RL_FRAME_CALLBACK_KIND_NORMAL) && (kind != RL_FRAME_CALLBACK_KIND_CRITICAL)) return 0;
+
+    if (pd->frameCallbackQueuedCount >= RL_FRAME_CALLBACK_QUEUE_CAPACITY)
+    {
+        // Under pressure, preserve critical callbacks by evicting the oldest normal callback.
+        if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL)
+        {
+            int evicted = 0;
+            for (unsigned int i = 0; i < pd->frameCallbackQueuedCount; i++)
+            {
+                const unsigned int ringIndex = RLGlfwFrameCallbackRingIndex(pd, i);
+                if (pd->frameCallbackRing[ringIndex].kind == RL_FRAME_CALLBACK_KIND_NORMAL)
+                {
+                    RLRenderFrameCallbackSlot droppedSlot = { 0 };
+                    if (RLGlfwRemoveFrameCallbackAtLogicalIndexLocked(pd, i, &droppedSlot))
+                    {
+                        if (droppedSlot.userDtor && droppedSlot.user) droppedSlot.userDtor(droppedSlot.user);
+                        pd->frameCallbackDroppedCount++;
+                        pd->frameCallbackDroppedNormalCount++;
+                        pd->frameCallbackEvictedNormalForCriticalCount++;
+                        evicted = 1;
+                    }
+                    break;
+                }
+            }
+            if (!evicted) return 0;
+        }
+        else return 0;
+    }
+
+    pd->frameCallbackRing[pd->frameCallbackTail].fn = fn;
+    pd->frameCallbackRing[pd->frameCallbackTail].hwnd = hwnd;
+    pd->frameCallbackRing[pd->frameCallbackTail].user = user;
+    pd->frameCallbackRing[pd->frameCallbackTail].userDtor = userDtor;
+    pd->frameCallbackRing[pd->frameCallbackTail].kind = (unsigned char)kind;
+    pd->frameCallbackTail = (pd->frameCallbackTail + 1u) % RL_FRAME_CALLBACK_QUEUE_CAPACITY;
+    pd->frameCallbackQueuedCount++;
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackCriticalQueuedCount++;
+    if (pd->frameCallbackQueuedCount > pd->frameCallbackQueuedPeak)
+    {
+        pd->frameCallbackQueuedPeak = pd->frameCallbackQueuedCount;
+    }
+    return 1;
+}
+
+static void RLGlfwClearFrameCallbacksLocked(PlatformData* pd)
+{
+    if (!pd) return;
+
+    for (unsigned int i = 0; i < pd->frameCallbackQueuedCount; i++)
+    {
+        const unsigned int ringIndex = RLGlfwFrameCallbackRingIndex(pd, i);
+        RLRenderFrameCallbackSlot* slot = &pd->frameCallbackRing[ringIndex];
+        if (slot->userDtor && slot->user) slot->userDtor(slot->user);
+        slot->fn = NULL;
+        slot->hwnd = NULL;
+        slot->user = NULL;
+        slot->userDtor = NULL;
+        slot->kind = RL_FRAME_CALLBACK_KIND_NORMAL;
+    }
+
+    pd->frameCallbackHead = 0u;
+    pd->frameCallbackTail = 0u;
+    pd->frameCallbackQueuedCount = 0;
+    pd->frameCallbackCriticalQueuedCount = 0u;
+}
+
+static void RLGlfwUpdateViewportForRenderSizeIfChanged(int previousRenderWidth, int previousRenderHeight)
+{
+    if ((CORE.Window.render.width <= 0) || (CORE.Window.render.height <= 0)) return;
+    if ((CORE.Window.render.width == previousRenderWidth) && (CORE.Window.render.height == previousRenderHeight)) return;
+
+    SetupViewport(CORE.Window.render.width, CORE.Window.render.height);
+    CORE.Window.resizedLastFrame = true;
+}
+
+// Runs on the current render thread and executes pending frame-safe callbacks for current context window.
+static void RLGlfwDrainFrameCallbacksCurrentContext(void)
+{
+    RLContext* currentCtx = RLGetCurrentContext();
+    if (!currentCtx || !currentCtx->platformData) return;
+
+    PlatformData* pd = (PlatformData*)currentCtx->platformData;
+    if (!pd || !pd->win32Hwnd) return;
+
+    unsigned int callbacksExecuted = 0u;
+    unsigned int callbacksCriticalExecuted = 0u;
+    unsigned int callbacksCriticalTarget = 0u;
+    RLGlfwGlobalLock();
+    callbacksCriticalTarget = pd->frameCallbackCriticalQueuedCount;
+    if (callbacksCriticalTarget > RL_FRAME_CALLBACKS_CRITICAL_MIN_PER_FRAME)
+    {
+        callbacksCriticalTarget = RL_FRAME_CALLBACKS_CRITICAL_MIN_PER_FRAME;
+    }
+    RLGlfwGlobalUnlock();
+
+    while (callbacksExecuted < RL_FRAME_CALLBACKS_PER_FRAME_LIMIT)
+    {
+        RLRenderFrameCallbackSlot callbackSlot = { 0 };
+        int hasCallback = 0;
+        const int requireCritical = (callbacksCriticalExecuted < callbacksCriticalTarget)? 1 : 0;
+
+        RLGlfwGlobalLock();
+        if (pd->frameCallbackQueuedCount > 0u)
+        {
+            if (requireCritical && (pd->frameCallbackCriticalQueuedCount > 0u))
+            {
+                for (unsigned int i = 0; i < pd->frameCallbackQueuedCount; i++)
+                {
+                    const unsigned int ringIndex = RLGlfwFrameCallbackRingIndex(pd, i);
+                    if (pd->frameCallbackRing[ringIndex].kind != RL_FRAME_CALLBACK_KIND_CRITICAL) continue;
+                    hasCallback = RLGlfwRemoveFrameCallbackAtLogicalIndexLocked(pd, i, &callbackSlot);
+                    break;
+                }
+            }
+            else
+            {
+                hasCallback = RLGlfwRemoveFrameCallbackAtLogicalIndexLocked(pd, 0u, &callbackSlot);
+            }
+        }
+        RLGlfwGlobalUnlock();
+
+        if (!hasCallback) break;
+        callbacksExecuted++;
+        if (callbackSlot.kind == RL_FRAME_CALLBACK_KIND_CRITICAL) callbacksCriticalExecuted++;
+
+        if (!pd->closing && !pd->eventThreadStop && callbackSlot.fn)
+        {
+            callbackSlot.fn(callbackSlot.hwnd, callbackSlot.user);
+        }
+    }
+}
+
+static intptr_t RLGlfwInvokeRenderThreadFail(const char* reason, void* hwnd, int wait)
+{
+    TRACELOG(RL_E_LOG_WARNING,
+             "EVENTTHREAD: RLInvokeOnWindowRenderThreadByHandle failed: %s (hwnd=%p wait=%d)",
+             reason ? reason : "(unknown)", hwnd, wait);
+    return (intptr_t)0;
+}
+
+static int RLGlfwPostFrameCallbackFail(const char* reason, void* hwnd)
+{
+    TRACELOG(RL_E_LOG_WARNING,
+             "EVENTTHREAD: RLPostWindowFrameCallbackByHandle failed: %s (hwnd=%p)",
+             reason ? reason : "(unknown)", hwnd);
+    return 0;
+}
+
+static int RLGlfwPostFrameCallbackFailOwned(const char* reason, void* hwnd, void* user, void (*userDtor)(void*))
+{
+    if (userDtor && user) userDtor(user);
+    return RLGlfwPostFrameCallbackFail(reason, hwnd);
+}
+
+static int RLGlfwDeletePendingSharedGpuResourcesByHandleFail(const char* reason, void* hwnd, int wait)
+{
+    TRACELOG(RL_E_LOG_WARNING,
+             "SHARED_GPU: RLDeletePendingSharedGpuResourcesByHandle failed: %s (hwnd=%p wait=%d)",
+             reason ? reason : "(unknown)", hwnd, wait);
+    return 0;
+}
+
+static intptr_t RLGlfwInvoke_DeletePendingSharedGpuResourcesOnRenderThread(void* hwnd, void* user)
+{
+    (void)hwnd;
+    (void)user;
+    return RLDeletePendingSharedGpuResources() ? (intptr_t)1 : (intptr_t)0;
+}
+
 intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait)
 {
-    if (!hwnd || !fn) return (intptr_t)0;
+    if (!hwnd) return RLGlfwInvokeRenderThreadFail("invalid hwnd", hwnd, wait);
+    if (!fn) return RLGlfwInvokeRenderThreadFail("invalid callback", hwnd, wait);
 
     HWND hNativeWindowHandle = (HWND)hwnd;
     PlatformData* pd = RLWin32FindPlatformByHwnd(hNativeWindowHandle);
-    if (!pd || !pd->ownerCtx) return (intptr_t)0;
+    if (!pd || !pd->ownerCtx) return RLGlfwInvokeRenderThreadFail("unknown window or missing owner context", hwnd, wait);
+    if (pd->closing || pd->eventThreadStop) return RLGlfwInvokeRenderThreadFail("window is closing/stopped", hwnd, wait);
 
     // Non-event-thread mode: only safe from the thread that currently owns this GL context.
     if (!pd->useEventThread)
     {
-        if (glfwGetCurrentContext() != pd->handle) return (intptr_t)0;
+        if (glfwGetCurrentContext() != pd->handle)
+        {
+            return RLGlfwInvokeRenderThreadFail("non-event-thread mode requires current context ownership", hwnd, wait);
+        }
 
         RLContext* prev = RLGetCurrentContext();
         if (prev != pd->ownerCtx) RLSetCurrentContext(pd->ownerCtx);
@@ -2435,10 +2924,27 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
         return r;
     }
 
-    if (!pd->renderThread || !pd->renderWakeEvent) return (intptr_t)0;
+    // Event-thread mode fast path: already on target render thread.
+    if (pd->renderThread && RLGlfwIsThread(pd->renderThread))
+    {
+        RLContext* prev = RLGetCurrentContext();
+        if (prev != pd->ownerCtx) RLSetCurrentContext(pd->ownerCtx);
+        const intptr_t r = fn(hwnd, user);
+        if (prev != pd->ownerCtx) RLSetCurrentContext(prev);
+        return r;
+    }
+
+    if (!pd->renderThread || !pd->renderWakeEvent)
+    {
+        return RLGlfwInvokeRenderThreadFail("render-thread/wake-event unavailable", hwnd, wait);
+    }
 
     RLRenderUserInvokeCall* invokeCall = (RLRenderUserInvokeCall*)RL_CALLOC(1, sizeof(RLRenderUserInvokeCall));
-    if (!invokeCall) return (intptr_t)0;
+    if (!invokeCall)
+    {
+        RL_DIAG_TASK_POST_FAILED();
+        return RLGlfwInvokeRenderThreadFail("OOM: invoke call allocation failed", hwnd, wait);
+    }
 
     invokeCall->fn = fn;
     invokeCall->hwnd = hwnd;
@@ -2450,9 +2956,10 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
 
     if (!renderCall)
     {
+        RL_DIAG_TASK_POST_FAILED();
         if (invokeCall->done) RLEventDestroy(invokeCall->done);
         RL_FREE(invokeCall);
-        return (intptr_t)0;
+        return RLGlfwInvokeRenderThreadFail("OOM: render call allocation failed", hwnd, wait);
     }
 
     RL_DIAG_RENDERCALL_ALLOC(sizeof(RLGlfwRenderCall));
@@ -2461,8 +2968,13 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
     renderCall->ctx = pd->ownerCtx;
     renderCall->fn = RLGlfwTask_InvokeUserOnRenderThread;
     renderCall->user = invokeCall;
+    renderCall->userDtor = RLGlfwDropRenderInvokeCall;
 
-    glfwPostTask(pd->renderThread, RLGlfwRenderCallTrampoline, renderCall);
+    if (!RLGlfwPostTaskToThread(pd->renderThread, RLGlfwRenderCallTrampoline, renderCall, (unsigned char)GLFW_THREAD_TASK_CLASS_CRITICAL, false, RLGlfwDropRenderCall))
+    {
+        RL_DIAG_TASK_POST_FAILED();
+        return RLGlfwInvokeRenderThreadFail("failed to enqueue invoke on render thread", hwnd, wait);
+    }
     RLGlfwSignalOneRenderWake(pd);
 
     if (wait)
@@ -2475,6 +2987,128 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
     }
 
     return (intptr_t)1;
+}
+
+int RLPostWindowFrameCallbackByHandleEx2(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, RLFrameCallbackKind kind, void (*userDtor)(void*))
+{
+    if (!hwnd) return RLGlfwPostFrameCallbackFailOwned("invalid hwnd", hwnd, user, userDtor);
+    if (!fn) return RLGlfwPostFrameCallbackFailOwned("invalid callback", hwnd, user, userDtor);
+    if ((kind != RL_FRAME_CALLBACK_KIND_NORMAL) && (kind != RL_FRAME_CALLBACK_KIND_CRITICAL))
+    {
+        return RLGlfwPostFrameCallbackFailOwned("invalid callback kind", hwnd, user, userDtor);
+    }
+
+    HWND hNativeWindowHandle = (HWND)hwnd;
+    PlatformData* pd = RLWin32FindPlatformByHwnd(hNativeWindowHandle);
+    if (!pd || !pd->ownerCtx) return RLGlfwPostFrameCallbackFailOwned("unknown window or missing owner context", hwnd, user, userDtor);
+    if (pd->closing || pd->eventThreadStop) return RLGlfwPostFrameCallbackFailOwned("window is closing/stopped", hwnd, user, userDtor);
+
+    // Current implementation guarantees frame-boundary execution only in event-thread mode.
+    if (!pd->useEventThread || !pd->renderThread || !pd->renderWakeEvent)
+    {
+        return RLGlfwPostFrameCallbackFailOwned("requires event-thread mode with render-thread/wake-event", hwnd, user, userDtor);
+    }
+
+    RLGlfwGlobalLock();
+    if (pd->closing || pd->eventThreadStop)
+    {
+        RLGlfwGlobalUnlock();
+        return RLGlfwPostFrameCallbackFailOwned("window became closing/stopped during enqueue", hwnd, user, userDtor);
+    }
+
+    if (!RLGlfwEnqueueFrameCallbackLocked(pd, fn, hwnd, user, userDtor, kind))
+    {
+        pd->frameCallbackDroppedCount++;
+        if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackDroppedCriticalCount++;
+        else pd->frameCallbackDroppedNormalCount++;
+        RLGlfwGlobalUnlock();
+        RL_DIAG_TASK_POST_FAILED();
+        return RLGlfwPostFrameCallbackFailOwned("frame callback queue full", hwnd, user, userDtor);
+    }
+    RLGlfwGlobalUnlock();
+
+    RLGlfwSignalOneRenderWake(pd);
+    return 1;
+}
+
+int RLPostWindowFrameCallbackByHandleEx(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, RLFrameCallbackKind kind)
+{
+    return RLPostWindowFrameCallbackByHandleEx2(hwnd, fn, user, kind, NULL);
+}
+
+int RLPostWindowFrameCallbackByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user)
+{
+    return RLPostWindowFrameCallbackByHandleEx(hwnd, fn, user, RL_FRAME_CALLBACK_KIND_NORMAL);
+}
+
+int RLDeletePendingSharedGpuResourcesByHandle(void* hwnd, int wait)
+{
+    if (!hwnd) return RLGlfwDeletePendingSharedGpuResourcesByHandleFail("invalid hwnd", hwnd, wait);
+
+    const intptr_t ok = RLInvokeOnWindowRenderThreadByHandle(
+        hwnd, RLGlfwInvoke_DeletePendingSharedGpuResourcesOnRenderThread, NULL, wait);
+    if (ok == 0)
+    {
+        return RLGlfwDeletePendingSharedGpuResourcesByHandleFail(
+            "render-thread invoke rejected or target unavailable", hwnd, wait);
+    }
+
+    return 1;
+}
+
+int RLGetCurrentContextFrameCallbackQueueStats(unsigned int *queued, unsigned int *queuedCritical, unsigned int *queuedPeak,
+                                               unsigned long long *dropped, unsigned long long *droppedNormal,
+                                               unsigned long long *droppedCritical, unsigned long long *evictedNormalForCritical)
+{
+    RLContext* currentCtx = RLGetCurrentContext();
+    if (!currentCtx || !currentCtx->platformData) return 0;
+
+    PlatformData* pd = (PlatformData*)currentCtx->platformData;
+    if (!pd || !pd->win32Hwnd) return 0;
+
+    RLGlfwGlobalLock();
+    if (queued != NULL) *queued = pd->frameCallbackQueuedCount;
+    if (queuedCritical != NULL) *queuedCritical = pd->frameCallbackCriticalQueuedCount;
+    if (queuedPeak != NULL) *queuedPeak = pd->frameCallbackQueuedPeak;
+    if (dropped != NULL) *dropped = pd->frameCallbackDroppedCount;
+    if (droppedNormal != NULL) *droppedNormal = pd->frameCallbackDroppedNormalCount;
+    if (droppedCritical != NULL) *droppedCritical = pd->frameCallbackDroppedCriticalCount;
+    if (evictedNormalForCritical != NULL) *evictedNormalForCritical = pd->frameCallbackEvictedNormalForCriticalCount;
+    RLGlfwGlobalUnlock();
+    return 1;
+}
+
+void RLResetCurrentContextFrameCallbackQueueStats(void)
+{
+    RLContext* currentCtx = RLGetCurrentContext();
+    if (!currentCtx || !currentCtx->platformData) return;
+
+    PlatformData* pd = (PlatformData*)currentCtx->platformData;
+    if (!pd || !pd->win32Hwnd) return;
+
+    RLGlfwGlobalLock();
+    pd->frameCallbackQueuedPeak = pd->frameCallbackQueuedCount;
+    pd->frameCallbackDroppedCount = 0;
+    pd->frameCallbackDroppedNormalCount = 0;
+    pd->frameCallbackDroppedCriticalCount = 0;
+    pd->frameCallbackEvictedNormalForCriticalCount = 0;
+    RLGlfwGlobalUnlock();
+}
+
+static intptr_t RLGlfwInvoke_ResetNativeDiagStatsOnRenderThread(void* hwnd, void* user)
+{
+    (void)hwnd;
+    (void)user;
+    RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly();
+    return (intptr_t)1;
+}
+
+int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait)
+{
+    if (hwnd == NULL) return 0;
+
+    RLDiag_ResetEventThreadDiagCoreOnly();
+    return (RLInvokeOnWindowRenderThreadByHandle(hwnd, RLGlfwInvoke_ResetNativeDiagStatsOnRenderThread, NULL, wait) != 0)? 1 : 0;
 }
 #endif
 
@@ -3420,6 +4054,18 @@ int InitPlatform(void)
 #if defined(_WIN32)
     if (platform.useEventThread)
     {
+        // Enforce one-window-per-render-thread in event-thread mode.
+        // This avoids undefined behavior from same-thread multi-window creation.
+        if (RLGlfwHasAnotherWindowOnRenderThread(platform.renderThread, &platform))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: event-thread mode rejects multiple windows on the same render thread; create each window on a different thread");
+            RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
+            RLGlfwGlobalUnlock();
+            holdGlobalLock = false;
+            return -1;
+        }
+
         // Create the window on the event thread (Win32 message thread).
         // We must release the global lock here to avoid deadlocks.
         RLGlfwGlobalUnlock();
@@ -3669,26 +4315,38 @@ _rlglfw_window_created:
 
         if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI))
         {
-            // NOTE: On APPLE platforms system should manage window/input scaling and also framebuffer scaling
-            // Framebuffer scaling is activated with: glfwWindowHint(GLFW_SCALE_FRAMEBUFFER, GLFW_TRUE);
-
-            // Get current framebuffer size, on high-dpi it could be bigger than screen size
-            glfwGetFramebufferSize(platform.handle, &fbWidth, &fbHeight);
-
-            // Screen scaling matrix is required in case desired screen area is different from display area
-            CORE.Window.screenScale = RLMatrixScale((float)fbWidth/CORE.Window.screen.width, (float)fbHeight/CORE.Window.screen.height, 1.0f);
+            // Keep initialization behavior aligned with FramebufferSizeCallback/DrainPendingInput
+            // so input mapping remains stable across monitor DPI changes.
+            RLVector2 scaleDpi = RLGetWindowScaleDPI();
+            if ((scaleDpi.x > 0.0f) && (scaleDpi.y > 0.0f))
+            {
+                CORE.Window.screenScale = RLMatrixScale(scaleDpi.x, scaleDpi.y, 1.0f);
+                fbWidth = (int)((float)CORE.Window.screen.width*scaleDpi.x);
+                fbHeight = (int)((float)CORE.Window.screen.height*scaleDpi.y);
 #if !defined(__APPLE__)
-            // Mouse input scaling for the new screen size
-            RLSetMouseScale((float)CORE.Window.screen.width/fbWidth, (float)CORE.Window.screen.height/fbHeight);
+                RLSetMouseScale(1.0f/scaleDpi.x, 1.0f/scaleDpi.y);
 #endif
+            }
+            else
+            {
+                // Fallback for unexpected zero/invalid content scale values.
+                glfwGetFramebufferSize(platform.handle, &fbWidth, &fbHeight);
+                CORE.Window.screenScale = RLMatrixScale((float)fbWidth/CORE.Window.screen.width, (float)fbHeight/CORE.Window.screen.height, 1.0f);
+#if !defined(__APPLE__)
+                RLSetMouseScale((float)CORE.Window.screen.width/fbWidth, (float)CORE.Window.screen.height/fbHeight);
+#endif
+            }
         }
 
+        // Keep initial render/currentFbo dimensions aligned with actual framebuffer size.
+        // This avoids first-frame projection/viewport mismatches in HighDPI setups.
         CORE.Window.render.width = fbWidth;
         CORE.Window.render.height = fbHeight;
         CORE.Window.currentFbo.width = fbWidth;
         CORE.Window.currentFbo.height = fbHeight;
 
-        TRACELOG(RL_E_LOG_INFO, "DISPLAY: Device initialized successfully");
+        TRACELOG(RL_E_LOG_INFO, "DISPLAY: Device initialized successfully %s", 
+            FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI)? "(HighDPI)" : "");
         TRACELOG(RL_E_LOG_INFO, "    > Display size: %i x %i", CORE.Window.display.width, CORE.Window.display.height);
         TRACELOG(RL_E_LOG_INFO, "    > Screen size:  %i x %i", CORE.Window.screen.width, CORE.Window.screen.height);
         TRACELOG(RL_E_LOG_INFO, "    > Render size:  %i x %i", CORE.Window.render.width, CORE.Window.render.height);
@@ -3885,6 +4543,9 @@ void ClosePlatform(void)
         // Drain any pending render-thread tasks that were posted before the event thread stopped.
         // This prevents tasks from touching CORE/ctx after they are freed by higher-level teardown.
         RLGlfwDrainRenderThreadTasks();
+        RLGlfwGlobalLock();
+        RLGlfwClearFrameCallbacksLocked(&platform);
+        RLGlfwGlobalUnlock();
 
         // Remove from the broadcast registry *before* destroying the wake events.
         // Otherwise another thread broadcasting a wake during shutdown could touch freed handles.
@@ -3892,10 +4553,10 @@ void ClosePlatform(void)
         RLEvent *wakeEvt = platform.renderWakeEvent;
         platform.createdEvent = NULL;
         platform.renderWakeEvent = NULL;
-        platform.eventThread = NULL;
-        platform.renderThread = NULL;
 
         RLGlfwPlatformUnregister(&platform);
+        platform.eventThread = NULL;
+        platform.renderThread = NULL;
 
         // Update global primary/window-count tracking after teardown.
         RLGlfwTrackWindowDestroyed(closingWindow, false);
@@ -3921,6 +4582,7 @@ void ClosePlatform(void)
     // Non event-thread path: serialize window destruction against other threads polling events
     // (glfwPollEvents/glfwWaitEvents are global and can race with glfwDestroyWindow).
     RLGlfwGlobalLock();
+    RLGlfwClearFrameCallbacksLocked(&platform);
 
     if (platform.handle)
     {
@@ -4048,10 +4710,15 @@ static void FramebufferSizeCallback(GLFWwindow *window, int width, int height)
             return;
 #else
             RLSetCurrentContext(ctx);
-            RLGlfwSizeI2 *e = (RLGlfwSizeI2 *)RL_MALLOC(sizeof(RLGlfwSizeI2));
+            RLGlfwSizeI2 *framebufferSizeEvent = (RLGlfwSizeI2 *)RL_MALLOC(sizeof(RLGlfwSizeI2));
+            if (framebufferSizeEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate framebuffer-size payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_FBSIZE, sizeof(RLGlfwSizeI2));
-            e->w = width; e->h = height;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_FramebufferSize, e);
+            framebufferSizeEvent->w = width; framebufferSizeEvent->h = height;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_FramebufferSize, framebufferSizeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
             return;
 #endif
         }
@@ -4135,10 +4802,15 @@ static void WindowContentScaleCallback(GLFWwindow *window, float scalex, float s
             return;
 #else
             RLSetCurrentContext(ctx);
-            RLGlfwWindowScaleEvent *e = (RLGlfwWindowScaleEvent *)RL_MALLOC(sizeof(RLGlfwWindowScaleEvent));
+            RLGlfwWindowScaleEvent *scaleEvent = (RLGlfwWindowScaleEvent *)RL_MALLOC(sizeof(RLGlfwWindowScaleEvent));
+            if (scaleEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate content-scale payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_SCALE, sizeof(RLGlfwWindowScaleEvent));
-            e->sx = scalex; e->sy = scaley;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowContentScale, e);
+            scaleEvent->sx = scalex; scaleEvent->sy = scaley;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowContentScale, scaleEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
             return;
 #endif
         }
@@ -4161,9 +4833,12 @@ static void WindowContentScaleCallback(GLFWwindow *window, float scalex, float s
     RLSetMouseScale(1.0f/scalex, 1.0f/scaley);
 #endif
 
+    const int previousRenderWidth = CORE.Window.render.width;
+    const int previousRenderHeight = CORE.Window.render.height;
     CORE.Window.render.width = (int)fbWidth;
     CORE.Window.render.height = (int)fbHeight;
     CORE.Window.currentFbo = CORE.Window.render;
+    RLGlfwUpdateViewportForRenderSizeIfChanged(previousRenderWidth, previousRenderHeight);
 }
 
 // GLFW3: Window position callback, runs when window position changes
@@ -4185,10 +4860,15 @@ static void WindowPosCallback(GLFWwindow *window, int x, int y)
             return;
 #else
             RLSetCurrentContext(ctx);
-            RLGlfwPosI2 *e = (RLGlfwPosI2 *)RL_MALLOC(sizeof(RLGlfwPosI2));
+            RLGlfwPosI2 *windowPosEvent = (RLGlfwPosI2 *)RL_MALLOC(sizeof(RLGlfwPosI2));
+            if (windowPosEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate window-pos payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_WINPOS, sizeof(RLGlfwPosI2));
-            e->x = x; e->y = y;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowPos, e);
+            windowPosEvent->x = x; windowPosEvent->y = y;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowPos, windowPosEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
             return;
 #endif
         }
@@ -4211,12 +4891,25 @@ static void WindowIconifyCallback(GLFWwindow *window, int iconified)
         if ((pd != NULL) && pd->useEventThread)
         {
             if (pd->closing) return;
+#if RL_EVENTTHREAD_COALESCE_STATE
             RLSetCurrentContext(ctx);
-            RLGlfwWindowIconifyEvent *e = (RLGlfwWindowIconifyEvent *)RL_MALLOC(sizeof(RLGlfwWindowIconifyEvent));
-            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowIconifyEvent));
-            e->iconified = iconified;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowIconify, e);
+            RLAtomicExchangeLong(&pd->pendingIconified, (long)iconified);
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_ICONIFY);
+            RLGlfwQueuePendingDrain(ctx, pd);
             return;
+#else
+            RLSetCurrentContext(ctx);
+            RLGlfwWindowIconifyEvent *iconifyEvent = (RLGlfwWindowIconifyEvent *)RL_MALLOC(sizeof(RLGlfwWindowIconifyEvent));
+            if (iconifyEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate iconify payload");
+                return;
+            }
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowIconifyEvent));
+            iconifyEvent->iconified = iconified;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowIconify, iconifyEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
+            return;
+#endif
         }
     }
 #endif
@@ -4236,12 +4929,25 @@ static void WindowMaximizeCallback(GLFWwindow *window, int maximized)
         if ((pd != NULL) && pd->useEventThread)
         {
             if (pd->closing) return;
+#if RL_EVENTTHREAD_COALESCE_STATE
             RLSetCurrentContext(ctx);
-            RLGlfwWindowMaximizeEvent *e = (RLGlfwWindowMaximizeEvent *)RL_MALLOC(sizeof(RLGlfwWindowMaximizeEvent));
-            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowMaximizeEvent));
-            e->maximized = maximized;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowMaximize, e);
+            RLAtomicExchangeLong(&pd->pendingMaximized, (long)maximized);
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_MAXIMIZE);
+            RLGlfwQueuePendingDrain(ctx, pd);
             return;
+#else
+            RLSetCurrentContext(ctx);
+            RLGlfwWindowMaximizeEvent *maximizeEvent = (RLGlfwWindowMaximizeEvent *)RL_MALLOC(sizeof(RLGlfwWindowMaximizeEvent));
+            if (maximizeEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate maximize payload");
+                return;
+            }
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowMaximizeEvent));
+            maximizeEvent->maximized = maximized;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowMaximize, maximizeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
+            return;
+#endif
         }
     }
 #endif
@@ -4301,9 +5007,16 @@ static void WindowRefreshCallback(GLFWwindow *window)
                 RLGlfwSignalWakeByPolicy(pd, true);
                 return;
             }
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowRefresh, NULL);
+#if RL_EVENTTHREAD_COALESCE_STATE
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_REFRESH);
+            RLGlfwQueuePendingDrain(ctx, pd);
             RLGlfwSignalWakeByPolicy(pd, false);
             return;
+#else
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowRefresh, NULL, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, NULL);
+            RLGlfwSignalWakeByPolicy(pd, false);
+            return;
+#endif
         }
     }
 #endif
@@ -4333,10 +5046,17 @@ static void WindowCloseCallback(GLFWwindow *window)
             }
             // Mirror GLFW close intent immediately on the window thread.
             glfwSetWindowShouldClose(window, GLFW_TRUE);
-            RLGlfwWindowCloseEvent *e = (RLGlfwWindowCloseEvent *)RL_MALLOC(sizeof(RLGlfwWindowCloseEvent));
+            RLGlfwWindowCloseEvent *closeEvent = (RLGlfwWindowCloseEvent *)RL_MALLOC(sizeof(RLGlfwWindowCloseEvent));
+            if (closeEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate window-close payload");
+                CORE.Window.shouldClose = true;
+                RLGlfwSignalWakeByPolicy(pd, true);
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_WINCLOSE, sizeof(RLGlfwWindowCloseEvent));
-            e->shouldClose = 1;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowClose, e);
+            closeEvent->shouldClose = 1;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowClose, closeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_CRITICAL, false, RLGlfwFreeTaskUser);
             RLGlfwSignalWakeByPolicy(pd, true);
             return;
         }
@@ -4372,12 +5092,25 @@ static void WindowFocusCallback(GLFWwindow *window, int focused)
         if ((pd != NULL) && pd->useEventThread)
         {
             if (pd->closing) return;
+#if RL_EVENTTHREAD_COALESCE_STATE
             RLSetCurrentContext(ctx);
-            RLGlfwWindowFocusEvent *e = (RLGlfwWindowFocusEvent *)RL_MALLOC(sizeof(RLGlfwWindowFocusEvent));
-            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowFocusEvent));
-            e->focused = focused;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowFocus, e);
+            RLAtomicExchangeLong(&pd->pendingFocused, (long)focused);
+            RLAtomicOrLong(&pd->pendingMask, RL_PENDING_FOCUS);
+            RLGlfwQueuePendingDrain(ctx, pd);
             return;
+#else
+            RLSetCurrentContext(ctx);
+            RLGlfwWindowFocusEvent *focusEvent = (RLGlfwWindowFocusEvent *)RL_MALLOC(sizeof(RLGlfwWindowFocusEvent));
+            if (focusEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate focus payload");
+                return;
+            }
+            RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowFocusEvent));
+            focusEvent->focused = focused;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowFocus, focusEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
+            return;
+#endif
         }
     }
 #endif
@@ -4398,21 +5131,42 @@ static void WindowDropCallback(GLFWwindow *window, int count, const char **paths
         {
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
-            RLGlfwDropEvent *e = (RLGlfwDropEvent *)RL_MALLOC(sizeof(RLGlfwDropEvent));
+            RLGlfwDropEvent *dropEvent = (RLGlfwDropEvent *)RL_MALLOC_TAG("glfw:WindowDropCallback.dropEvent", sizeof(RLGlfwDropEvent));
+            if (dropEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate drop payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_DROP, sizeof(RLGlfwDropEvent));
-            e->count = count;
-            e->paths = NULL;
+            dropEvent->count = count;
+            dropEvent->paths = NULL;
             if (count > 0)
             {
-                e->paths = (char **)RL_CALLOC((size_t)count, sizeof(char *));
+                dropEvent->paths = (char **)RL_CALLOC_TAG("glfw:WindowDropCallback.paths", (size_t)count, sizeof(char *));
+                if (dropEvent->paths == NULL)
+                {
+                    TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate drop path list");
+                    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_DROP, sizeof(RLGlfwDropEvent));
+                    RL_FREE(dropEvent);
+                    return;
+                }
                 for (int i = 0; i < count; i++)
                 {
                     size_t n = strlen(paths[i]);
-                    e->paths[i] = (char *)RL_MALLOC(n + 1);
-                    memcpy(e->paths[i], paths[i], n + 1);
+                    dropEvent->paths[i] = (char *)RL_MALLOC_TAG("glfw:WindowDropCallback.pathEntry", n + 1);
+                    if (dropEvent->paths[i] == NULL)
+                    {
+                        TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate drop path entry");
+                        for (int j = 0; j < i; j++) RL_FREE(dropEvent->paths[j]);
+                        RL_FREE(dropEvent->paths);
+                        RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_DROP, sizeof(RLGlfwDropEvent));
+                        RL_FREE(dropEvent);
+                        return;
+                    }
+                    memcpy(dropEvent->paths[i], paths[i], n + 1);
                 }
             }
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Drop, e);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Drop, dropEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RLGlfwFreeTaskUser);
             return;
         }
     }
@@ -4455,7 +5209,12 @@ static void KeyCallback(GLFWwindow *window, int key, int scancode, int action, i
         {
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
-            RLGlfwKeyEvent *e = (RLGlfwKeyEvent *)RL_MALLOC(sizeof(RLGlfwKeyEvent));
+            RLGlfwKeyEvent *keyEvent = (RLGlfwKeyEvent *)RL_MALLOC_TAG("glfw:KeyCallback.keyEvent", sizeof(RLGlfwKeyEvent));
+            if (keyEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate key payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_KEY, sizeof(RLGlfwKeyEvent));
             // NOTE: GLFW LockKeyMods does not include lock state in `mods`, so query it here on the
             // owning (message) thread and forward the combined value to the render thread.
@@ -4463,11 +5222,11 @@ static void KeyCallback(GLFWwindow *window, int key, int scancode, int action, i
             if (glfwGetKey(window, GLFW_KEY_CAPS_LOCK) == GLFW_PRESS) combinedMods |= GLFW_MOD_CAPS_LOCK;
             if (glfwGetKey(window, GLFW_KEY_NUM_LOCK) == GLFW_PRESS) combinedMods |= GLFW_MOD_NUM_LOCK;
 
-            e->key = key;
-            e->scancode = scancode;
-            e->action = action;
-            e->mods = combinedMods;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Key, e);
+            keyEvent->key = key;
+            keyEvent->scancode = scancode;
+            keyEvent->action = action;
+            keyEvent->mods = combinedMods;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Key, keyEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RLGlfwFreeTaskUser);
             return;
         }
     }
@@ -4509,10 +5268,15 @@ static void CharCallback(GLFWwindow *window, unsigned int codepoint)
         {
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
-            RLGlfwCharEvent *e = (RLGlfwCharEvent *)RL_MALLOC(sizeof(RLGlfwCharEvent));
+            RLGlfwCharEvent *charEvent = (RLGlfwCharEvent *)RL_MALLOC(sizeof(RLGlfwCharEvent));
+            if (charEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate char payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_CHAR, sizeof(RLGlfwCharEvent));
-            e->codepoint = codepoint;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Char, e);
+            charEvent->codepoint = codepoint;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Char, charEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RLGlfwFreeTaskUser);
             return;
         }
     }
@@ -4544,10 +5308,15 @@ static void MouseButtonCallback(GLFWwindow *window, int button, int action, int 
         {
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
-            RLGlfwMouseButtonEvent *e = (RLGlfwMouseButtonEvent *)RL_MALLOC(sizeof(RLGlfwMouseButtonEvent));
+            RLGlfwMouseButtonEvent *mouseButtonEvent = (RLGlfwMouseButtonEvent *)RL_MALLOC(sizeof(RLGlfwMouseButtonEvent));
+            if (mouseButtonEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate mouse-button payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEBUTTON, sizeof(RLGlfwMouseButtonEvent));
-            e->button = button; e->action = action; e->mods = mods;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseButton, e);
+            mouseButtonEvent->button = button; mouseButtonEvent->action = action; mouseButtonEvent->mods = mods;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseButton, mouseButtonEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RLGlfwFreeTaskUser);
             return;
         }
     }
@@ -4607,10 +5376,15 @@ static void MouseCursorPosCallback(GLFWwindow *window, double x, double y)
             return;
 #else
             RLSetCurrentContext(ctx);
-            RLGlfwMouseMoveEvent *e = (RLGlfwMouseMoveEvent *)RL_MALLOC(sizeof(RLGlfwMouseMoveEvent));
+            RLGlfwMouseMoveEvent *mouseMoveEvent = (RLGlfwMouseMoveEvent *)RL_MALLOC(sizeof(RLGlfwMouseMoveEvent));
+            if (mouseMoveEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate mouse-move payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEMOVE, sizeof(RLGlfwMouseMoveEvent));
-            e->xpos = x; e->ypos = y;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseMove, e);
+            mouseMoveEvent->xpos = x; mouseMoveEvent->ypos = y;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseMove, mouseMoveEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
             return;
 #endif
         }
@@ -4666,11 +5440,16 @@ static void MouseScrollCallback(GLFWwindow *window, double xoffset, double yoffs
             return;
 #else
             RLSetCurrentContext(ctx);
-            RLGlfwMouseWheelEvent *e = (RLGlfwMouseWheelEvent *)RL_MALLOC(sizeof(RLGlfwMouseWheelEvent));
+            RLGlfwMouseWheelEvent *mouseWheelEvent = (RLGlfwMouseWheelEvent *)RL_MALLOC(sizeof(RLGlfwMouseWheelEvent));
+            if (mouseWheelEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate mouse-wheel payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEWHEEL, sizeof(RLGlfwMouseWheelEvent));
-            e->xoffset = xoffset;
-            e->yoffset = yoffset;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseWheel, e);
+            mouseWheelEvent->xoffset = xoffset;
+            mouseWheelEvent->yoffset = yoffset;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseWheel, mouseWheelEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
             return;
 #endif
         }
@@ -4693,10 +5472,15 @@ static void CursorEnterCallback(GLFWwindow *window, int enter)
         {
             if (pd->closing) return;
             RLSetCurrentContext(ctx);
-            RLGlfwCursorEnterEvent *e = (RLGlfwCursorEnterEvent *)RL_MALLOC(sizeof(RLGlfwCursorEnterEvent));
+            RLGlfwCursorEnterEvent *cursorEnterEvent = (RLGlfwCursorEnterEvent *)RL_MALLOC(sizeof(RLGlfwCursorEnterEvent));
+            if (cursorEnterEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate cursor-enter payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwCursorEnterEvent));
-            e->entered = enter;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_CursorEnter, e);
+            cursorEnterEvent->entered = enter;
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_CursorEnter, cursorEnterEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
             return;
         }
     }
@@ -4720,21 +5504,33 @@ static void JoystickCallback(int jid, int event)
         RLContext *ctx = ctx0;
         if (ctx != NULL)
         {
-            RLGlfwJoystickEvent *e = (RLGlfwJoystickEvent *)RL_MALLOC(sizeof(RLGlfwJoystickEvent));
+            RLGlfwJoystickEvent *joystickEvent = (RLGlfwJoystickEvent *)RL_MALLOC(sizeof(RLGlfwJoystickEvent));
+            if (joystickEvent == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate joystick payload");
+                return;
+            }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwJoystickEvent));
-            memset(e, 0, sizeof(RLGlfwJoystickEvent));
-            e->jid = jid;
-            e->event = event;
+            memset(joystickEvent, 0, sizeof(RLGlfwJoystickEvent));
+            joystickEvent->jid = jid;
+            joystickEvent->event = event;
 
             const char *name = glfwGetJoystickName(jid);
             if (name != NULL)
             {
-                e->name = (char *)RL_MALLOC(MAX_GAMEPAD_NAME_LENGTH);
-                memset(e->name, 0, MAX_GAMEPAD_NAME_LENGTH);
-                strncpy(e->name, name, MAX_GAMEPAD_NAME_LENGTH - 1);
+                joystickEvent->name = (char *)RL_MALLOC(MAX_GAMEPAD_NAME_LENGTH);
+                if (joystickEvent->name == NULL)
+                {
+                    TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate joystick name payload");
+                    RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwJoystickEvent));
+                    RL_FREE(joystickEvent);
+                    return;
+                }
+                memset(joystickEvent->name, 0, MAX_GAMEPAD_NAME_LENGTH);
+                strncpy(joystickEvent->name, name, MAX_GAMEPAD_NAME_LENGTH - 1);
             }
 
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Joystick, e);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Joystick, joystickEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
         }
         return;
     }
@@ -4760,12 +5556,12 @@ static void JoystickCallback(int jid, int event)
 
 static void RLGlfwTask_WindowPos(void *user)
 {
-    RLGlfwPosI2 *e = (RLGlfwPosI2 *)user;
-    if (e == NULL) return;
-    CORE.Window.position.x = e->x;
-    CORE.Window.position.y = e->y;
+    RLGlfwPosI2 *windowPosEvent = (RLGlfwPosI2 *)user;
+    if (windowPosEvent == NULL) return;
+    CORE.Window.position.x = windowPosEvent->x;
+    CORE.Window.position.y = windowPosEvent->y;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_WINPOS, sizeof(RLGlfwPosI2));
-    RL_FREE(e);
+    RL_FREE(windowPosEvent);
 }
 
 #if RL_EVENTTHREAD_COALESCE_STATE
@@ -4802,9 +5598,12 @@ static void RLGlfwTask_DrainPendingInput(void *user)
 #if !defined(__APPLE__)
             RLSetMouseScale(1.0f/scalex, 1.0f/scaley);
 #endif
+            const int previousRenderWidth = CORE.Window.render.width;
+            const int previousRenderHeight = CORE.Window.render.height;
             CORE.Window.render.width = (int)fbWidth;
             CORE.Window.render.height = (int)fbHeight;
             CORE.Window.currentFbo = CORE.Window.render;
+            RLGlfwUpdateViewportForRenderSizeIfChanged(previousRenderWidth, previousRenderHeight);
         }
 
         if (mask & RL_PENDING_FB_SIZE)
@@ -4856,6 +5655,24 @@ static void RLGlfwTask_DrainPendingInput(void *user)
             CORE.Window.position.y = (int)RLAtomicLoadLong(&pd->pendingWinY);
         }
 
+        if (mask & RL_PENDING_ICONIFY)
+        {
+            if ((int)RLAtomicLoadLong(&pd->pendingIconified) != 0) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
+            else FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
+        }
+
+        if (mask & RL_PENDING_FOCUS)
+        {
+            if ((int)RLAtomicLoadLong(&pd->pendingFocused) != 0) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
+            else FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
+        }
+
+        if (mask & RL_PENDING_MAXIMIZE)
+        {
+            if ((int)RLAtomicLoadLong(&pd->pendingMaximized) != 0) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
+            else FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
+        }
+
         if (mask & RL_PENDING_MOUSE_MOVE)
         {
             const float x = RLFloatFromBits(RLAtomicLoadLong(&pd->pendingMouseXBits));
@@ -4877,6 +5694,11 @@ static void RLGlfwTask_DrainPendingInput(void *user)
             CORE.Input.Mouse.currentWheelMove.y += (float)dy_fp/(float)RL_WHEEL_FP_SCALE;
         }
 
+        if (mask & RL_PENDING_REFRESH)
+        {
+            RLGlfwInvokeUserWindowRefresh(false);
+        }
+
         // Mark this drain task as complete (allow another to be queued).
         RLAtomicExchangeLong(&pd->pendingQueued, 0);
 
@@ -4889,13 +5711,13 @@ static void RLGlfwTask_DrainPendingInput(void *user)
 
 static void RLGlfwTask_FramebufferSize(void *user)
 {
-    RLGlfwSizeI2 *e = (RLGlfwSizeI2 *)user;
-    if (e == NULL) return;
+    RLGlfwSizeI2 *framebufferSizeEvent = (RLGlfwSizeI2 *)user;
+    if (framebufferSizeEvent == NULL) return;
 
-    const int width = e->w;
-    const int height = e->h;
+    const int width = framebufferSizeEvent->w;
+    const int height = framebufferSizeEvent->h;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_FBSIZE, sizeof(RLGlfwSizeI2));
-    RL_FREE(e);
+    RL_FREE(framebufferSizeEvent);
 
     if ((width == 0) || (height == 0)) return;
 
@@ -4936,13 +5758,13 @@ static void RLGlfwTask_FramebufferSize(void *user)
 
 static void RLGlfwTask_WindowContentScale(void *user)
 {
-    RLGlfwWindowScaleEvent *e = (RLGlfwWindowScaleEvent *)user;
-    if (e == NULL) return;
+    RLGlfwWindowScaleEvent *scaleEvent = (RLGlfwWindowScaleEvent *)user;
+    if (scaleEvent == NULL) return;
 
-    const float scalex = e->sx;
-    const float scaley = e->sy;
+    const float scalex = scaleEvent->sx;
+    const float scaley = scaleEvent->sy;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_SCALE, sizeof(RLGlfwWindowScaleEvent));
-    RL_FREE(e);
+    RL_FREE(scaleEvent);
 
     float fbWidth = (float)CORE.Window.screen.width*scalex;
     float fbHeight = (float)CORE.Window.screen.height*scaley;
@@ -4952,39 +5774,42 @@ static void RLGlfwTask_WindowContentScale(void *user)
     RLSetMouseScale(1.0f/scalex, 1.0f/scaley);
 #endif
 
+    const int previousRenderWidth = CORE.Window.render.width;
+    const int previousRenderHeight = CORE.Window.render.height;
     CORE.Window.render.width = (int)fbWidth;
     CORE.Window.render.height = (int)fbHeight;
     CORE.Window.currentFbo = CORE.Window.render;
+    RLGlfwUpdateViewportForRenderSizeIfChanged(previousRenderWidth, previousRenderHeight);
 }
 
 static void RLGlfwTask_WindowIconify(void *user)
 {
-    RLGlfwWindowIconifyEvent *e = (RLGlfwWindowIconifyEvent *)user;
-    if (e == NULL) return;
-    if (e->iconified) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
+    RLGlfwWindowIconifyEvent *iconifyEvent = (RLGlfwWindowIconifyEvent *)user;
+    if (iconifyEvent == NULL) return;
+    if (iconifyEvent->iconified) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
     else FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowIconifyEvent));
-    RL_FREE(e);
+    RL_FREE(iconifyEvent);
 }
 
 static void RLGlfwTask_WindowMaximize(void *user)
 {
-    RLGlfwWindowMaximizeEvent *e = (RLGlfwWindowMaximizeEvent *)user;
-    if (e == NULL) return;
-    if (e->maximized) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
+    RLGlfwWindowMaximizeEvent *maximizeEvent = (RLGlfwWindowMaximizeEvent *)user;
+    if (maximizeEvent == NULL) return;
+    if (maximizeEvent->maximized) FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
     else FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowMaximizeEvent));
-    RL_FREE(e);
+    RL_FREE(maximizeEvent);
 }
 
 static void RLGlfwTask_WindowFocus(void *user)
 {
-    RLGlfwWindowFocusEvent *e = (RLGlfwWindowFocusEvent *)user;
-    if (e == NULL) return;
-    if (e->focused) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
+    RLGlfwWindowFocusEvent *focusEvent = (RLGlfwWindowFocusEvent *)user;
+    if (focusEvent == NULL) return;
+    if (focusEvent->focused) FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
     else FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowFocusEvent));
-    RL_FREE(e);
+    RL_FREE(focusEvent);
 }
 
 static void RLGlfwTask_WindowRefresh(void *user)
@@ -5001,17 +5826,17 @@ static void RLGlfwTask_WindowRefresh(void *user)
 
 static void RLGlfwTask_WindowClose(void *user)
 {
-    RLGlfwWindowCloseEvent *e = (RLGlfwWindowCloseEvent *)user;
-    if (e != NULL) { RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_WINCLOSE, sizeof(RLGlfwWindowCloseEvent)); RL_FREE(e); }
+    RLGlfwWindowCloseEvent *closeEvent = (RLGlfwWindowCloseEvent *)user;
+    if (closeEvent != NULL) { RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_WINCLOSE, sizeof(RLGlfwWindowCloseEvent)); RL_FREE(closeEvent); }
     CORE.Window.shouldClose = true;
 }
 
 static void RLGlfwTask_Drop(void *user)
 {
-    RLGlfwDropEvent *e = (RLGlfwDropEvent *)user;
-    if (e == NULL) return;
+    RLGlfwDropEvent *dropEvent = (RLGlfwDropEvent *)user;
+    if (dropEvent == NULL) return;
 
-    if (e->count > 0)
+    if (dropEvent->count > 0)
     {
         // In case previous dropped filepaths have not been freed, free them
         if (CORE.Window.dropFileCount > 0)
@@ -5022,27 +5847,27 @@ static void RLGlfwTask_Drop(void *user)
             CORE.Window.dropFilepaths = NULL;
         }
 
-        CORE.Window.dropFileCount = (unsigned int)e->count;
-        CORE.Window.dropFilepaths = e->paths; // ownership transferred
-        e->paths = NULL;
+        CORE.Window.dropFileCount = (unsigned int)dropEvent->count;
+        CORE.Window.dropFilepaths = dropEvent->paths; // ownership transferred
+        dropEvent->paths = NULL;
     }
 
     // Free envelope only (strings are now owned by CORE)
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_DROP, sizeof(RLGlfwDropEvent));
-    RL_FREE(e);
+    RL_FREE(dropEvent);
 }
 
 static void RLGlfwTask_Key(void *user)
 {
-    RLGlfwKeyEvent *e = (RLGlfwKeyEvent *)user;
-    if (e == NULL) return;
+    RLGlfwKeyEvent *keyEvent = (RLGlfwKeyEvent *)user;
+    if (keyEvent == NULL) return;
 
-    int key = e->key;
-    const int scancode = e->scancode;
-    const int action = e->action;
-    const int mods = e->mods;
+    int key = keyEvent->key;
+    const int scancode = keyEvent->scancode;
+    const int action = keyEvent->action;
+    const int mods = keyEvent->mods;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_KEY, sizeof(RLGlfwKeyEvent));
-    RL_FREE(e);
+    RL_FREE(keyEvent);
 
     if (key == GLFW_KEY_UNKNOWN) return;
 
@@ -5084,11 +5909,11 @@ static void RLGlfwTask_Key(void *user)
 
 static void RLGlfwTask_Char(void *user)
 {
-    RLGlfwCharEvent *e = (RLGlfwCharEvent *)user;
-    if (e == NULL) return;
-    const unsigned int codepoint = e->codepoint;
+    RLGlfwCharEvent *charEvent = (RLGlfwCharEvent *)user;
+    if (charEvent == NULL) return;
+    const unsigned int codepoint = charEvent->codepoint;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_CHAR, sizeof(RLGlfwCharEvent));
-    RL_FREE(e);
+    RL_FREE(charEvent);
 
     if (CORE.Input.Keyboard.charPressedQueueCount < MAX_CHAR_PRESSED_QUEUE)
     {
@@ -5099,13 +5924,13 @@ static void RLGlfwTask_Char(void *user)
 
 static void RLGlfwTask_MouseButton(void *user)
 {
-    RLGlfwMouseButtonEvent *e = (RLGlfwMouseButtonEvent *)user;
-    if (e == NULL) return;
-    const int button = e->button;
-    const int action = e->action;
-    const int mods = e->mods;
+    RLGlfwMouseButtonEvent *mouseButtonEvent = (RLGlfwMouseButtonEvent *)user;
+    if (mouseButtonEvent == NULL) return;
+    const int button = mouseButtonEvent->button;
+    const int action = mouseButtonEvent->action;
+    const int mods = mouseButtonEvent->mods;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_MOUSEBUTTON, sizeof(RLGlfwMouseButtonEvent));
-    RL_FREE(e);
+    RL_FREE(mouseButtonEvent);
 
     if (button >= 0)
     {
@@ -5135,12 +5960,12 @@ static void RLGlfwTask_MouseButton(void *user)
 
 static void RLGlfwTask_MouseMove(void *user)
 {
-    RLGlfwMouseMoveEvent *e = (RLGlfwMouseMoveEvent *)user;
-    if (e == NULL) return;
-    const double xpos = e->xpos;
-    const double ypos = e->ypos;
+    RLGlfwMouseMoveEvent *mouseMoveEvent = (RLGlfwMouseMoveEvent *)user;
+    if (mouseMoveEvent == NULL) return;
+    const double xpos = mouseMoveEvent->xpos;
+    const double ypos = mouseMoveEvent->ypos;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_MOUSEMOVE, sizeof(RLGlfwMouseMoveEvent));
-    RL_FREE(e);
+    RL_FREE(mouseMoveEvent);
 
     CORE.Input.Mouse.currentPosition.x = (float)xpos;
     CORE.Input.Mouse.currentPosition.y = (float)ypos;
@@ -5151,12 +5976,12 @@ static void RLGlfwTask_MouseMove(void *user)
 
 static void RLGlfwTask_MouseWheel(void *user)
 {
-    RLGlfwMouseWheelEvent *e = (RLGlfwMouseWheelEvent *)user;
-    if (e == NULL) return;
-    const double xoffset = e->xoffset;
-    const double yoffset = e->yoffset;
+    RLGlfwMouseWheelEvent *mouseWheelEvent = (RLGlfwMouseWheelEvent *)user;
+    if (mouseWheelEvent == NULL) return;
+    const double xoffset = mouseWheelEvent->xoffset;
+    const double yoffset = mouseWheelEvent->yoffset;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_MOUSEWHEEL, sizeof(RLGlfwMouseWheelEvent));
-    RL_FREE(e);
+    RL_FREE(mouseWheelEvent);
 
     // WARNING: GLFW could return both X and Y offset values for a mouse wheel event
     CORE.Input.Mouse.currentWheelMove.x = (float)xoffset;
@@ -5165,27 +5990,27 @@ static void RLGlfwTask_MouseWheel(void *user)
 
 static void RLGlfwTask_CursorEnter(void *user)
 {
-    RLGlfwCursorEnterEvent *e = (RLGlfwCursorEnterEvent *)user;
-    if (e == NULL) return;
-    const int entered = e->entered;
+    RLGlfwCursorEnterEvent *cursorEnterEvent = (RLGlfwCursorEnterEvent *)user;
+    if (cursorEnterEvent == NULL) return;
+    const int entered = cursorEnterEvent->entered;
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwCursorEnterEvent));
-    RL_FREE(e);
+    RL_FREE(cursorEnterEvent);
 
     CORE.Input.Mouse.cursorOnScreen = (entered != 0);
 }
 
 static void RLGlfwTask_Joystick(void *user)
 {
-    RLGlfwJoystickEvent *e = (RLGlfwJoystickEvent *)user;
-    if (e == NULL) return;
+    RLGlfwJoystickEvent *joystickEvent = (RLGlfwJoystickEvent *)user;
+    if (joystickEvent == NULL) return;
 
-    const int jid = e->jid;
-    const int event = e->event;
+    const int jid = joystickEvent->jid;
+    const int event = joystickEvent->event;
 
     if (event == GLFW_CONNECTED)
     {
         memset(CORE.Input.Gamepad.name[jid], 0, MAX_GAMEPAD_NAME_LENGTH);
-        if (e->name != NULL) strncpy(CORE.Input.Gamepad.name[jid], e->name, MAX_GAMEPAD_NAME_LENGTH - 1);
+        if (joystickEvent->name != NULL) strncpy(CORE.Input.Gamepad.name[jid], joystickEvent->name, MAX_GAMEPAD_NAME_LENGTH - 1);
         else
         {
             const char *name = glfwGetJoystickName(jid);
@@ -5197,9 +6022,9 @@ static void RLGlfwTask_Joystick(void *user)
         memset(CORE.Input.Gamepad.name[jid], 0, MAX_GAMEPAD_NAME_LENGTH);
     }
 
-    if (e->name != NULL) RL_FREE(e->name);
+    if (joystickEvent->name != NULL) RL_FREE(joystickEvent->name);
     RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwJoystickEvent));
-    RL_FREE(e);
+    RL_FREE(joystickEvent);
 }
 
 // Runs on event thread: destroy GLFW window on owning Win32 message thread.
@@ -5531,21 +6356,32 @@ static void RLGlfwEventThreadMain(void *p)
         shareBarrier->evtResume = RLEventCreate(false);
         shareBarrier->evtDone = RLEventCreate(false);
 
-        glfwPostTask(sharePd->renderThread, RLGlfwTask_HoldNoCurrentContext, shareBarrier);
-        RLGlfwSignalOneRenderWake(sharePd);
+        if (!RLGlfwPostTaskToThread(sharePd->renderThread, RLGlfwTask_HoldNoCurrentContext, shareBarrier, (unsigned char)GLFW_THREAD_TASK_CLASS_MAINTENANCE, false, NULL))
+        {
+            RLEventDestroy(shareBarrier->evtReleased);
+            RLEventDestroy(shareBarrier->evtResume);
+            RLEventDestroy(shareBarrier->evtDone);
+            RL_FREE(shareBarrier);
+            shareBarrier = NULL;
+            TRACELOG(RL_E_LOG_WARNING, "GLFW/WGL: Failed to enqueue shared-context release barrier");
+        }
+        if (shareBarrier != NULL) RLGlfwSignalOneRenderWake(sharePd);
 
         // Wait until the shared context thread cleared its current context.
         // Use a bounded wait to avoid deadlocks in broken user setups.
-        bool released = false;
-        for (int i = 0; i < 2000; i++)
+        if (shareBarrier != NULL)
         {
-            if (RLEventWaitTimeout(shareBarrier->evtReleased, 5)) { released = true; break; }
-            RLGlfwSignalOneRenderWake(sharePd);
-        }
-        if (!released)
-        {
-            TRACELOG(RL_E_LOG_WARNING, "GLFW/WGL: Timed out waiting for shared context release barrier");
-            // Best-effort: proceed anyway, but still resume the render thread.
+            bool released = false;
+            for (int i = 0; i < 2000; i++)
+            {
+                if (RLEventWaitTimeout(shareBarrier->evtReleased, 5)) { released = true; break; }
+                RLGlfwSignalOneRenderWake(sharePd);
+            }
+            if (!released)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "GLFW/WGL: Timed out waiting for shared context release barrier");
+                // Best-effort: proceed anyway, but still resume the render thread.
+            }
         }
     }
 #endif

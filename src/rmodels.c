@@ -46,6 +46,18 @@
 
 #if defined(SUPPORT_MODULE_RMODELS)
 
+#include "rl_object_tracker.h"
+
+extern bool RLCanWriteGpuResourcesOnCurrentThread(const char *apiName);
+extern void RLRecordThreadMismatchHandoffAttempt(const char *apiName);
+extern void RLRecordThreadMismatchHandoffSuccess(const char *apiName);
+extern void RLRecordThreadMismatchHandoffFailed(const char *apiName);
+extern void RLRecordThreadMismatchDeferredQueued(const char *apiName);
+extern void RLRecordThreadMismatchDeferredExecuted(const char *apiName);
+extern void RLRecordThreadMismatchDeferredFailed(const char *apiName);
+extern void RLRecordThreadMismatchReject(const char *apiName);
+extern void *RLResolveRenderThreadWindowHandleForTrackedObject(RLTrackedObjectKind kind, uint64_t key, const char *apiName);
+
 #include "rlgl.h"           // OpenGL abstraction layer to OpenGL 1.1, 2.1, 3.3+ or ES2
 #include "raymath.h"        // Required for: Vector3, Quaternion and Matrix functionality
 
@@ -53,6 +65,262 @@
 #include <stdlib.h>         // Required for: malloc(), calloc(), free()
 #include <string.h>         // Required for: memcmp(), strlen(), strncpy()
 #include <math.h>           // Required for: sinf(), cosf(), sqrtf(), fabsf()
+#include <stdint.h>         // Required for: uintptr_t
+
+static uintptr_t RLModelObjectKey(RLModel model)
+{
+    if (model.meshes != NULL) return (uintptr_t)model.meshes;
+    if (model.materials != NULL) return (uintptr_t)model.materials;
+    if (model.meshMaterial != NULL) return (uintptr_t)model.meshMaterial;
+    return 0;
+}
+
+static uintptr_t RLMeshObjectKey(RLMesh mesh)
+{
+    if (mesh.vaoId != 0) return (uintptr_t)mesh.vaoId;
+    if (mesh.vboId != NULL) return (uintptr_t)mesh.vboId;
+    if (mesh.vertices != NULL) return (uintptr_t)mesh.vertices;
+    return 0;
+}
+
+static uintptr_t RLMaterialObjectKey(RLMaterial material)
+{
+    if (material.maps != NULL) return (uintptr_t)material.maps;
+    return 0;
+}
+
+static bool RLTrackMeshObjectInit(RLMesh mesh)
+{
+    const uint64_t key = (uint64_t)RLMeshObjectKey(mesh);
+    if (key == 0) return false;
+    return RLTrackedObjectRetain(RL_TRACKED_OBJECT_MESH, key, RLGetCurrentContext(), &mesh, sizeof(mesh));
+}
+
+static bool RLTrackMaterialObjectInit(RLMaterial material)
+{
+    const uint64_t key = (uint64_t)RLMaterialObjectKey(material);
+    if (key == 0) return false;
+    return RLTrackedObjectRetain(RL_TRACKED_OBJECT_MATERIAL, key, RLGetCurrentContext(), &material, sizeof(material));
+}
+
+static bool RLTrackModelObjectInit(RLModel model)
+{
+    const uint64_t key = (uint64_t)RLModelObjectKey(model);
+    if (key == 0) return false;
+    return RLTrackedObjectRetain(RL_TRACKED_OBJECT_MODEL, key, RLGetCurrentContext(), &model, sizeof(model));
+}
+
+static void RLTrackModelOwnedMeshesInit(RLModel model)
+{
+    for (int i = 0; i < model.meshCount; i++) RLTrackMeshObjectInit(model.meshes[i]);
+}
+#if defined(_WIN32)
+static void RLFreeModelPayload(void *user)
+{
+    RL_FREE(user);
+}
+
+static intptr_t RLInvokeUnloadModelOnRenderThread(void *hwnd, void *user)
+{
+    (void)hwnd;
+    RLModel *modelPtr = (RLModel *)user;
+    if (modelPtr != NULL) RLUnloadModel(*modelPtr);
+    RLRecordThreadMismatchDeferredExecuted("RLReleaseModelObject");
+    RL_FREE(modelPtr);
+    return (intptr_t)1;
+}
+
+static intptr_t RLInvokeUnloadMeshOnRenderThread(void *hwnd, void *user)
+{
+    (void)hwnd;
+    RLMesh *meshPtr = (RLMesh *)user;
+    if (meshPtr != NULL) RLUnloadMesh(*meshPtr);
+    RLRecordThreadMismatchDeferredExecuted("RLReleaseMeshObject");
+    RL_FREE(meshPtr);
+    return (intptr_t)1;
+}
+
+static intptr_t RLInvokeUnloadMaterialOnRenderThread(void *hwnd, void *user)
+{
+    (void)hwnd;
+    RLMaterial *materialPtr = (RLMaterial *)user;
+    if (materialPtr != NULL) RLUnloadMaterial(*materialPtr);
+    RLRecordThreadMismatchDeferredExecuted("RLReleaseMaterialObject");
+    RL_FREE(materialPtr);
+    return (intptr_t)1;
+}
+
+static bool RLDispatchUnloadModelToRenderThread(RLModel model)
+{
+    const uint64_t key = (uint64_t)RLModelObjectKey(model);
+    void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_MODEL, key, "RLReleaseModelObject");
+    if (windowHandle == NULL)
+    {
+        RLRecordThreadMismatchHandoffFailed("RLReleaseModelObject");
+        return false;
+    }
+
+    RLRecordThreadMismatchHandoffAttempt("RLReleaseModelObject");
+    RLModel *payload = (RLModel *)RL_MALLOC(sizeof(RLModel));
+    if (payload == NULL)
+    {
+        RLRecordThreadMismatchHandoffFailed("RLReleaseModelObject");
+        return false;
+    }
+    *payload = model;
+
+    if (RLInvokeOnWindowRenderThreadByHandle(windowHandle, RLInvokeUnloadModelOnRenderThread, payload, 1) != 0)
+    {
+        RLRecordThreadMismatchHandoffSuccess("RLReleaseModelObject");
+        return true;
+    }
+    RLRecordThreadMismatchHandoffFailed("RLReleaseModelObject");
+    RL_FREE(payload);
+    return false;
+}
+
+static bool RLQueueUnloadModelToRenderThread(RLModel model)
+{
+    const uint64_t key = (uint64_t)RLModelObjectKey(model);
+    void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_MODEL, key, "RLReleaseModelObject");
+    if (windowHandle == NULL)
+    {
+        RLRecordThreadMismatchDeferredFailed("RLReleaseModelObject");
+        return false;
+    }
+
+    RLModel *payload = (RLModel *)RL_MALLOC(sizeof(RLModel));
+    if (payload == NULL)
+    {
+        RLRecordThreadMismatchDeferredFailed("RLReleaseModelObject");
+        return false;
+    }
+    *payload = model;
+
+    if (RLPostWindowFrameCallbackByHandleEx2(windowHandle, RLInvokeUnloadModelOnRenderThread, payload, RL_FRAME_CALLBACK_KIND_CRITICAL, RLFreeModelPayload) != 0)
+    {
+        RLRecordThreadMismatchDeferredQueued("RLReleaseModelObject");
+        return true;
+    }
+
+    RLRecordThreadMismatchDeferredFailed("RLReleaseModelObject");
+    return false;
+}
+
+static bool RLDispatchUnloadMeshToRenderThread(RLMesh mesh)
+{
+    const uint64_t key = (uint64_t)RLMeshObjectKey(mesh);
+    void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_MESH, key, "RLReleaseMeshObject");
+    if (windowHandle == NULL)
+    {
+        RLRecordThreadMismatchHandoffFailed("RLReleaseMeshObject");
+        return false;
+    }
+
+    RLRecordThreadMismatchHandoffAttempt("RLReleaseMeshObject");
+    RLMesh *payload = (RLMesh *)RL_MALLOC(sizeof(RLMesh));
+    if (payload == NULL)
+    {
+        RLRecordThreadMismatchHandoffFailed("RLReleaseMeshObject");
+        return false;
+    }
+    *payload = mesh;
+
+    if (RLInvokeOnWindowRenderThreadByHandle(windowHandle, RLInvokeUnloadMeshOnRenderThread, payload, 1) != 0)
+    {
+        RLRecordThreadMismatchHandoffSuccess("RLReleaseMeshObject");
+        return true;
+    }
+    RLRecordThreadMismatchHandoffFailed("RLReleaseMeshObject");
+    RL_FREE(payload);
+    return false;
+}
+
+static bool RLQueueUnloadMeshToRenderThread(RLMesh mesh)
+{
+    const uint64_t key = (uint64_t)RLMeshObjectKey(mesh);
+    void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_MESH, key, "RLReleaseMeshObject");
+    if (windowHandle == NULL)
+    {
+        RLRecordThreadMismatchDeferredFailed("RLReleaseMeshObject");
+        return false;
+    }
+
+    RLMesh *payload = (RLMesh *)RL_MALLOC(sizeof(RLMesh));
+    if (payload == NULL)
+    {
+        RLRecordThreadMismatchDeferredFailed("RLReleaseMeshObject");
+        return false;
+    }
+    *payload = mesh;
+
+    if (RLPostWindowFrameCallbackByHandleEx2(windowHandle, RLInvokeUnloadMeshOnRenderThread, payload, RL_FRAME_CALLBACK_KIND_CRITICAL, RLFreeModelPayload) != 0)
+    {
+        RLRecordThreadMismatchDeferredQueued("RLReleaseMeshObject");
+        return true;
+    }
+
+    RLRecordThreadMismatchDeferredFailed("RLReleaseMeshObject");
+    return false;
+}
+
+static bool RLDispatchUnloadMaterialToRenderThread(RLMaterial material)
+{
+    const uint64_t key = (uint64_t)RLMaterialObjectKey(material);
+    void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_MATERIAL, key, "RLReleaseMaterialObject");
+    if (windowHandle == NULL)
+    {
+        RLRecordThreadMismatchHandoffFailed("RLReleaseMaterialObject");
+        return false;
+    }
+
+    RLRecordThreadMismatchHandoffAttempt("RLReleaseMaterialObject");
+    RLMaterial *payload = (RLMaterial *)RL_MALLOC(sizeof(RLMaterial));
+    if (payload == NULL)
+    {
+        RLRecordThreadMismatchHandoffFailed("RLReleaseMaterialObject");
+        return false;
+    }
+    *payload = material;
+
+    if (RLInvokeOnWindowRenderThreadByHandle(windowHandle, RLInvokeUnloadMaterialOnRenderThread, payload, 1) != 0)
+    {
+        RLRecordThreadMismatchHandoffSuccess("RLReleaseMaterialObject");
+        return true;
+    }
+    RLRecordThreadMismatchHandoffFailed("RLReleaseMaterialObject");
+    RL_FREE(payload);
+    return false;
+}
+
+static bool RLQueueUnloadMaterialToRenderThread(RLMaterial material)
+{
+    const uint64_t key = (uint64_t)RLMaterialObjectKey(material);
+    void *windowHandle = RLResolveRenderThreadWindowHandleForTrackedObject(RL_TRACKED_OBJECT_MATERIAL, key, "RLReleaseMaterialObject");
+    if (windowHandle == NULL)
+    {
+        RLRecordThreadMismatchDeferredFailed("RLReleaseMaterialObject");
+        return false;
+    }
+
+    RLMaterial *payload = (RLMaterial *)RL_MALLOC(sizeof(RLMaterial));
+    if (payload == NULL)
+    {
+        RLRecordThreadMismatchDeferredFailed("RLReleaseMaterialObject");
+        return false;
+    }
+    *payload = material;
+
+    if (RLPostWindowFrameCallbackByHandleEx2(windowHandle, RLInvokeUnloadMaterialOnRenderThread, payload, RL_FRAME_CALLBACK_KIND_CRITICAL, RLFreeModelPayload) != 0)
+    {
+        RLRecordThreadMismatchDeferredQueued("RLReleaseMaterialObject");
+        return true;
+    }
+
+    RLRecordThreadMismatchDeferredFailed("RLReleaseMaterialObject");
+    return false;
+}
+#endif
 
 #if defined(SUPPORT_FILEFORMAT_OBJ) || defined(SUPPORT_FILEFORMAT_MTL)
     #define TINYOBJ_MALLOC RL_MALLOC
@@ -1133,6 +1401,9 @@ RLModel RLLoadModel(const char *fileName)
         if (model.meshMaterial == NULL) model.meshMaterial = (int *)RL_CALLOC(model.meshCount, sizeof(int));
     }
 
+    RLTrackModelObjectInit(model);
+    RLTrackModelOwnedMeshesInit(model);
+
     return model;
 }
 
@@ -1156,6 +1427,9 @@ RLModel RLLoadModelFromMesh(RLMesh mesh)
 
     model.meshMaterial = (int *)RL_CALLOC(model.meshCount, sizeof(int));
     model.meshMaterial[0] = 0;  // First material index
+
+    RLTrackModelObjectInit(model);
+    RLTrackModelOwnedMeshesInit(model);
 
     return model;
 }
@@ -1195,27 +1469,104 @@ bool RLIsModelValid(RLModel model)
 // Unload model (meshes/materials) from memory (RAM and/or VRAM)
 // NOTE: This function takes care of all model elements, for a detailed control
 // over them, use UnloadMesh() and UnloadMaterial()
-void RLUnloadModel(RLModel model)
+bool RLRetainModelObject(RLModel model)
 {
-    // Unload meshes
-    for (int i = 0; i < model.meshCount; i++) RLUnloadMesh(model.meshes[i]);
+    if (RLModelObjectKey(model) == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MODEL: RLRetainModelObject failed: invalid model object");
+        return false;
+    }
+    return RLTrackModelObjectInit(model);
+}
 
-    // Unload materials maps
-    // NOTE: As the user could be sharing shaders and textures between models,
-    // we don't unload the material but just free its maps,
-    // the user is responsible for freeing models shaders and textures
-    for (int i = 0; i < model.materialCount; i++) RL_FREE(model.materials[i].maps);
+bool RLReleaseModelObject(RLModel model)
+{
+    if (!RLCanWriteGpuResourcesOnCurrentThread("RLReleaseModelObject"))
+    {
+#if defined(_WIN32)
+        if (RLDispatchUnloadModelToRenderThread(model)) return true;
+        if (RLQueueUnloadModelToRenderThread(model)) return true;
+#endif
+        RLRecordThreadMismatchReject("RLReleaseModelObject");
+        return false;
+    }
 
-    // Unload arrays
-    RL_FREE(model.meshes);
-    RL_FREE(model.materials);
-    RL_FREE(model.meshMaterial);
+    const uint64_t key = (uint64_t)RLModelObjectKey(model);
+    if (key == 0) return true;
 
-    // Unload animation data
-    RL_FREE(model.bones);
-    RL_FREE(model.bindPose);
+    RLModel toDestroy = { 0 };
+    unsigned int remainingRefCount = 0;
+    if (!RLTrackedObjectRelease(RL_TRACKED_OBJECT_MODEL, key, &toDestroy, sizeof(toDestroy), &remainingRefCount))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MODEL: RLReleaseModelObject fallback: model is not tracked, releasing directly");
+        for (int i = 0; i < model.meshCount; i++) RLUnloadMesh(model.meshes[i]);
+        for (int i = 0; i < model.materialCount; i++) RL_FREE(model.materials[i].maps);
+        RL_FREE(model.meshes);
+        RL_FREE(model.materials);
+        RL_FREE(model.meshMaterial);
+        RL_FREE(model.bones);
+        RL_FREE(model.bindPose);
+        TRACELOG(RL_E_LOG_INFO, "MODEL: Unloaded model (and meshes) from RAM and VRAM");
+        return true;
+    }
+
+    if (remainingRefCount > 0) return true;
+
+    for (int i = 0; i < toDestroy.meshCount; i++) RLUnloadMesh(toDestroy.meshes[i]);
+    for (int i = 0; i < toDestroy.materialCount; i++) RL_FREE(toDestroy.materials[i].maps);
+    RL_FREE(toDestroy.meshes);
+    RL_FREE(toDestroy.materials);
+    RL_FREE(toDestroy.meshMaterial);
+    RL_FREE(toDestroy.bones);
+    RL_FREE(toDestroy.bindPose);
 
     TRACELOG(RL_E_LOG_INFO, "MODEL: Unloaded model (and meshes) from RAM and VRAM");
+    return true;
+}
+
+RLContext* RLGetModelObjectOwnerContext(RLModel model)
+{
+    RLContext *ownerContext = NULL;
+    const uint64_t key = (uint64_t)RLModelObjectKey(model);
+    if (key == 0) return NULL;
+    if (!RLTrackedObjectGetOwnerContext(RL_TRACKED_OBJECT_MODEL, key, &ownerContext)) return NULL;
+    return ownerContext;
+}
+
+bool RLIsModelObjectOwnedByCurrentContext(RLModel model)
+{
+    const uint64_t key = (uint64_t)RLModelObjectKey(model);
+    if (key == 0) return false;
+    return RLTrackedObjectIsOwnedByCurrentContext(RL_TRACKED_OBJECT_MODEL, key);
+}
+
+bool RLTryTransferModelObjectOwner(RLModel model, RLContext* targetCtx)
+{
+    const uint64_t key = (uint64_t)RLModelObjectKey(model);
+    if (key == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MODEL: RLTryTransferModelObjectOwner failed: invalid model object");
+        return false;
+    }
+    if (targetCtx == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MODEL: RLTryTransferModelObjectOwner failed: target context is NULL");
+        return false;
+    }
+    if (!RLTrackedObjectTryTransferOwner(RL_TRACKED_OBJECT_MODEL, key, targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MODEL: RLTryTransferModelObjectOwner failed: transfer rejected");
+        return false;
+    }
+    return true;
+}
+
+void RLUnloadModel(RLModel model)
+{
+    if (!RLReleaseModelObject(model))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MODEL: RLUnloadModel skipped because RLReleaseModelObject failed");
+    }
 }
 
 // Compute model bounding box limits (considers all meshes)
@@ -1938,27 +2289,118 @@ void RLDrawMeshInstanced(RLMesh mesh, RLMaterial material, const RLMatrix *trans
 }
 
 // Unload mesh from memory (RAM and VRAM)
+bool RLRetainMeshObject(RLMesh mesh)
+{
+    const uint64_t key = (uint64_t)RLMeshObjectKey(mesh);
+    if (key == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MESH: RLRetainMeshObject failed: invalid mesh object");
+        return false;
+    }
+    return RLTrackedObjectRetain(RL_TRACKED_OBJECT_MESH, key, RLGetCurrentContext(), &mesh, sizeof(mesh));
+}
+
+bool RLReleaseMeshObject(RLMesh mesh)
+{
+    if (!RLCanWriteGpuResourcesOnCurrentThread("RLReleaseMeshObject"))
+    {
+#if defined(_WIN32)
+        if (RLDispatchUnloadMeshToRenderThread(mesh)) return true;
+        if (RLQueueUnloadMeshToRenderThread(mesh)) return true;
+#endif
+        RLRecordThreadMismatchReject("RLReleaseMeshObject");
+        return false;
+    }
+
+    const uint64_t key = (uint64_t)RLMeshObjectKey(mesh);
+    if (key == 0) return true;
+
+    RLMesh toDestroy = { 0 };
+    unsigned int remainingRefCount = 0;
+    if (!RLTrackedObjectRelease(RL_TRACKED_OBJECT_MESH, key, &toDestroy, sizeof(toDestroy), &remainingRefCount))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MESH: RLReleaseMeshObject fallback: mesh is not tracked, releasing directly");
+        rlUnloadVertexArray(mesh.vaoId);
+        if (mesh.vboId != NULL) for (int i = 0; i < MAX_MESH_VERTEX_BUFFERS; i++) rlUnloadVertexBuffer(mesh.vboId[i]);
+        RL_FREE(mesh.vboId);
+        RL_FREE(mesh.vertices);
+        RL_FREE(mesh.texcoords);
+        RL_FREE(mesh.normals);
+        RL_FREE(mesh.colors);
+        RL_FREE(mesh.tangents);
+        RL_FREE(mesh.texcoords2);
+        RL_FREE(mesh.indices);
+        RL_FREE(mesh.animVertices);
+        RL_FREE(mesh.animNormals);
+        RL_FREE(mesh.boneWeights);
+        RL_FREE(mesh.boneIds);
+        RL_FREE(mesh.boneMatrices);
+        return true;
+    }
+
+    if (remainingRefCount > 0) return true;
+
+    rlUnloadVertexArray(toDestroy.vaoId);
+    if (toDestroy.vboId != NULL) for (int i = 0; i < MAX_MESH_VERTEX_BUFFERS; i++) rlUnloadVertexBuffer(toDestroy.vboId[i]);
+    RL_FREE(toDestroy.vboId);
+    RL_FREE(toDestroy.vertices);
+    RL_FREE(toDestroy.texcoords);
+    RL_FREE(toDestroy.normals);
+    RL_FREE(toDestroy.colors);
+    RL_FREE(toDestroy.tangents);
+    RL_FREE(toDestroy.texcoords2);
+    RL_FREE(toDestroy.indices);
+    RL_FREE(toDestroy.animVertices);
+    RL_FREE(toDestroy.animNormals);
+    RL_FREE(toDestroy.boneWeights);
+    RL_FREE(toDestroy.boneIds);
+    RL_FREE(toDestroy.boneMatrices);
+    return true;
+}
+
+RLContext* RLGetMeshObjectOwnerContext(RLMesh mesh)
+{
+    RLContext *ownerContext = NULL;
+    const uint64_t key = (uint64_t)RLMeshObjectKey(mesh);
+    if (key == 0) return NULL;
+    if (!RLTrackedObjectGetOwnerContext(RL_TRACKED_OBJECT_MESH, key, &ownerContext)) return NULL;
+    return ownerContext;
+}
+
+bool RLIsMeshObjectOwnedByCurrentContext(RLMesh mesh)
+{
+    const uint64_t key = (uint64_t)RLMeshObjectKey(mesh);
+    if (key == 0) return false;
+    return RLTrackedObjectIsOwnedByCurrentContext(RL_TRACKED_OBJECT_MESH, key);
+}
+
+bool RLTryTransferMeshObjectOwner(RLMesh mesh, RLContext* targetCtx)
+{
+    const uint64_t key = (uint64_t)RLMeshObjectKey(mesh);
+    if (key == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MESH: RLTryTransferMeshObjectOwner failed: invalid mesh object");
+        return false;
+    }
+    if (targetCtx == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MESH: RLTryTransferMeshObjectOwner failed: target context is NULL");
+        return false;
+    }
+    if (!RLTrackedObjectTryTransferOwner(RL_TRACKED_OBJECT_MESH, key, targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MESH: RLTryTransferMeshObjectOwner failed: transfer rejected");
+        return false;
+    }
+    return true;
+}
+
 void RLUnloadMesh(RLMesh mesh)
 {
-    // Unload rlgl mesh vboId data
-    rlUnloadVertexArray(mesh.vaoId);
-
-    if (mesh.vboId != NULL) for (int i = 0; i < MAX_MESH_VERTEX_BUFFERS; i++) rlUnloadVertexBuffer(mesh.vboId[i]);
-    RL_FREE(mesh.vboId);
-
-    RL_FREE(mesh.vertices);
-    RL_FREE(mesh.texcoords);
-    RL_FREE(mesh.normals);
-    RL_FREE(mesh.colors);
-    RL_FREE(mesh.tangents);
-    RL_FREE(mesh.texcoords2);
-    RL_FREE(mesh.indices);
-
-    RL_FREE(mesh.animVertices);
-    RL_FREE(mesh.animNormals);
-    RL_FREE(mesh.boneWeights);
-    RL_FREE(mesh.boneIds);
-    RL_FREE(mesh.boneMatrices);
+    if (!RLReleaseMeshObject(mesh))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MESH: RLUnloadMesh skipped because RLReleaseMeshObject failed");
+    }
 }
 
 // Export mesh data to file
@@ -2237,21 +2679,106 @@ bool RLIsMaterialValid(RLMaterial material)
 }
 
 // Unload material from memory
-void RLUnloadMaterial(RLMaterial material)
+bool RLRetainMaterialObject(RLMaterial material)
 {
-    // Unload material shader (avoid unloading default shader, managed by raylib)
-    if (material.shader.id != rlGetShaderIdDefault()) RLUnloadShader(material.shader);
+    const uint64_t key = (uint64_t)RLMaterialObjectKey(material);
+    if (key == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MATERIAL: RLRetainMaterialObject failed: invalid material object");
+        return false;
+    }
+    return RLTrackedObjectRetain(RL_TRACKED_OBJECT_MATERIAL, key, RLGetCurrentContext(), &material, sizeof(material));
+}
 
-    // Unload loaded texture maps (avoid unloading default texture, managed by raylib)
-    if (material.maps != NULL)
+bool RLReleaseMaterialObject(RLMaterial material)
+{
+    if (!RLCanWriteGpuResourcesOnCurrentThread("RLReleaseMaterialObject"))
+    {
+#if defined(_WIN32)
+        if (RLDispatchUnloadMaterialToRenderThread(material)) return true;
+        if (RLQueueUnloadMaterialToRenderThread(material)) return true;
+#endif
+        RLRecordThreadMismatchReject("RLReleaseMaterialObject");
+        return false;
+    }
+
+    const uint64_t key = (uint64_t)RLMaterialObjectKey(material);
+    if (key == 0) return true;
+
+    RLMaterial toDestroy = { 0 };
+    unsigned int remainingRefCount = 0;
+    if (!RLTrackedObjectRelease(RL_TRACKED_OBJECT_MATERIAL, key, &toDestroy, sizeof(toDestroy), &remainingRefCount))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MATERIAL: RLReleaseMaterialObject fallback: material is not tracked, releasing directly");
+        if (material.shader.id != rlGetShaderIdDefault()) RLUnloadShader(material.shader);
+        if (material.maps != NULL)
+        {
+            for (int i = 0; i < MAX_MATERIAL_MAPS; i++)
+            {
+                if (material.maps[i].texture.id != rlGetTextureIdDefault()) RLReleaseTextureObject(material.maps[i].texture);
+            }
+        }
+        RL_FREE(material.maps);
+        return true;
+    }
+
+    if (remainingRefCount > 0) return true;
+
+    if (toDestroy.shader.id != rlGetShaderIdDefault()) RLUnloadShader(toDestroy.shader);
+    if (toDestroy.maps != NULL)
     {
         for (int i = 0; i < MAX_MATERIAL_MAPS; i++)
         {
-            if (material.maps[i].texture.id != rlGetTextureIdDefault()) rlUnloadTexture(material.maps[i].texture.id);
+            if (toDestroy.maps[i].texture.id != rlGetTextureIdDefault()) RLReleaseTextureObject(toDestroy.maps[i].texture);
         }
     }
+    RL_FREE(toDestroy.maps);
+    return true;
+}
 
-    RL_FREE(material.maps);
+RLContext* RLGetMaterialObjectOwnerContext(RLMaterial material)
+{
+    RLContext *ownerContext = NULL;
+    const uint64_t key = (uint64_t)RLMaterialObjectKey(material);
+    if (key == 0) return NULL;
+    if (!RLTrackedObjectGetOwnerContext(RL_TRACKED_OBJECT_MATERIAL, key, &ownerContext)) return NULL;
+    return ownerContext;
+}
+
+bool RLIsMaterialObjectOwnedByCurrentContext(RLMaterial material)
+{
+    const uint64_t key = (uint64_t)RLMaterialObjectKey(material);
+    if (key == 0) return false;
+    return RLTrackedObjectIsOwnedByCurrentContext(RL_TRACKED_OBJECT_MATERIAL, key);
+}
+
+bool RLTryTransferMaterialObjectOwner(RLMaterial material, RLContext* targetCtx)
+{
+    const uint64_t key = (uint64_t)RLMaterialObjectKey(material);
+    if (key == 0)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MATERIAL: RLTryTransferMaterialObjectOwner failed: invalid material object");
+        return false;
+    }
+    if (targetCtx == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MATERIAL: RLTryTransferMaterialObjectOwner failed: target context is NULL");
+        return false;
+    }
+    if (!RLTrackedObjectTryTransferOwner(RL_TRACKED_OBJECT_MATERIAL, key, targetCtx))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MATERIAL: RLTryTransferMaterialObjectOwner failed: transfer rejected");
+        return false;
+    }
+    return true;
+}
+
+void RLUnloadMaterial(RLMaterial material)
+{
+    if (!RLReleaseMaterialObject(material))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "MATERIAL: RLUnloadMaterial skipped because RLReleaseMaterialObject failed");
+    }
 }
 
 // Set texture for a material map type (MATERIAL_MAP_DIFFUSE, MATERIAL_MAP_SPECULAR...)
@@ -4704,7 +5231,11 @@ static RLModel LoadIQM(const char *fileName)
         memcpy(material, fileDataPtr + iqmHeader->ofs_text + imesh[i].material, MATERIAL_NAME_LENGTH*sizeof(char));
 
         model.materials[i] = RLLoadMaterialDefault();
-        model.materials[i].maps[RL_E_MATERIAL_MAP_ALBEDO].texture = RLLoadTexture(RLTextFormat("%s/%s", basePath, material));
+        {
+            char materialPath[MAX_FILEPATH_LENGTH] = { 0 };
+            RLTextFormatTo(materialPath, MAX_FILEPATH_LENGTH, "%s/%s", basePath, material);
+            model.materials[i].maps[RL_E_MATERIAL_MAP_ALBEDO].texture = RLLoadTexture(materialPath);
+        }
 
         model.meshMaterial[i] = i;
 
@@ -5227,7 +5758,11 @@ static RLImage LoadImageFromCgltfImage(cgltf_image *cgltfImage, const char *texP
         }
         else     // Check if image is provided as image path
         {
-            image = RLLoadImage(RLTextFormat("%s/%s", texPath, cgltfImage->uri));
+            {
+                char imagePath[MAX_FILEPATH_LENGTH] = { 0 };
+                RLTextFormatTo(imagePath, MAX_FILEPATH_LENGTH, "%s/%s", texPath, cgltfImage->uri);
+                image = RLLoadImage(imagePath);
+            }
         }
     }
     else if ((cgltfImage->buffer_view != NULL) && (cgltfImage->buffer_view->buffer->data != NULL))    // Check if image is provided as data buffer
@@ -5253,7 +5788,12 @@ static RLImage LoadImageFromCgltfImage(cgltf_image *cgltfImage, const char *texP
         {
             image = RLLoadImageFromMemory(".jpg", data, (int)cgltfImage->buffer_view->size);
         }
-        else TRACELOG(RL_E_LOG_WARNING, "MODEL: glTF image data MIME type not recognized", RLTextFormat("%s/%s", texPath, cgltfImage->uri));
+        else
+        {
+            char imagePath[MAX_FILEPATH_LENGTH] = { 0 };
+            RLTextFormatTo(imagePath, MAX_FILEPATH_LENGTH, "%s/%s", texPath, cgltfImage->uri);
+            TRACELOG(RL_E_LOG_WARNING, "MODEL: glTF image data MIME type not recognized (%s)", imagePath);
+        }
 
         RL_FREE(data);
     }
@@ -7128,3 +7668,4 @@ static RLModelAnimation *LoadModelAnimationsM3D(const char *fileName, int *animC
 #endif
 
 #endif      // SUPPORT_MODULE_RMODELS
+

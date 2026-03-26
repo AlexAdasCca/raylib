@@ -240,8 +240,17 @@ struct _GLFWwin32WindowClass
 _GLFWwin32ThreadContext* _glfwGetThreadContextWin32(void);
 GLFWbool _glfwEnsureDispatchWindowWin32(_GLFWwin32ThreadContext* ctx);
 void _glfwDrainThreadTasksWin32(_GLFWwin32ThreadContext* ctx);
-void _glfwPostTaskWin32(_GLFWwin32ThreadContext* ctx, void (*fn)(void* user), void* user);
+void _glfwDiscardThreadTasksWin32(_GLFWwin32ThreadContext* ctx);
+int _glfwPostTaskWin32(_GLFWwin32ThreadContext* ctx, void (*fn)(void* user), void* user);
+int _glfwPostTaskWin32Ex(_GLFWwin32ThreadContext* ctx, void (*fn)(void* user), void* user, const GLFWthreadtaskmeta* meta);
 void _glfwWakeThreadWin32(_GLFWwin32ThreadContext* ctx);
+void _glfwGetThreadTaskStatsWin32(_GLFWwin32ThreadContext* ctx, unsigned int* queued, unsigned int* queuedPeak, unsigned long long* dropped);
+void _glfwGetThreadTaskStatsExWin32(_GLFWwin32ThreadContext* ctx,
+                                    unsigned int* queued, unsigned int* queuedPeak, unsigned long long* dropped,
+                                    unsigned long long* droppedCritical, unsigned long long* droppedState,
+                                    unsigned long long* droppedInput, unsigned long long* droppedMaintenance,
+                                    unsigned long long* wakeSent, unsigned long long* wakeDedup);
+void _glfwResetThreadTaskStatsWin32(_GLFWwin32ThreadContext* ctx);
 
 #define WGL_NUMBER_PIXEL_FORMATS_ARB 0x2000
 #define WGL_SUPPORT_OPENGL_ARB 0x2010
@@ -434,12 +443,22 @@ typedef struct _GLFWlibraryWGL
 
 // Win32-specific per-thread event-wakeup and task-dispatch context
 //
-typedef struct _GLFWwin32ThreadTask
+typedef struct _GLFWwin32ThreadTaskSlot
 {
     void (*fn)(void* user);
-    void*                       user;
-    struct _GLFWwin32ThreadTask* next;
-} _GLFWwin32ThreadTask;
+    void* user;
+    unsigned char taskClass;
+    unsigned char droppable;
+    GLFWthreadtaskdtorfun userDtor;
+} _GLFWwin32ThreadTaskSlot;
+
+#ifndef GLFW_WIN32_THREAD_TASK_CAPACITY
+    #define GLFW_WIN32_THREAD_TASK_CAPACITY 4096
+#endif
+
+#ifndef GLFW_WIN32_THREAD_DRAIN_BUDGET
+    #define GLFW_WIN32_THREAD_DRAIN_BUDGET 256
+#endif
 
 struct GLFWthread
 {
@@ -447,8 +466,16 @@ struct GLFWthread
     HANDLE                wakeEvent;
     HWND                  dispatchWindow;
     CRITICAL_SECTION       tasksLock;
-    _GLFWwin32ThreadTask*  tasksHead;
-    _GLFWwin32ThreadTask*  tasksTail;
+    _GLFWwin32ThreadTaskSlot tasksRing[GLFW_WIN32_THREAD_TASK_CAPACITY];
+    unsigned int          tasksHead;
+    unsigned int          tasksTail;
+    unsigned int          tasksCount;
+    unsigned int          tasksPeak;
+    unsigned long long    tasksDropped;
+    unsigned long long    tasksDroppedByClass[4];
+    unsigned long long    wakeSent;
+    unsigned long long    wakeDedup;
+    int                   wakePosted;
     struct GLFWthread*     next;
 };
 
@@ -704,4 +731,3 @@ void _glfwTerminateWGL(void);
 GLFWbool _glfwCreateContextWGL(_GLFWwindow* window,
                                const _GLFWctxconfig* ctxconfig,
                                const _GLFWfbconfig* fbconfig);
-

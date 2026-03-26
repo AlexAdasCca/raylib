@@ -793,7 +793,7 @@ void _glfwTerminateWin32(void)
                 ctx->dispatchWindow = NULL;
             }
 
-            _glfwDrainThreadTasksWin32(ctx);
+            _glfwDiscardThreadTasksWin32(ctx);
             DeleteCriticalSection(&ctx->tasksLock);
 
             if (ctx->wakeEvent)
@@ -865,4 +865,3 @@ void _glfwTerminateWin32(void)
 }
 
 #endif // _GLFW_WIN32
-

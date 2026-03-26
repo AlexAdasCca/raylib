@@ -51,6 +51,7 @@
 #if defined(SUPPORT_MODULE_RSHAPES)
 
 #include "rlgl.h"       // OpenGL abstraction layer to OpenGL 1.1, 2.1, 3.3+ or ES2
+#include "rl_context.h" // RLContext state for multi-window/multi-thread
 
 #include <math.h>       // Required for: sinf(), asinf(), cosf(), acosf(), sqrtf(), fabsf()
 #include <float.h>      // Required for: FLT_EPSILON
@@ -76,8 +77,46 @@
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-static RLTexture2D texShapes = { 1, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlgl)
-static RLRectangle texShapesRec = { 0.0f, 0.0f, 1.0f, 1.0f };    // Texture source rectangle used on shapes drawing
+// Fallback state used only when no RLContext is bound on this thread.
+static RLTexture2D texShapesFallback = { 1, 1, 1, 1, 7 };
+static RLRectangle texShapesRecFallback = { 0.0f, 0.0f, 1.0f, 1.0f };
+
+static inline void RLShapesEnsureContextDefaults(RLContext *ctx)
+{
+    if ((ctx != NULL) && !ctx->bIsShapesTextureReady)
+    {
+        ctx->stShapesTexture = (RLTexture2D){ 1, 1, 1, 1, 7 };
+        ctx->stShapesTextureRec = (RLRectangle){ 0.0f, 0.0f, 1.0f, 1.0f };
+        ctx->bIsShapesTextureReady = true;
+    }
+}
+
+static inline RLTexture2D *RLShapesTexturePtr(void)
+{
+    RLContext *ctx = RLGetCurrentContext();
+    if (ctx != NULL)
+    {
+        RLShapesEnsureContextDefaults(ctx);
+        return &ctx->stShapesTexture;
+    }
+
+    return &texShapesFallback;
+}
+
+static inline RLRectangle *RLShapesTextureRecPtr(void)
+{
+    RLContext *ctx = RLGetCurrentContext();
+    if (ctx != NULL)
+    {
+        RLShapesEnsureContextDefaults(ctx);
+        return &ctx->stShapesTextureRec;
+    }
+
+    return &texShapesRecFallback;
+}
+
+#define texShapes (*RLShapesTexturePtr())
+#define texShapesRec (*RLShapesTextureRecPtr())
 
 //----------------------------------------------------------------------------------
 // Module Internal Functions Declaration
