@@ -57,22 +57,22 @@ void RLThreadSetNameCurrent(const char* nameUtf8);
 // stable, descriptive name in debuggers and diagnostics.
 RLThread* RLThreadCreateNamed(RLThreadFn fn, void* user, const char* nameUtf8);
 RLThread* RLThreadCreate(RLThreadFn fn, void* user);
-void      RLThreadJoin(RLThread* t);
-void      RLThreadDestroy(RLThread* t);
+void      RLThreadJoin(RLThread* threadHandle);
+void      RLThreadDestroy(RLThread* threadHandle);
 
 // Mutex
 RLMutex*  RLMutexCreate(void);
-void      RLMutexLock(RLMutex* m);
-void      RLMutexUnlock(RLMutex* m);
-void      RLMutexDestroy(RLMutex* m);
+void      RLMutexLock(RLMutex* mutexHandle);
+void      RLMutexUnlock(RLMutex* mutexHandle);
+void      RLMutexDestroy(RLMutex* mutexHandle);
 
 // Auto-reset event
 RLEvent*  RLEventCreate(bool initialSignaled);
-void      RLEventSignal(RLEvent* e);
-void      RLEventReset(RLEvent* e);
-void      RLEventWait(RLEvent* e);
-bool      RLEventWaitTimeout(RLEvent* e, uint32_t timeoutMs);
-void      RLEventDestroy(RLEvent* e);
+void      RLEventSignal(RLEvent* eventHandle);
+void      RLEventReset(RLEvent* eventHandle);
+void      RLEventWait(RLEvent* eventHandle);
+bool      RLEventWaitTimeout(RLEvent* eventHandle, uint32_t timeoutMs);
+void      RLEventDestroy(RLEvent* eventHandle);
 
 #ifdef __cplusplus
 }

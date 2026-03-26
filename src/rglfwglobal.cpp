@@ -1,4 +1,5 @@
 #include "rglfwglobal.h"
+#include "rl_context.h"
 
 #include <atomic>
 #include <chrono>
@@ -61,9 +62,28 @@ static std::atomic<int> gRlGlfwRefCount{0};
 static std::thread::id gRlGlfwEventThread;
 static std::atomic<bool> gRlGlfwEventThreadSet{false};
 
+class RLGlfwGlobalLockScope
+{
+public:
+    RLGlfwGlobalLockScope()
+    {
+        gRlGlfwMutex.lock();
+        RLTraceCallbackIsolationEnter();
+    }
+
+    ~RLGlfwGlobalLockScope()
+    {
+        gRlGlfwMutex.unlock();
+        RLTraceCallbackIsolationLeave();
+    }
+
+    RLGlfwGlobalLockScope(const RLGlfwGlobalLockScope&) = delete;
+    RLGlfwGlobalLockScope& operator=(const RLGlfwGlobalLockScope&) = delete;
+};
+
 extern "C" bool RLGlfwGlobalAcquire(void)
 {
-    std::lock_guard<std::recursive_mutex> guard(gRlGlfwMutex);
+    RLGlfwGlobalLockScope glfwGlobalLock;
 
     const int prev = gRlGlfwRefCount.fetch_add(1, std::memory_order_acq_rel);
     if (prev == 0)
@@ -86,7 +106,7 @@ extern "C" void RLGlfwGlobalRelease(void)
     bool doTerminate = false;
 
     {
-        std::lock_guard<std::recursive_mutex> guard(gRlGlfwMutex);
+        RLGlfwGlobalLockScope glfwGlobalLock;
 
         const int cur = gRlGlfwRefCount.load(std::memory_order_acquire);
         if (cur <= 0)
@@ -113,11 +133,13 @@ extern "C" void RLGlfwGlobalRelease(void)
 extern "C" void RLGlfwGlobalLock(void)
 {
     gRlGlfwMutex.lock();
+    RLTraceCallbackIsolationEnter();
 }
 
 extern "C" void RLGlfwGlobalUnlock(void)
 {
     gRlGlfwMutex.unlock();
+    RLTraceCallbackIsolationLeave();
 }
 
 extern "C" bool RLGlfwIsEventPumpThread(void)
@@ -128,7 +150,7 @@ extern "C" bool RLGlfwIsEventPumpThread(void)
 
 extern "C" void RLGlfwSetEventPumpThreadToCurrent(void)
 {
-    std::lock_guard<std::recursive_mutex> guard(gRlGlfwMutex);
+    RLGlfwGlobalLockScope glfwGlobalLock;
     gRlGlfwEventThread = std::this_thread::get_id();
     gRlGlfwEventThreadSet.store(true, std::memory_order_release);
 }
@@ -139,7 +161,7 @@ extern "C" void RLGlfwSetEventPumpThreadToCurrent(void)
 
 struct RLThread
 {
-    std::thread t;
+    std::thread thread;
 };
 
 static std::atomic<uint32_t> gRlInternalThreadSeq{0};
@@ -175,13 +197,13 @@ static void rlWin32SetThreadNameException(const char* nameUtf8)
 
 struct RLMutex
 {
-    std::mutex m;
+    std::mutex mutex;
 };
 
 struct RLEvent
 {
-    std::mutex m;
-    std::condition_variable cv;
+    std::mutex mutex;
+    std::condition_variable condition;
     bool signaled{false};
 };
 
@@ -236,13 +258,13 @@ extern "C" RLThread* RLThreadCreateNamed(RLThreadFn fn, void* user, const char* 
 
     std::string name = (nameUtf8 != nullptr && nameUtf8[0] != '\0')? std::string(nameUtf8) : rlMakeDefaultThreadName();
 
-    RLThread* th = new RLThread{
+    RLThread* threadHandle = new RLThread{
         std::thread([fn, user, name]() {
             RLThreadSetNameCurrent(name.c_str());
             fn(user);
         })
     };
-    return th;
+    return threadHandle;
 }
 
 extern "C" RLThread* RLThreadCreate(RLThreadFn fn, void* user)
@@ -250,17 +272,17 @@ extern "C" RLThread* RLThreadCreate(RLThreadFn fn, void* user)
     return RLThreadCreateNamed(fn, user, nullptr);
 }
 
-extern "C" void RLThreadJoin(RLThread* t)
+extern "C" void RLThreadJoin(RLThread* threadHandle)
 {
-    if (!t) return;
-    if (t->t.joinable()) t->t.join();
+    if (!threadHandle) return;
+    if (threadHandle->thread.joinable()) threadHandle->thread.join();
 }
 
-extern "C" void RLThreadDestroy(RLThread* t)
+extern "C" void RLThreadDestroy(RLThread* threadHandle)
 {
-    if (!t) return;
-    if (t->t.joinable()) t->t.join();
-    delete t;
+    if (!threadHandle) return;
+    if (threadHandle->thread.joinable()) threadHandle->thread.join();
+    delete threadHandle;
 }
 
 extern "C" RLMutex* RLMutexCreate(void)
@@ -268,75 +290,75 @@ extern "C" RLMutex* RLMutexCreate(void)
     return new RLMutex{};
 }
 
-extern "C" void RLMutexLock(RLMutex* m)
+extern "C" void RLMutexLock(RLMutex* mutexHandle)
 {
-    if (!m) return;
-    m->m.lock();
+    if (!mutexHandle) return;
+    mutexHandle->mutex.lock();
 }
 
-extern "C" void RLMutexUnlock(RLMutex* m)
+extern "C" void RLMutexUnlock(RLMutex* mutexHandle)
 {
-    if (!m) return;
-    m->m.unlock();
+    if (!mutexHandle) return;
+    mutexHandle->mutex.unlock();
 }
 
-extern "C" void RLMutexDestroy(RLMutex* m)
+extern "C" void RLMutexDestroy(RLMutex* mutexHandle)
 {
-    delete m;
+    delete mutexHandle;
 }
 
 extern "C" RLEvent* RLEventCreate(bool initialSignaled)
 {
-    RLEvent* e = new RLEvent{};
-    e->signaled = initialSignaled;
-    return e;
+    RLEvent* eventHandle = new RLEvent{};
+    eventHandle->signaled = initialSignaled;
+    return eventHandle;
 }
 
-extern "C" void RLEventSignal(RLEvent* e)
+extern "C" void RLEventSignal(RLEvent* eventHandle)
 {
-    if (!e) return;
+    if (!eventHandle) return;
     {
-        std::lock_guard<std::mutex> lock(e->m);
-        e->signaled = true;
+        std::lock_guard<std::mutex> lock(eventHandle->mutex);
+        eventHandle->signaled = true;
     }
-    e->cv.notify_one();
+    eventHandle->condition.notify_one();
 }
 
-extern "C" void RLEventReset(RLEvent* e)
+extern "C" void RLEventReset(RLEvent* eventHandle)
 {
-    if (!e) return;
-    std::lock_guard<std::mutex> lock(e->m);
-    e->signaled = false;
+    if (!eventHandle) return;
+    std::lock_guard<std::mutex> lock(eventHandle->mutex);
+    eventHandle->signaled = false;
 }
 
-static inline void rlEventWaitImpl(RLEvent* e)
+static inline void rlEventWaitImpl(RLEvent* eventHandle)
 {
-    std::unique_lock<std::mutex> lock(e->m);
-    e->cv.wait(lock, [e]() { return e->signaled; });
+    std::unique_lock<std::mutex> lock(eventHandle->mutex);
+    eventHandle->condition.wait(lock, [eventHandle]() { return eventHandle->signaled; });
     // Auto-reset
-    e->signaled = false;
+    eventHandle->signaled = false;
 }
 
-extern "C" void RLEventWait(RLEvent* e)
+extern "C" void RLEventWait(RLEvent* eventHandle)
 {
-    if (!e) return;
-    rlEventWaitImpl(e);
+    if (!eventHandle) return;
+    rlEventWaitImpl(eventHandle);
 }
 
-extern "C" bool RLEventWaitTimeout(RLEvent* e, uint32_t timeoutMs)
+extern "C" bool RLEventWaitTimeout(RLEvent* eventHandle, uint32_t timeoutMs)
 {
-    if (!e) return false;
-    std::unique_lock<std::mutex> lock(e->m);
-    const bool ok = e->cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [e]() { return e->signaled; });
+    if (!eventHandle) return false;
+    std::unique_lock<std::mutex> lock(eventHandle->mutex);
+    const bool ok = eventHandle->condition.wait_for(lock, std::chrono::milliseconds(timeoutMs), [eventHandle]() { return eventHandle->signaled; });
     if (ok)
     {
         // Auto-reset
-        e->signaled = false;
+        eventHandle->signaled = false;
     }
     return ok;
 }
 
-extern "C" void RLEventDestroy(RLEvent* e)
+extern "C" void RLEventDestroy(RLEvent* eventHandle)
 {
-    delete e;
+    delete eventHandle;
 }

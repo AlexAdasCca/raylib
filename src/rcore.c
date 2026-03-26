@@ -482,6 +482,7 @@ static RLTrackedObjectTable rlTrackedObjectTable = { 0 };
 // -1: writer holds lock
 // >=0: number of active readers
 static volatile long rlTrackedObjectRwState = 0;
+static volatile unsigned int rlTrackedObjectDiagFlags = 0u;
 
 typedef enum RLTrackedScopeKind
 {
@@ -493,16 +494,43 @@ static bool RLTrackedObjectResolveScope(RLContext *ctx, RLTrackedScopeKind *outS
 {
     if ((ctx == NULL) || (outScopeKind == NULL) || (outScopeValue == NULL)) return false;
 
-    if (ctx->gpuShareGroup != NULL)
+    void *trackedScopeHandle = NULL;
+    if (RLSharedGpuContextResolveTrackedScopeHandle(ctx, &trackedScopeHandle))
     {
         *outScopeKind = RL_TRACKED_SCOPE_SHARE_GROUP;
-        *outScopeValue = (uintptr_t)ctx->gpuShareGroup;
+        *outScopeValue = (uintptr_t)trackedScopeHandle;
         return true;
     }
 
     *outScopeKind = RL_TRACKED_SCOPE_CONTEXT;
     *outScopeValue = (uintptr_t)ctx;
     return true;
+}
+
+static const char *RLTrackedScopeKindName(RLTrackedScopeKind kind)
+{
+    switch (kind)
+    {
+        case RL_TRACKED_SCOPE_CONTEXT: return "context";
+        case RL_TRACKED_SCOPE_SHARE_GROUP: return "share_group";
+        default: return "unknown";
+    }
+}
+
+static const char *RLTrackedObjectStateName(unsigned char state)
+{
+    switch (state)
+    {
+        case 0u: return "empty";
+        case 1u: return "used";
+        case 2u: return "tombstone";
+        default: return "unknown";
+    }
+}
+
+static int RLTrackedObjectDiagHasFlag(unsigned int flag)
+{
+    return ((rlTrackedObjectDiagFlags & flag) != 0u);
 }
 
 static void RLTrackedObjectReadLock(void)
@@ -538,6 +566,8 @@ static void RLTrackedObjectReadLock(void)
         }
 #endif
     }
+
+    RLTraceCallbackIsolationEnter();
 }
 
 static void RLTrackedObjectReadUnlock(void)
@@ -553,6 +583,8 @@ static void RLTrackedObjectReadUnlock(void)
 #else
     rlTrackedObjectRwState--;
 #endif
+
+    RLTraceCallbackIsolationLeave();
 }
 
 static void RLTrackedObjectWriteLock(void)
@@ -576,6 +608,8 @@ static void RLTrackedObjectWriteLock(void)
         }
 #endif
     }
+
+    RLTraceCallbackIsolationEnter();
 }
 
 static void RLTrackedObjectWriteUnlock(void)
@@ -591,6 +625,8 @@ static void RLTrackedObjectWriteUnlock(void)
 #else
     rlTrackedObjectRwState = 0;
 #endif
+
+    RLTraceCallbackIsolationLeave();
 }
 
 static uint64_t RLTrackedObjectHash(RLTrackedObjectKind kind, RLTrackedScopeKind scopeKind, uintptr_t scopeValue, uint64_t key)
@@ -611,6 +647,7 @@ static const char *RLTrackedObjectKindName(RLTrackedObjectKind kind)
 {
     switch (kind)
     {
+        case RL_TRACKED_OBJECT_FONT: return "font";
         case RL_TRACKED_OBJECT_TEXTURE: return "texture";
         case RL_TRACKED_OBJECT_RENDER_TEXTURE: return "render_texture";
         case RL_TRACKED_OBJECT_MESH: return "mesh";
@@ -705,14 +742,410 @@ static RLTrackedObjectEntry *RLTrackedObjectFindEntry(RLTrackedObjectKind kind, 
     }
 }
 
+static void RLTrackedObjectLogEntryDetail(int logLevel, const char *prefix, size_t entryIndex, const RLTrackedObjectEntry *entry,
+    RLTrackedScopeKind currentScopeKind, uintptr_t currentScopeValue)
+{
+    if ((prefix == NULL) || (entry == NULL)) return;
+
+    TRACELOG(logLevel,
+        "%s entry[%llu] state=%s kind=%s key=%llu refCount=%u owner=%p orphaned=%u scope=%s scopeValue=0x%llx scopeMatch=%u snapshotSize=%llu",
+        prefix,
+        (unsigned long long)entryIndex,
+        RLTrackedObjectStateName(entry->state),
+        RLTrackedObjectKindName(entry->kind),
+        (unsigned long long)entry->key,
+        entry->refCount,
+        (void *)entry->ownerContext,
+        (unsigned int)entry->ownerOrphaned,
+        RLTrackedScopeKindName((RLTrackedScopeKind)entry->scopeKind),
+        (unsigned long long)entry->scopeValue,
+        (((RLTrackedScopeKind)entry->scopeKind == currentScopeKind) && (entry->scopeValue == currentScopeValue)) ? 1u : 0u,
+        (unsigned long long)entry->snapshotSize);
+}
+
+static void RLTrackedObjectLogReleaseMissLocked(RLTrackedObjectKind kind, uint64_t key, RLContext *currentContext,
+    RLTrackedScopeKind currentScopeKind, uintptr_t currentScopeValue)
+{
+    unsigned int activeCurrentScope = 0u;
+    unsigned int tombstoneCurrentScope = 0u;
+    unsigned int orphanedCurrentScope = 0u;
+    unsigned int activeOtherScope = 0u;
+    unsigned int tombstoneOtherScope = 0u;
+    unsigned int orphanedOtherScope = 0u;
+    unsigned int detailLogged = 0u;
+    const unsigned int detailLimit = 16u;
+    const char *cause = "not-tracked";
+
+    if ((rlTrackedObjectTable.entries != NULL) && (rlTrackedObjectTable.capacity > 0u))
+    {
+        for (size_t entryIndex = 0u; entryIndex < rlTrackedObjectTable.capacity; entryIndex++)
+        {
+            const RLTrackedObjectEntry *entry = &rlTrackedObjectTable.entries[entryIndex];
+            if ((entry->state == 0u) || (entry->kind != kind) || (entry->key != key)) continue;
+
+            const int sameScope = (((RLTrackedScopeKind)entry->scopeKind == currentScopeKind) && (entry->scopeValue == currentScopeValue));
+            if (entry->state == 1u)
+            {
+                if (sameScope) activeCurrentScope++;
+                else activeOtherScope++;
+
+                if (entry->ownerOrphaned != 0u)
+                {
+                    if (sameScope) orphanedCurrentScope++;
+                    else orphanedOtherScope++;
+                }
+            }
+            else if (entry->state == 2u)
+            {
+                if (sameScope) tombstoneCurrentScope++;
+                else tombstoneOtherScope++;
+            }
+
+            if (detailLogged < detailLimit)
+            {
+                RLTrackedObjectLogEntryDetail(RL_E_LOG_WARNING, "TRACKED_OBJECT: release miss match", entryIndex, entry, currentScopeKind, currentScopeValue);
+                detailLogged++;
+            }
+        }
+    }
+
+    if (activeCurrentScope > 0u) cause = "unexpected-current-scope-miss";
+    else if (tombstoneCurrentScope > 0u) cause = "likely-deleted-in-current-scope";
+    else if (orphanedCurrentScope > 0u) cause = "current-scope-entry-orphaned";
+    else if (activeOtherScope > 0u) cause = "scope-mismatch";
+    else if (orphanedOtherScope > 0u) cause = "other-scope-entry-orphaned";
+    else if (tombstoneOtherScope > 0u) cause = "deleted-in-other-scope";
+
+    TRACELOG(RL_E_LOG_WARNING,
+        "TRACKED_OBJECT: release miss kind=%s key=%llu currentCtx=%p scope=%s scopeValue=0x%llx cause=%s activeCurrent=%u tombstoneCurrent=%u orphanedCurrent=%u activeOther=%u tombstoneOther=%u orphanedOther=%u tableUsed=%llu tombstones=%llu capacity=%llu",
+        RLTrackedObjectKindName(kind),
+        (unsigned long long)key,
+        (void *)currentContext,
+        RLTrackedScopeKindName(currentScopeKind),
+        (unsigned long long)currentScopeValue,
+        cause,
+        activeCurrentScope,
+        tombstoneCurrentScope,
+        orphanedCurrentScope,
+        activeOtherScope,
+        tombstoneOtherScope,
+        orphanedOtherScope,
+        (unsigned long long)rlTrackedObjectTable.used,
+        (unsigned long long)rlTrackedObjectTable.tombstones,
+        (unsigned long long)rlTrackedObjectTable.capacity);
+
+    if (detailLogged == 0u)
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+            "TRACKED_OBJECT: release miss has no matching active/tombstone entries for kind=%s key=%llu",
+            RLTrackedObjectKindName(kind),
+            (unsigned long long)key);
+    }
+}
+
+static void RLTrackedObjectLogPromotionBeginLocked(RLContext *ctx, void *shareGroup)
+{
+    TRACELOG(RL_E_LOG_INFO,
+        "TRACKED_OBJECT: promote begin context=%p shareGroup=%p used=%llu tombstones=%llu capacity=%llu",
+        (void *)ctx,
+        shareGroup,
+        (unsigned long long)rlTrackedObjectTable.used,
+        (unsigned long long)rlTrackedObjectTable.tombstones,
+        (unsigned long long)rlTrackedObjectTable.capacity);
+}
+
+static void RLTrackedObjectLogPromotionEndLocked(RLContext *ctx, void *shareGroup,
+    unsigned int moveCandidateCount, unsigned int migratedCount, unsigned int conflictCount)
+{
+    TRACELOG(RL_E_LOG_INFO,
+        "TRACKED_OBJECT: promote end context=%p shareGroup=%p candidates=%u migrated=%u conflicts=%u used=%llu tombstones=%llu capacity=%llu",
+        (void *)ctx,
+        shareGroup,
+        moveCandidateCount,
+        migratedCount,
+        conflictCount,
+        (unsigned long long)rlTrackedObjectTable.used,
+        (unsigned long long)rlTrackedObjectTable.tombstones,
+        (unsigned long long)rlTrackedObjectTable.capacity);
+}
+
+static void RLTrackedObjectAuditPromotionLocked(RLContext *ctx, void *shareGroup)
+{
+    const uintptr_t contextScopeValue = (uintptr_t)ctx;
+    const uintptr_t shareScopeValue = (uintptr_t)shareGroup;
+    unsigned int legacyActiveCount = 0u;
+    unsigned int duplicateActiveCount = 0u;
+    unsigned int legacyLogged = 0u;
+    unsigned int duplicateLogged = 0u;
+    const unsigned int detailLimit = 16u;
+
+    if ((rlTrackedObjectTable.entries == NULL) || (rlTrackedObjectTable.capacity == 0u))
+    {
+        TRACELOG(RL_E_LOG_INFO,
+            "TRACKED_OBJECT: promote audit context=%p shareGroup=%p result=empty-table",
+            (void *)ctx,
+            shareGroup);
+        return;
+    }
+
+    for (size_t entryIndex = 0u; entryIndex < rlTrackedObjectTable.capacity; entryIndex++)
+    {
+        const RLTrackedObjectEntry *entry = &rlTrackedObjectTable.entries[entryIndex];
+        if ((entry->state != 1u) ||
+            ((RLTrackedScopeKind)entry->scopeKind != RL_TRACKED_SCOPE_CONTEXT) ||
+            (entry->scopeValue != contextScopeValue)) continue;
+
+        legacyActiveCount++;
+        if (legacyLogged < detailLimit)
+        {
+            RLTrackedObjectLogEntryDetail(RL_E_LOG_WARNING,
+                "TRACKED_OBJECT: promote audit stale-context-entry",
+                entryIndex,
+                entry,
+                RL_TRACKED_SCOPE_CONTEXT,
+                contextScopeValue);
+            legacyLogged++;
+        }
+    }
+
+    for (size_t entryIndex = 0u; entryIndex < rlTrackedObjectTable.capacity; entryIndex++)
+    {
+        const RLTrackedObjectEntry *entry = &rlTrackedObjectTable.entries[entryIndex];
+        if ((entry->state != 1u) ||
+            ((RLTrackedScopeKind)entry->scopeKind != RL_TRACKED_SCOPE_SHARE_GROUP) ||
+            (entry->scopeValue != shareScopeValue)) continue;
+
+        RLTrackedObjectEntry *legacy = RLTrackedObjectFindEntry(entry->kind,
+            RL_TRACKED_SCOPE_CONTEXT, contextScopeValue, entry->key, false);
+        if ((legacy == NULL) || (legacy->state != 1u)) continue;
+
+        duplicateActiveCount++;
+        if (duplicateLogged < detailLimit)
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                "TRACKED_OBJECT: promote audit duplicate-active kind=%s key=%llu context=%p shareGroup=%p shareOwner=%p legacyOwner=%p shareRef=%u legacyRef=%u",
+                RLTrackedObjectKindName(entry->kind),
+                (unsigned long long)entry->key,
+                (void *)ctx,
+                shareGroup,
+                (void *)entry->ownerContext,
+                (void *)legacy->ownerContext,
+                entry->refCount,
+                legacy->refCount);
+            duplicateLogged++;
+        }
+    }
+
+    if ((legacyActiveCount == 0u) && (duplicateActiveCount == 0u))
+    {
+        TRACELOG(RL_E_LOG_INFO,
+            "TRACKED_OBJECT: promote audit clean context=%p shareGroup=%p",
+            (void *)ctx,
+            shareGroup);
+        return;
+    }
+
+    TRACELOG(RL_E_LOG_WARNING,
+        "TRACKED_OBJECT: promote audit summary context=%p shareGroup=%p staleContextEntries=%u duplicateActiveKeys=%u",
+        (void *)ctx,
+        shareGroup,
+        legacyActiveCount,
+        duplicateActiveCount);
+    if (legacyActiveCount > legacyLogged)
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+            "TRACKED_OBJECT: promote audit stale-context-entry detail suppressed: %u entries omitted",
+            legacyActiveCount - legacyLogged);
+    }
+    if (duplicateActiveCount > duplicateLogged)
+    {
+        TRACELOG(RL_E_LOG_WARNING,
+            "TRACKED_OBJECT: promote audit duplicate-active detail suppressed: %u entries omitted",
+            duplicateActiveCount - duplicateLogged);
+    }
+}
+
+RLTrackedPromotionResult RLTrackedObjectPromoteContextEntriesToShareGroup(RLContext *ctx, void *shareGroup)
+{
+    if ((ctx == NULL) || (shareGroup == NULL)) return RL_TRACKED_PROMOTION_FAILED;
+
+    const uintptr_t contextScopeValue = (uintptr_t)ctx;
+    const uintptr_t shareScopeValue = (uintptr_t)shareGroup;
+    unsigned int moveCandidateCount = 0u;
+    unsigned int migratedCount = 0u;
+    unsigned int conflictCount = 0u;
+    unsigned int conflictLogged = 0u;
+    const unsigned int conflictLogLimit = 16u;
+    const int logPromotions = RLTrackedObjectDiagHasFlag(RL_TRACKED_OBJECT_DIAG_LOG_PROMOTIONS);
+    const int auditPromotions = RLTrackedObjectDiagHasFlag(RL_TRACKED_OBJECT_DIAG_AUDIT_PROMOTIONS);
+
+    RLTrackedObjectWriteLock();
+
+    if (logPromotions) RLTrackedObjectLogPromotionBeginLocked(ctx, shareGroup);
+
+    if ((rlTrackedObjectTable.entries != NULL) && (rlTrackedObjectTable.capacity > 0u))
+    {
+        for (size_t entryIndex = 0u; entryIndex < rlTrackedObjectTable.capacity; entryIndex++)
+        {
+            const RLTrackedObjectEntry *entry = &rlTrackedObjectTable.entries[entryIndex];
+            if ((entry->state != 1u) ||
+                ((RLTrackedScopeKind)entry->scopeKind != RL_TRACKED_SCOPE_CONTEXT) ||
+                (entry->scopeValue != contextScopeValue)) continue;
+
+            moveCandidateCount++;
+
+            RLTrackedObjectEntry *conflict = RLTrackedObjectFindEntry(entry->kind,
+                RL_TRACKED_SCOPE_SHARE_GROUP, shareScopeValue, entry->key, false);
+            if ((conflict != NULL) && (conflict->state == 1u))
+            {
+                conflictCount++;
+                if (conflictLogged < conflictLogLimit)
+                {
+                    TRACELOG(RL_E_LOG_WARNING,
+                        "TRACKED_OBJECT: promote conflict kind=%s key=%llu sourceCtx=%p shareGroup=%p existingOwner=%p existingOrphaned=%u existingRef=%u existingScopeValue=0x%llx sourceOwner=%p sourceOrphaned=%u sourceRef=%u",
+                        RLTrackedObjectKindName(entry->kind),
+                        (unsigned long long)entry->key,
+                        (void *)ctx,
+                        shareGroup,
+                        (void *)conflict->ownerContext,
+                        (unsigned int)conflict->ownerOrphaned,
+                        conflict->refCount,
+                        (unsigned long long)conflict->scopeValue,
+                        (void *)entry->ownerContext,
+                        (unsigned int)entry->ownerOrphaned,
+                        entry->refCount);
+                    conflictLogged++;
+                }
+            }
+        }
+    }
+
+    if (conflictCount > 0u)
+    {
+        if (logPromotions) RLTrackedObjectLogPromotionEndLocked(ctx, shareGroup, moveCandidateCount, migratedCount, conflictCount);
+        RLTrackedObjectWriteUnlock();
+        TRACELOG(RL_E_LOG_WARNING,
+            "TRACKED_OBJECT: promote aborted for context=%p shareGroup=%p due to %u conflicting share-group entries",
+            (void *)ctx,
+            shareGroup,
+            conflictCount);
+        if (conflictCount > conflictLogged)
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                "TRACKED_OBJECT: promote conflict detail suppressed: %u entries omitted",
+                conflictCount - conflictLogged);
+        }
+        return RL_TRACKED_PROMOTION_FAILED;
+    }
+
+    RLSharedGpuGroupSetSharedTrackedScope(shareGroup);
+
+    if ((moveCandidateCount > 0u) && (rlTrackedObjectTable.entries != NULL) && (rlTrackedObjectTable.capacity > 0u))
+    {
+        for (size_t entryIndex = 0u; entryIndex < rlTrackedObjectTable.capacity; entryIndex++)
+        {
+            RLTrackedObjectEntry *entry = &rlTrackedObjectTable.entries[entryIndex];
+            if ((entry->state != 1u) ||
+                ((RLTrackedScopeKind)entry->scopeKind != RL_TRACKED_SCOPE_CONTEXT) ||
+                (entry->scopeValue != contextScopeValue)) continue;
+
+            RLTrackedObjectEntry moved = *entry;
+
+            entry->refCount = 0u;
+            entry->ownerContext = NULL;
+            entry->ownerOrphaned = 0u;
+            entry->snapshot = NULL;
+            entry->snapshotSize = 0u;
+            entry->state = 2u;
+            rlTrackedObjectTable.used--;
+            rlTrackedObjectTable.tombstones++;
+
+            RLTrackedObjectEntry *target = RLTrackedObjectFindEntry(moved.kind,
+                RL_TRACKED_SCOPE_SHARE_GROUP, shareScopeValue, moved.key, true);
+            if (target == NULL)
+            {
+                entry->refCount = moved.refCount;
+                entry->ownerContext = moved.ownerContext;
+                entry->ownerOrphaned = moved.ownerOrphaned;
+                entry->snapshot = moved.snapshot;
+                entry->snapshotSize = moved.snapshotSize;
+                entry->state = 1u;
+                rlTrackedObjectTable.used++;
+                rlTrackedObjectTable.tombstones--;
+
+                TRACELOG(RL_E_LOG_WARNING,
+                    "TRACKED_OBJECT: promote restore kind=%s key=%llu sourceCtx=%p shareGroup=%p reason=no-target-slot",
+                    RLTrackedObjectKindName(moved.kind),
+                    (unsigned long long)moved.key,
+                    (void *)ctx,
+                    shareGroup);
+                continue;
+            }
+
+            if (target->state == 2u) rlTrackedObjectTable.tombstones--;
+            else if (target->state != 1u) rlTrackedObjectTable.used++;
+
+            target->key = moved.key;
+            target->kind = moved.kind;
+            target->scopeKind = (unsigned char)RL_TRACKED_SCOPE_SHARE_GROUP;
+            target->scopeValue = shareScopeValue;
+            target->refCount = moved.refCount;
+            target->ownerContext = moved.ownerContext;
+            target->ownerOrphaned = moved.ownerOrphaned;
+            target->snapshot = moved.snapshot;
+            target->snapshotSize = moved.snapshotSize;
+            target->state = 1u;
+            migratedCount++;
+
+            if (logPromotions)
+            {
+                TRACELOG(RL_E_LOG_INFO,
+                    "TRACKED_OBJECT: promote migrated kind=%s key=%llu sourceCtx=%p shareGroup=%p owner=%p orphaned=%u refCount=%u snapshotSize=%llu",
+                    RLTrackedObjectKindName(moved.kind),
+                    (unsigned long long)moved.key,
+                    (void *)ctx,
+                    shareGroup,
+                    (void *)moved.ownerContext,
+                    (unsigned int)moved.ownerOrphaned,
+                    moved.refCount,
+                    (unsigned long long)moved.snapshotSize);
+            }
+        }
+    }
+
+    if (auditPromotions) RLTrackedObjectAuditPromotionLocked(ctx, shareGroup);
+    if (logPromotions) RLTrackedObjectLogPromotionEndLocked(ctx, shareGroup, moveCandidateCount, migratedCount, conflictCount);
+
+    RLTrackedObjectWriteUnlock();
+
+    if (moveCandidateCount > 0u)
+    {
+        TRACELOG(RL_E_LOG_INFO,
+            "TRACKED_OBJECT: promoted %u/%u tracked entries from context=%p to shareGroup=%p",
+            migratedCount,
+            moveCandidateCount,
+            (void *)ctx,
+            shareGroup);
+    }
+
+    if (moveCandidateCount == 0u) return RL_TRACKED_PROMOTION_NO_CHANGES;
+    return RL_TRACKED_PROMOTION_SUCCEEDED;
+}
+
+void RLDebugDumpTrackedObjectState(const char *label);
+
 bool RLTrackedObjectRetain(RLTrackedObjectKind kind, uint64_t key, RLContext *ownerContext, const void *snapshot, size_t snapshotSize)
 {
     if ((key == 0) || (snapshot == NULL) || (snapshotSize == 0)) return false;
     RLTrackedScopeKind scopeKind = RL_TRACKED_SCOPE_CONTEXT;
     uintptr_t scopeValue = 0;
-    if (!RLTrackedObjectResolveScope(ownerContext, &scopeKind, &scopeValue)) return false;
 
     RLTrackedObjectWriteLock();
+    if (!RLTrackedObjectResolveScope(ownerContext, &scopeKind, &scopeValue))
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
     if (!RLTrackedObjectEnsureCapacity())
     {
         RLTrackedObjectWriteUnlock();
@@ -759,7 +1192,7 @@ bool RLTrackedObjectRetain(RLTrackedObjectKind kind, uint64_t key, RLContext *ow
     memcpy(newSnapshot, snapshot, snapshotSize);
 
     if (entry->state == 2) rlTrackedObjectTable.tombstones--;
-    else rlTrackedObjectTable.used++;
+    rlTrackedObjectTable.used++;
 
     entry->key = key;
     entry->kind = kind;
@@ -782,13 +1215,21 @@ bool RLTrackedObjectRelease(RLTrackedObjectKind kind, uint64_t key, void *outSna
     RLContext *currentContext = RLGetCurrentContext();
     RLTrackedScopeKind scopeKind = RL_TRACKED_SCOPE_CONTEXT;
     uintptr_t scopeValue = 0;
-    if (!RLTrackedObjectResolveScope(currentContext, &scopeKind, &scopeValue)) return false;
+    const int logReleaseCalls = RLTrackedObjectDiagHasFlag(RL_TRACKED_OBJECT_DIAG_LOG_RELEASE_CALLS);
+    const int dumpStateOnMiss = RLTrackedObjectDiagHasFlag(RL_TRACKED_OBJECT_DIAG_DUMP_STATE_ON_RELEASE_MISS);
 
     RLTrackedObjectWriteLock();
+    if (!RLTrackedObjectResolveScope(currentContext, &scopeKind, &scopeValue))
+    {
+        RLTrackedObjectWriteUnlock();
+        return false;
+    }
     RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, scopeKind, scopeValue, key, false);
     if ((entry == NULL) || (entry->state != 1))
     {
+        RLTrackedObjectLogReleaseMissLocked(kind, key, currentContext, scopeKind, scopeValue);
         RLTrackedObjectWriteUnlock();
+        if (dumpStateOnMiss) RLDebugDumpTrackedObjectState("tracked-object-release-miss");
         return false;
     }
 
@@ -796,7 +1237,23 @@ bool RLTrackedObjectRelease(RLTrackedObjectKind kind, uint64_t key, void *outSna
     {
         entry->refCount--;
         if (outRemainingRefCount != NULL) *outRemainingRefCount = entry->refCount;
+        const unsigned int remainingRefCount = entry->refCount;
+        const RLContext *ownerContext = entry->ownerContext;
+        const unsigned int ownerOrphaned = entry->ownerOrphaned;
         RLTrackedObjectWriteUnlock();
+        if (logReleaseCalls)
+        {
+            TRACELOG(RL_E_LOG_INFO,
+                "TRACKED_OBJECT: release kind=%s key=%llu currentCtx=%p owner=%p orphaned=%u scope=%s scopeValue=0x%llx result=decrement remainingRefCount=%u",
+                RLTrackedObjectKindName(kind),
+                (unsigned long long)key,
+                (void *)currentContext,
+                (const void *)ownerContext,
+                ownerOrphaned,
+                RLTrackedScopeKindName(scopeKind),
+                (unsigned long long)scopeValue,
+                remainingRefCount);
+        }
         return true;
     }
 
@@ -821,6 +1278,16 @@ bool RLTrackedObjectRelease(RLTrackedObjectKind kind, uint64_t key, void *outSna
     rlTrackedObjectTable.tombstones++;
     RLTrackedObjectReleaseTableStorageIfEmptyLocked();
     RLTrackedObjectWriteUnlock();
+    if (logReleaseCalls)
+    {
+        TRACELOG(RL_E_LOG_INFO,
+            "TRACKED_OBJECT: release kind=%s key=%llu currentCtx=%p scope=%s scopeValue=0x%llx result=final-release tombstoned=1",
+            RLTrackedObjectKindName(kind),
+            (unsigned long long)key,
+            (void *)currentContext,
+            RLTrackedScopeKindName(scopeKind),
+            (unsigned long long)scopeValue);
+    }
     return true;
 }
 
@@ -831,9 +1298,13 @@ bool RLTrackedObjectGetOwnerContext(RLTrackedObjectKind kind, uint64_t key, RLCo
     RLContext *currentContext = RLGetCurrentContext();
     RLTrackedScopeKind scopeKind = RL_TRACKED_SCOPE_CONTEXT;
     uintptr_t scopeValue = 0;
-    if (!RLTrackedObjectResolveScope(currentContext, &scopeKind, &scopeValue)) return false;
 
     RLTrackedObjectReadLock();
+    if (!RLTrackedObjectResolveScope(currentContext, &scopeKind, &scopeValue))
+    {
+        RLTrackedObjectReadUnlock();
+        return false;
+    }
     RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, scopeKind, scopeValue, key, false);
     if ((entry == NULL) || (entry->state != 1))
     {
@@ -853,40 +1324,85 @@ bool RLTrackedObjectIsOwnedByCurrentContext(RLTrackedObjectKind kind, uint64_t k
     return (ownerContext == RLGetCurrentContext());
 }
 
-bool RLTrackedObjectTryTransferOwner(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
+static int RLTrackedObjectCanTransferOwnerLocked(RLTrackedObjectKind kind, uint64_t key, RLContext *currentContext, RLContext *targetContext)
 {
-    if ((key == 0) || (targetContext == NULL)) return false;
-    RLContext *currentContext = RLGetCurrentContext();
-    RLTrackedScopeKind sourceScopeKind = RL_TRACKED_SCOPE_CONTEXT;
-    uintptr_t sourceScopeValue = 0;
-    if (!RLTrackedObjectResolveScope(currentContext, &sourceScopeKind, &sourceScopeValue)) return false;
-    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
-    uintptr_t targetScopeValue = 0;
-    if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return false;
-    if ((sourceScopeKind != targetScopeKind) || (sourceScopeValue != targetScopeValue)) return false;
+    if ((key == 0u) || (currentContext == NULL) || (targetContext == NULL)) return -1;
 
-    RLTrackedObjectWriteLock();
-    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, sourceScopeKind, sourceScopeValue, key, false);
-    if ((entry == NULL) || (entry->state != 1))
+    RLTrackedScopeKind sourceScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t sourceScopeValue = 0u;
+    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t targetScopeValue = 0u;
+
+    if (!RLTrackedObjectResolveScope(currentContext, &sourceScopeKind, &sourceScopeValue) ||
+        !RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue))
     {
-        RLTrackedObjectWriteUnlock();
-        return false;
+        return -1;
+    }
+    if ((sourceScopeKind != targetScopeKind) || (sourceScopeValue != targetScopeValue))
+    {
+        return -1;
+    }
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, sourceScopeKind, sourceScopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1u))
+    {
+        return 0;
     }
 
     if ((entry->ownerContext == NULL) && (entry->ownerOrphaned != 0u))
     {
-        RLTrackedObjectWriteUnlock();
-        return false;
+        return -1;
+    }
+
+    if (entry->ownerContext == targetContext)
+    {
+        return 2;
     }
 
     if ((entry->ownerContext != NULL) && (entry->ownerContext != currentContext))
     {
-        RLTrackedObjectWriteUnlock();
-        return false;
+        return -1;
     }
+
+    return 1;
+}
+
+static void RLTrackedObjectTransferOwnerLocked(RLTrackedObjectKind kind, uint64_t key, RLContext *currentContext, RLContext *targetContext)
+{
+    RLTrackedScopeKind sourceScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t sourceScopeValue = 0u;
+    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t targetScopeValue = 0u;
+
+    if ((key == 0u) || (currentContext == NULL) || (targetContext == NULL)) return;
+    if (!RLTrackedObjectResolveScope(currentContext, &sourceScopeKind, &sourceScopeValue) ||
+        !RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return;
+    if ((sourceScopeKind != targetScopeKind) || (sourceScopeValue != targetScopeValue)) return;
+
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, sourceScopeKind, sourceScopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1u)) return;
 
     entry->ownerContext = targetContext;
     entry->ownerOrphaned = 0u;
+}
+
+bool RLTrackedObjectTryTransferOwner(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
+{
+    if ((key == 0u) || (targetContext == NULL)) return false;
+
+    RLContext *currentContext = RLGetCurrentContext();
+    if (currentContext == NULL) return false;
+
+    RLTrackedObjectWriteLock();
+    {
+        int canTransfer = RLTrackedObjectCanTransferOwnerLocked(kind, key, currentContext, targetContext);
+        if (canTransfer < 1)
+        {
+            RLTrackedObjectWriteUnlock();
+            return (canTransfer == 2);
+        }
+
+        RLTrackedObjectTransferOwnerLocked(kind, key, currentContext, targetContext);
+    }
     RLTrackedObjectWriteUnlock();
     return true;
 }
@@ -898,70 +1414,60 @@ static int RLTrackedObjectCanTransferOwner(RLTrackedObjectKind kind, uint64_t ke
     RLContext *currentContext = RLGetCurrentContext();
     if (currentContext == NULL) return -1;
 
-    RLTrackedScopeKind sourceScopeKind = RL_TRACKED_SCOPE_CONTEXT;
-    uintptr_t sourceScopeValue = 0u;
-    if (!RLTrackedObjectResolveScope(currentContext, &sourceScopeKind, &sourceScopeValue)) return -1;
+    RLTrackedObjectReadLock();
+    {
+        int canTransfer = RLTrackedObjectCanTransferOwnerLocked(kind, key, currentContext, targetContext);
+        RLTrackedObjectReadUnlock();
+        return canTransfer;
+    }
+}
+
+static int RLTrackedObjectCanAdoptOrphanedOwnerLocked(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
+{
+    if ((key == 0u) || (targetContext == NULL)) return -1;
 
     RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
     uintptr_t targetScopeValue = 0u;
+
     if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return -1;
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, targetScopeKind, targetScopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1u)) return 0;
+    if ((entry->ownerContext == targetContext) && (entry->ownerOrphaned == 0u)) return 2;
+    if ((entry->ownerContext != NULL) || (entry->ownerOrphaned == 0u)) return -1;
 
-    if ((sourceScopeKind != targetScopeKind) || (sourceScopeValue != targetScopeValue)) return -1;
-
-    RLTrackedObjectReadLock();
-    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, sourceScopeKind, sourceScopeValue, key, false);
-    if ((entry == NULL) || (entry->state != 1u))
-    {
-        RLTrackedObjectReadUnlock();
-        return 0;
-    }
-
-    if ((entry->ownerContext == NULL) && (entry->ownerOrphaned != 0u))
-    {
-        RLTrackedObjectReadUnlock();
-        return -1;
-    }
-
-    if (entry->ownerContext == targetContext)
-    {
-        RLTrackedObjectReadUnlock();
-        return 2;
-    }
-
-    if ((entry->ownerContext != NULL) && (entry->ownerContext != currentContext))
-    {
-        RLTrackedObjectReadUnlock();
-        return -1;
-    }
-
-    RLTrackedObjectReadUnlock();
     return 1;
+}
+
+static void RLTrackedObjectAdoptOrphanedOwnerLocked(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
+{
+    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t targetScopeValue = 0u;
+
+    if ((key == 0u) || (targetContext == NULL)) return;
+    if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return;
+
+    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, targetScopeKind, targetScopeValue, key, false);
+    if ((entry == NULL) || (entry->state != 1u)) return;
+
+    entry->ownerContext = targetContext;
+    entry->ownerOrphaned = 0u;
 }
 
 static int RLTrackedObjectTryAdoptOrphanedOwner(RLTrackedObjectKind kind, uint64_t key, RLContext *targetContext)
 {
     if ((key == 0u) || (targetContext == NULL)) return -1;
 
-    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
-    uintptr_t targetScopeValue = 0u;
-    if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return -1;
-
     RLTrackedObjectWriteLock();
-    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, targetScopeKind, targetScopeValue, key, false);
-    if ((entry == NULL) || (entry->state != 1u))
     {
-        RLTrackedObjectWriteUnlock();
-        return 0;
-    }
+        int canAdopt = RLTrackedObjectCanAdoptOrphanedOwnerLocked(kind, key, targetContext);
+        if (canAdopt < 1)
+        {
+            RLTrackedObjectWriteUnlock();
+            return canAdopt;
+        }
 
-    if ((entry->ownerContext != NULL) || (entry->ownerOrphaned == 0u))
-    {
-        RLTrackedObjectWriteUnlock();
-        return -1;
+        RLTrackedObjectAdoptOrphanedOwnerLocked(kind, key, targetContext);
     }
-
-    entry->ownerContext = targetContext;
-    entry->ownerOrphaned = 0u;
     RLTrackedObjectWriteUnlock();
     return 1;
 }
@@ -970,21 +1476,12 @@ static int RLTrackedObjectCanAdoptOrphanedOwner(RLTrackedObjectKind kind, uint64
 {
     if ((key == 0u) || (targetContext == NULL)) return -1;
 
-    RLTrackedScopeKind targetScopeKind = RL_TRACKED_SCOPE_CONTEXT;
-    uintptr_t targetScopeValue = 0u;
-    if (!RLTrackedObjectResolveScope(targetContext, &targetScopeKind, &targetScopeValue)) return -1;
-
     RLTrackedObjectReadLock();
-    RLTrackedObjectEntry *entry = RLTrackedObjectFindEntry(kind, targetScopeKind, targetScopeValue, key, false);
-    if ((entry == NULL) || (entry->state != 1u))
     {
+        int canAdopt = RLTrackedObjectCanAdoptOrphanedOwnerLocked(kind, key, targetContext);
         RLTrackedObjectReadUnlock();
-        return 0;
+        return canAdopt;
     }
-
-    int canAdopt = ((entry->ownerContext == NULL) && (entry->ownerOrphaned != 0u)) ? 1 : -1;
-    RLTrackedObjectReadUnlock();
-    return canAdopt;
 }
 
 void *RLResolveRenderThreadWindowHandleForTrackedObject(RLTrackedObjectKind kind, uint64_t key, const char *apiName)
@@ -1072,6 +1569,72 @@ static void RLTrackedObjectAuditContextDestroy(RLContext *ownerContext)
     }
 }
 
+void RLSetTrackedObjectDiagFlags(unsigned int flags)
+{
+    rlTrackedObjectDiagFlags = flags;
+}
+
+unsigned int RLGetTrackedObjectDiagFlags(void)
+{
+    return rlTrackedObjectDiagFlags;
+}
+
+void RLDebugDumpTrackedObjectState(const char *label)
+{
+    RLContext *currentContext = RLGetCurrentContext();
+    RLTrackedScopeKind currentScopeKind = RL_TRACKED_SCOPE_CONTEXT;
+    uintptr_t currentScopeValue = 0u;
+    const int includeTombstones = RLTrackedObjectDiagHasFlag(RL_TRACKED_OBJECT_DIAG_INCLUDE_TOMBSTONES);
+    unsigned int activeLogged = 0u;
+    unsigned int tombstoneLogged = 0u;
+    unsigned int omitted = 0u;
+    const unsigned int logLimit = 256u;
+
+    RLTrackedObjectReadLock();
+    const int hasCurrentScope = RLTrackedObjectResolveScope(currentContext, &currentScopeKind, &currentScopeValue);
+    TRACELOG(RL_E_LOG_INFO,
+        "TRACKED_OBJECT: dump begin label=%s currentCtx=%p currentScope=%s currentScopeValue=0x%llx used=%llu tombstones=%llu capacity=%llu includeTombstones=%u",
+        (label != NULL) ? label : "(null)",
+        (void *)currentContext,
+        hasCurrentScope ? RLTrackedScopeKindName(currentScopeKind) : "unresolved",
+        hasCurrentScope ? (unsigned long long)currentScopeValue : 0ull,
+        (unsigned long long)rlTrackedObjectTable.used,
+        (unsigned long long)rlTrackedObjectTable.tombstones,
+        (unsigned long long)rlTrackedObjectTable.capacity,
+        includeTombstones ? 1u : 0u);
+
+    if ((rlTrackedObjectTable.entries != NULL) && (rlTrackedObjectTable.capacity > 0u))
+    {
+        for (size_t entryIndex = 0u; entryIndex < rlTrackedObjectTable.capacity; entryIndex++)
+        {
+            const RLTrackedObjectEntry *entry = &rlTrackedObjectTable.entries[entryIndex];
+            if (entry->state == 0u) continue;
+            if ((entry->state == 2u) && !includeTombstones) continue;
+
+            if ((activeLogged + tombstoneLogged) >= logLimit)
+            {
+                omitted++;
+                continue;
+            }
+
+            RLTrackedObjectLogEntryDetail(RL_E_LOG_INFO, "TRACKED_OBJECT: dump", entryIndex, entry,
+                hasCurrentScope ? currentScopeKind : RL_TRACKED_SCOPE_CONTEXT,
+                hasCurrentScope ? currentScopeValue : 0u);
+
+            if (entry->state == 1u) activeLogged++;
+            else if (entry->state == 2u) tombstoneLogged++;
+        }
+    }
+    RLTrackedObjectReadUnlock();
+
+    TRACELOG(RL_E_LOG_INFO,
+        "TRACKED_OBJECT: dump end label=%s activeLogged=%u tombstoneLogged=%u omitted=%u",
+        (label != NULL) ? label : "(null)",
+        activeLogged,
+        tombstoneLogged,
+        omitted);
+}
+
 
 //----------------------------------------------------------------------------------
 // Route2: context lifecycle hooks
@@ -1113,6 +1676,77 @@ static RLLoadFileDataCallback loadFileData = NULL;    // LoadFileData callback f
 static RLSaveFileDataCallback saveFileData = NULL;    // SaveFileText callback function pointer
 static RLLoadFileTextCallback loadFileText = NULL;    // LoadFileText callback function pointer
 static RLSaveFileTextCallback saveFileText = NULL;    // SaveFileText callback function pointer
+
+#if defined(_MSC_VER)
+    #define RL_INTERNAL_THREAD_LOCAL __declspec(thread)
+#elif defined(__GNUC__) || defined(__clang__)
+    #define RL_INTERNAL_THREAD_LOCAL __thread
+#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+    #define RL_INTERNAL_THREAD_LOCAL _Thread_local
+#else
+    #define RL_INTERNAL_THREAD_LOCAL
+#endif
+
+static RL_INTERNAL_THREAD_LOCAL int rlTraceDispatchDepth = 0;
+static RL_INTERNAL_THREAD_LOCAL int rlTraceCallbackIsolationDepth = 0;
+
+static void RLTraceLogDefaultSinkV(int logType, const char *text, va_list args)
+{
+#if defined(PLATFORM_ANDROID)
+    switch (logType)
+    {
+        case RL_E_LOG_TRACE: __android_log_vprint(ANDROID_LOG_VERBOSE, "raylib", text, args); break;
+        case RL_E_LOG_DEBUG: __android_log_vprint(ANDROID_LOG_DEBUG, "raylib", text, args); break;
+        case RL_E_LOG_INFO: __android_log_vprint(ANDROID_LOG_INFO, "raylib", text, args); break;
+        case RL_E_LOG_WARNING: __android_log_vprint(ANDROID_LOG_WARN, "raylib", text, args); break;
+        case RL_E_LOG_ERROR: __android_log_vprint(ANDROID_LOG_ERROR, "raylib", text, args); break;
+        case RL_E_LOG_FATAL: __android_log_vprint(ANDROID_LOG_FATAL, "raylib", text, args); break;
+        default: break;
+    }
+#else
+    char buffer[MAX_TRACELOG_MSG_LENGTH] = { 0 };
+
+    switch (logType)
+    {
+        case RL_E_LOG_TRACE: strncpy(buffer, "TRACE: ", 8); break;
+        case RL_E_LOG_DEBUG: strncpy(buffer, "DEBUG: ", 8); break;
+        case RL_E_LOG_INFO: strncpy(buffer, "INFO: ", 7); break;
+        case RL_E_LOG_WARNING: strncpy(buffer, "WARNING: ", 10); break;
+        case RL_E_LOG_ERROR: strncpy(buffer, "ERROR: ", 8); break;
+        case RL_E_LOG_FATAL: strncpy(buffer, "FATAL: ", 8); break;
+        default: break;
+    }
+
+    unsigned int textLength = (unsigned int)strlen(text);
+    memcpy(buffer + strlen(buffer), text, (textLength < (MAX_TRACELOG_MSG_LENGTH - 12))? textLength : (MAX_TRACELOG_MSG_LENGTH - 12));
+    strcat(buffer, "\n");
+    vprintf(buffer, args);
+    fflush(stdout);
+#endif
+}
+
+static void RLDispatchTraceLogV(int logType, const char *text, va_list args)
+{
+    if ((traceLog != NULL) && (rlTraceCallbackIsolationDepth == 0) && (rlTraceDispatchDepth == 0))
+    {
+        rlTraceDispatchDepth++;
+        traceLog(logType, text, args);
+        rlTraceDispatchDepth--;
+        return;
+    }
+
+    RLTraceLogDefaultSinkV(logType, text, args);
+}
+
+void RLTraceCallbackIsolationEnter(void)
+{
+    rlTraceCallbackIsolationDepth++;
+}
+
+void RLTraceCallbackIsolationLeave(void)
+{
+    if (rlTraceCallbackIsolationDepth > 0) rlTraceCallbackIsolationDepth--;
+}
 
 #if defined(SUPPORT_SCREEN_CAPTURE)
 static int screenshotCounter = 0;                   // Screenshots counter
@@ -1307,24 +1941,47 @@ typedef enum RLDiagPayloadKind {
 
     #if defined(_MSC_VER)
         #include <intrin.h>
-        #pragma intrinsic(_InterlockedExchangeAdd64)
         #pragma intrinsic(_InterlockedCompareExchange64)
-        #pragma intrinsic(_InterlockedExchange64)
 
-        static inline long long RLDiag_Add64(volatile long long *p, long long v)
-        {
-            // _InterlockedExchangeAdd64 returns the previous value.
-            return _InterlockedExchangeAdd64((volatile __int64*)p, (__int64)v) + v;
-        }
+        // NOTE:
+        // - _InterlockedExchangeAdd64/_InterlockedExchange64 are not available as intrinsics on x86 MSVC.
+        // - Keep a fast path on targets that support them, and use a CAS loop fallback on x86.
+        #if defined(_M_X64) || defined(_M_ARM64)
+            #pragma intrinsic(_InterlockedExchangeAdd64)
+            #pragma intrinsic(_InterlockedExchange64)
+        #endif
 
         static inline long long RLDiag_Load64(volatile long long *p)
         {
             return _InterlockedCompareExchange64((volatile __int64*)p, 0, 0);
         }
 
+        static inline long long RLDiag_Add64(volatile long long *p, long long v)
+        {
+        #if defined(_M_X64) || defined(_M_ARM64)
+            // _InterlockedExchangeAdd64 returns the previous value.
+            return _InterlockedExchangeAdd64((volatile __int64*)p, (__int64)v) + v;
+        #else
+            for (;;)
+            {
+                const long long cur = RLDiag_Load64(p);
+                const long long nv = cur + v;
+                if (_InterlockedCompareExchange64((volatile __int64*)p, (__int64)nv, (__int64)cur) == (__int64)cur) return nv;
+            }
+        #endif
+        }
+
         static inline void RLDiag_Store64(volatile long long *p, long long v)
         {
+        #if defined(_M_X64) || defined(_M_ARM64)
             (void)_InterlockedExchange64((volatile __int64*)p, (__int64)v);
+        #else
+            for (;;)
+            {
+                const long long cur = RLDiag_Load64(p);
+                if (_InterlockedCompareExchange64((volatile __int64*)p, (__int64)v, (__int64)cur) == (__int64)cur) break;
+            }
+        #endif
         }
 
         static inline void RLDiag_Max64(volatile long long *p, long long v)
@@ -1885,6 +2542,8 @@ static void RLMemDiagLockEnter(void)
     while (rlMemDiagSpinLock != 0) { }
     rlMemDiagSpinLock = 1;
 #endif
+
+    RLTraceCallbackIsolationEnter();
 }
 
 static void RLMemDiagLockLeave(void)
@@ -1896,6 +2555,8 @@ static void RLMemDiagLockLeave(void)
 #else
     rlMemDiagSpinLock = 0;
 #endif
+
+    RLTraceCallbackIsolationLeave();
 }
 
 static unsigned int RLMemDiagHashPointer(void *memoryPointer, unsigned int bucketCount)
@@ -3080,37 +3741,74 @@ bool RLTryTransferSharedObjectOwner(RLSharedObjectType type, unsigned int object
         return false;
     }
 
-    RLTrackedObjectKind trackedKind = (RLTrackedObjectKind)0;
-    int trackedCanTransfer = 0;
-    if (RLMapSharedObjectTypeToTrackedKind(type, &trackedKind))
+    RLContext *currentContext = RLGetCurrentContext();
+    if (currentContext == NULL)
     {
-        trackedCanTransfer = RLTrackedObjectCanTransferOwner(trackedKind, (uint64_t)objectId, targetCtx);
-        if (trackedCanTransfer < 0)
-        {
-            TRACELOG(RL_E_LOG_WARNING,
-                     "SHARED_GPU: RLTryTransferSharedObjectOwner failed: tracked owner transfer rejected (type=%d id=%u)",
-                     (int)type, objectId);
-            return false;
-        }
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryTransferSharedObjectOwner failed: current context is null");
+        return false;
     }
 
-    if (!RLSharedGpuTryTransferObjectOwner(mappedType, objectId, targetCtx))
+    void *lockedGroupHandle = NULL;
+    if (!RLSharedGpuLockOwnerGroup(currentContext, targetCtx, &lockedGroupHandle))
     {
         TRACELOG(RL_E_LOG_WARNING,
-                 "SHARED_GPU: RLTryTransferSharedObjectOwner failed (type=%d id=%u): owner mismatch, object missing, or target context not in same share-group",
+                 "SHARED_GPU: RLTryTransferSharedObjectOwner failed (type=%d id=%u): target context not in same share-group or share-group unavailable",
                  (int)type, objectId);
         return false;
     }
 
-    if (trackedCanTransfer == 1)
+    RLTrackedObjectKind trackedKind = (RLTrackedObjectKind)0;
+    const int useTrackedOwner = RLMapSharedObjectTypeToTrackedKind(type, &trackedKind);
+    int sharedTransferState = 0;
+    int trackedTransferState = 0;
+
+    RLTrackedObjectWriteLock();
     {
-        if (!RLTrackedObjectTryTransferOwner(trackedKind, (uint64_t)objectId, targetCtx))
+        sharedTransferState = RLSharedGpuCanTransferObjectOwnerLocked(lockedGroupHandle, mappedType, objectId, currentContext, targetCtx);
+        if (sharedTransferState < 0)
         {
+            RLTrackedObjectWriteUnlock();
+            RLSharedGpuUnlockOwnerGroup(lockedGroupHandle);
             TRACELOG(RL_E_LOG_WARNING,
-                     "SHARED_GPU: RLTryTransferSharedObjectOwner warning: shared owner transferred, tracked owner update skipped (type=%d id=%u)",
+                     "SHARED_GPU: RLTryTransferSharedObjectOwner failed (type=%d id=%u): owner mismatch",
                      (int)type, objectId);
+            return false;
+        }
+        if (sharedTransferState == 0)
+        {
+            RLTrackedObjectWriteUnlock();
+            RLSharedGpuUnlockOwnerGroup(lockedGroupHandle);
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: RLTryTransferSharedObjectOwner failed (type=%d id=%u): object missing from share-group",
+                     (int)type, objectId);
+            return false;
+        }
+
+        if (useTrackedOwner)
+        {
+            trackedTransferState = RLTrackedObjectCanTransferOwnerLocked(trackedKind, (uint64_t)objectId, currentContext, targetCtx);
+            if (trackedTransferState < 0)
+            {
+                RLTrackedObjectWriteUnlock();
+                RLSharedGpuUnlockOwnerGroup(lockedGroupHandle);
+                TRACELOG(RL_E_LOG_WARNING,
+                         "SHARED_GPU: RLTryTransferSharedObjectOwner failed: tracked owner transfer rejected (type=%d id=%u)",
+                         (int)type, objectId);
+                return false;
+            }
+        }
+
+        if (sharedTransferState == 1)
+        {
+            RLSharedGpuTransferObjectOwnerLocked(lockedGroupHandle, mappedType, objectId, targetCtx);
+        }
+        if (useTrackedOwner && (trackedTransferState == 1))
+        {
+            RLTrackedObjectTransferOwnerLocked(trackedKind, (uint64_t)objectId, currentContext, targetCtx);
         }
     }
+    RLTrackedObjectWriteUnlock();
+    RLSharedGpuUnlockOwnerGroup(lockedGroupHandle);
 
     return true;
 }
@@ -3144,38 +3842,74 @@ bool RLTryAdoptOrphanedSharedObject(RLSharedObjectType type, unsigned int object
         return false;
     }
 
-    RLTrackedObjectKind trackedKind = (RLTrackedObjectKind)0;
-    int trackedCanAdopt = 0;
-    if (RLMapSharedObjectTypeToTrackedKind(type, &trackedKind))
+    RLContext *currentContext = RLGetCurrentContext();
+    if (currentContext == NULL)
     {
-        trackedCanAdopt = RLTrackedObjectCanAdoptOrphanedOwner(trackedKind, (uint64_t)objectId, targetCtx);
-        if (trackedCanAdopt < 0)
-        {
-            TRACELOG(RL_E_LOG_WARNING,
-                     "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: tracked owner state is not orphaned (type=%d id=%u)",
-                     (int)type, objectId);
-            return false;
-        }
+        TRACELOG(RL_E_LOG_WARNING, "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: current context is null");
+        return false;
     }
 
-    if (!RLSharedGpuTryAdoptOrphanedObjectOwner(mappedType, objectId, targetCtx))
+    void *lockedGroupHandle = NULL;
+    if (!RLSharedGpuLockOwnerGroup(currentContext, targetCtx, &lockedGroupHandle))
     {
         TRACELOG(RL_E_LOG_WARNING,
-                 "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed (type=%d id=%u): object not orphaned, missing, or target context not in same share-group",
+                 "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed (type=%d id=%u): target context not in same share-group or share-group unavailable",
                  (int)type, objectId);
         return false;
     }
 
-    if (trackedCanAdopt > 0)
+    RLTrackedObjectKind trackedKind = (RLTrackedObjectKind)0;
+    const int useTrackedOwner = RLMapSharedObjectTypeToTrackedKind(type, &trackedKind);
+    int sharedAdoptState = 0;
+    int trackedAdoptState = 0;
+
+    RLTrackedObjectWriteLock();
     {
-        int trackedAdoptResult = RLTrackedObjectTryAdoptOrphanedOwner(trackedKind, (uint64_t)objectId, targetCtx);
-        if (trackedAdoptResult != 1)
+        sharedAdoptState = RLSharedGpuCanAdoptOrphanedObjectOwnerLocked(lockedGroupHandle, mappedType, objectId, targetCtx);
+        if (sharedAdoptState < 0)
         {
+            RLTrackedObjectWriteUnlock();
+            RLSharedGpuUnlockOwnerGroup(lockedGroupHandle);
             TRACELOG(RL_E_LOG_WARNING,
-                     "SHARED_GPU: RLTryAdoptOrphanedSharedObject warning: shared owner adopted, tracked owner update skipped (type=%d id=%u)",
+                     "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed (type=%d id=%u): object is not orphaned",
                      (int)type, objectId);
+            return false;
+        }
+        if (sharedAdoptState == 0)
+        {
+            RLTrackedObjectWriteUnlock();
+            RLSharedGpuUnlockOwnerGroup(lockedGroupHandle);
+            TRACELOG(RL_E_LOG_WARNING,
+                     "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed (type=%d id=%u): object missing from share-group",
+                     (int)type, objectId);
+            return false;
+        }
+
+        if (useTrackedOwner)
+        {
+            trackedAdoptState = RLTrackedObjectCanAdoptOrphanedOwnerLocked(trackedKind, (uint64_t)objectId, targetCtx);
+            if (trackedAdoptState < 0)
+            {
+                RLTrackedObjectWriteUnlock();
+                RLSharedGpuUnlockOwnerGroup(lockedGroupHandle);
+                TRACELOG(RL_E_LOG_WARNING,
+                         "SHARED_GPU: RLTryAdoptOrphanedSharedObject failed: tracked owner state is not orphaned (type=%d id=%u)",
+                         (int)type, objectId);
+                return false;
+            }
+        }
+
+        if (sharedAdoptState == 1)
+        {
+            RLSharedGpuAdoptOrphanedObjectOwnerLocked(lockedGroupHandle, mappedType, objectId, targetCtx);
+        }
+        if (useTrackedOwner && (trackedAdoptState == 1))
+        {
+            RLTrackedObjectAdoptOrphanedOwnerLocked(trackedKind, (uint64_t)objectId, targetCtx);
         }
     }
+    RLTrackedObjectWriteUnlock();
+    RLSharedGpuUnlockOwnerGroup(lockedGroupHandle);
 
     return true;
 }
@@ -4770,45 +5504,7 @@ void RLTraceLog(int logType, const char *text, ...)
 
     va_list args;
     va_start(args, text);
-
-    if (traceLog)
-    {
-        traceLog(logType, text, args);
-        va_end(args);
-        return;
-    }
-
-#if defined(PLATFORM_ANDROID)
-    switch (logType)
-    {
-        case RL_E_LOG_TRACE: __android_log_vprint(ANDROID_LOG_VERBOSE, "raylib", text, args); break;
-        case RL_E_LOG_DEBUG: __android_log_vprint(ANDROID_LOG_DEBUG, "raylib", text, args); break;
-        case RL_E_LOG_INFO: __android_log_vprint(ANDROID_LOG_INFO, "raylib", text, args); break;
-        case RL_E_LOG_WARNING: __android_log_vprint(ANDROID_LOG_WARN, "raylib", text, args); break;
-        case RL_E_LOG_ERROR: __android_log_vprint(ANDROID_LOG_ERROR, "raylib", text, args); break;
-        case RL_E_LOG_FATAL: __android_log_vprint(ANDROID_LOG_FATAL, "raylib", text, args); break;
-        default: break;
-    }
-#else
-    char buffer[MAX_TRACELOG_MSG_LENGTH] = { 0 };
-
-    switch (logType)
-    {
-        case RL_E_LOG_TRACE: strncpy(buffer, "TRACE: ", 8); break;
-        case RL_E_LOG_DEBUG: strncpy(buffer, "DEBUG: ", 8); break;
-        case RL_E_LOG_INFO: strncpy(buffer, "INFO: ", 7); break;
-        case RL_E_LOG_WARNING: strncpy(buffer, "WARNING: ", 10); break;
-        case RL_E_LOG_ERROR: strncpy(buffer, "ERROR: ", 8); break;
-        case RL_E_LOG_FATAL: strncpy(buffer, "FATAL: ", 8); break;
-        default: break;
-    }
-
-    unsigned int textLength = (unsigned int)strlen(text);
-    memcpy(buffer + strlen(buffer), text, (textLength < (MAX_TRACELOG_MSG_LENGTH - 12))? textLength : (MAX_TRACELOG_MSG_LENGTH - 12));
-    strcat(buffer, "\n");
-    vprintf(buffer, args);
-    fflush(stdout);
-#endif
+    RLDispatchTraceLogV(logType, text, args);
 
     va_end(args);
 

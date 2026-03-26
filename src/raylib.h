@@ -1049,15 +1049,22 @@ typedef struct RLContext RLContext;
 // Important:
 // - Sharing is backend-dependent; currently supported on DESKTOP (GLFW) OpenGL.
 // - You must configure sharing BEFORE calling RLInitWindow/RLInitWindowEx for that context.
+// - RL_CONTEXT_SHARE_WITH_PRIMARY and RL_CONTEXT_SHARE_WITH_CONTEXT require the peer window/context
+//   to already have an active window when the new window is created; failure is explicit and does
+//   not fall back to RL_CONTEXT_SHARE_NONE.
 // - GPU object lifetime is share-group wide and reference-counted: unloading in any context decrements
 //   the share-group refcount; when it reaches 0, deletion is deferred until drained on a thread with a
 //   current OpenGL context (explicitly via RLDeletePendingSharedGpuResources(), and during RLCloseWindow()).
+// - The internal share-group is also used for deferred-delete lifetime management when RL_CONTEXT_SHARE_NONE
+//   is selected. That alone does NOT mean tracked objects are in a shared namespace.
+// - Tracked-object scope starts as context-local for RL_CONTEXT_SHARE_NONE and is promoted to share-group
+//   scope only when the context actually joins a shared resource namespace.
 // - If contexts render on different threads, you are responsible for synchronization (glFlush/glFinish/fences).
 
 typedef enum RLContextResourceShareMode {
     RL_CONTEXT_SHARE_NONE = 0,             // Do not share GPU objects (default).
-    RL_CONTEXT_SHARE_WITH_PRIMARY = 1,     // Share with the process primary window/context (first created).
-    RL_CONTEXT_SHARE_WITH_CONTEXT = 2      // Share with an explicit RLContext (see RLContextSetResourceShareMode).
+    RL_CONTEXT_SHARE_WITH_PRIMARY = 1,     // Share with the process primary window/context (first created and already initialized).
+    RL_CONTEXT_SHARE_WITH_CONTEXT = 2      // Share with an explicit RLContext that already has an initialized window.
 } RLContextResourceShareMode;
 
 typedef enum RLContextResourceShareValidationError {
@@ -1081,6 +1088,7 @@ RLAPI void RLSetCurrentContext(RLContext *ctx);
 RLAPI RLContext *RLGetCurrentContext(void);
 
 // Configure how the next window created for this context will share GPU resources.
+// Explicit share modes require the target/primary window to already exist when RLInitWindow/RLInitWindowEx runs.
 RLAPI bool RLContextSetResourceShareMode(RLContext* ctx, RLContextResourceShareMode mode, RLContext* shareWith);
 RLAPI RLContextResourceShareMode RLContextGetResourceShareMode(RLContext* ctx);
 RLAPI RLContext* RLContextGetResourceShareContext(RLContext* ctx);
@@ -1145,6 +1153,8 @@ typedef enum RLSharedGpuTrackingMode {
 // Transfer requires current context to be the current owner (or owner unset) and target context in same share-group.
 // For object types that are also tracked by high-level object metadata (for example textures/render textures),
 // RLTryTransferSharedObjectOwner updates both shared and tracked owner metadata.
+// If the share-group was promoted from context-local tracking, pre-existing tracked objects are migrated to the
+// share-group namespace before subsequent transfer/adopt operations observe them.
 RLAPI RLContext* RLGetSharedObjectOwnerContext(RLSharedObjectType type, unsigned int objectId);
 RLAPI bool RLIsSharedObjectOwnedByCurrentContext(RLSharedObjectType type, unsigned int objectId);
 RLAPI bool RLTryTransferSharedObjectOwner(RLSharedObjectType type, unsigned int objectId, RLContext* targetCtx);
@@ -2149,6 +2159,15 @@ typedef struct RLThreadMismatchDiagStats {
     char lastApi[64];                      // Last API name that triggered mismatch
 } RLThreadMismatchDiagStats;
 
+typedef enum RLTrackedObjectDiagFlags {
+    RL_TRACKED_OBJECT_DIAG_NONE = 0,
+    RL_TRACKED_OBJECT_DIAG_LOG_RELEASE_CALLS = 0x01,        // Log tracked-object release calls and final refcount transitions
+    RL_TRACKED_OBJECT_DIAG_DUMP_STATE_ON_RELEASE_MISS = 0x02, // Dump tracked-object table state after a release miss
+    RL_TRACKED_OBJECT_DIAG_INCLUDE_TOMBSTONES = 0x04,       // Include tombstone entries in RLDebugDumpTrackedObjectState()
+    RL_TRACKED_OBJECT_DIAG_LOG_PROMOTIONS = 0x08,           // Log context->share-group tracked-object promotion begin/end and migrated entries
+    RL_TRACKED_OBJECT_DIAG_AUDIT_PROMOTIONS = 0x10          // Audit promotion results for stale context entries and duplicate active keys
+} RLTrackedObjectDiagFlags;
+
 RLAPI RLEventThreadDiagStats RLGetEventThreadDiagStats(void);
 RLAPI void RLResetEventThreadDiagStats(void);
 RLAPI void RLResetEventThreadDiagStatsForCurrentContext(void);      // Reset diagnostics and safely reset native queue stats for current context/window
@@ -2157,6 +2176,9 @@ RLAPI void RLDisableEventDiagStats(void);                           // Runtime d
 RLAPI bool RLIsEventDiagStatsEnabled(void);                         // Check runtime diagnostics switch
 RLAPI RLThreadMismatchDiagStats RLGetThreadMismatchDiagStats(void); // Get thread-mismatch diagnostics for GPU-write APIs
 RLAPI void RLResetThreadMismatchDiagStats(void);                    // Reset thread-mismatch diagnostics
+RLAPI void RLSetTrackedObjectDiagFlags(unsigned int flags);         // Configure tracked-object diagnostics flags
+RLAPI unsigned int RLGetTrackedObjectDiagFlags(void);               // Get tracked-object diagnostics flags
+RLAPI void RLDebugDumpTrackedObjectState(const char *label);        // Dump tracked-object table state to the log
 
 #if defined(_WIN32)
 RLAPI int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait); // Reset diagnostics and safely reset target window native queue stats on its render thread

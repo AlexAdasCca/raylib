@@ -435,10 +435,17 @@ static void RLGlfwPlatformRegister(PlatformData *pd)
         if (it->pd == pd) { pd->isRegistered = 1; RLGlfwGlobalUnlock(); return; }
     }
 
-    RLGlfwPlatformNode *n = (RLGlfwPlatformNode *)RL_CALLOC(1, sizeof(RLGlfwPlatformNode));
-    n->pd = pd;
-    n->next = gRlGlfwPdHead;
-    gRlGlfwPdHead = n;
+    RLGlfwPlatformNode *platformNode = (RLGlfwPlatformNode *)RL_CALLOC(1, sizeof(RLGlfwPlatformNode));
+    if (platformNode == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "PLATFORM: Failed to allocate platform registration node");
+        RLGlfwGlobalUnlock();
+        return;
+    }
+
+    platformNode->pd = pd;
+    platformNode->next = gRlGlfwPdHead;
+    gRlGlfwPdHead = platformNode;
     pd->isRegistered = 1;
 
     if (pd->useEventThread && (pd->renderThread != NULL))
@@ -601,12 +608,12 @@ static GLFWwindow *RLGlfwResolveShareWindowForContext(RLContext *ctx)
     RLContext *other = RLContextGetResourceShareContext(ctx);
 
     // Validate pre-create share configuration once before resolving the share source window.
-    // Invalid WITH_CONTEXT configuration is explicitly marked and will fall back to non-shared creation.
+    // Invalid explicit share configuration is recorded and window creation must fail.
     if (!RLContextValidateResourceShareConfig(ctx))
     {
         int errorCode = RLContextGetResourceShareValidationError(ctx);
         TRACELOG(RL_E_LOG_WARNING,
-                 "SHARED_GPU: pre-create share validation failed (mode=%d error=%d), fallback to non-shared context",
+                 "SHARED_GPU: pre-create share validation failed (mode=%d error=%d); window initialization will fail",
                  (int)mode, errorCode);
         return NULL;
     }
@@ -619,7 +626,7 @@ static GLFWwindow *RLGlfwResolveShareWindowForContext(RLContext *ctx)
             ctx->resourceShareValidated = 1;
             ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_PRIMARY_WINDOW_UNAVAILABLE;
             TRACELOG(RL_E_LOG_WARNING,
-                     "SHARED_GPU: share mode WITH_PRIMARY requested but primary window is unavailable; fallback to non-shared context");
+                     "SHARED_GPU: share mode WITH_PRIMARY requested but primary window is unavailable; window initialization will fail");
         }
         return (w != NULL) ? w : NULL;
     }
@@ -631,13 +638,24 @@ static GLFWwindow *RLGlfwResolveShareWindowForContext(RLContext *ctx)
             ctx->resourceShareValidated = 1;
             ctx->resourceShareValidationError = RL_CONTEXT_SHARE_VALIDATION_TARGET_WINDOW_UNAVAILABLE;
             TRACELOG(RL_E_LOG_WARNING,
-                     "SHARED_GPU: share mode WITH_CONTEXT requested but target context window is unavailable; fallback to non-shared context");
+                     "SHARED_GPU: share mode WITH_CONTEXT requested but target context window is unavailable; window initialization will fail");
             return NULL;
         }
         return opd->handle;
     }
 
     return NULL;
+}
+
+static bool RLGlfwRequiresShareWindow(RLContext *ctx)
+{
+    if (ctx == NULL) return false;
+    return (RLContextGetResourceShareMode(ctx) != RL_CONTEXT_SHARE_NONE);
+}
+
+static bool RLGlfwHasResolvedRequiredShareWindow(RLContext *ctx, GLFWwindow *shareWindow)
+{
+    return !RLGlfwRequiresShareWindow(ctx) || (shareWindow != NULL);
 }
 
 //----------------------------------------------------------------------------------
@@ -691,26 +709,26 @@ static inline bool RLAtomicCASLong(volatile long *p, long expected, long desired
     return (RLAtomicCompareExchangeLong(p, desired, expected) == expected);
 }
 
-static inline long RLFloatBitsFromFloat(float f)
+static inline long RLFloatBitsFromFloat(float value)
 {
-    union { float f; uint32_t u; } cv;
-    cv.f = f;
-    return (long)cv.u;
+    union { float floatValue; uint32_t uintValue; } bitCastValue;
+    bitCastValue.floatValue = value;
+    return (long)bitCastValue.uintValue;
 }
 
 static inline float RLFloatFromBits(long bits)
 {
-    union { float f; uint32_t u; } cv;
-    cv.u = (uint32_t)bits;
-    return cv.f;
+    union { float floatValue; uint32_t uintValue; } bitCastValue;
+    bitCastValue.uintValue = (uint32_t)bits;
+    return bitCastValue.floatValue;
 }
 
-static inline long RLWheelToFixed(double v)
+static inline long RLWheelToFixed(double wheelDelta)
 {
-    const double s = v*(double)RL_WHEEL_FP_SCALE;
+    const double scaledWheel = wheelDelta*(double)RL_WHEEL_FP_SCALE;
     // round to nearest integer (ties away from zero)
-    if (s >= 0.0) return (long)(s + 0.5);
-    else return (long)(s - 0.5);
+    if (scaledWheel >= 0.0) return (long)(scaledWheel + 0.5);
+    else return (long)(scaledWheel - 0.5);
 }
 #endif // RL_EVENTTHREAD_COALESCE_STATE
 
@@ -831,11 +849,11 @@ static void RLGlfwTask_HoldNoCurrentContext(void *user)
 static void RLGlfwPumpThreadTasksWithDiag(void)
 {
 #if RL_EVENT_DIAG_STATS
-    double t0 = RLGetTime();
+    double pumpStartTime = RLGetTime();
     RL_DIAG_PUMP_BEGIN();
     glfwPumpThreadTasks();
-    unsigned int n = RL_DIAG_PUMP_END();
-    RL_DIAG_ON_PUMP(RLGetTime() - t0, n);
+    unsigned int executedTaskCount = RL_DIAG_PUMP_END();
+    RL_DIAG_ON_PUMP(RLGetTime() - pumpStartTime, executedTaskCount);
 #else
     glfwPumpThreadTasks();
 #endif
@@ -1102,8 +1120,8 @@ static void RLGlfwSetWindowRefreshCallbackThreadAware(int enable)
 {
     if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
     {
-        int v = enable;
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowRefreshCallback, &v, true);
+        int enableValue = enable;
+        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowRefreshCallback, &enableValue, true);
         return;
     }
 
@@ -4054,6 +4072,20 @@ int InitPlatform(void)
 #if defined(_WIN32)
     if (platform.useEventThread)
     {
+        RLContext *ctx = RLGetCurrentContext();
+        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
+        RLContext *shareCtx = (shareWindow != NULL)? (RLContext *)glfwGetWindowUserPointer(shareWindow) : NULL;
+
+        if (!RLGlfwHasResolvedRequiredShareWindow(ctx, shareWindow))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: explicit share target is unavailable");
+            RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
+            RLGlfwGlobalUnlock();
+            holdGlobalLock = false;
+            return -1;
+        }
+
         // Enforce one-window-per-render-thread in event-thread mode.
         // This avoids undefined behavior from same-thread multi-window creation.
         if (RLGlfwHasAnotherWindowOnRenderThread(platform.renderThread, &platform))
@@ -4079,15 +4111,19 @@ int InitPlatform(void)
         // Register this platform so shutdown/close can broadcast-wake sleeping render threads.
         RLGlfwPlatformRegister(&platform);
 
-	    // Bind this context to the correct share-group for deferred GPU deletes.
-	    // In useEventThread mode the window is created on another thread, so we must
-	    // perform the share-group binding here as well (after the GLFWwindow exists).
-	    {
-	        RLContext *ctx = RLGetCurrentContext();
-	        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
-	        RLContext *shareCtx = (shareWindow != NULL)? (RLContext *)glfwGetWindowUserPointer(shareWindow) : NULL;
-	        RLSharedGpuContextBindShareGroup(ctx, shareCtx);
-	    }
+        // Bind this context to the correct share-group for deferred GPU deletes.
+        // In event-thread mode the window is created on another thread, so bind before
+        // startup and tear it down again if creation later fails.
+        if (!RLSharedGpuContextBindShareGroup(ctx, shareCtx))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: share-group bind failed");
+            if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
+            if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
+            RLGlfwPlatformUnregister(&platform);
+            RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
+            return -1;
+        }
 
         RLGlfwEventThreadStart *start = (RLGlfwEventThreadStart *)RL_MALLOC(sizeof(RLGlfwEventThreadStart));
         RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwEventThreadStart));
@@ -4102,6 +4138,7 @@ int InitPlatform(void)
             if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
             if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
             RLGlfwPlatformUnregister(&platform);
+            RLSharedGpuContextUnbindShareGroup(ctx);
 	    	platform.win32Hwnd = NULL;
             RLGlfwGlobalRelease();
         	platform.glfwAcquired = false;
@@ -4124,6 +4161,7 @@ int InitPlatform(void)
             if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
 
             RLGlfwPlatformUnregister(&platform);
+            RLSharedGpuContextUnbindShareGroup(RLGetCurrentContext());
 
             RLGlfwGlobalRelease();
         	platform.glfwAcquired = false;
@@ -4176,7 +4214,16 @@ int InitPlatform(void)
             CORE.Window.screen = CORE.Window.display;
         }
 
-        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(RLGetCurrentContext());
+        RLContext *ctx = RLGetCurrentContext();
+        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
+        if (!RLGlfwHasResolvedRequiredShareWindow(ctx, shareWindow))
+        {
+            RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: explicit share target is unavailable");
+            RLGlfwGlobalUnlock();
+            return -1;
+        }
 
         platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", monitor, shareWindow);
         if (!platform.handle)
@@ -4194,10 +4241,18 @@ int InitPlatform(void)
     // Bind this context to a GPU share-group for share-wide lifetime tracking.
     // shareWindow is the GLFW share context window passed to glfwCreateWindow().
     {
-        RLContext *ctx = RLGetCurrentContext();
         RLContext *shareCtx = NULL;
         if (shareWindow) shareCtx = (RLContext *)glfwGetWindowUserPointer(shareWindow);
-        RLSharedGpuContextBindShareGroup(ctx, shareCtx);
+        if (!RLSharedGpuContextBindShareGroup(ctx, shareCtx))
+        {
+            glfwDestroyWindow(platform.handle);
+            platform.handle = NULL;
+            RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: share-group bind failed");
+            RLGlfwGlobalUnlock();
+            return -1;
+        }
     }
 
     }
@@ -4207,7 +4262,16 @@ int InitPlatform(void)
         if (CORE.Window.screen.width == 0) CORE.Window.screen.width = 1;
         if (CORE.Window.screen.height == 0) CORE.Window.screen.height = 1;
 
-        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(RLGetCurrentContext());
+        RLContext *ctx = RLGetCurrentContext();
+        GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
+        if (!RLGlfwHasResolvedRequiredShareWindow(ctx, shareWindow))
+        {
+            RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: explicit share target is unavailable");
+            RLGlfwGlobalUnlock();
+            return -1;
+        }
 
         platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", NULL, shareWindow);
         if (!platform.handle)
@@ -4225,10 +4289,18 @@ int InitPlatform(void)
 	    // Bind this context to a GPU share-group for share-wide lifetime tracking.
 	    // shareWindow is the GLFW share context window passed to glfwCreateWindow().
 	    {
-	        RLContext *ctx = RLGetCurrentContext();
 	        RLContext *shareCtx = NULL;
 	        if (shareWindow) shareCtx = (RLContext *)glfwGetWindowUserPointer(shareWindow);
-	        RLSharedGpuContextBindShareGroup(ctx, shareCtx);
+	        if (!RLSharedGpuContextBindShareGroup(ctx, shareCtx))
+	        {
+	            glfwDestroyWindow(platform.handle);
+	            platform.handle = NULL;
+	            RLGlfwGlobalRelease();
+	            platform.glfwAcquired = false;
+	            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: share-group bind failed");
+	            RLGlfwGlobalUnlock();
+	            return -1;
+	        }
 	    }
 
         // After the window was created, determine the monitor that the window manager assigned
@@ -5189,11 +5261,27 @@ static void WindowDropCallback(GLFWwindow *window, int count, const char **paths
         // WARNING: Paths are freed by GLFW when the callback returns, keeping an internal copy
         CORE.Window.dropFileCount = count;
         CORE.Window.dropFilepaths = (char **)RL_CALLOC(CORE.Window.dropFileCount, sizeof(char *));
-
-        for (unsigned int i = 0; i < CORE.Window.dropFileCount; i++)
+        if (CORE.Window.dropFilepaths == NULL)
         {
-            CORE.Window.dropFilepaths[i] = (char *)RL_CALLOC(MAX_FILEPATH_LENGTH, sizeof(char));
-            strncpy(CORE.Window.dropFilepaths[i], paths[i], MAX_FILEPATH_LENGTH - 1);
+            TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to allocate dropped file path list");
+            CORE.Window.dropFileCount = 0;
+            return;
+        }
+
+        for (unsigned int pathIndex = 0; pathIndex < CORE.Window.dropFileCount; pathIndex++)
+        {
+            CORE.Window.dropFilepaths[pathIndex] = (char *)RL_CALLOC(MAX_FILEPATH_LENGTH, sizeof(char));
+            if (CORE.Window.dropFilepaths[pathIndex] == NULL)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to allocate dropped file path entry");
+                for (unsigned int cleanupIndex = 0; cleanupIndex < pathIndex; cleanupIndex++) RL_FREE(CORE.Window.dropFilepaths[cleanupIndex]);
+                RL_FREE(CORE.Window.dropFilepaths);
+                CORE.Window.dropFilepaths = NULL;
+                CORE.Window.dropFileCount = 0;
+                return;
+            }
+
+            strncpy(CORE.Window.dropFilepaths[pathIndex], paths[pathIndex], MAX_FILEPATH_LENGTH - 1);
         }
     }
 }
@@ -6337,6 +6425,13 @@ static void RLGlfwEventThreadMain(void *p)
         }
     }
     GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
+    if (!RLGlfwHasResolvedRequiredShareWindow(ctx, shareWindow))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: event-thread window creation failed: explicit share target is unavailable");
+        if (platform.createdEvent != NULL) RLEventSignal(platform.createdEvent);
+        RLGlfwWakeRenderThread();
+        return;
+    }
 
 #if defined(_WIN32)
     // Win32/WGL workaround: creating a shared context can fail if the shared context is current

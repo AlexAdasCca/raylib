@@ -23,7 +23,8 @@ struct RLContext
     // Opaque pointers to internal module storage (allocated lazily by modules that know the types)
     void *core;        // CoreData*
     void *platformData;    // PlatformData* (GLFW desktop)
-    void *gpuShareGroup;   // RLSharedGpuGroup* (share-group wide refcounting)
+    void *gpuShareGroup;   // RLSharedGpuGroup*; internal GPU lifetime/deferred-delete group.
+                           // Presence of a group does not imply tracked-object shared namespace.
     void *rlgl;        // rlglData*
 
     // rlgl module legacy statics
@@ -58,6 +59,8 @@ struct RLContext
 // Implemented in rcore.c (has access to CoreData/PlatformData/rlglData).
 void RLContextOnDestroy(RLContext *ctx);
 bool RLContextHasReadyWindow(const RLContext *ctx);
+void RLTraceCallbackIsolationEnter(void);
+void RLTraceCallbackIsolationLeave(void);
 
 #ifdef __cplusplus
 }

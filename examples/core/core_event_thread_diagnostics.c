@@ -52,6 +52,64 @@ typedef struct SharedScenarioState
 } SharedScenarioState;
 
 static SharedScenarioState gSharedScenario = { 0 };
+static volatile LONG gTrackedObjectDiagConfigured = 0;
+
+static void SharedDiagConfigureTrackedObjectDiagnostics(void)
+{
+    if (InterlockedCompareExchange(&gTrackedObjectDiagConfigured, 1, 0) != 0) return;
+
+    RLSetTrackedObjectDiagFlags(
+        RL_TRACKED_OBJECT_DIAG_LOG_RELEASE_CALLS |
+        RL_TRACKED_OBJECT_DIAG_DUMP_STATE_ON_RELEASE_MISS |
+        RL_TRACKED_OBJECT_DIAG_INCLUDE_TOMBSTONES |
+        RL_TRACKED_OBJECT_DIAG_LOG_PROMOTIONS |
+        RL_TRACKED_OBJECT_DIAG_AUDIT_PROMOTIONS);
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "shared-diag: tracked-object diagnostics enabled (flags=0x%x)",
+               RLGetTrackedObjectDiagFlags());
+}
+
+static void SharedDiagDumpTrackedObjects(const char *label)
+{
+    SharedDiagConfigureTrackedObjectDiagnostics();
+    RLTraceLog(RL_E_LOG_INFO,
+               "shared-diag: tracked-object dump requested: %s",
+               (label != NULL) ? label : "(null)");
+    RLDebugDumpTrackedObjectState(label);
+}
+
+static void SharedDiagCloseThreadHandle(HANDLE *handleSlot)
+{
+    if ((handleSlot == NULL) || (*handleSlot == NULL)) return;
+    CloseHandle(*handleSlot);
+    *handleSlot = NULL;
+}
+
+static void SharedDiagJoinThreadForShutdown(HANDLE *handleSlot, volatile LONG *runningFlag, const char *tag)
+{
+    if ((handleSlot == NULL) || (*handleSlot == NULL)) return;
+
+    DWORD waitResult = WaitForSingleObject(*handleSlot, 3000);
+    if (waitResult == WAIT_TIMEOUT)
+    {
+        RLTraceLog(RL_E_LOG_WARNING,
+                   "shared-diag: %s thread still running after 3000 ms, waiting until exit to keep cleanup ordered",
+                   (tag != NULL) ? tag : "(unknown)");
+        waitResult = WaitForSingleObject(*handleSlot, INFINITE);
+    }
+
+    if (waitResult != WAIT_OBJECT_0)
+    {
+        RLTraceLog(RL_E_LOG_WARNING,
+                   "shared-diag: %s thread wait failed (result=%lu), closing handle anyway",
+                   (tag != NULL) ? tag : "(unknown)",
+                   (unsigned long)waitResult);
+    }
+
+    SharedDiagCloseThreadHandle(handleSlot);
+    if (runningFlag != NULL) InterlockedExchange(runningFlag, 0);
+}
 
 static unsigned __stdcall SharedDiagSameThreadMultiWindowThread(void *arg)
 {
@@ -70,9 +128,11 @@ static unsigned __stdcall SharedDiagSameThreadMultiWindowThread(void *arg)
     }
 
     RLSetCurrentContext(ctxPrimary);
+    SharedDiagConfigureTrackedObjectDiagnostics();
     RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD | RL_E_FLAG_WINDOW_RESIZABLE);
     RLInitWindow(360, 220, "diag same-thread primary");
     primaryReady = RLIsWindowReady();
+    SharedDiagDumpTrackedObjects("same-thread-primary-after-init");
 
     if (!primaryReady)
     {
@@ -94,21 +154,27 @@ static unsigned __stdcall SharedDiagSameThreadMultiWindowThread(void *arg)
     }
 
     RLSetCurrentContext(ctxSecondary);
+    SharedDiagConfigureTrackedObjectDiagnostics();
     RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD | RL_E_FLAG_WINDOW_RESIZABLE);
     RLInitWindow(320, 200, "diag same-thread secondary");
     secondaryReady = RLIsWindowReady();
+    SharedDiagDumpTrackedObjects("same-thread-secondary-after-init-attempt");
 
     if (secondaryReady)
     {
         InterlockedIncrement(&gSharedScenario.sameThreadUnexpectedSuccessCount);
+        SharedDiagDumpTrackedObjects("same-thread-secondary-before-close");
         RLCloseWindow();
+        SharedDiagDumpTrackedObjects("same-thread-secondary-after-close");
     }
     else InterlockedIncrement(&gSharedScenario.sameThreadExpectedRejectCount);
 
     RLDestroyContext(ctxSecondary);
 
     RLSetCurrentContext(ctxPrimary);
+    SharedDiagDumpTrackedObjects("same-thread-primary-before-close");
     RLCloseWindow();
+    SharedDiagDumpTrackedObjects("same-thread-primary-after-close");
     RLDestroyContext(ctxPrimary);
 
     InterlockedExchange(&gSharedScenario.sameThreadRunning, 0);
@@ -129,7 +195,8 @@ static unsigned __stdcall SharedDiagCrossThreadSharedWindowThread(void *arg)
     }
 
     RLSetCurrentContext(ctx);
-    shareSet = RLContextSetResourceShareMode(ctx, RL_CONTEXT_SHARE_WITH_CONTEXT, gSharedScenario.mainContext);
+    SharedDiagConfigureTrackedObjectDiagnostics();
+    shareSet = RLContextSetResourceShareMode(ctx, RL_CONTEXT_SHARE_WITH_PRIMARY, NULL);
     if (!shareSet || !RLContextValidateResourceShareConfig(ctx))
     {
         InterlockedIncrement(&gSharedScenario.crossThreadFailureCount);
@@ -140,10 +207,14 @@ static unsigned __stdcall SharedDiagCrossThreadSharedWindowThread(void *arg)
 
     RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD | RL_E_FLAG_WINDOW_RESIZABLE);
     RLInitWindow(320, 200, "diag cross-thread shared");
+    SharedDiagDumpTrackedObjects("cross-thread-after-init");
     if (RLIsWindowReady())
     {
         InterlockedIncrement(&gSharedScenario.crossThreadSuccessCount);
+        Sleep(3000);
+        SharedDiagDumpTrackedObjects("cross-thread-before-close");
         RLCloseWindow();
+        SharedDiagDumpTrackedObjects("cross-thread-after-close");
     }
     else InterlockedIncrement(&gSharedScenario.crossThreadFailureCount);
 
@@ -156,6 +227,7 @@ static void SharedDiagTryStartSameThreadMultiWindowTest(void)
 {
     if (InterlockedCompareExchange(&gSharedScenario.sameThreadRunning, 1, 0) != 0) return;
     InterlockedIncrement(&gSharedScenario.sameThreadStartCount);
+    SharedDiagDumpTrackedObjects("main-before-start-same-thread-test");
     uintptr_t handleValue = _beginthreadex(NULL, 0, SharedDiagSameThreadMultiWindowThread, NULL, 0, NULL);
     if (handleValue == 0)
     {
@@ -170,6 +242,7 @@ static void SharedDiagTryStartCrossThreadSharedWindowTest(void)
 {
     if (InterlockedCompareExchange(&gSharedScenario.crossThreadRunning, 1, 0) != 0) return;
     InterlockedIncrement(&gSharedScenario.crossThreadStartCount);
+    SharedDiagDumpTrackedObjects("main-before-start-cross-thread-test");
     uintptr_t handleValue = _beginthreadex(NULL, 0, SharedDiagCrossThreadSharedWindowThread, NULL, 0, NULL);
     if (handleValue == 0)
     {
@@ -186,8 +259,8 @@ static void SharedDiagPumpThreadState(void)
     {
         if (WaitForSingleObject(gSharedScenario.sameThreadHandle, 0) == WAIT_OBJECT_0)
         {
-            CloseHandle(gSharedScenario.sameThreadHandle);
-            gSharedScenario.sameThreadHandle = NULL;
+            SharedDiagDumpTrackedObjects("main-after-same-thread-test-finished");
+            SharedDiagCloseThreadHandle(&gSharedScenario.sameThreadHandle);
         }
     }
 
@@ -195,8 +268,8 @@ static void SharedDiagPumpThreadState(void)
     {
         if (WaitForSingleObject(gSharedScenario.crossThreadHandle, 0) == WAIT_OBJECT_0)
         {
-            CloseHandle(gSharedScenario.crossThreadHandle);
-            gSharedScenario.crossThreadHandle = NULL;
+            SharedDiagDumpTrackedObjects("main-after-cross-thread-test-finished");
+            SharedDiagCloseThreadHandle(&gSharedScenario.crossThreadHandle);
         }
     }
 }
@@ -497,7 +570,7 @@ static void DrawOverlayHelp(int x, int y)
     RLDrawText("Win32 event-thread diagnostics (interactive)", x, oy, 18, WHITE); oy += 24;
     RLDrawText("LMB: add / paint | RMB: undo | MMB or C: clear | Wheel: size", x, oy, 16, RAYWHITE); oy += 20;
     RLDrawText("R: safe reset diag | T: toggle diag | G: telemetry | H: help", x, oy, 16, RAYWHITE); oy += 20;
-    RLDrawText("V: toggle marker render mode (canvas/direct)", x, oy, 16, RAYWHITE); oy += 20;
+    RLDrawText("V: toggle marker render mode (canvas/direct) | K: dump tracked objects", x, oy, 16, RAYWHITE); oy += 20;
     RLDrawText("1/2/3: switch diagnostics page", x, oy, 16, RAYWHITE); oy += 20;
     RLDrawText("Y: same-thread multi-window test  X: cross-thread shared test", x, oy, 16, RAYWHITE); oy += 20;
     RLDrawText("Telemetry panel: click sample-rate dropdown", x, oy, 16, RAYWHITE); oy += 20;
@@ -789,27 +862,27 @@ static void TelemetryComputeRollingMeanStd(const float *series, int windowSize, 
     if (outStd) *outStd = 0.0f;
     if (gTelemetry.count <= 0) return;
 
-    int n = gTelemetry.count;
-    if (windowSize > 0 && n > windowSize) n = windowSize;
-    if (n <= 0) return;
+    int sampleCount = gTelemetry.count;
+    if (windowSize > 0 && sampleCount > windowSize) sampleCount = windowSize;
+    if (sampleCount <= 0) return;
 
-    const int startAge = gTelemetry.count - n;
+    const int startAge = gTelemetry.count - sampleCount;
     double sum = 0.0;
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < sampleCount; i++)
     {
         const int idx = TelemetryGetIndexByAge(startAge + i);
         sum += (double)series[idx];
     }
 
-    const double mean = sum/(double)n;
+    const double mean = sum/(double)sampleCount;
     double var = 0.0;
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < sampleCount; i++)
     {
         const int idx = TelemetryGetIndexByAge(startAge + i);
         const double d = (double)series[idx] - mean;
         var += d*d;
     }
-    var /= (double)n;
+    var /= (double)sampleCount;
 
     if (outMean) *outMean = (float)mean;
     if (outStd) *outStd = (float)sqrt(var);
@@ -1188,6 +1261,8 @@ int main(int argc, char **argv)
     RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_MSAA_4X_HINT | RL_E_FLAG_WINDOW_EVENT_THREAD);
 
     RLInitWindow(1280, 720, "raylib Win32 event thread diagnostics (interactive)");
+    SharedDiagConfigureTrackedObjectDiagnostics();
+    SharedDiagDumpTrackedObjects("main-after-init");
     RLSetTargetFPS(120);
     RunApiSmokeOnce();
 #if defined(_WIN32)
@@ -1212,7 +1287,7 @@ int main(int argc, char **argv)
     // Base window metrics for resize jitter
     const int baseW = 1280;
     const int baseH = 720;
-    const double t0 = RLGetTime();
+    const double stressStartTime = RLGetTime();
 
     while (!RLWindowShouldClose())
     {
@@ -1245,6 +1320,7 @@ int main(int argc, char **argv)
         if (RLIsKeyPressed(RL_E_KEY_U)) jitterResize = !jitterResize;
         if (RLIsKeyPressed(RL_E_KEY_W)) warpMouse = !warpMouse;
         if (RLIsKeyPressed(RL_E_KEY_V)) { gDrawMarkersDirect = !gDrawMarkersDirect; gCanvasDirty = true; }
+        if (RLIsKeyPressed(RL_E_KEY_K)) SharedDiagDumpTrackedObjects("main-manual-key-dump");
         if (RLIsKeyPressed(RL_E_KEY_G)) showTelemetry = !showTelemetry;
         if (RLIsKeyPressed(RL_E_KEY_ONE)) diagPage = 0;
         if (RLIsKeyPressed(RL_E_KEY_TWO)) diagPage = 1;
@@ -1324,21 +1400,21 @@ int main(int argc, char **argv)
         }
 
         // --- programmatic stress modes (optional) ---
-        const double t = RLGetTime() - t0;
+        const double stressElapsedTime = RLGetTime() - stressStartTime;
 
         if (jitterWindow)
         {
             // Small sinusoidal movement (stresses window-pos callbacks)
-            const int dx = (int)(8.0*sin(t*2.0));
-            const int dy = (int)(6.0*cos(t*1.7));
+            const int dx = (int)(8.0*sin(stressElapsedTime*2.0));
+            const int dy = (int)(6.0*cos(stressElapsedTime*1.7));
             RLSetWindowPosition(80 + dx, 80 + dy);
         }
 
         if (jitterResize)
         {
             // Resizing (stresses framebuffer-size + projection update paths)
-            const int dw = (int)(80.0*sin(t*1.5));
-            const int dh = (int)(60.0*cos(t*1.2));
+            const int dw = (int)(80.0*sin(stressElapsedTime*1.5));
+            const int dh = (int)(60.0*cos(stressElapsedTime*1.2));
             const int w = baseW + dw;
             const int h = baseH + dh;
             RLSetWindowSize(w, h);
@@ -1353,8 +1429,8 @@ int main(int argc, char **argv)
             const int cy = sh/2;
             const int rx = (int)(0.35*sw);
             const int ry = (int)(0.25*sh);
-            const int x = cx + (int)(rx*cos(t*3.3));
-            const int y = cy + (int)(ry*sin(t*2.9));
+            const int x = cx + (int)(rx*cos(stressElapsedTime*3.3));
+            const int y = cy + (int)(ry*sin(stressElapsedTime*2.9));
             RLSetMousePosition(x, y);
         }
 
@@ -1588,23 +1664,20 @@ int main(int argc, char **argv)
         RLEndDrawing();
     }
 
-    if (gCanvas.id != 0) RLUnloadRenderTexture(gCanvas);
-
 #if defined(_WIN32)
-    if (gSharedScenario.sameThreadHandle != NULL)
-    {
-        WaitForSingleObject(gSharedScenario.sameThreadHandle, 3000);
-        CloseHandle(gSharedScenario.sameThreadHandle);
-        gSharedScenario.sameThreadHandle = NULL;
-    }
-    if (gSharedScenario.crossThreadHandle != NULL)
-    {
-        WaitForSingleObject(gSharedScenario.crossThreadHandle, 3000);
-        CloseHandle(gSharedScenario.crossThreadHandle);
-        gSharedScenario.crossThreadHandle = NULL;
-    }
+    SharedDiagJoinThreadForShutdown(&gSharedScenario.sameThreadHandle, &gSharedScenario.sameThreadRunning, "same-thread");
+    SharedDiagJoinThreadForShutdown(&gSharedScenario.crossThreadHandle, &gSharedScenario.crossThreadRunning, "cross-thread");
 #endif
 
+    if (gCanvas.id != 0)
+    {
+        SharedDiagDumpTrackedObjects("main-before-final-canvas-unload");
+        RLUnloadRenderTexture(gCanvas);
+        gCanvas = (RLRenderTexture2D){ 0 };
+        SharedDiagDumpTrackedObjects("main-after-final-canvas-unload");
+    }
+
+    SharedDiagDumpTrackedObjects("main-before-close-window");
     RLCloseWindow();
     return 0;
 }

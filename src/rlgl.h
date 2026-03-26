@@ -4516,6 +4516,14 @@ void rlUnloadShaderProgram(unsigned int id)
 static void rlSharedGpuFlushDeletes(void)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
+    void *rawFence = NULL;
+    while (RLSharedGpuPopPendingProgramFence(&rawFence))
+    {
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_43)
+        if ((rawFence != NULL) && (glDeleteSync != NULL)) glDeleteSync((GLsync)rawFence);
+#endif
+    }
+
     RLSharedGpuObjectType type;
     unsigned int id;
 

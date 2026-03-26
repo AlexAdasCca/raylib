@@ -4,10 +4,15 @@
 // Internal helper for share-group wide GPU object lifetime management.
 //
 // This module provides:
-// - Share-group binding for RLContext instances (same share-group => shared GL object namespace)
+// - Share-group binding for RLContext instances
 // - A lightweight reference counter per GL object id (per share-group)
 // - Deferred deletion queue: the last release enqueues a delete, actual glDelete* happens
 //   on a thread with a current OpenGL context (drained by rlgl).
+//
+// NOTE:
+// - gpuShareGroup is an internal lifetime/deferred-delete grouping primitive.
+// - tracked-object shared-namespace policy is separate and may remain context-scoped
+//   even when a gpuShareGroup exists.
 
 #include "rl_context.h"   // Internal RLContext definition
 
@@ -29,10 +34,17 @@ typedef enum RLSharedGpuTrackingModeInternal {
     RL_SHARED_GPU_TRACKING_MODE_STRICT = 1      // Unregistered retain/release is rejected and counted.
 } RLSharedGpuTrackingModeInternal;
 
+typedef enum RLSharedGpuTrackedScopePolicyInternal {
+    RL_SHARED_GPU_TRACKED_SCOPE_CONTEXT = 0,
+    RL_SHARED_GPU_TRACKED_SCOPE_SHARE_GROUP = 1
+} RLSharedGpuTrackedScopePolicyInternal;
+
 // Bind ctx to a share-group. If shareWithCtx is non-NULL, ctx joins shareWithCtx's group.
 // Otherwise a new share-group is created for ctx.
+// Returns false if an explicit share target was requested but it has no active group,
+// tracked-object promotion failed, or rebinding a live context to a different share-group was attempted.
 // Safe to call multiple times.
-void RLSharedGpuContextBindShareGroup(RLContext *ctx, RLContext *shareWithCtx);
+bool RLSharedGpuContextBindShareGroup(RLContext *ctx, RLContext *shareWithCtx);
 
 // Unbind ctx from its share-group. If it was the last context in the group, the group is freed.
 void RLSharedGpuContextUnbindShareGroup(RLContext *ctx);
@@ -79,6 +91,12 @@ bool RLSharedGpuGetObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLCo
 bool RLSharedGpuIsObjectOwnedByCurrentContext(RLSharedGpuObjectType type, unsigned int id);
 bool RLSharedGpuTryTransferObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx);
 bool RLSharedGpuTryAdoptOrphanedObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx);
+bool RLSharedGpuLockOwnerGroup(RLContext *currentCtx, RLContext *targetCtx, void **groupHandleOut);
+void RLSharedGpuUnlockOwnerGroup(void *groupHandle);
+int RLSharedGpuCanTransferObjectOwnerLocked(void *groupHandle, RLSharedGpuObjectType type, unsigned int id, RLContext *currentCtx, RLContext *targetCtx);
+void RLSharedGpuTransferObjectOwnerLocked(void *groupHandle, RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx);
+int RLSharedGpuCanAdoptOrphanedObjectOwnerLocked(void *groupHandle, RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx);
+void RLSharedGpuAdoptOrphanedObjectOwnerLocked(void *groupHandle, RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx);
 
 // Serialized scope for shared shader program concurrent use.
 // policy values are RLSharedShaderUsePolicy from raylib.h.
@@ -86,6 +104,7 @@ bool RLSharedGpuBeginProgramUseScope(unsigned int programId, int policy);
 void RLSharedGpuEndProgramUseScope(unsigned int programId, int policy);
 bool RLSharedGpuTakeProgramFence(unsigned int programId, void **fenceOut);
 bool RLSharedGpuStoreProgramFence(unsigned int programId, void *fence);
+bool RLSharedGpuPopPendingProgramFence(void **fenceOut);
 
 // Increment the refcount for a GL object in the CURRENT context share-group.
 // This does NOT assign or change owner. Owner is set by RegisterObject/explicit transfer.
@@ -115,6 +134,10 @@ void RLSharedGpuTraceTextureRelease(unsigned int id, const char *sourceFile, int
 // Lightweight validation helpers used by public API wrappers.
 bool RLSharedGpuHasCurrentGroup(void);
 bool RLSharedGpuHasContextGroup(RLContext *ctx);
+bool RLSharedGpuContextUsesSharedTrackedScope(RLContext *ctx);
+bool RLSharedGpuContextResolveTrackedScopeHandle(RLContext *ctx, void **groupHandleOut);
+bool RLSharedGpuGroupUsesSharedTrackedScope(const void *groupHandle);
+void RLSharedGpuGroupSetSharedTrackedScope(void *groupHandle);
 
 // Runtime tracking policy for unregistered object retain/release handling.
 void RLSharedGpuSetTrackingMode(RLSharedGpuTrackingModeInternal mode);

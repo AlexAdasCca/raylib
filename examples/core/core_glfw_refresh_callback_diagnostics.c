@@ -125,16 +125,16 @@ static void OnRefreshDraw(void)
     gRefreshCount++;
     gLastRefreshTime = RLGetTime();
 
-    const double t = RLGetTime();
-    const int x = 20 + (int)(10.0 * sin(t * 6.28318530718));
+    const double elapsedTime = RLGetTime();
+    const int textOffsetX = 20 + (int)(10.0 * sin(elapsedTime * 6.28318530718));
 
     RLClearBackground(RAYWHITE);
-    RLDrawText("[RefreshCallback] Modal-loop repaint tick", x, 170, 22, RED);
-    RLDrawText(RLTextFormat("refreshCount=%d", gRefreshCount), x, 200, 20, DARKGRAY);
+    RLDrawText("[RefreshCallback] Modal-loop repaint tick", textOffsetX, 170, 22, RED);
+    RLDrawText(RLTextFormat("refreshCount=%d", gRefreshCount), textOffsetX, 200, 20, DARKGRAY);
 
     // Draw a small animated bar to prove continuous refresh.
-    int barW = (int)(200 + 150 * (0.5 + 0.5 * sin(t * 3.0)));
-    RLDrawRectangle(20, 240, barW, 14, (RLColor){ 200, 40, 40, 255 });
+    int barWidth = (int)(200 + 150 * (0.5 + 0.5 * sin(elapsedTime * 3.0)));
+    RLDrawRectangle(20, 240, barWidth, 14, (RLColor){ 200, 40, 40, 255 });
     RLDrawRectangleLines(20, 240, 360, 14, RLFade(BLACK, 0.5f));
 
     DrawHud("Mode: FLAG_WINDOW_REFRESH_CALLBACK (non-event-thread)");
@@ -223,9 +223,9 @@ int main(void)
         RLDrawText("During Win32 modal loops, the refresh callback should keep repainting.", 20, 215, 20, DARKGRAY);
 
         // Draw a moving dot so you can see normal loop animation.
-        double t = RLGetTime();
-        int x = 20 + (int)(300.0 * (0.5 + 0.5 * sin(t * 2.0)));
-        RLDrawCircle(x, 260, 10, BLUE);
+        double elapsedTime = RLGetTime();
+        int animatedX = 20 + (int)(300.0 * (0.5 + 0.5 * sin(elapsedTime * 2.0)));
+        RLDrawCircle(animatedX, 260, 10, BLUE);
 
         RLEndDrawing();
     }

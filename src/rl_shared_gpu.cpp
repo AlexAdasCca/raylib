@@ -1,5 +1,6 @@
 #include "rl_shared_gpu.h"
 #include "raylib.h"
+#include "rl_object_tracker.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -19,6 +20,11 @@
 
 namespace {
 
+struct RLTraceCallbackIsolationScope {
+    RLTraceCallbackIsolationScope() { RLTraceCallbackIsolationEnter(); }
+    ~RLTraceCallbackIsolationScope() { RLTraceCallbackIsolationLeave(); }
+};
+
 struct RLSharedGpuGroup {
     struct ProgramUseScope {
         std::recursive_mutex lockMutex;
@@ -36,7 +42,7 @@ struct RLSharedGpuGroup {
         std::string releaseReason;
     };
 
-    std::mutex m;
+    std::mutex groupStateMutex;
     std::unordered_map<uint64_t, uint32_t> refs;
     std::unordered_map<uint64_t, RLContext*> owners;
     std::unordered_set<uint64_t> orphanedOwners;
@@ -45,13 +51,25 @@ struct RLSharedGpuGroup {
     std::unordered_map<uint32_t, uint64_t> framebufferDepth;  // fboId -> depthKey (type+id)
     std::unordered_map<uint32_t, std::unordered_map<int, uint64_t>> framebufferAttachments; // fboId -> (attachment -> key)
     std::unordered_map<uint32_t, TextureTrace> textureTrace;   // texture id -> trace metadata
-    std::unordered_map<uint64_t, std::unique_ptr<ProgramUseScope>> programUseScopes;
+    std::unordered_map<uint64_t, std::shared_ptr<ProgramUseScope>> programUseScopes;
+    std::deque<void*> pendingProgramFences;
     std::unordered_set<uint64_t> pendingSet; // dedupe
     size_t releaseUntrackedCount = 0;
     size_t fboAttachmentMapHitCount = 0;
     size_t fboAttachmentMapMissCount = 0;
     size_t fboAttachmentReleaseSkippedCount = 0;
     std::atomic<uint32_t> ctxRefs{1};
+    std::atomic<int> trackedScopePolicy{RL_SHARED_GPU_TRACKED_SCOPE_CONTEXT};
+};
+
+class RLSharedGpuGroupLockScope {
+public:
+    explicit RLSharedGpuGroupLockScope(RLSharedGpuGroup *shareGroup)
+        : callbackIsolation(), shareGroupLock(shareGroup->groupStateMutex) {}
+
+private:
+    RLTraceCallbackIsolationScope callbackIsolation;
+    std::unique_lock<std::mutex> shareGroupLock;
 };
 
 static inline uint64_t MakeKey(uint32_t type, uint32_t id)
@@ -62,6 +80,17 @@ static inline uint64_t MakeKey(uint32_t type, uint32_t id)
 static std::atomic<int> gTrackingMode((int)RL_SHARED_GPU_TRACKING_MODE_STRICT);
 static std::atomic<unsigned long long> gUnregisteredRetainRejectCount(0);
 static std::atomic<unsigned long long> gUnregisteredReleaseRejectCount(0);
+static std::mutex gSharedGpuBindingMutex;
+
+class RLSharedGpuBindingLockScope {
+public:
+    RLSharedGpuBindingLockScope()
+        : callbackIsolation(), bindingLock(gSharedGpuBindingMutex) {}
+
+private:
+    RLTraceCallbackIsolationScope callbackIsolation;
+    std::unique_lock<std::mutex> bindingLock;
+};
 
 static inline bool IsStrictTrackingEnabled(void)
 {
@@ -90,28 +119,80 @@ static RLSharedGpuGroup *NewGroup()
     return new RLSharedGpuGroup();
 }
 
-static void DeleteGroup(RLSharedGpuGroup *g)
+static void AddGroupRef(RLSharedGpuGroup *shareGroup)
 {
-    if (!g) return;
+    if (shareGroup == nullptr) return;
+    shareGroup->ctxRefs.fetch_add(1, std::memory_order_acq_rel);
+}
+
+static void ReleaseGroupRef(RLSharedGpuGroup *shareGroup);
+
+class PinnedGroup
+{
+public:
+    PinnedGroup() : group(nullptr) {}
+    explicit PinnedGroup(RLSharedGpuGroup *shareGroup) : group(shareGroup) {}
+    ~PinnedGroup() { reset(); }
+
+    PinnedGroup(const PinnedGroup&) = delete;
+    PinnedGroup& operator=(const PinnedGroup&) = delete;
+
+    PinnedGroup(PinnedGroup&& other) noexcept : group(other.group)
     {
-        std::lock_guard<std::mutex> lock(g->m);
+        other.group = nullptr;
+    }
+
+    PinnedGroup& operator=(PinnedGroup&& other) noexcept
+    {
+        if (this != &other)
+        {
+            reset();
+            group = other.group;
+            other.group = nullptr;
+        }
+        return *this;
+    }
+
+    RLSharedGpuGroup *get() const { return group; }
+    explicit operator bool() const { return (group != nullptr); }
+
+    void reset()
+    {
+        if (group != nullptr)
+        {
+            ReleaseGroupRef(group);
+            group = nullptr;
+        }
+    }
+
+private:
+    RLSharedGpuGroup *group;
+};
+
+static void DeleteGroup(RLSharedGpuGroup *shareGroup)
+{
+    if (!shareGroup) return;
+    {
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
 
         // Leak diagnostics (GPU objects are tracked by refcounts; pending holds deferred deletes).
         // We do not call any GL APIs here.
-        if (!g->refs.empty() || !g->pending.empty()) {
+        if (!shareGroup->refs.empty() || !shareGroup->pending.empty()) {
             uint32_t liveByType[8] = {0};
-            for (auto &kv : g->refs) {
-                uint32_t t=0, id=0; SplitKey(kv.first, t, id);
-                if (t < 8) liveByType[t] += 1;
+            for (auto &refEntry : shareGroup->refs) {
+                uint32_t objectTypeBits = 0, objectId = 0;
+                SplitKey(refEntry.first, objectTypeBits, objectId);
+                if (objectTypeBits < 8) liveByType[objectTypeBits] += 1;
             }
-            uint32_t pendByType[8] = {0};
-            for (auto &k : g->pending) {
-                uint32_t t=0, id=0; SplitKey(k, t, id);
-                if (t < 8) pendByType[t] += 1;
+            uint32_t pendingByType[8] = {0};
+            for (auto &pendingKey : shareGroup->pending) {
+                uint32_t objectTypeBits = 0, objectId = 0;
+                SplitKey(pendingKey, objectTypeBits, objectId);
+                if (objectTypeBits < 8) pendingByType[objectTypeBits] += 1;
             }
             RLTraceLog(RL_E_LOG_WARNING,
                 "SHARED_GPU: share-group destroyed with live refs/pending deletes: live=%zu pending=%zu untrackedRelease=%zu",
-                (size_t)g->refs.size(), (size_t)g->pending.size(), g->releaseUntrackedCount);
+                (size_t)shareGroup->refs.size(), (size_t)shareGroup->pending.size(), shareGroup->releaseUntrackedCount);
             RLTraceLog(RL_E_LOG_WARNING,
                 "SHARED_GPU: live refs by type: tex=%u buf=%u vao=%u fbo=%u rbo=%u prog=%u",
                 liveByType[RL_SHARED_GPU_OBJECT_TEXTURE],
@@ -122,35 +203,37 @@ static void DeleteGroup(RLSharedGpuGroup *g)
                 liveByType[RL_SHARED_GPU_OBJECT_PROGRAM]);
             RLTraceLog(RL_E_LOG_WARNING,
                 "SHARED_GPU: pending deletes by type: tex=%u buf=%u vao=%u fbo=%u rbo=%u prog=%u",
-                pendByType[RL_SHARED_GPU_OBJECT_TEXTURE],
-                pendByType[RL_SHARED_GPU_OBJECT_BUFFER],
-                pendByType[RL_SHARED_GPU_OBJECT_VERTEX_ARRAY],
-                pendByType[RL_SHARED_GPU_OBJECT_FRAMEBUFFER],
-                pendByType[RL_SHARED_GPU_OBJECT_RENDERBUFFER],
-                pendByType[RL_SHARED_GPU_OBJECT_PROGRAM]);
+                pendingByType[RL_SHARED_GPU_OBJECT_TEXTURE],
+                pendingByType[RL_SHARED_GPU_OBJECT_BUFFER],
+                pendingByType[RL_SHARED_GPU_OBJECT_VERTEX_ARRAY],
+                pendingByType[RL_SHARED_GPU_OBJECT_FRAMEBUFFER],
+                pendingByType[RL_SHARED_GPU_OBJECT_RENDERBUFFER],
+                pendingByType[RL_SHARED_GPU_OBJECT_PROGRAM]);
         }
 
-        for (auto &kv : g->programLocs) {
-            if (kv.second) RL_FREE(kv.second);
+        for (auto &programLocEntry : shareGroup->programLocs) {
+            if (programLocEntry.second) RL_FREE(programLocEntry.second);
         }
-        g->programLocs.clear();
+        shareGroup->programLocs.clear();
     }
-    delete g;
+    delete shareGroup;
 }
 
-static RLSharedGpuGroup *EnsureGroupForContext(RLContext *ctx)
+static void ReleaseGroupRef(RLSharedGpuGroup *shareGroup)
 {
-    if (!ctx) return nullptr;
-    if (!ctx->gpuShareGroup) {
-        ctx->gpuShareGroup = (void *)NewGroup();
-    }
-    return (RLSharedGpuGroup *)ctx->gpuShareGroup;
+    if (shareGroup == nullptr) return;
+    const uint32_t prev = shareGroup->ctxRefs.fetch_sub(1, std::memory_order_acq_rel);
+    if (prev == 1u) DeleteGroup(shareGroup);
 }
 
-static RLSharedGpuGroup *GetGroupForContext(RLContext *ctx)
+static PinnedGroup PinExistingGroupForContext(RLContext *ctx)
 {
-    if (!ctx) return nullptr;
-    return (RLSharedGpuGroup *)ctx->gpuShareGroup;
+    if (!ctx) return PinnedGroup();
+
+    RLSharedGpuBindingLockScope bindingLock;
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)ctx->gpuShareGroup;
+    if (shareGroup != nullptr) AddGroupRef(shareGroup);
+    return PinnedGroup(shareGroup);
 }
 
 static RLContext *GetCurrentContextSafe()
@@ -159,123 +242,166 @@ static RLContext *GetCurrentContextSafe()
     return RLGetCurrentContext();
 }
 
-static RLSharedGpuGroup *EnsureGroupForCurrentContext()
+static PinnedGroup EnsurePinnedGroupForContext(RLContext *ctx)
 {
-    RLContext *ctx = GetCurrentContextSafe();
-    return EnsureGroupForContext(ctx);
+    if (!ctx) return PinnedGroup();
+
+    RLSharedGpuBindingLockScope bindingLock;
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)ctx->gpuShareGroup;
+    if (shareGroup == nullptr)
+    {
+        shareGroup = NewGroup();         // Initial binding ref.
+        ctx->gpuShareGroup = (void *)shareGroup;
+    }
+
+    AddGroupRef(shareGroup);             // Temporary pin for caller use.
+    return PinnedGroup(shareGroup);
 }
 
-static RLSharedGpuGroup *GetGroupForCurrentContext()
+static PinnedGroup EnsurePinnedGroupForCurrentContext()
 {
     RLContext *ctx = GetCurrentContextSafe();
-    return GetGroupForContext(ctx);
+    return EnsurePinnedGroupForContext(ctx);
 }
 
-static void PushPendingDelete(RLSharedGpuGroup *g, uint64_t key)
+static PinnedGroup PinExistingGroupForCurrentContext()
 {
-    if (!g) return;
-    if (g->pendingSet.insert(key).second) {
-        uint32_t type = 0, id = 0;
-        SplitKey(key, type, id);
-        if (type == RL_SHARED_GPU_OBJECT_TEXTURE) {
-            auto it = g->textureTrace.find(id);
-            if (it != g->textureTrace.end()) {
-                if (it->second.label.find("font") != std::string::npos) {
+    RLContext *ctx = GetCurrentContextSafe();
+    return PinExistingGroupForContext(ctx);
+}
+
+static inline bool GroupUsesSharedTrackedScope(const RLSharedGpuGroup *shareGroup)
+{
+    if (shareGroup == nullptr) return false;
+    return (shareGroup->trackedScopePolicy.load(std::memory_order_acquire) == (int)RL_SHARED_GPU_TRACKED_SCOPE_SHARE_GROUP);
+}
+
+static void PushPendingDelete(RLSharedGpuGroup *shareGroup, uint64_t key)
+{
+    if (!shareGroup) return;
+    if (shareGroup->pendingSet.insert(key).second) {
+        uint32_t objectTypeBits = 0, objectId = 0;
+        SplitKey(key, objectTypeBits, objectId);
+        if (objectTypeBits == RL_SHARED_GPU_OBJECT_TEXTURE) {
+            auto traceIt = shareGroup->textureTrace.find(objectId);
+            if (traceIt != shareGroup->textureTrace.end()) {
+                if (traceIt->second.label.find("font") != std::string::npos) {
                     RLTraceLog(RL_E_LOG_DEBUG,
                         "SHARED_GPU: font texture enqueue delete: id=%u label=%s mark=%s release=%s reason=%s",
-                        id,
-                        it->second.label.c_str(),
-                        it->second.markSource.c_str(),
-                        it->second.releaseSource.c_str(),
-                        it->second.releaseReason.c_str());
+                        objectId,
+                        traceIt->second.label.c_str(),
+                        traceIt->second.markSource.c_str(),
+                        traceIt->second.releaseSource.c_str(),
+                        traceIt->second.releaseReason.c_str());
                 }
             }
         }
-        g->pending.push_back(key);
+        shareGroup->pending.push_back(key);
     }
 }
 
-static void NoteUntrackedReleaseLocked(RLSharedGpuGroup *g, RLSharedGpuObjectType type, uint64_t key)
+static void NoteUntrackedReleaseLocked(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectType type, uint64_t key)
 {
-    if (!g || key == 0) return;
-    g->releaseUntrackedCount += 1;
+    if (!shareGroup || key == 0) return;
+    shareGroup->releaseUntrackedCount += 1;
     uint32_t keyType = 0, keyId = 0;
     SplitKey(key, keyType, keyId);
     RLTraceLog(RL_E_LOG_WARNING,
         "SHARED_GPU: release on untracked object ignored (requestedType=%u keyType=%u id=%u untrackedCount=%zu)",
-        (unsigned)type, (unsigned)keyType, (unsigned)keyId, g->releaseUntrackedCount);
+        (unsigned)type, (unsigned)keyType, (unsigned)keyId, shareGroup->releaseUntrackedCount);
 }
 
-static void RegisterObjectInGroup(RLSharedGpuGroup *g, RLSharedGpuObjectType type, unsigned int id)
+static void RegisterObjectInGroup(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectType type, unsigned int id)
 {
-    if (!g || id == 0) return;
+    if (!shareGroup || id == 0) return;
     const uint64_t key = MakeKey((uint32_t)type, (uint32_t)id);
     RLContext *currentCtx = GetCurrentContextSafe();
 
-    std::lock_guard<std::mutex> lock(g->m);
-    auto it = g->refs.find(key);
-    if (it == g->refs.end())
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    auto refIt = shareGroup->refs.find(key);
+    if (refIt == shareGroup->refs.end())
     {
-        g->refs.emplace(key, 1);
+        shareGroup->refs.emplace(key, 1);
         if (currentCtx != nullptr)
         {
-            g->owners[key] = currentCtx;
-            g->orphanedOwners.erase(key);
+            shareGroup->owners[key] = currentCtx;
+            shareGroup->orphanedOwners.erase(key);
         }
     }
     else
     {
-        it->second += 1;
+        refIt->second += 1;
         // If owner is still unknown for an existing tracked object, lock it now to
         // the registering context. Retain/release paths must not implicitly change owner.
-        auto ownerIt = g->owners.find(key);
-        if ((ownerIt == g->owners.end()) || (ownerIt->second == nullptr))
+        auto ownerIt = shareGroup->owners.find(key);
+        if ((ownerIt == shareGroup->owners.end()) || (ownerIt->second == nullptr))
         {
             if (currentCtx != nullptr)
             {
-                g->owners[key] = currentCtx;
-                g->orphanedOwners.erase(key);
+                shareGroup->owners[key] = currentCtx;
+                shareGroup->orphanedOwners.erase(key);
             }
         }
     }
 }
 
-static unsigned int OrphanOwnersForContextLocked(RLSharedGpuGroup *g, RLContext *ctx)
+static unsigned int OrphanOwnersForContextLocked(RLSharedGpuGroup *shareGroup, RLContext *ctx)
 {
-    if ((g == nullptr) || (ctx == nullptr)) return 0u;
+    if ((shareGroup == nullptr) || (ctx == nullptr)) return 0u;
 
     unsigned int orphanedCount = 0u;
-    for (auto &ownerEntry : g->owners)
+    for (auto &ownerEntry : shareGroup->owners)
     {
         if (ownerEntry.second != ctx) continue;
         ownerEntry.second = nullptr;
-        g->orphanedOwners.insert(ownerEntry.first);
+        shareGroup->orphanedOwners.insert(ownerEntry.first);
         orphanedCount++;
     }
 
     return orphanedCount;
 }
 
-static RLSharedGpuGroup::ProgramUseScope *GetOrCreateProgramUseScopeLocked(RLSharedGpuGroup *g, uint64_t key)
+static std::shared_ptr<RLSharedGpuGroup::ProgramUseScope> GetOrCreateProgramUseScopeLocked(RLSharedGpuGroup *shareGroup, uint64_t key)
 {
-    if (!g || key == 0) return nullptr;
-    auto it = g->programUseScopes.find(key);
-    if (it != g->programUseScopes.end()) return it->second.get();
+    if (!shareGroup || key == 0) return std::shared_ptr<RLSharedGpuGroup::ProgramUseScope>();
+    auto scopeIt = shareGroup->programUseScopes.find(key);
+    if (scopeIt != shareGroup->programUseScopes.end()) return scopeIt->second;
 
-    std::unique_ptr<RLSharedGpuGroup::ProgramUseScope> scope(new RLSharedGpuGroup::ProgramUseScope());
-    RLSharedGpuGroup::ProgramUseScope *scopePtr = scope.get();
-    g->programUseScopes.emplace(key, std::move(scope));
-    return scopePtr;
+    std::shared_ptr<RLSharedGpuGroup::ProgramUseScope> scope(new RLSharedGpuGroup::ProgramUseScope());
+    shareGroup->programUseScopes.emplace(key, scope);
+    return scope;
 }
 
-static void RetainObjectInGroup(RLSharedGpuGroup *g, RLSharedGpuObjectType type, unsigned int id)
+static void QueueProgramFenceForDeleteLocked(RLSharedGpuGroup *shareGroup, void *fence)
 {
-    if (!g || id == 0) return;
+    if ((shareGroup == nullptr) || (fence == nullptr)) return;
+    shareGroup->pendingProgramFences.push_back(fence);
+}
+
+static void RemoveProgramScopeLocked(RLSharedGpuGroup *shareGroup, uint64_t key)
+{
+    if ((shareGroup == nullptr) || (key == 0)) return;
+
+    auto scopeIt = shareGroup->programUseScopes.find(key);
+    if (scopeIt == shareGroup->programUseScopes.end()) return;
+
+    std::shared_ptr<RLSharedGpuGroup::ProgramUseScope> scope = scopeIt->second;
+    shareGroup->programUseScopes.erase(scopeIt);
+    if ((scope != nullptr) && (scope->lastFence != nullptr))
+    {
+        QueueProgramFenceForDeleteLocked(shareGroup, scope->lastFence);
+        scope->lastFence = nullptr;
+    }
+}
+
+static void RetainObjectInGroup(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectType type, unsigned int id)
+{
+    if (!shareGroup || id == 0) return;
     const uint64_t key = MakeKey((uint32_t)type, (uint32_t)id);
 
-    std::lock_guard<std::mutex> lock(g->m);
-    auto it = g->refs.find(key);
-    if (it == g->refs.end())
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    auto refIt = shareGroup->refs.find(key);
+    if (refIt == shareGroup->refs.end())
     {
         if (IsStrictTrackingEnabled())
         {
@@ -287,53 +413,53 @@ static void RetainObjectInGroup(RLSharedGpuGroup *g, RLSharedGpuObjectType type,
         }
 
         // Compatibility mode: assume an implicit owner reference already exists.
-        g->refs.emplace(key, 2);
+        shareGroup->refs.emplace(key, 2);
         RLTraceLog(RL_E_LOG_WARNING,
             "SHARED_GPU: retain on unregistered object accepted in compatibility mode (type=%u id=%u refs=2)",
             (unsigned)type, id);
     }
     else
     {
-        it->second += 1;
+        refIt->second += 1;
     }
 }
 
-static void RetainKeyLocked(RLSharedGpuGroup *g, uint64_t key)
+static void RetainKeyLocked(RLSharedGpuGroup *shareGroup, uint64_t key)
 {
-    if (!g || key == 0) return;
-    auto it = g->refs.find(key);
-    if (it == g->refs.end())
+    if (!shareGroup || key == 0) return;
+    auto refIt = shareGroup->refs.find(key);
+    if (refIt == shareGroup->refs.end())
     {
         if (IsStrictTrackingEnabled())
         {
             gUnregisteredRetainRejectCount.fetch_add(1, std::memory_order_relaxed);
-            uint32_t type = 0, id = 0;
-            SplitKey(key, type, id);
+            uint32_t objectTypeBits = 0, objectId = 0;
+            SplitKey(key, objectTypeBits, objectId);
             RLTraceLog(RL_E_LOG_WARNING,
                 "SHARED_GPU: retain on unregistered object rejected (type=%u id=%u)",
-                (unsigned)type, id);
+                (unsigned)objectTypeBits, objectId);
             return;
         }
 
         // Compatibility mode: assume an implicit owner reference already exists.
-        g->refs.emplace(key, 2);
-        uint32_t type = 0, id = 0;
-        SplitKey(key, type, id);
+        shareGroup->refs.emplace(key, 2);
+        uint32_t objectTypeBits = 0, objectId = 0;
+        SplitKey(key, objectTypeBits, objectId);
         RLTraceLog(RL_E_LOG_WARNING,
             "SHARED_GPU: retain on unregistered object accepted in compatibility mode (type=%u id=%u refs=2)",
-            (unsigned)type, id);
+            (unsigned)objectTypeBits, objectId);
     }
     else
     {
-        it->second += 1;
+        refIt->second += 1;
     }
 }
 
-static void ReleaseKeyLocked(RLSharedGpuGroup *g, RLSharedGpuObjectType type, uint64_t key)
+static void ReleaseKeyLocked(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectType type, uint64_t key)
 {
-    if (!g || key == 0) return;
-    auto it = g->refs.find(key);
-    if (it == g->refs.end()) {
+    if (!shareGroup || key == 0) return;
+    auto refIt = shareGroup->refs.find(key);
+    if (refIt == shareGroup->refs.end()) {
         if (IsStrictTrackingEnabled())
         {
             gUnregisteredReleaseRejectCount.fetch_add(1, std::memory_order_relaxed);
@@ -346,37 +472,37 @@ static void ReleaseKeyLocked(RLSharedGpuGroup *g, RLSharedGpuObjectType type, ui
         }
 
         // Compatibility mode: ignore release in this group to avoid accidental cross-group deletes.
-        NoteUntrackedReleaseLocked(g, type, key);
+        NoteUntrackedReleaseLocked(shareGroup, type, key);
         return;
     }
 
-    if (it->second <= 1) {
-        g->refs.erase(it);
-        g->owners.erase(key);
-        g->orphanedOwners.erase(key);
+    if (refIt->second <= 1) {
+        shareGroup->refs.erase(refIt);
+        shareGroup->owners.erase(key);
+        shareGroup->orphanedOwners.erase(key);
         if (type == RL_SHARED_GPU_OBJECT_PROGRAM) {
-            auto itL = g->programLocs.find(key);
-            if (itL != g->programLocs.end()) {
-                if (itL->second) RL_FREE(itL->second);
-                g->programLocs.erase(itL);
+            auto programLocIt = shareGroup->programLocs.find(key);
+            if (programLocIt != shareGroup->programLocs.end()) {
+                if (programLocIt->second) RL_FREE(programLocIt->second);
+                shareGroup->programLocs.erase(programLocIt);
             }
-            g->programUseScopes.erase(key);
+            RemoveProgramScopeLocked(shareGroup, key);
         }
-        PushPendingDelete(g, key);
+        PushPendingDelete(shareGroup, key);
         return;
     }
 
-    it->second -= 1;
+    refIt->second -= 1;
 }
 
-static void ReleaseObjectInGroup(RLSharedGpuGroup *g, RLSharedGpuObjectType type, unsigned int id)
+static void ReleaseObjectInGroup(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectType type, unsigned int id)
 {
-    if (!g || id == 0) return;
+    if (!shareGroup || id == 0) return;
     const uint64_t key = MakeKey((uint32_t)type, (uint32_t)id);
 
-    std::lock_guard<std::mutex> lock(g->m);
-    auto it = g->refs.find(key);
-    if (it == g->refs.end()) {
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    auto refIt = shareGroup->refs.find(key);
+    if (refIt == shareGroup->refs.end()) {
         if (IsStrictTrackingEnabled())
         {
             gUnregisteredReleaseRejectCount.fetch_add(1, std::memory_order_relaxed);
@@ -387,64 +513,64 @@ static void ReleaseObjectInGroup(RLSharedGpuGroup *g, RLSharedGpuObjectType type
         }
 
         // Compatibility mode: ignore release in this group to avoid accidental cross-group deletes.
-        NoteUntrackedReleaseLocked(g, type, key);
+        NoteUntrackedReleaseLocked(shareGroup, type, key);
         return;
     }
 
-    if (it->second <= 1) {
-        g->refs.erase(it);
-        g->owners.erase(key);
-        g->orphanedOwners.erase(key);
+    if (refIt->second <= 1) {
+        shareGroup->refs.erase(refIt);
+        shareGroup->owners.erase(key);
+        shareGroup->orphanedOwners.erase(key);
         if (type == RL_SHARED_GPU_OBJECT_PROGRAM) {
-            auto itL = g->programLocs.find(key);
-            if (itL != g->programLocs.end()) {
-                if (itL->second) RL_FREE(itL->second);
-                g->programLocs.erase(itL);
+            auto programLocIt = shareGroup->programLocs.find(key);
+            if (programLocIt != shareGroup->programLocs.end()) {
+                if (programLocIt->second) RL_FREE(programLocIt->second);
+                shareGroup->programLocs.erase(programLocIt);
             }
-            g->programUseScopes.erase(key);
+            RemoveProgramScopeLocked(shareGroup, key);
         }
-        PushPendingDelete(g, key);
+        PushPendingDelete(shareGroup, key);
         return;
     }
 
-    it->second -= 1;
+    refIt->second -= 1;
 }
 
-static void RegisterFramebufferAttachmentInGroup(RLSharedGpuGroup *g, unsigned int framebufferId, int attachment, RLSharedGpuObjectType type, unsigned int objId)
+static void RegisterFramebufferAttachmentInGroup(RLSharedGpuGroup *shareGroup, unsigned int framebufferId, int attachment, RLSharedGpuObjectType type, unsigned int objId)
 {
-    if (!g || framebufferId == 0 || objId == 0) return;
+    if (!shareGroup || framebufferId == 0 || objId == 0) return;
     if (type != RL_SHARED_GPU_OBJECT_TEXTURE && type != RL_SHARED_GPU_OBJECT_RENDERBUFFER) return;
 
     const uint64_t key = MakeKey((uint32_t)type, (uint32_t)objId);
-    std::lock_guard<std::mutex> lock(g->m);
-    g->framebufferAttachments[(uint32_t)framebufferId][attachment] = key;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    shareGroup->framebufferAttachments[(uint32_t)framebufferId][attachment] = key;
 
     // Keep legacy depth mapping in sync for existing query path.
-    if (attachment == 100) g->framebufferDepth[(uint32_t)framebufferId] = key;
+    if (attachment == 100) shareGroup->framebufferDepth[(uint32_t)framebufferId] = key;
 }
 
-static void UnregisterFramebufferAttachmentInGroup(RLSharedGpuGroup *g, unsigned int framebufferId, int attachment)
+static void UnregisterFramebufferAttachmentInGroup(RLSharedGpuGroup *shareGroup, unsigned int framebufferId, int attachment)
 {
-    if (!g || framebufferId == 0) return;
-    std::lock_guard<std::mutex> lock(g->m);
+    if (!shareGroup || framebufferId == 0) return;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
 
-    auto it = g->framebufferAttachments.find((uint32_t)framebufferId);
-    if (it != g->framebufferAttachments.end())
+    auto framebufferIt = shareGroup->framebufferAttachments.find((uint32_t)framebufferId);
+    if (framebufferIt != shareGroup->framebufferAttachments.end())
     {
-        it->second.erase(attachment);
-        if (it->second.empty()) g->framebufferAttachments.erase(it);
+        framebufferIt->second.erase(attachment);
+        if (framebufferIt->second.empty()) shareGroup->framebufferAttachments.erase(framebufferIt);
     }
 
     // Keep legacy depth mapping in sync.
-    if (attachment == 100) g->framebufferDepth.erase((uint32_t)framebufferId);
+    if (attachment == 100) shareGroup->framebufferDepth.erase((uint32_t)framebufferId);
 }
 
-static void UnregisterFramebufferAttachmentsInGroup(RLSharedGpuGroup *g, unsigned int framebufferId)
+static void UnregisterFramebufferAttachmentsInGroup(RLSharedGpuGroup *shareGroup, unsigned int framebufferId)
 {
-    if (!g || framebufferId == 0) return;
-    std::lock_guard<std::mutex> lock(g->m);
-    g->framebufferAttachments.erase((uint32_t)framebufferId);
-    g->framebufferDepth.erase((uint32_t)framebufferId);
+    if (!shareGroup || framebufferId == 0) return;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    shareGroup->framebufferAttachments.erase((uint32_t)framebufferId);
+    shareGroup->framebufferDepth.erase((uint32_t)framebufferId);
 }
 
 } // namespace
@@ -453,58 +579,144 @@ extern "C" {
 
 bool RLSharedGpuHasCurrentGroup(void)
 {
-    return (GetGroupForCurrentContext() != nullptr);
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    return (bool)pinned;
 }
 
 bool RLSharedGpuHasContextGroup(RLContext *ctx)
 {
-    return (GetGroupForContext(ctx) != nullptr);
+    PinnedGroup pinned = PinExistingGroupForContext(ctx);
+    return (bool)pinned;
 }
 
-void RLSharedGpuContextBindShareGroup(RLContext *ctx, RLContext *shareWithCtx)
+bool RLSharedGpuContextUsesSharedTrackedScope(RLContext *ctx)
 {
-    if (!ctx) return;
+    PinnedGroup pinned = PinExistingGroupForContext(ctx);
+    return GroupUsesSharedTrackedScope(pinned.get());
+}
 
-    RLSharedGpuGroup *desired = nullptr;
-    if (shareWithCtx) desired = EnsureGroupForContext(shareWithCtx);
+bool RLSharedGpuContextResolveTrackedScopeHandle(RLContext *ctx, void **groupHandleOut)
+{
+    if (groupHandleOut != nullptr) *groupHandleOut = nullptr;
+    if ((ctx == nullptr) || (groupHandleOut == nullptr)) return false;
 
-    // If already bound, but to a different group, move to desired group.
-    if (ctx->gpuShareGroup) {
-        RLSharedGpuGroup *current = (RLSharedGpuGroup *)ctx->gpuShareGroup;
-        if (desired && current != desired) {
-            {
-                std::lock_guard<std::mutex> lock(current->m);
-                (void)OrphanOwnersForContextLocked(current, ctx);
-            }
-            // Drop current binding
-            uint32_t prev = current->ctxRefs.fetch_sub(1, std::memory_order_acq_rel);
-            if (prev == 1) DeleteGroup(current);
+    RLSharedGpuBindingLockScope bindingLock;
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)ctx->gpuShareGroup;
+    if ((shareGroup == nullptr) || !GroupUsesSharedTrackedScope(shareGroup)) return false;
 
-            // Bind to desired
-            desired->ctxRefs.fetch_add(1, std::memory_order_acq_rel);
-            ctx->gpuShareGroup = (void *)desired;
+    *groupHandleOut = (void *)shareGroup;
+    return true;
+}
+
+bool RLSharedGpuGroupUsesSharedTrackedScope(const void *groupHandle)
+{
+    return GroupUsesSharedTrackedScope((const RLSharedGpuGroup *)groupHandle);
+}
+
+void RLSharedGpuGroupSetSharedTrackedScope(void *groupHandle)
+{
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)groupHandle;
+    if (shareGroup == nullptr) return;
+    shareGroup->trackedScopePolicy.store((int)RL_SHARED_GPU_TRACKED_SCOPE_SHARE_GROUP, std::memory_order_release);
+}
+
+bool RLSharedGpuContextBindShareGroup(RLContext *ctx, RLContext *shareWithCtx)
+{
+    if (!ctx) return false;
+
+    PinnedGroup desiredPinned;
+    if (shareWithCtx) desiredPinned = PinExistingGroupForContext(shareWithCtx);
+    RLSharedGpuGroup *desired = desiredPinned.get();
+    if ((shareWithCtx != nullptr) && (desired == nullptr))
+    {
+        RLTraceLog(RL_E_LOG_WARNING,
+            "SHARED_GPU: share-group bind failed: target context has no active group");
+        return false;
+    }
+
+    if (desired != nullptr)
+    {
+        RLTrackedPromotionResult targetPromotionResult = RLTrackedObjectPromoteContextEntriesToShareGroup(shareWithCtx, (void *)desired);
+        if (targetPromotionResult == RL_TRACKED_PROMOTION_FAILED)
+        {
+            RLTraceLog(RL_E_LOG_WARNING,
+                "SHARED_GPU: share-group bind failed: tracked promotion aborted for target context");
+            return false;
         }
-        return;
     }
 
-    if (desired) {
-        desired->ctxRefs.fetch_add(1, std::memory_order_acq_rel);
+    RLSharedGpuGroup *current = nullptr;
+    {
+        RLSharedGpuBindingLockScope bindingLock;
+        current = (RLSharedGpuGroup *)ctx->gpuShareGroup;
+
+        if (desired == nullptr)
+        {
+            if (current == nullptr) ctx->gpuShareGroup = (void *)NewGroup();
+            return true;
+        }
+
+        if (current == desired) return true;
+
+        if ((current != nullptr) && (current != desired))
+        {
+            RLTraceLog(RL_E_LOG_WARNING,
+                "SHARED_GPU: share-group rebind failed: rebinding a live context to a different share-group is unsupported");
+            return false;
+        }
+
+        AddGroupRef(desired);                   // New binding ref for ctx.
         ctx->gpuShareGroup = (void *)desired;
-    } else {
-        ctx->gpuShareGroup = (void *)NewGroup();
     }
+
+    if (GroupUsesSharedTrackedScope(desired))
+    {
+        RLTrackedPromotionResult contextPromotionResult = RLTrackedObjectPromoteContextEntriesToShareGroup(ctx, (void *)desired);
+        if (contextPromotionResult == RL_TRACKED_PROMOTION_FAILED)
+        {
+            bool removedBinding = false;
+            {
+                RLSharedGpuBindingLockScope bindingLock;
+                if ((RLSharedGpuGroup *)ctx->gpuShareGroup == desired)
+                {
+                    ctx->gpuShareGroup = nullptr;
+                    removedBinding = true;
+                }
+            }
+
+            if (removedBinding) ReleaseGroupRef(desired);
+
+            RLTraceLog(RL_E_LOG_WARNING,
+                "SHARED_GPU: share-group bind failed: tracked promotion aborted for source context");
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void RLSharedGpuContextUnbindShareGroup(RLContext *ctx)
 {
     if (!ctx) return;
-    RLSharedGpuGroup *g = (RLSharedGpuGroup *)ctx->gpuShareGroup;
-    if (!g) return;
+    RLSharedGpuGroup *shareGroup = nullptr;
+    PinnedGroup pinned;
+
+    {
+        RLSharedGpuBindingLockScope bindingLock;
+        shareGroup = (RLSharedGpuGroup *)ctx->gpuShareGroup;
+        if (!shareGroup) return;
+
+        AddGroupRef(shareGroup);                // Pin group during orphaning and binding release.
+        pinned = PinnedGroup(shareGroup);
+        ctx->gpuShareGroup = nullptr;
+    }
+
+    if (!shareGroup) return;
 
     unsigned int orphanedCount = 0u;
     {
-        std::lock_guard<std::mutex> lock(g->m);
-        orphanedCount = OrphanOwnersForContextLocked(g, ctx);
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+        orphanedCount = OrphanOwnersForContextLocked(shareGroup, ctx);
     }
     if (orphanedCount > 0u)
     {
@@ -513,27 +725,26 @@ void RLSharedGpuContextUnbindShareGroup(RLContext *ctx)
             orphanedCount);
     }
 
-    ctx->gpuShareGroup = nullptr;
-    uint32_t prev = g->ctxRefs.fetch_sub(1, std::memory_order_acq_rel);
-    if (prev == 1) DeleteGroup(g);
+    ReleaseGroupRef(shareGroup);               // Drop ctx binding ref. Temporary pin drops on scope exit.
 }
 
 void RLSharedGpuRegisterObject(RLSharedGpuObjectType type, unsigned int id)
 {
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    RegisterObjectInGroup(g, type, id);
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RegisterObjectInGroup(pinned.get(), type, id);
 }
 
 void RLSharedGpuRegisterProgramLocs(unsigned int programId, int *locs)
 {
     if (programId == 0 || locs == nullptr) return;
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    if (!g) return;
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (shareGroup == nullptr) return;
     const uint64_t key = MakeKey((uint32_t)RL_SHARED_GPU_OBJECT_PROGRAM, (uint32_t)programId);
-    std::lock_guard<std::mutex> lock(g->m);
-    auto it = g->programLocs.find(key);
-    if (it == g->programLocs.end()) {
-        g->programLocs.emplace(key, (void*)locs);
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    auto programLocIt = shareGroup->programLocs.find(key);
+    if (programLocIt == shareGroup->programLocs.end()) {
+        shareGroup->programLocs.emplace(key, (void*)locs);
     } else {
         // Should not happen; keep existing pointer, free the new one to avoid leaks.
         RL_FREE(locs);
@@ -542,111 +753,115 @@ void RLSharedGpuRegisterProgramLocs(unsigned int programId, int *locs)
 
 void RLSharedGpuRegisterFramebufferDepth(unsigned int framebufferId, RLSharedGpuObjectType type, unsigned int objId)
 {
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    RegisterFramebufferAttachmentInGroup(g, framebufferId, 100, type, objId);
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RegisterFramebufferAttachmentInGroup(pinned.get(), framebufferId, 100, type, objId);
 }
 
 void RLSharedGpuUnregisterFramebufferDepth(unsigned int framebufferId)
 {
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    UnregisterFramebufferAttachmentInGroup(g, framebufferId, 100);
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    UnregisterFramebufferAttachmentInGroup(pinned.get(), framebufferId, 100);
 }
 
 bool RLSharedGpuQueryFramebufferDepth(unsigned int framebufferId, RLSharedGpuObjectType *typeOut, unsigned int *objIdOut)
 {
     if (framebufferId == 0 || !typeOut || !objIdOut) return false;
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return false;
-    std::lock_guard<std::mutex> lock(g->m);
-    auto it = g->framebufferDepth.find((uint32_t)framebufferId);
-    if (it == g->framebufferDepth.end()) return false;
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return false;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    auto depthIt = shareGroup->framebufferDepth.find((uint32_t)framebufferId);
+    if (depthIt == shareGroup->framebufferDepth.end()) return false;
 
-    uint32_t t = 0, id = 0;
-    SplitKey(it->second, t, id);
-    *typeOut = (RLSharedGpuObjectType)t;
-    *objIdOut = (unsigned int)id;
+    uint32_t objectTypeBits = 0, objectId = 0;
+    SplitKey(depthIt->second, objectTypeBits, objectId);
+    *typeOut = (RLSharedGpuObjectType)objectTypeBits;
+    *objIdOut = (unsigned int)objectId;
     return true;
 }
 
 void RLSharedGpuRetainFramebufferTree(unsigned int framebufferId)
 {
     if (framebufferId == 0) return;
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    if (!g) return;
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return;
     const uint64_t fboKey = MakeKey((uint32_t)RL_SHARED_GPU_OBJECT_FRAMEBUFFER, (uint32_t)framebufferId);
-    std::lock_guard<std::mutex> lock(g->m);
-    RetainKeyLocked(g, fboKey);
-    auto it = g->framebufferAttachments.find((uint32_t)framebufferId);
-    if (it != g->framebufferAttachments.end())
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    RetainKeyLocked(shareGroup, fboKey);
+    auto framebufferIt = shareGroup->framebufferAttachments.find((uint32_t)framebufferId);
+    if (framebufferIt != shareGroup->framebufferAttachments.end())
     {
-        g->fboAttachmentMapHitCount += 1;
+        shareGroup->fboAttachmentMapHitCount += 1;
         std::unordered_set<uint64_t> dedup;
-        for (const auto &slot : it->second)
+        for (const auto &attachmentEntry : framebufferIt->second)
         {
-            if (dedup.insert(slot.second).second) RetainKeyLocked(g, slot.second);
+            if (dedup.insert(attachmentEntry.second).second) RetainKeyLocked(shareGroup, attachmentEntry.second);
         }
     }
     else
     {
-        g->fboAttachmentMapMissCount += 1;
+        shareGroup->fboAttachmentMapMissCount += 1;
         // Backward-compatible fallback: use legacy depth mapping when generic map is unavailable.
-        auto depthIt = g->framebufferDepth.find((uint32_t)framebufferId);
-        if (depthIt != g->framebufferDepth.end()) RetainKeyLocked(g, depthIt->second);
+        auto depthIt = shareGroup->framebufferDepth.find((uint32_t)framebufferId);
+        if (depthIt != shareGroup->framebufferDepth.end()) RetainKeyLocked(shareGroup, depthIt->second);
     }
 }
 
 void RLSharedGpuReleaseFramebufferTree(unsigned int framebufferId)
 {
     if (framebufferId == 0) return;
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    if (!g) return;
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return;
     const uint64_t fboKey = MakeKey((uint32_t)RL_SHARED_GPU_OBJECT_FRAMEBUFFER, (uint32_t)framebufferId);
-    std::lock_guard<std::mutex> lock(g->m);
-    auto it = g->framebufferAttachments.find((uint32_t)framebufferId);
-    if (it != g->framebufferAttachments.end())
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    auto framebufferIt = shareGroup->framebufferAttachments.find((uint32_t)framebufferId);
+    if (framebufferIt != shareGroup->framebufferAttachments.end())
     {
-        g->fboAttachmentMapHitCount += 1;
+        shareGroup->fboAttachmentMapHitCount += 1;
         std::unordered_set<uint64_t> dedup;
-        for (const auto &slot : it->second)
+        for (const auto &attachmentEntry : framebufferIt->second)
         {
-            if (!dedup.insert(slot.second).second) continue;
-            if (g->refs.find(slot.second) == g->refs.end()) g->fboAttachmentReleaseSkippedCount += 1;
-            uint32_t t = 0, id = 0;
-            SplitKey(slot.second, t, id);
-            ReleaseKeyLocked(g, (RLSharedGpuObjectType)t, slot.second);
+            if (!dedup.insert(attachmentEntry.second).second) continue;
+            if (shareGroup->refs.find(attachmentEntry.second) == shareGroup->refs.end()) shareGroup->fboAttachmentReleaseSkippedCount += 1;
+            uint32_t objectTypeBits = 0, objectId = 0;
+            SplitKey(attachmentEntry.second, objectTypeBits, objectId);
+            ReleaseKeyLocked(shareGroup, (RLSharedGpuObjectType)objectTypeBits, attachmentEntry.second);
         }
     }
     else
     {
-        g->fboAttachmentMapMissCount += 1;
+        shareGroup->fboAttachmentMapMissCount += 1;
         // Backward-compatible fallback: use legacy depth mapping when generic map is unavailable.
-        auto depthIt = g->framebufferDepth.find((uint32_t)framebufferId);
-        if (depthIt != g->framebufferDepth.end())
+        auto depthIt = shareGroup->framebufferDepth.find((uint32_t)framebufferId);
+        if (depthIt != shareGroup->framebufferDepth.end())
         {
-            if (g->refs.find(depthIt->second) == g->refs.end()) g->fboAttachmentReleaseSkippedCount += 1;
-            uint32_t t = 0, id = 0;
-            SplitKey(depthIt->second, t, id);
-            ReleaseKeyLocked(g, (RLSharedGpuObjectType)t, depthIt->second);
+            if (shareGroup->refs.find(depthIt->second) == shareGroup->refs.end()) shareGroup->fboAttachmentReleaseSkippedCount += 1;
+            uint32_t objectTypeBits = 0, objectId = 0;
+            SplitKey(depthIt->second, objectTypeBits, objectId);
+            ReleaseKeyLocked(shareGroup, (RLSharedGpuObjectType)objectTypeBits, depthIt->second);
         }
     }
-    ReleaseKeyLocked(g, RL_SHARED_GPU_OBJECT_FRAMEBUFFER, fboKey);
+    ReleaseKeyLocked(shareGroup, RL_SHARED_GPU_OBJECT_FRAMEBUFFER, fboKey);
     // If framebuffer is no longer tracked, drop its attachment mapping to avoid staleness.
-    if (g->refs.find(fboKey) == g->refs.end()) {
-        g->framebufferAttachments.erase((uint32_t)framebufferId);
-        g->framebufferDepth.erase((uint32_t)framebufferId);
+    if (shareGroup->refs.find(fboKey) == shareGroup->refs.end()) {
+        shareGroup->framebufferAttachments.erase((uint32_t)framebufferId);
+        shareGroup->framebufferDepth.erase((uint32_t)framebufferId);
     }
 }
 
 RLSharedGpuFramebufferMapStats RLSharedGpuGetFramebufferMapStats(void)
 {
     RLSharedGpuFramebufferMapStats out = { 0 };
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return out;
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return out;
 
-    std::lock_guard<std::mutex> lock(g->m);
-    out.mapHitCount = (unsigned long long)g->fboAttachmentMapHitCount;
-    out.mapMissCount = (unsigned long long)g->fboAttachmentMapMissCount;
-    out.releaseSkippedCount = (unsigned long long)g->fboAttachmentReleaseSkippedCount;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    out.mapHitCount = (unsigned long long)shareGroup->fboAttachmentMapHitCount;
+    out.mapMissCount = (unsigned long long)shareGroup->fboAttachmentMapMissCount;
+    out.releaseSkippedCount = (unsigned long long)shareGroup->fboAttachmentReleaseSkippedCount;
     return out;
 }
 
@@ -655,15 +870,16 @@ bool RLSharedGpuGetObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLCo
     if ((id == 0) || (ownerOut == nullptr)) return false;
     *ownerOut = nullptr;
 
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return false;
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return false;
 
     const uint64_t key = MakeKey((uint32_t)type, (uint32_t)id);
-    std::lock_guard<std::mutex> lock(g->m);
-    if (g->refs.find(key) == g->refs.end()) return false;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    if (shareGroup->refs.find(key) == shareGroup->refs.end()) return false;
 
-    auto ownerIt = g->owners.find(key);
-    if (ownerIt == g->owners.end()) return false;
+    auto ownerIt = shareGroup->owners.find(key);
+    if (ownerIt == shareGroup->owners.end()) return false;
     *ownerOut = ownerIt->second;
     return (*ownerOut != nullptr);
 }
@@ -679,24 +895,26 @@ bool RLSharedGpuTryTransferObjectOwner(RLSharedGpuObjectType type, unsigned int 
 {
     if ((id == 0) || (targetCtx == nullptr)) return false;
 
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return false;
-    if (GetGroupForContext(targetCtx) != g) return false;
+    PinnedGroup currentPinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = currentPinned.get();
+    if (!shareGroup) return false;
+    PinnedGroup targetPinned = PinExistingGroupForContext(targetCtx);
+    if (targetPinned.get() != shareGroup) return false;
 
     RLContext *currentCtx = GetCurrentContextSafe();
     if (currentCtx == nullptr) return false;
 
     const uint64_t key = MakeKey((uint32_t)type, (uint32_t)id);
-    std::lock_guard<std::mutex> lock(g->m);
-    if (g->refs.find(key) == g->refs.end()) return false;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    if (shareGroup->refs.find(key) == shareGroup->refs.end()) return false;
 
-    auto ownerIt = g->owners.find(key);
-    if ((ownerIt != g->owners.end()) && (ownerIt->second == nullptr) &&
-        (g->orphanedOwners.find(key) != g->orphanedOwners.end())) return false;
-    if ((ownerIt != g->owners.end()) && (ownerIt->second != nullptr) && (ownerIt->second != currentCtx)) return false;
+    auto ownerIt = shareGroup->owners.find(key);
+    if ((ownerIt != shareGroup->owners.end()) && (ownerIt->second == nullptr) &&
+        (shareGroup->orphanedOwners.find(key) != shareGroup->orphanedOwners.end())) return false;
+    if ((ownerIt != shareGroup->owners.end()) && (ownerIt->second != nullptr) && (ownerIt->second != currentCtx)) return false;
 
-    g->owners[key] = targetCtx;
-    g->orphanedOwners.erase(key);
+    shareGroup->owners[key] = targetCtx;
+    shareGroup->orphanedOwners.erase(key);
     return true;
 }
 
@@ -704,55 +922,137 @@ bool RLSharedGpuTryAdoptOrphanedObjectOwner(RLSharedGpuObjectType type, unsigned
 {
     if ((id == 0) || (targetCtx == nullptr)) return false;
 
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return false;
-    if (GetGroupForContext(targetCtx) != g) return false;
+    PinnedGroup currentPinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = currentPinned.get();
+    if (!shareGroup) return false;
+    PinnedGroup targetPinned = PinExistingGroupForContext(targetCtx);
+    if (targetPinned.get() != shareGroup) return false;
 
     const uint64_t key = MakeKey((uint32_t)type, (uint32_t)id);
-    std::lock_guard<std::mutex> lock(g->m);
-    if (g->refs.find(key) == g->refs.end()) return false;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    if (shareGroup->refs.find(key) == shareGroup->refs.end()) return false;
 
-    auto ownerIt = g->owners.find(key);
-    if (ownerIt == g->owners.end()) return false;
+    auto ownerIt = shareGroup->owners.find(key);
+    if (ownerIt == shareGroup->owners.end()) return false;
     if (ownerIt->second != nullptr) return false;
-    if (g->orphanedOwners.find(key) == g->orphanedOwners.end()) return false;
+    if (shareGroup->orphanedOwners.find(key) == shareGroup->orphanedOwners.end()) return false;
 
     ownerIt->second = targetCtx;
-    g->orphanedOwners.erase(key);
+    shareGroup->orphanedOwners.erase(key);
     return true;
+}
+
+bool RLSharedGpuLockOwnerGroup(RLContext *currentCtx, RLContext *targetCtx, void **groupHandleOut)
+{
+    if (groupHandleOut != nullptr) *groupHandleOut = nullptr;
+    if ((currentCtx == nullptr) || (targetCtx == nullptr) || (groupHandleOut == nullptr)) return false;
+
+    PinnedGroup currentPinned = PinExistingGroupForContext(currentCtx);
+    PinnedGroup targetPinned = PinExistingGroupForContext(targetCtx);
+    RLSharedGpuGroup *shareGroup = currentPinned.get();
+    if ((shareGroup == nullptr) || (targetPinned.get() != shareGroup)) return false;
+
+    AddGroupRef(shareGroup);
+    shareGroup->groupStateMutex.lock();
+    RLTraceCallbackIsolationEnter();
+    *groupHandleOut = (void *)shareGroup;
+    return true;
+}
+
+void RLSharedGpuUnlockOwnerGroup(void *groupHandle)
+{
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)groupHandle;
+    if (shareGroup == nullptr) return;
+    shareGroup->groupStateMutex.unlock();
+    RLTraceCallbackIsolationLeave();
+    ReleaseGroupRef(shareGroup);
+}
+
+int RLSharedGpuCanTransferObjectOwnerLocked(void *groupHandle, RLSharedGpuObjectType type, unsigned int id, RLContext *currentCtx, RLContext *targetCtx)
+{
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)groupHandle;
+    if ((shareGroup == nullptr) || (id == 0) || (currentCtx == nullptr) || (targetCtx == nullptr)) return -1;
+
+    const uint64_t objectKey = MakeKey((uint32_t)type, (uint32_t)id);
+    if (shareGroup->refs.find(objectKey) == shareGroup->refs.end()) return 0;
+
+    auto ownerIt = shareGroup->owners.find(objectKey);
+    if ((ownerIt != shareGroup->owners.end()) && (ownerIt->second == nullptr) &&
+        (shareGroup->orphanedOwners.find(objectKey) != shareGroup->orphanedOwners.end())) return -1;
+    if ((ownerIt != shareGroup->owners.end()) && (ownerIt->second == targetCtx)) return 2;
+    if ((ownerIt != shareGroup->owners.end()) && (ownerIt->second != nullptr) && (ownerIt->second != currentCtx)) return -1;
+
+    return 1;
+}
+
+void RLSharedGpuTransferObjectOwnerLocked(void *groupHandle, RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx)
+{
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)groupHandle;
+    if ((shareGroup == nullptr) || (id == 0) || (targetCtx == nullptr)) return;
+
+    const uint64_t objectKey = MakeKey((uint32_t)type, (uint32_t)id);
+    shareGroup->owners[objectKey] = targetCtx;
+    shareGroup->orphanedOwners.erase(objectKey);
+}
+
+int RLSharedGpuCanAdoptOrphanedObjectOwnerLocked(void *groupHandle, RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx)
+{
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)groupHandle;
+    if ((shareGroup == nullptr) || (id == 0) || (targetCtx == nullptr)) return -1;
+
+    const uint64_t objectKey = MakeKey((uint32_t)type, (uint32_t)id);
+    if (shareGroup->refs.find(objectKey) == shareGroup->refs.end()) return 0;
+
+    auto ownerIt = shareGroup->owners.find(objectKey);
+    if (ownerIt == shareGroup->owners.end()) return 0;
+    if ((ownerIt->second == targetCtx) && (shareGroup->orphanedOwners.find(objectKey) == shareGroup->orphanedOwners.end())) return 2;
+    if ((ownerIt->second != nullptr) || (shareGroup->orphanedOwners.find(objectKey) == shareGroup->orphanedOwners.end())) return -1;
+
+    return 1;
+}
+
+void RLSharedGpuAdoptOrphanedObjectOwnerLocked(void *groupHandle, RLSharedGpuObjectType type, unsigned int id, RLContext *targetCtx)
+{
+    RLSharedGpuGroup *shareGroup = (RLSharedGpuGroup *)groupHandle;
+    if ((shareGroup == nullptr) || (id == 0) || (targetCtx == nullptr)) return;
+
+    const uint64_t objectKey = MakeKey((uint32_t)type, (uint32_t)id);
+    shareGroup->owners[objectKey] = targetCtx;
+    shareGroup->orphanedOwners.erase(objectKey);
 }
 
 void RLSharedGpuRegisterFramebufferAttachment(unsigned int framebufferId, int attachment, RLSharedGpuObjectType type, unsigned int objId)
 {
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    RegisterFramebufferAttachmentInGroup(g, framebufferId, attachment, type, objId);
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RegisterFramebufferAttachmentInGroup(pinned.get(), framebufferId, attachment, type, objId);
 }
 
 void RLSharedGpuUnregisterFramebufferAttachment(unsigned int framebufferId, int attachment)
 {
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    UnregisterFramebufferAttachmentInGroup(g, framebufferId, attachment);
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    UnregisterFramebufferAttachmentInGroup(pinned.get(), framebufferId, attachment);
 }
 
 void RLSharedGpuUnregisterFramebufferAttachments(unsigned int framebufferId)
 {
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    UnregisterFramebufferAttachmentsInGroup(g, framebufferId);
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    UnregisterFramebufferAttachmentsInGroup(pinned.get(), framebufferId);
 }
 
 bool RLSharedGpuBeginProgramUseScope(unsigned int programId, int policy)
 {
     if (programId == 0) return false;
 
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return false;
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return false;
 
     const uint64_t key = MakeKey((uint32_t)RL_SHARED_GPU_OBJECT_PROGRAM, (uint32_t)programId);
-    RLSharedGpuGroup::ProgramUseScope *scope = nullptr;
+    std::shared_ptr<RLSharedGpuGroup::ProgramUseScope> scope;
     {
-        std::lock_guard<std::mutex> lock(g->m);
-        if (g->refs.find(key) == g->refs.end()) return false;
-        scope = GetOrCreateProgramUseScopeLocked(g, key);
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+        if (shareGroup->refs.find(key) == shareGroup->refs.end()) return false;
+        scope = GetOrCreateProgramUseScopeLocked(shareGroup, key);
     }
     if (!scope) return false;
 
@@ -777,16 +1077,17 @@ void RLSharedGpuEndProgramUseScope(unsigned int programId, int policy)
 {
     if (programId == 0) return;
 
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return;
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return;
 
     const uint64_t key = MakeKey((uint32_t)RL_SHARED_GPU_OBJECT_PROGRAM, (uint32_t)programId);
-    RLSharedGpuGroup::ProgramUseScope *scope = nullptr;
+    std::shared_ptr<RLSharedGpuGroup::ProgramUseScope> scope;
     {
-        std::lock_guard<std::mutex> lock(g->m);
-        auto it = g->programUseScopes.find(key);
-        if (it == g->programUseScopes.end()) return;
-        scope = it->second.get();
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+        auto scopeIt = shareGroup->programUseScopes.find(key);
+        if (scopeIt == shareGroup->programUseScopes.end()) return;
+        scope = scopeIt->second;
     }
     if (!scope) return;
 
@@ -809,16 +1110,20 @@ bool RLSharedGpuTakeProgramFence(unsigned int programId, void **fenceOut)
     if ((programId == 0) || (fenceOut == nullptr)) return false;
     *fenceOut = nullptr;
 
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return false;
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return false;
 
     const uint64_t key = MakeKey((uint32_t)RL_SHARED_GPU_OBJECT_PROGRAM, (uint32_t)programId);
-    std::lock_guard<std::mutex> lock(g->m);
-    auto it = g->programUseScopes.find(key);
-    if (it == g->programUseScopes.end()) return false;
+    std::shared_ptr<RLSharedGpuGroup::ProgramUseScope> scope;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    auto scopeIt = shareGroup->programUseScopes.find(key);
+    if (scopeIt == shareGroup->programUseScopes.end()) return false;
+    scope = scopeIt->second;
+    if (!scope) return false;
 
-    *fenceOut = it->second->lastFence;
-    it->second->lastFence = nullptr;
+    *fenceOut = scope->lastFence;
+    scope->lastFence = nullptr;
     return true;
 }
 
@@ -826,89 +1131,112 @@ bool RLSharedGpuStoreProgramFence(unsigned int programId, void *fence)
 {
     if (programId == 0) return false;
 
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return false;
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return false;
 
     const uint64_t key = MakeKey((uint32_t)RL_SHARED_GPU_OBJECT_PROGRAM, (uint32_t)programId);
-    std::lock_guard<std::mutex> lock(g->m);
-    auto it = g->programUseScopes.find(key);
-    if (it == g->programUseScopes.end()) return false;
-    if (it->second->lastFence != nullptr) return false;
+    std::shared_ptr<RLSharedGpuGroup::ProgramUseScope> scope;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    auto scopeIt = shareGroup->programUseScopes.find(key);
+    if (scopeIt == shareGroup->programUseScopes.end()) return false;
+    scope = scopeIt->second;
+    if (!scope) return false;
+    if (scope->lastFence != nullptr) return false;
 
-    it->second->lastFence = fence;
+    scope->lastFence = fence;
     return true;
+}
+
+bool RLSharedGpuPopPendingProgramFence(void **fenceOut)
+{
+    if (fenceOut == nullptr) return false;
+    *fenceOut = nullptr;
+
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return false;
+
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    if (shareGroup->pendingProgramFences.empty()) return false;
+
+    *fenceOut = shareGroup->pendingProgramFences.front();
+    shareGroup->pendingProgramFences.pop_front();
+    return (*fenceOut != nullptr);
 }
 
 
 void RLSharedGpuRetainObject(RLSharedGpuObjectType type, unsigned int id)
 {
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    RetainObjectInGroup(g, type, id);
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RetainObjectInGroup(pinned.get(), type, id);
 }
 
 void RLSharedGpuReleaseObject(RLSharedGpuObjectType type, unsigned int id)
 {
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    ReleaseObjectInGroup(g, type, id);
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    ReleaseObjectInGroup(pinned.get(), type, id);
 }
 
 void RLSharedGpuRetainObjectOnContext(RLContext *ctx, RLSharedGpuObjectType type, unsigned int id)
 {
-    RLSharedGpuGroup *g = EnsureGroupForContext(ctx);
-    RetainObjectInGroup(g, type, id);
+    PinnedGroup pinned = EnsurePinnedGroupForContext(ctx);
+    RetainObjectInGroup(pinned.get(), type, id);
 }
 
 void RLSharedGpuReleaseObjectOnContext(RLContext *ctx, RLSharedGpuObjectType type, unsigned int id)
 {
-    RLSharedGpuGroup *g = EnsureGroupForContext(ctx);
-    ReleaseObjectInGroup(g, type, id);
+    PinnedGroup pinned = EnsurePinnedGroupForContext(ctx);
+    ReleaseObjectInGroup(pinned.get(), type, id);
 }
 
 bool RLSharedGpuPopPendingDelete(RLSharedGpuObjectType *typeOut, unsigned int *idOut)
 {
     if (!typeOut || !idOut) return false;
 
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) return false;
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return false;
 
     uint64_t key = 0;
     {
-        std::lock_guard<std::mutex> lock(g->m);
-        if (g->pending.empty()) return false;
-        key = g->pending.front();
-        g->pending.pop_front();
-        g->pendingSet.erase(key);
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+        if (shareGroup->pending.empty()) return false;
+        key = shareGroup->pending.front();
+        shareGroup->pending.pop_front();
+        shareGroup->pendingSet.erase(key);
     }
 
-    uint32_t t = 0, id = 0;
-    SplitKey(key, t, id);
+    uint32_t objectTypeBits = 0, objectId = 0;
+    SplitKey(key, objectTypeBits, objectId);
 
-    if (t == RL_SHARED_GPU_OBJECT_TEXTURE) {
-        std::lock_guard<std::mutex> lock(g->m);
-        auto it = g->textureTrace.find(id);
-        if (it != g->textureTrace.end()) {
-            if (it->second.label.find("font") != std::string::npos) {
+    if (objectTypeBits == RL_SHARED_GPU_OBJECT_TEXTURE) {
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+        auto traceIt = shareGroup->textureTrace.find(objectId);
+        if (traceIt != shareGroup->textureTrace.end()) {
+            if (traceIt->second.label.find("font") != std::string::npos) {
                 RLTraceLog(RL_E_LOG_DEBUG,
                     "SHARED_GPU: font texture pop delete: id=%u label=%s mark=%s release=%s reason=%s",
-                    id,
-                    it->second.label.c_str(),
-                    it->second.markSource.c_str(),
-                    it->second.releaseSource.c_str(),
-                    it->second.releaseReason.c_str());
+                    objectId,
+                    traceIt->second.label.c_str(),
+                    traceIt->second.markSource.c_str(),
+                    traceIt->second.releaseSource.c_str(),
+                    traceIt->second.releaseReason.c_str());
             }
         }
-        g->textureTrace.erase(id);
+        shareGroup->textureTrace.erase(objectId);
     }
 
-    *typeOut = (RLSharedGpuObjectType)t;
-    *idOut = (unsigned int)id;
+    *typeOut = (RLSharedGpuObjectType)objectTypeBits;
+    *idOut = (unsigned int)objectId;
     return true;
 }
 
 void RLSharedGpuDebugDumpState(const char *label)
 {
-    RLSharedGpuGroup *g = GetGroupForCurrentContext();
-    if (!g) {
+    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) {
         RLTraceLog(RL_E_LOG_INFO, "SHARED_GPU: %s: no share-group bound on current context", label ? label : "state");
         return;
     }
@@ -921,20 +1249,22 @@ void RLSharedGpuDebugDumpState(const char *label)
     const unsigned long long rejectRelease = gUnregisteredReleaseRejectCount.load(std::memory_order_relaxed);
 
     {
-        std::lock_guard<std::mutex> lock(g->m);
-        live = g->refs.size();
-        pend = g->pending.size();
-        untrackedRelease = g->releaseUntrackedCount;
-        fboMapHit = g->fboAttachmentMapHitCount;
-        fboMapMiss = g->fboAttachmentMapMissCount;
-        fboReleaseSkipped = g->fboAttachmentReleaseSkippedCount;
-        for (auto &kv : g->refs) {
-            uint32_t t=0, id=0; SplitKey(kv.first, t, id);
-            if (t < 8) liveByType[t] += 1;
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+        live = shareGroup->refs.size();
+        pend = shareGroup->pending.size();
+        untrackedRelease = shareGroup->releaseUntrackedCount;
+        fboMapHit = shareGroup->fboAttachmentMapHitCount;
+        fboMapMiss = shareGroup->fboAttachmentMapMissCount;
+        fboReleaseSkipped = shareGroup->fboAttachmentReleaseSkippedCount;
+        for (auto &refEntry : shareGroup->refs) {
+            uint32_t objectTypeBits = 0, objectId = 0;
+            SplitKey(refEntry.first, objectTypeBits, objectId);
+            if (objectTypeBits < 8) liveByType[objectTypeBits] += 1;
         }
-        for (auto &k : g->pending) {
-            uint32_t t=0, id=0; SplitKey(k, t, id);
-            if (t < 8) pendByType[t] += 1;
+        for (auto &pendingKey : shareGroup->pending) {
+            uint32_t objectTypeBits = 0, objectId = 0;
+            SplitKey(pendingKey, objectTypeBits, objectId);
+            if (objectTypeBits < 8) pendByType[objectTypeBits] += 1;
         }
     }
 
@@ -962,11 +1292,12 @@ void RLSharedGpuDebugDumpState(const char *label)
 void RLSharedGpuSetTextureDebugLabel(unsigned int id, const char *label, const char *sourceFile, int sourceLine)
 {
     if (id == 0 || label == nullptr) return;
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    if (!g) return;
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return;
 
-    std::lock_guard<std::mutex> lock(g->m);
-    RLSharedGpuGroup::TextureTrace &trace = g->textureTrace[id];
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    RLSharedGpuGroup::TextureTrace &trace = shareGroup->textureTrace[id];
     trace.label = label;
     trace.markSource = BuildSourceText(sourceFile, sourceLine);
 }
@@ -974,11 +1305,12 @@ void RLSharedGpuSetTextureDebugLabel(unsigned int id, const char *label, const c
 void RLSharedGpuTraceTextureRelease(unsigned int id, const char *sourceFile, int sourceLine, const char *reason)
 {
     if (id == 0) return;
-    RLSharedGpuGroup *g = EnsureGroupForCurrentContext();
-    if (!g) return;
+    PinnedGroup pinned = EnsurePinnedGroupForCurrentContext();
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (!shareGroup) return;
 
-    std::lock_guard<std::mutex> lock(g->m);
-    RLSharedGpuGroup::TextureTrace &trace = g->textureTrace[id];
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    RLSharedGpuGroup::TextureTrace &trace = shareGroup->textureTrace[id];
     if (trace.label.empty()) trace.label = "texture";
     trace.releaseSource = BuildSourceText(sourceFile, sourceLine);
     trace.releaseReason = (reason != nullptr) ? reason : "(none)";

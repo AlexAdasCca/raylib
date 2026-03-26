@@ -126,7 +126,7 @@ int main(void)
 
     // Start B.
 #if defined(_WIN32)
-    HANDLE hThread = (HANDLE)_beginthreadex(NULL, 0, SecondaryWindowThread, NULL, 0, NULL);
+    HANDLE secondaryThreadHandle = (HANDLE)_beginthreadex(NULL, 0, SecondaryWindowThread, NULL, 0, NULL);
 #else
     std::thread th([](){ SecondaryWindowThread(nullptr); });
 #endif
@@ -164,9 +164,9 @@ int main(void)
         }
 
         // A small animation so you can see A is alive.
-        double t = RLGetTime();
-        int x = 20 + (int)(720.0 * (0.5 + 0.5 * std::sin(t * 1.2)));
-        RLDrawCircle(x, 430, 8, BLUE);
+        double elapsedTime = RLGetTime();
+        int animatedX = 20 + (int)(720.0 * (0.5 + 0.5 * std::sin(elapsedTime * 1.2)));
+        RLDrawCircle(animatedX, 430, 8, BLUE);
 
         RLEndDrawing();
     }
@@ -176,11 +176,11 @@ int main(void)
     gBCmd.store(BCmd::Quit, std::memory_order_release);
 
 #if defined(_WIN32)
-    if (hThread)
+    if (secondaryThreadHandle)
     {
-        WaitForSingleObject(hThread, INFINITE);
-        CloseHandle(hThread);
-        hThread = NULL;
+        WaitForSingleObject(secondaryThreadHandle, INFINITE);
+        CloseHandle(secondaryThreadHandle);
+        secondaryThreadHandle = NULL;
     }
 #else
     if (th.joinable()) th.join();

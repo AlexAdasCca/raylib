@@ -18,8 +18,10 @@
 
 #include "raylib.h"
 #include "rlgl.h"
+#include "../../src/rglfwglobal.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -54,6 +56,45 @@ static RLContext *gMainCtx = NULL;
 static RLContext *gWorkerCtx = NULL;
 static SharedShaderTestMode gShaderMode = SHARED_SHADER_MODE_LOCAL_PER_WINDOW;
 static RLShader LoadTintShaderFromMemory(void);
+static void FlushPendingSharedDeletesForCurrentWindow(const char *tag);
+static bool HasCommandLineFlag(int argc, char **argv, const char *flagText);
+static int RunTraceReentrySelfTest(void);
+#if defined(_WIN32)
+static volatile LONG gOwnerTransferMainToWorkerDone = 0;
+#endif
+
+typedef struct TraceReentryTestState
+{
+    bool reentryAttempted;
+    bool callbackReentered;
+    bool glfwLockedTraceSuppressed;
+    int callbackDepth;
+    int maxCallbackDepth;
+    int callbackCount;
+    int nestedTrackedDumpCount;
+    int nestedSharedDumpCount;
+    int nestedDirectTraceCount;
+} TraceReentryTestState;
+
+static TraceReentryTestState gTraceReentryTestState = { 0 };
+
+static unsigned long long GetMemDiagTotalAllocCalls(const RLMemoryDiagStats *stats)
+{
+    if (stats == NULL) return 0ull;
+    return stats->allocCount + stats->callocCount + stats->reallocCount;
+}
+
+static void PrintMemDiagStatsLine(const char *stageName, RLMemoryDiagStats stats)
+{
+    printf("MEMDIAG_AUTOTEST: %s outstanding_bytes=%llu alloc=%llu free=%llu peak=%llu alloc_fail=%llu realloc_fail=%llu\n",
+        (stageName != NULL) ? stageName : "(unknown)",
+        stats.currentOutstandingBytes,
+        GetMemDiagTotalAllocCalls(&stats),
+        stats.freeCount,
+        stats.peakOutstandingBytes,
+        stats.allocFailCount,
+        stats.reallocFailCount);
+}
 
 static const char *GetShaderModeLabel(SharedShaderTestMode mode)
 {
@@ -75,6 +116,125 @@ static SharedShaderTestMode ParseShaderModeFromArgv(int argc, char **argv)
         if ((strcmp(argv[i], "--mode=3") == 0) || (strcmp(argv[i], "-m3") == 0)) return SHARED_SHADER_MODE_LOCKED_SHARED;
     }
     return SHARED_SHADER_MODE_LOCAL_PER_WINDOW;
+}
+
+static bool HasCommandLineFlag(int argc, char **argv, const char *flagText)
+{
+    if ((argv == NULL) || (flagText == NULL)) return false;
+
+    for (int argIndex = 1; argIndex < argc; argIndex++)
+    {
+        if ((argv[argIndex] != NULL) && (strcmp(argv[argIndex], flagText) == 0)) return true;
+    }
+
+    return false;
+}
+
+static void TraceReentryTestCallback(int logLevel, const char *text, va_list args)
+{
+    (void)logLevel;
+    (void)text;
+    (void)args;
+
+    gTraceReentryTestState.callbackCount++;
+    gTraceReentryTestState.callbackDepth++;
+    if (gTraceReentryTestState.callbackDepth > gTraceReentryTestState.maxCallbackDepth)
+    {
+        gTraceReentryTestState.maxCallbackDepth = gTraceReentryTestState.callbackDepth;
+    }
+
+    if (gTraceReentryTestState.callbackDepth > 1)
+    {
+        gTraceReentryTestState.callbackReentered = true;
+    }
+    else if (!gTraceReentryTestState.reentryAttempted)
+    {
+        gTraceReentryTestState.reentryAttempted = true;
+
+        gTraceReentryTestState.nestedDirectTraceCount++;
+        RLTraceLog(RL_E_LOG_INFO, "trace-reentry-test: nested direct trace from callback");
+
+        gTraceReentryTestState.nestedTrackedDumpCount++;
+        RLDebugDumpTrackedObjectState("trace-reentry-test: nested tracked dump");
+
+        gTraceReentryTestState.nestedSharedDumpCount++;
+        RLSharedGpuDebugDumpState("trace-reentry-test: nested shared dump");
+    }
+
+    gTraceReentryTestState.callbackDepth--;
+}
+
+static int RunTraceReentrySelfTest(void)
+{
+    RLContext *context = RLCreateContext();
+    if (context == NULL)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "trace-reentry-test: failed to create context");
+        return 2;
+    }
+
+    RLSetCurrentContext(context);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_EVENT_THREAD);
+    RLInitWindow(360, 220, "raylib [trace-reentry] selftest");
+    if (!RLIsWindowReady())
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "trace-reentry-test: window init failed");
+        RLDestroyContext(context);
+        return 2;
+    }
+
+    RLImage image = RLGenImageChecked(96, 96, 12, 12,
+        (RLColor){ 220, 120, 90, 255 },
+        (RLColor){ 80, 140, 220, 255 });
+    RLTexture2D texture = RLLoadTextureFromImage(image);
+    RLUnloadImage(image);
+    RLShader shader = LoadTintShaderFromMemory();
+    RLRenderTexture2D renderTexture = RLLoadRenderTexture(96, 96);
+
+    memset(&gTraceReentryTestState, 0, sizeof(gTraceReentryTestState));
+    RLSetTraceLogCallback(TraceReentryTestCallback);
+    RLTraceLog(RL_E_LOG_INFO, "trace-reentry-test: outer trigger");
+
+    int callbackCountBeforeGlfwLockedTrace = gTraceReentryTestState.callbackCount;
+    RLGlfwGlobalLock();
+    RLTraceLog(RL_E_LOG_INFO, "trace-reentry-test: glfw-locked trigger");
+    RLGlfwGlobalUnlock();
+    gTraceReentryTestState.glfwLockedTraceSuppressed =
+        (gTraceReentryTestState.callbackCount == callbackCountBeforeGlfwLockedTrace);
+
+    RLSetTraceLogCallback(NULL);
+
+    bool callbackSafe = gTraceReentryTestState.reentryAttempted &&
+                        !gTraceReentryTestState.callbackReentered &&
+                        (gTraceReentryTestState.maxCallbackDepth == 1) &&
+                        (gTraceReentryTestState.callbackCount == 1) &&
+                        gTraceReentryTestState.glfwLockedTraceSuppressed;
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "trace-reentry-test: summary callbackCount=%d maxDepth=%d callbackReentered=%d trackedDumps=%d sharedDumps=%d nestedDirectTraces=%d",
+               gTraceReentryTestState.callbackCount,
+               gTraceReentryTestState.maxCallbackDepth,
+               gTraceReentryTestState.callbackReentered ? 1 : 0,
+               gTraceReentryTestState.glfwLockedTraceSuppressed ? 1 : 0,
+               gTraceReentryTestState.nestedTrackedDumpCount,
+               gTraceReentryTestState.nestedSharedDumpCount,
+               gTraceReentryTestState.nestedDirectTraceCount);
+
+    RLUnloadTexture(texture);
+    RLUnloadShader(shader);
+    RLUnloadRenderTexture(renderTexture);
+    FlushPendingSharedDeletesForCurrentWindow("trace-reentry-test");
+    RLCloseWindow();
+    RLDestroyContext(context);
+
+    if (!callbackSafe)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "trace-reentry-test: FAILED");
+        return 3;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO, "trace-reentry-test: PASSED");
+    return 0;
 }
 
 static void FlushPendingSharedDeletesForCurrentWindow(const char *tag)
@@ -141,13 +301,12 @@ static void ValidateSharedOwnerApisMainToWorker(void)
                "owner-api: before transfer (tex=%u) sharedOwner=%p objectOwner=%p",
                gPack.tex.id, (void *)ownerBefore, (void *)objOwnerBefore);
 
-    bool objectTransferOk = RLTryTransferTextureObjectOwner(gPack.tex, gWorkerCtx);
     bool sharedTransferOk = RLTryTransferSharedObjectOwner(RL_SHARED_OBJECT_TEXTURE, gPack.tex.id, gWorkerCtx);
-    if (!objectTransferOk || !sharedTransferOk)
+    if (!sharedTransferOk)
     {
         RLTraceLog(RL_E_LOG_WARNING,
-                   "owner-api: transfer main->worker failed (tex=%u, object=%d shared=%d)",
-                   gPack.tex.id, objectTransferOk ? 1 : 0, sharedTransferOk ? 1 : 0);
+                   "owner-api: transfer main->worker failed (tex=%u)",
+                   gPack.tex.id);
         return;
     }
 
@@ -155,12 +314,61 @@ static void ValidateSharedOwnerApisMainToWorker(void)
     RLContext *objOwnerAfter = RLGetTextureObjectOwnerContext(gPack.tex);
     if ((ownerAfter == gWorkerCtx) && (objOwnerAfter == gWorkerCtx))
     {
+        RLTraceLog(RL_E_LOG_INFO,
+                   "owner-api: after transfer main->worker (tex=%u) sharedOwner=%p objectOwner=%p",
+                   gPack.tex.id, (void *)ownerAfter, (void *)objOwnerAfter);
         RLTraceLog(RL_E_LOG_INFO, "owner-api: transfer main->worker success (tex=%u)", gPack.tex.id);
+#if defined(_WIN32)
+        InterlockedExchange(&gOwnerTransferMainToWorkerDone, 1);
+#endif
     }
     else
     {
         RLTraceLog(RL_E_LOG_WARNING,
                    "owner-api: owner mismatch after transfer (tex=%u, sharedOwner=%p objectOwner=%p)",
+                   gPack.tex.id, (void *)ownerAfter, (void *)objOwnerAfter);
+    }
+}
+
+static void ValidateSharedOwnerApisWorkerToMain(void)
+{
+    if ((gMainCtx == NULL) || (gWorkerCtx == NULL) || (gPack.tex.id == 0))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "owner-api: worker->main skipped (missing context or texture)");
+        return;
+    }
+
+    RLContext *ownerBefore = RLGetSharedObjectOwnerContext(RL_SHARED_OBJECT_TEXTURE, gPack.tex.id);
+    RLContext *objOwnerBefore = RLGetTextureObjectOwnerContext(gPack.tex);
+    RLTraceLog(RL_E_LOG_INFO,
+               "owner-api: worker->main before transfer (tex=%u) sharedOwner=%p objectOwner=%p",
+               gPack.tex.id, (void *)ownerBefore, (void *)objOwnerBefore);
+
+    bool sharedTransferOk = RLTryTransferSharedObjectOwner(RL_SHARED_OBJECT_TEXTURE, gPack.tex.id, gMainCtx);
+    if (!sharedTransferOk)
+    {
+        RLTraceLog(RL_E_LOG_WARNING,
+                   "owner-api: transfer worker->main failed (tex=%u)",
+                   gPack.tex.id);
+        return;
+    }
+
+    RLContext *ownerAfter = RLGetSharedObjectOwnerContext(RL_SHARED_OBJECT_TEXTURE, gPack.tex.id);
+    RLContext *objOwnerAfter = RLGetTextureObjectOwnerContext(gPack.tex);
+    if ((ownerAfter == gMainCtx) && (objOwnerAfter == gMainCtx))
+    {
+        RLTraceLog(RL_E_LOG_INFO,
+                   "owner-api: after transfer worker->main (tex=%u) sharedOwner=%p objectOwner=%p",
+                   gPack.tex.id, (void *)ownerAfter, (void *)objOwnerAfter);
+        RLTraceLog(RL_E_LOG_INFO, "owner-api: transfer worker->main success (tex=%u)", gPack.tex.id);
+#if defined(_WIN32)
+        InterlockedExchange(&gOwnerTransferMainToWorkerDone, 0);
+#endif
+    }
+    else
+    {
+        RLTraceLog(RL_E_LOG_WARNING,
+                   "owner-api: worker->main owner mismatch after transfer (tex=%u, sharedOwner=%p objectOwner=%p)",
                    gPack.tex.id, (void *)ownerAfter, (void *)objOwnerAfter);
     }
 }
@@ -234,18 +442,18 @@ static unsigned __stdcall WorkerThread(void *arg)
     RLSharedGpuDebugDumpState("worker: after retain");
 
     bool unloaded = false;
-    double start = RLGetTime();
+    double workerStartTime = RLGetTime();
 
     while (!RLWindowShouldClose() && WaitForSingleObject(gEvtWorkerExit, 0) == WAIT_TIMEOUT)
     {
-        double t = RLGetTime() - start;
+        double elapsedTime = RLGetTime() - workerStartTime;
 
         // Use the shared render texture ONLY in this thread to avoid cross-thread hazards.
         if (!unloaded)
         {
             RLBeginTextureMode(gPack.rt);
             RLClearBackground((RLColor){ 20, 20, 30, 255 });
-            RLDrawCircle(128 + (int)(80.0*sin(t*2.0)), 96, 42, (RLColor){ 80, 160, 255, 255 });
+            RLDrawCircle(128 + (int)(80.0*sin(elapsedTime*2.0)), 96, 42, (RLColor){ 80, 160, 255, 255 });
             RLDrawText("RenderTexture updated by worker", 10, 10, 16, RAYWHITE);
             RLEndTextureMode();
         }
@@ -293,8 +501,13 @@ static unsigned __stdcall WorkerThread(void *arg)
         RLEndDrawing();
 
         // After ~4 seconds, unload from this context (decrements share-group refcount).
-        if (!unloaded && t > 4.0)
+        if (!unloaded && elapsedTime > 4.0)
         {
+            if (InterlockedCompareExchange(&gOwnerTransferMainToWorkerDone, 0, 0) != 0)
+            {
+                ValidateSharedOwnerApisWorkerToMain();
+            }
+
             RLUnloadTexture(gPack.tex);
             if (workerUsesSharedShader) RLUnloadShader(gPack.shader);
             else if (workerLocalShader.id != 0) RLUnloadShader(workerLocalShader);
@@ -307,7 +520,7 @@ static unsigned __stdcall WorkerThread(void *arg)
         }
 
         // Exit after ~6 seconds total.
-        if (t > 6.0) break;
+        if (elapsedTime > 6.0) break;
     }
 
     // If user closes the worker window early (before the timed unload), make sure
@@ -315,6 +528,11 @@ static unsigned __stdcall WorkerThread(void *arg)
     // context will observe a leaked refcount when the share-group is destroyed.
     if (!unloaded)
     {
+        if (InterlockedCompareExchange(&gOwnerTransferMainToWorkerDone, 0, 0) != 0)
+        {
+            ValidateSharedOwnerApisWorkerToMain();
+        }
+
         RLUnloadTexture(gPack.tex);
         if (workerUsesSharedShader) RLUnloadShader(gPack.shader);
         else if (workerLocalShader.id != 0) RLUnloadShader(workerLocalShader);
@@ -357,10 +575,16 @@ int main(int argc, char **argv)
     RLTraceLog(LOG_WARNING, "This example is currently implemented for _WIN32 only.");
     return 0;
 #else
+    if (HasCommandLineFlag(argc, argv, "--trace-reentry-selftest"))
+    {
+        return RunTraceReentrySelfTest();
+    }
+
     const int screenWidth = 900;
     const int screenHeight = 520;
     gShaderMode = ParseShaderModeFromArgv(argc, argv);
     RLTraceLog(RL_E_LOG_INFO, "shared-shader strategy: %s", GetShaderModeLabel(gShaderMode));
+    RLEnableMemoryDiagStats();
 
     // ---- Phase A: primary window/context (main thread) ----
     RLContext *mainCtx = RLCreateContext();
@@ -375,6 +599,8 @@ int main(int argc, char **argv)
     {
         RLTraceLog(RL_E_LOG_WARNING, "main: window init failed");
         RLDestroyContext(mainCtx);
+        PrintMemDiagStatsLine("init_fail_post_destroy", RLGetMemoryDiagStats());
+        printf("MEMDIAG_AUTOTEST: result=INIT_FAILED\n");
         return 1;
     }
 
@@ -394,21 +620,21 @@ int main(int argc, char **argv)
     gEvtWorkerDone = CreateEventA(NULL, TRUE, FALSE, NULL);
     gEvtWorkerHeld = CreateEventA(NULL, TRUE, FALSE, NULL);
 
-    uintptr_t h = _beginthreadex(NULL, 0, WorkerThread, NULL, 0, NULL);
-    if (h == 0)
+    uintptr_t workerThreadHandle = _beginthreadex(NULL, 0, WorkerThread, NULL, 0, NULL);
+    if (workerThreadHandle == 0)
     {
         RLTraceLog(RL_E_LOG_WARNING, "main: failed to start worker thread");
         SetEvent(gEvtWorkerDone);
     }
     SetEvent(gEvtReady);
 
-    double phaseStart = RLGetTime();
+    double primaryPhaseStartTime = RLGetTime();
     bool mainUnloaded = false;
     bool ownerApiValidated = false;
 
     while (!RLWindowShouldClose())
     {
-        double t = RLGetTime() - phaseStart;
+        double primaryElapsedTime = RLGetTime() - primaryPhaseStartTime;
         const bool workerHeld = (gEvtWorkerHeld && WaitForSingleObject(gEvtWorkerHeld, 0) == WAIT_OBJECT_0);
         const bool workerDone = (WaitForSingleObject(gEvtWorkerDone, 0) == WAIT_OBJECT_0);
 
@@ -416,7 +642,7 @@ int main(int argc, char **argv)
         RLClearBackground((RLColor){ 25, 25, 28, 255 });
 
         RLDrawText(GetShaderModeLabel(gShaderMode), 20, 18, 18, RAYWHITE);
-        RLDrawText(RLTextFormat("Primary t=%.2fs", t), 20, 46, 16, LIGHTGRAY);
+        RLDrawText(RLTextFormat("Primary t=%.2fs", primaryElapsedTime), 20, 46, 16, LIGHTGRAY);
 
         if (!mainUnloaded)
         {
@@ -468,7 +694,7 @@ int main(int argc, char **argv)
             ownerApiValidated = true;
         }
 
-        if (!mainUnloaded && ((t > 8.0 && (workerHeld || workerDone)) || (t > 15.0)))
+        if (!mainUnloaded && ((primaryElapsedTime > 8.0 && (workerHeld || workerDone)) || (primaryElapsedTime > 15.0)))
         {
             // Unload in primary context: should drop refcounts to 0 and queue deletes.
             RLUnloadTexture(gPack.tex);
@@ -485,7 +711,7 @@ int main(int argc, char **argv)
         if (mainUnloaded && WaitForSingleObject(gEvtWorkerDone, 0) == WAIT_OBJECT_0)
         {
             RLDrawText("Worker done. Press ESC or close to continue...", 20, 410, 14, LIGHTGRAY);
-            if (t > 10.0) wantBreak = true;
+            if (primaryElapsedTime > 10.0) wantBreak = true;
         }
 
         RLEndDrawing();
@@ -495,10 +721,10 @@ int main(int argc, char **argv)
 
     // Tell worker to exit (if still running)
     SetEvent(gEvtWorkerExit);
-    if (h != 0)
+    if (workerThreadHandle != 0)
     {
-        WaitForSingleObject((HANDLE)h, INFINITE);
-        CloseHandle((HANDLE)h);
+        WaitForSingleObject((HANDLE)workerThreadHandle, INFINITE);
+        CloseHandle((HANDLE)workerThreadHandle);
     }
 
     // If user closes the worker window early (before the timed unload), make sure
@@ -518,6 +744,7 @@ int main(int argc, char **argv)
     RLSharedGpuDebugDumpState("main: before close");
     RLCloseWindow();
     RLDestroyContext(mainCtx);
+    PrintMemDiagStatsLine("phase_b_post_destroy", RLGetMemoryDiagStats());
     gMainCtx = NULL;
     gWorkerCtx = NULL;
 
@@ -537,6 +764,8 @@ int main(int argc, char **argv)
     {
         RLTraceLog(RL_E_LOG_WARNING, "recreate: window init failed");
         RLDestroyContext(ctx2);
+        PrintMemDiagStatsLine("recreate_init_fail_post_destroy", RLGetMemoryDiagStats());
+        printf("MEMDIAG_AUTOTEST: result=INIT_FAILED\n");
         return 1;
     }
 
@@ -550,15 +779,15 @@ int main(int argc, char **argv)
     RLSharedGpuDebugDumpState("recreate: after create");
     ValidateSharedObjectIdApis();
 
-    double t2Start = RLGetTime();
+    double recreatePhaseStartTime = RLGetTime();
     while (!RLWindowShouldClose())
     {
-        double t2 = RLGetTime() - t2Start;
+        double recreatePhaseElapsedTime = RLGetTime() - recreatePhaseStartTime;
 
         RLBeginTextureMode(rt2);
         RLClearBackground((RLColor){ 10, 10, 18, 255 });
         RLDrawText("Recreated context", 20, 20, 22, RAYWHITE);
-        RLDrawCircle(128, 140, 50.0f + 15.0f*(float)sin(t2*3.0), (RLColor){ 200, 220, 255, 255 });
+        RLDrawCircle(128, 140, 50.0f + 15.0f*(float)sin(recreatePhaseElapsedTime*3.0), (RLColor){ 200, 220, 255, 255 });
         RLEndTextureMode();
 
         RLBeginDrawing();
@@ -576,7 +805,7 @@ int main(int argc, char **argv)
         RLDrawText("Auto-unload at ~3s", 20, 380, 14, LIGHTGRAY);
         RLEndDrawing();
 
-        if (t2 > 3.0) break;
+        if (recreatePhaseElapsedTime > 3.0) break;
     }
 
     RLUnloadTexture(tex2);
@@ -587,6 +816,16 @@ int main(int argc, char **argv)
 
     RLCloseWindow();
     RLDestroyContext(ctx2);
+
+    RLMemoryDiagStats finalStats = RLGetMemoryDiagStats();
+    PrintMemDiagStatsLine("post_destroy", finalStats);
+    if (finalStats.currentOutstandingBytes > 0ull)
+    {
+        printf("MEMDIAG_AUTOTEST: result=LEAK_DETECTED\n");
+        RLDumpMemoryLeaks();
+        return 3;
+    }
+    printf("MEMDIAG_AUTOTEST: result=NO_LEAK_DETECTED\n");
 
     return 0;
 #endif
