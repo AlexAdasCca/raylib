@@ -125,14 +125,26 @@
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 #if defined(_WIN32)
-#ifndef RL_FRAME_CALLBACK_QUEUE_CAPACITY
-    #define RL_FRAME_CALLBACK_QUEUE_CAPACITY 1024u
+#ifndef RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY
+    #define RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY 1024u
+#endif
+#ifndef RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY
+    #define RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY 256u
 #endif
 #ifndef RL_FRAME_CALLBACKS_PER_FRAME_LIMIT
     #define RL_FRAME_CALLBACKS_PER_FRAME_LIMIT 64u
 #endif
+#ifndef RL_FRAME_CALLBACKS_BATCH_POP_LIMIT
+    #define RL_FRAME_CALLBACKS_BATCH_POP_LIMIT 8u
+#endif
 #ifndef RL_FRAME_CALLBACKS_CRITICAL_MIN_PER_FRAME
     #define RL_FRAME_CALLBACKS_CRITICAL_MIN_PER_FRAME 8u
+#endif
+#ifndef RL_FRAME_CALLBACK_WAIT_CRITICAL_MS
+    #define RL_FRAME_CALLBACK_WAIT_CRITICAL_MS 50u
+#endif
+#ifndef RL_FRAME_CALLBACK_WAIT_NORMAL_MS
+    #define RL_FRAME_CALLBACK_WAIT_NORMAL_MS 10u
 #endif
 
 typedef struct RLRenderFrameCallbackSlot
@@ -177,6 +189,8 @@ typedef struct {
     // Startup / wake coordination.
     RLEvent *createdEvent;              // Signaled after window creation + callbacks are set
     RLEvent *renderWakeEvent;           // Signaled to wake render thread when waiting for events
+    RLSemaphore *normalFrameCallbackSlotsAvailableSemaphore;
+    RLSemaphore *criticalFrameCallbackSlotsAvailableSemaphore;
 
     volatile int eventThreadStop;       // Non-zero => event thread should exit
     volatile int closing;               // Non-zero => context/window is closing (drop non-critical tasks)
@@ -208,11 +222,16 @@ typedef struct {
 
     // Frame-safe callback queue for RLPostWindowFrameCallbackByHandle().
     // Producers can run on any thread; consumer runs on render thread.
-    RLRenderFrameCallbackSlot frameCallbackRing[RL_FRAME_CALLBACK_QUEUE_CAPACITY];
-    unsigned int frameCallbackHead;
-    unsigned int frameCallbackTail;
-    unsigned int frameCallbackQueuedCount;
-    unsigned int frameCallbackCriticalQueuedCount;
+    RLRenderFrameCallbackSlot normalFrameCallbackRing[RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY];
+    unsigned int normalFrameCallbackHead;
+    unsigned int normalFrameCallbackTail;
+    unsigned int normalFrameCallbackQueuedCount;
+    RLRenderFrameCallbackSlot criticalFrameCallbackRing[RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY];
+    unsigned int criticalFrameCallbackHead;
+    unsigned int criticalFrameCallbackTail;
+    unsigned int criticalFrameCallbackQueuedCount;
+    volatile long frameCallbackQueuedHint;
+    volatile long frameCallbackCriticalQueuedHint;
     unsigned int frameCallbackQueuedPeak;
     unsigned long long frameCallbackDroppedCount;
     unsigned long long frameCallbackDroppedNormalCount;
@@ -301,6 +320,33 @@ static bool RLGlfwIsPrimaryWindow(GLFWwindow *window)
 static bool RLGlfwIsPrimaryPlatform(PlatformData *pd)
 {
     return (pd != NULL) && RLGlfwIsPrimaryWindow(pd->handle);
+}
+
+static long RLGlfwReadFrameCallbackHint(volatile long *hintValue)
+{
+#if defined(_MSC_VER)
+    return _InterlockedCompareExchange(hintValue, 0, 0);
+#else
+    return __sync_val_compare_and_swap(hintValue, 0, 0);
+#endif
+}
+
+static void RLGlfwAddFrameCallbackHint(volatile long *hintValue, long deltaValue)
+{
+    if (deltaValue == 0) return;
+#if defined(_MSC_VER)
+    (void)(_InterlockedExchangeAdd(hintValue, deltaValue) + deltaValue);
+#else
+    __sync_fetch_and_add(hintValue, deltaValue);
+#endif
+}
+
+static RLSemaphore *RLGlfwGetFrameCallbackSlotsSemaphore(PlatformData *platformData, RLFrameCallbackKind callbackKind)
+{
+    if (platformData == NULL) return NULL;
+    return (callbackKind == RL_FRAME_CALLBACK_KIND_CRITICAL)
+        ? platformData->criticalFrameCallbackSlotsAvailableSemaphore
+        : platformData->normalFrameCallbackSlotsAvailableSemaphore;
 }
 
 static unsigned int RLGlfwRenderThreadBucketIndex(GLFWthread *renderThread)
@@ -2713,105 +2759,181 @@ static void RLGlfwTask_InvokeUserOnRenderThread(void* user)
     if (invokeCall->autoFree) RL_FREE(invokeCall);
 }
 
-static unsigned int RLGlfwFrameCallbackRingIndex(const PlatformData* pd, unsigned int logicalIndex)
+static unsigned int RLGlfwGetQueuedFrameCallbackCount(const PlatformData* pd)
 {
-    return (pd->frameCallbackHead + logicalIndex) % RL_FRAME_CALLBACK_QUEUE_CAPACITY;
+    if (pd == NULL) return 0u;
+    return pd->normalFrameCallbackQueuedCount + pd->criticalFrameCallbackQueuedCount;
 }
 
-// Remove one queued frame callback by logical index [0..queuedCount-1].
-static int RLGlfwRemoveFrameCallbackAtLogicalIndexLocked(PlatformData* pd, unsigned int logicalIndex, RLRenderFrameCallbackSlot* removedOut)
+static unsigned int RLGlfwGetFrameCallbackWaitTimeoutMs(RLFrameCallbackKind kind)
 {
-    if (!pd || (pd->frameCallbackQueuedCount == 0u) || (logicalIndex >= pd->frameCallbackQueuedCount)) return 0;
-
-    const unsigned int removedRingIndex = RLGlfwFrameCallbackRingIndex(pd, logicalIndex);
-    RLRenderFrameCallbackSlot removed = pd->frameCallbackRing[removedRingIndex];
-    if (removedOut != NULL) *removedOut = removed;
-
-    for (unsigned int i = logicalIndex; (i + 1u) < pd->frameCallbackQueuedCount; i++)
-    {
-        const unsigned int dstIndex = RLGlfwFrameCallbackRingIndex(pd, i);
-        const unsigned int srcIndex = RLGlfwFrameCallbackRingIndex(pd, i + 1u);
-        pd->frameCallbackRing[dstIndex] = pd->frameCallbackRing[srcIndex];
-    }
-
-    pd->frameCallbackQueuedCount--;
-    pd->frameCallbackTail = RLGlfwFrameCallbackRingIndex(pd, pd->frameCallbackQueuedCount);
-    if (removed.kind == RL_FRAME_CALLBACK_KIND_CRITICAL)
-    {
-        if (pd->frameCallbackCriticalQueuedCount > 0u) pd->frameCallbackCriticalQueuedCount--;
-    }
-
-    return 1;
+    return (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) ? RL_FRAME_CALLBACK_WAIT_CRITICAL_MS
+                                                      : RL_FRAME_CALLBACK_WAIT_NORMAL_MS;
 }
 
-static int RLGlfwEnqueueFrameCallbackLocked(PlatformData* pd, RLWindowRenderThreadInvoke fn, void* hwnd, void* user, void (*userDtor)(void*), RLFrameCallbackKind kind)
+static int RLGlfwTryEnqueueFrameCallbackLocked(PlatformData* pd, RLWindowRenderThreadInvoke fn, void* hwnd, void* user, void (*userDtor)(void*), RLFrameCallbackKind kind)
 {
+    RLRenderFrameCallbackSlot* callbackRing = NULL;
+    unsigned int* callbackTail = NULL;
+    unsigned int* callbackQueuedCount = NULL;
+    unsigned int callbackCapacity = 0u;
+
     if (!pd || !fn) return 0;
     if ((kind != RL_FRAME_CALLBACK_KIND_NORMAL) && (kind != RL_FRAME_CALLBACK_KIND_CRITICAL)) return 0;
 
-    if (pd->frameCallbackQueuedCount >= RL_FRAME_CALLBACK_QUEUE_CAPACITY)
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL)
     {
-        // Under pressure, preserve critical callbacks by evicting the oldest normal callback.
-        if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL)
-        {
-            int evicted = 0;
-            for (unsigned int i = 0; i < pd->frameCallbackQueuedCount; i++)
-            {
-                const unsigned int ringIndex = RLGlfwFrameCallbackRingIndex(pd, i);
-                if (pd->frameCallbackRing[ringIndex].kind == RL_FRAME_CALLBACK_KIND_NORMAL)
-                {
-                    RLRenderFrameCallbackSlot droppedSlot = { 0 };
-                    if (RLGlfwRemoveFrameCallbackAtLogicalIndexLocked(pd, i, &droppedSlot))
-                    {
-                        if (droppedSlot.userDtor && droppedSlot.user) droppedSlot.userDtor(droppedSlot.user);
-                        pd->frameCallbackDroppedCount++;
-                        pd->frameCallbackDroppedNormalCount++;
-                        pd->frameCallbackEvictedNormalForCriticalCount++;
-                        evicted = 1;
-                    }
-                    break;
-                }
-            }
-            if (!evicted) return 0;
-        }
-        else return 0;
+        callbackRing = pd->criticalFrameCallbackRing;
+        callbackTail = &pd->criticalFrameCallbackTail;
+        callbackQueuedCount = &pd->criticalFrameCallbackQueuedCount;
+        callbackCapacity = RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY;
+    }
+    else
+    {
+        callbackRing = pd->normalFrameCallbackRing;
+        callbackTail = &pd->normalFrameCallbackTail;
+        callbackQueuedCount = &pd->normalFrameCallbackQueuedCount;
+        callbackCapacity = RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY;
     }
 
-    pd->frameCallbackRing[pd->frameCallbackTail].fn = fn;
-    pd->frameCallbackRing[pd->frameCallbackTail].hwnd = hwnd;
-    pd->frameCallbackRing[pd->frameCallbackTail].user = user;
-    pd->frameCallbackRing[pd->frameCallbackTail].userDtor = userDtor;
-    pd->frameCallbackRing[pd->frameCallbackTail].kind = (unsigned char)kind;
-    pd->frameCallbackTail = (pd->frameCallbackTail + 1u) % RL_FRAME_CALLBACK_QUEUE_CAPACITY;
-    pd->frameCallbackQueuedCount++;
-    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackCriticalQueuedCount++;
-    if (pd->frameCallbackQueuedCount > pd->frameCallbackQueuedPeak)
+    if (*callbackQueuedCount >= callbackCapacity) return 0;
+
+    callbackRing[*callbackTail].fn = fn;
+    callbackRing[*callbackTail].hwnd = hwnd;
+    callbackRing[*callbackTail].user = user;
+    callbackRing[*callbackTail].userDtor = userDtor;
+    callbackRing[*callbackTail].kind = (unsigned char)kind;
+    *callbackTail = (*callbackTail + 1u) % callbackCapacity;
+    (*callbackQueuedCount)++;
+    RLGlfwAddFrameCallbackHint(&pd->frameCallbackQueuedHint, 1);
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL)
     {
-        pd->frameCallbackQueuedPeak = pd->frameCallbackQueuedCount;
+        RLGlfwAddFrameCallbackHint(&pd->frameCallbackCriticalQueuedHint, 1);
     }
+
+    {
+        const unsigned int totalQueuedCount = RLGlfwGetQueuedFrameCallbackCount(pd);
+        if (totalQueuedCount > pd->frameCallbackQueuedPeak)
+        {
+            pd->frameCallbackQueuedPeak = totalQueuedCount;
+        }
+    }
+
     return 1;
+}
+
+static int RLGlfwPopOldestFrameCallbackLocked(PlatformData* pd, RLFrameCallbackKind kind, RLRenderFrameCallbackSlot* removedOut)
+{
+    RLRenderFrameCallbackSlot* callbackRing = NULL;
+    unsigned int* callbackHead = NULL;
+    unsigned int* callbackQueuedCount = NULL;
+    unsigned int callbackCapacity = 0u;
+    RLSemaphore* slotsAvailableSemaphore = NULL;
+
+    if (!pd || removedOut == NULL) return 0;
+
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL)
+    {
+        callbackRing = pd->criticalFrameCallbackRing;
+        callbackHead = &pd->criticalFrameCallbackHead;
+        callbackQueuedCount = &pd->criticalFrameCallbackQueuedCount;
+        callbackCapacity = RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY;
+        slotsAvailableSemaphore = pd->criticalFrameCallbackSlotsAvailableSemaphore;
+    }
+    else
+    {
+        callbackRing = pd->normalFrameCallbackRing;
+        callbackHead = &pd->normalFrameCallbackHead;
+        callbackQueuedCount = &pd->normalFrameCallbackQueuedCount;
+        callbackCapacity = RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY;
+        slotsAvailableSemaphore = pd->normalFrameCallbackSlotsAvailableSemaphore;
+    }
+
+    if (*callbackQueuedCount == 0u) return 0;
+
+    *removedOut = callbackRing[*callbackHead];
+    callbackRing[*callbackHead].fn = NULL;
+    callbackRing[*callbackHead].hwnd = NULL;
+    callbackRing[*callbackHead].user = NULL;
+    callbackRing[*callbackHead].userDtor = NULL;
+    callbackRing[*callbackHead].kind = (unsigned char)kind;
+    *callbackHead = (*callbackHead + 1u) % callbackCapacity;
+    (*callbackQueuedCount)--;
+    RLGlfwAddFrameCallbackHint(&pd->frameCallbackQueuedHint, -1);
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL)
+    {
+        RLGlfwAddFrameCallbackHint(&pd->frameCallbackCriticalQueuedHint, -1);
+    }
+    RLSemaphoreReleaseOne(slotsAvailableSemaphore);
+
+    return 1;
+}
+
+static void RLGlfwClearFrameCallbackQueueLocked(RLRenderFrameCallbackSlot* callbackRing,
+                                                unsigned int callbackCapacity,
+                                                unsigned int* callbackHead,
+                                                unsigned int* callbackTail,
+                                                unsigned int* callbackQueuedCount,
+                                                RLFrameCallbackKind kind,
+                                                RLSemaphore* slotsAvailableSemaphore,
+                                                volatile long* totalQueuedHint,
+                                                volatile long* criticalQueuedHint)
+{
+    unsigned int releasedCount = 0u;
+
+    if ((callbackRing == NULL) || (callbackHead == NULL) || (callbackTail == NULL) || (callbackQueuedCount == NULL)) return;
+
+    while (*callbackQueuedCount > 0u)
+    {
+        RLRenderFrameCallbackSlot* callbackSlot = &callbackRing[*callbackHead];
+        if (callbackSlot->userDtor && callbackSlot->user) callbackSlot->userDtor(callbackSlot->user);
+        callbackSlot->fn = NULL;
+        callbackSlot->hwnd = NULL;
+        callbackSlot->user = NULL;
+        callbackSlot->userDtor = NULL;
+        callbackSlot->kind = (unsigned char)kind;
+        *callbackHead = (*callbackHead + 1u) % callbackCapacity;
+        (*callbackQueuedCount)--;
+        releasedCount++;
+        if (*callbackQueuedCount == 0u) break;
+    }
+
+    *callbackHead = 0u;
+    *callbackTail = 0u;
+
+    if (releasedCount > 0u)
+    {
+        RLGlfwAddFrameCallbackHint(totalQueuedHint, -(long)releasedCount);
+        if ((kind == RL_FRAME_CALLBACK_KIND_CRITICAL) && (criticalQueuedHint != NULL))
+        {
+            RLGlfwAddFrameCallbackHint(criticalQueuedHint, -(long)releasedCount);
+        }
+        RLSemaphoreReleaseCount(slotsAvailableSemaphore, releasedCount);
+    }
 }
 
 static void RLGlfwClearFrameCallbacksLocked(PlatformData* pd)
 {
     if (!pd) return;
 
-    for (unsigned int i = 0; i < pd->frameCallbackQueuedCount; i++)
-    {
-        const unsigned int ringIndex = RLGlfwFrameCallbackRingIndex(pd, i);
-        RLRenderFrameCallbackSlot* slot = &pd->frameCallbackRing[ringIndex];
-        if (slot->userDtor && slot->user) slot->userDtor(slot->user);
-        slot->fn = NULL;
-        slot->hwnd = NULL;
-        slot->user = NULL;
-        slot->userDtor = NULL;
-        slot->kind = RL_FRAME_CALLBACK_KIND_NORMAL;
-    }
-
-    pd->frameCallbackHead = 0u;
-    pd->frameCallbackTail = 0u;
-    pd->frameCallbackQueuedCount = 0;
-    pd->frameCallbackCriticalQueuedCount = 0u;
+    RLGlfwClearFrameCallbackQueueLocked(pd->criticalFrameCallbackRing,
+                                        RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY,
+                                        &pd->criticalFrameCallbackHead,
+                                        &pd->criticalFrameCallbackTail,
+                                        &pd->criticalFrameCallbackQueuedCount,
+                                        RL_FRAME_CALLBACK_KIND_CRITICAL,
+                                        pd->criticalFrameCallbackSlotsAvailableSemaphore,
+                                        &pd->frameCallbackQueuedHint,
+                                        &pd->frameCallbackCriticalQueuedHint);
+    RLGlfwClearFrameCallbackQueueLocked(pd->normalFrameCallbackRing,
+                                        RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY,
+                                        &pd->normalFrameCallbackHead,
+                                        &pd->normalFrameCallbackTail,
+                                        &pd->normalFrameCallbackQueuedCount,
+                                        RL_FRAME_CALLBACK_KIND_NORMAL,
+                                        pd->normalFrameCallbackSlotsAvailableSemaphore,
+                                        &pd->frameCallbackQueuedHint,
+                                        &pd->frameCallbackCriticalQueuedHint);
 }
 
 static void RLGlfwUpdateViewportForRenderSizeIfChanged(int previousRenderWidth, int previousRenderHeight)
@@ -2831,51 +2953,61 @@ static void RLGlfwDrainFrameCallbacksCurrentContext(void)
 
     PlatformData* pd = (PlatformData*)currentCtx->platformData;
     if (!pd || !pd->win32Hwnd) return;
+    if (RLGlfwReadFrameCallbackHint(&pd->frameCallbackQueuedHint) <= 0) return;
 
     unsigned int callbacksExecuted = 0u;
     unsigned int callbacksCriticalExecuted = 0u;
-    unsigned int callbacksCriticalTarget = 0u;
-    RLGlfwGlobalLock();
-    callbacksCriticalTarget = pd->frameCallbackCriticalQueuedCount;
+    unsigned int callbacksCriticalTarget = (unsigned int)RLGlfwReadFrameCallbackHint(&pd->frameCallbackCriticalQueuedHint);
     if (callbacksCriticalTarget > RL_FRAME_CALLBACKS_CRITICAL_MIN_PER_FRAME)
     {
         callbacksCriticalTarget = RL_FRAME_CALLBACKS_CRITICAL_MIN_PER_FRAME;
     }
-    RLGlfwGlobalUnlock();
 
     while (callbacksExecuted < RL_FRAME_CALLBACKS_PER_FRAME_LIMIT)
     {
-        RLRenderFrameCallbackSlot callbackSlot = { 0 };
-        int hasCallback = 0;
-        const int requireCritical = (callbacksCriticalExecuted < callbacksCriticalTarget)? 1 : 0;
+        RLRenderFrameCallbackSlot callbackBatch[RL_FRAME_CALLBACKS_BATCH_POP_LIMIT] = { 0 };
+        unsigned int callbackBatchCount = 0u;
+        unsigned int callbackBatchCriticalCount = 0u;
+        unsigned int batchBudget = RL_FRAME_CALLBACKS_PER_FRAME_LIMIT - callbacksExecuted;
+        if (batchBudget > RL_FRAME_CALLBACKS_BATCH_POP_LIMIT) batchBudget = RL_FRAME_CALLBACKS_BATCH_POP_LIMIT;
 
         RLGlfwGlobalLock();
-        if (pd->frameCallbackQueuedCount > 0u)
+        while (callbackBatchCount < batchBudget)
         {
-            if (requireCritical && (pd->frameCallbackCriticalQueuedCount > 0u))
+            const int requireCritical = ((callbacksCriticalExecuted + callbackBatchCriticalCount) < callbacksCriticalTarget)? 1 : 0;
+
+            if (requireCritical && (pd->criticalFrameCallbackQueuedCount > 0u))
             {
-                for (unsigned int i = 0; i < pd->frameCallbackQueuedCount; i++)
-                {
-                    const unsigned int ringIndex = RLGlfwFrameCallbackRingIndex(pd, i);
-                    if (pd->frameCallbackRing[ringIndex].kind != RL_FRAME_CALLBACK_KIND_CRITICAL) continue;
-                    hasCallback = RLGlfwRemoveFrameCallbackAtLogicalIndexLocked(pd, i, &callbackSlot);
-                    break;
-                }
+                if (!RLGlfwPopOldestFrameCallbackLocked(pd, RL_FRAME_CALLBACK_KIND_CRITICAL, &callbackBatch[callbackBatchCount])) break;
+                callbackBatchCriticalCount++;
             }
-            else
+            else if (pd->normalFrameCallbackQueuedCount > 0u)
             {
-                hasCallback = RLGlfwRemoveFrameCallbackAtLogicalIndexLocked(pd, 0u, &callbackSlot);
+                if (!RLGlfwPopOldestFrameCallbackLocked(pd, RL_FRAME_CALLBACK_KIND_NORMAL, &callbackBatch[callbackBatchCount])) break;
             }
+            else if (pd->criticalFrameCallbackQueuedCount > 0u)
+            {
+                if (!RLGlfwPopOldestFrameCallbackLocked(pd, RL_FRAME_CALLBACK_KIND_CRITICAL, &callbackBatch[callbackBatchCount])) break;
+                callbackBatchCriticalCount++;
+            }
+            else break;
+
+            callbackBatchCount++;
         }
         RLGlfwGlobalUnlock();
 
-        if (!hasCallback) break;
-        callbacksExecuted++;
-        if (callbackSlot.kind == RL_FRAME_CALLBACK_KIND_CRITICAL) callbacksCriticalExecuted++;
+        if (callbackBatchCount == 0u) break;
 
-        if (!pd->closing && !pd->eventThreadStop && callbackSlot.fn)
+        for (unsigned int callbackIndex = 0u; callbackIndex < callbackBatchCount; callbackIndex++)
         {
-            callbackSlot.fn(callbackSlot.hwnd, callbackSlot.user);
+            RLRenderFrameCallbackSlot* callbackSlot = &callbackBatch[callbackIndex];
+            callbacksExecuted++;
+            if (callbackSlot->kind == RL_FRAME_CALLBACK_KIND_CRITICAL) callbacksCriticalExecuted++;
+
+            if (!pd->closing && !pd->eventThreadStop && callbackSlot->fn)
+            {
+                callbackSlot->fn(callbackSlot->hwnd, callbackSlot->user);
+            }
         }
     }
 }
@@ -3009,6 +3141,8 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
 
 int RLPostWindowFrameCallbackByHandleEx2(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, RLFrameCallbackKind kind, void (*userDtor)(void*))
 {
+    RLSemaphore* frameCallbackSlotsSemaphore = NULL;
+
     if (!hwnd) return RLGlfwPostFrameCallbackFailOwned("invalid hwnd", hwnd, user, userDtor);
     if (!fn) return RLGlfwPostFrameCallbackFailOwned("invalid callback", hwnd, user, userDtor);
     if ((kind != RL_FRAME_CALLBACK_KIND_NORMAL) && (kind != RL_FRAME_CALLBACK_KIND_CRITICAL))
@@ -3027,26 +3161,113 @@ int RLPostWindowFrameCallbackByHandleEx2(void* hwnd, RLWindowRenderThreadInvoke 
         return RLGlfwPostFrameCallbackFailOwned("requires event-thread mode with render-thread/wake-event", hwnd, user, userDtor);
     }
 
-    RLGlfwGlobalLock();
-    if (pd->closing || pd->eventThreadStop)
+    for (;;)
     {
-        RLGlfwGlobalUnlock();
-        return RLGlfwPostFrameCallbackFailOwned("window became closing/stopped during enqueue", hwnd, user, userDtor);
-    }
+        int canWaitForSpace = 0;
 
-    if (!RLGlfwEnqueueFrameCallbackLocked(pd, fn, hwnd, user, userDtor, kind))
-    {
-        pd->frameCallbackDroppedCount++;
-        if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackDroppedCriticalCount++;
-        else pd->frameCallbackDroppedNormalCount++;
-        RLGlfwGlobalUnlock();
-        RL_DIAG_TASK_POST_FAILED();
-        return RLGlfwPostFrameCallbackFailOwned("frame callback queue full", hwnd, user, userDtor);
-    }
-    RLGlfwGlobalUnlock();
+        RLGlfwGlobalLock();
+        if (pd->closing || pd->eventThreadStop)
+        {
+            RLGlfwGlobalUnlock();
+            return RLGlfwPostFrameCallbackFailOwned("window became closing/stopped during enqueue", hwnd, user, userDtor);
+        }
 
-    RLGlfwSignalOneRenderWake(pd);
-    return 1;
+        frameCallbackSlotsSemaphore = RLSemaphoreRetain(RLGlfwGetFrameCallbackSlotsSemaphore(pd, kind));
+        canWaitForSpace = (frameCallbackSlotsSemaphore != NULL) && !RLGlfwIsThread(pd->renderThread);
+        RLGlfwGlobalUnlock();
+
+        if (frameCallbackSlotsSemaphore == NULL)
+        {
+            return RLGlfwPostFrameCallbackFailOwned("frame callback slots unavailable", hwnd, user, userDtor);
+        }
+
+        if (!canWaitForSpace)
+        {
+            const int acquiredImmediateSlot = RLSemaphoreTryAcquire(frameCallbackSlotsSemaphore);
+            if (!acquiredImmediateSlot)
+            {
+                RLSemaphoreRelease(frameCallbackSlotsSemaphore);
+                frameCallbackSlotsSemaphore = NULL;
+                RLContext* previousContext = RLGetCurrentContext();
+                if (previousContext != pd->ownerCtx) RLSetCurrentContext(pd->ownerCtx);
+                (void)fn(hwnd, user);
+                if (previousContext != pd->ownerCtx) RLSetCurrentContext(previousContext);
+                TRACELOG(RL_E_LOG_WARNING,
+                         "EVENTTHREAD: frame callback queue saturated on render thread; executed callback immediately (hwnd=%p kind=%u)",
+                         hwnd, (unsigned int)kind);
+                return 1;
+            }
+
+            RLGlfwGlobalLock();
+            if (pd->closing || pd->eventThreadStop)
+            {
+                RLGlfwGlobalUnlock();
+                RLSemaphoreReleaseOne(frameCallbackSlotsSemaphore);
+                RLSemaphoreRelease(frameCallbackSlotsSemaphore);
+                frameCallbackSlotsSemaphore = NULL;
+                return RLGlfwPostFrameCallbackFailOwned("window became closing/stopped during enqueue", hwnd, user, userDtor);
+            }
+
+            if (RLGlfwTryEnqueueFrameCallbackLocked(pd, fn, hwnd, user, userDtor, kind))
+            {
+                RLGlfwGlobalUnlock();
+                RLSemaphoreRelease(frameCallbackSlotsSemaphore);
+                frameCallbackSlotsSemaphore = NULL;
+                RLGlfwSignalOneRenderWake(pd);
+                return 1;
+            }
+            RLGlfwGlobalUnlock();
+            RLSemaphoreReleaseOne(frameCallbackSlotsSemaphore);
+            RLSemaphoreRelease(frameCallbackSlotsSemaphore);
+            frameCallbackSlotsSemaphore = NULL;
+            RLContext* previousContext = RLGetCurrentContext();
+            if (previousContext != pd->ownerCtx) RLSetCurrentContext(pd->ownerCtx);
+            (void)fn(hwnd, user);
+            if (previousContext != pd->ownerCtx) RLSetCurrentContext(previousContext);
+            TRACELOG(RL_E_LOG_WARNING,
+                     "EVENTTHREAD: frame callback queue saturated on render thread; executed callback immediately (hwnd=%p kind=%u)",
+                     hwnd, (unsigned int)kind);
+            return 1;
+        }
+
+        if (!RLSemaphoreWaitTimeout(frameCallbackSlotsSemaphore, RLGlfwGetFrameCallbackWaitTimeoutMs(kind)))
+        {
+            RLSemaphoreRelease(frameCallbackSlotsSemaphore);
+            frameCallbackSlotsSemaphore = NULL;
+            RLGlfwGlobalLock();
+            pd->frameCallbackDroppedCount++;
+            if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackDroppedCriticalCount++;
+            else pd->frameCallbackDroppedNormalCount++;
+            RLGlfwGlobalUnlock();
+            RL_DIAG_TASK_POST_FAILED();
+            return RLGlfwPostFrameCallbackFailOwned("frame callback queue wait timed out", hwnd, user, userDtor);
+        }
+
+        RLGlfwGlobalLock();
+        if (pd->closing || pd->eventThreadStop)
+        {
+            RLGlfwGlobalUnlock();
+            RLSemaphoreReleaseOne(frameCallbackSlotsSemaphore);
+            RLSemaphoreRelease(frameCallbackSlotsSemaphore);
+            frameCallbackSlotsSemaphore = NULL;
+            return RLGlfwPostFrameCallbackFailOwned("window became closing/stopped during enqueue", hwnd, user, userDtor);
+        }
+
+        if (RLGlfwTryEnqueueFrameCallbackLocked(pd, fn, hwnd, user, userDtor, kind))
+        {
+            RLGlfwGlobalUnlock();
+            RLSemaphoreRelease(frameCallbackSlotsSemaphore);
+            frameCallbackSlotsSemaphore = NULL;
+            RLGlfwSignalOneRenderWake(pd);
+            return 1;
+        }
+        RLGlfwGlobalUnlock();
+
+        RLSemaphoreReleaseOne(frameCallbackSlotsSemaphore);
+        RLSemaphoreRelease(frameCallbackSlotsSemaphore);
+        frameCallbackSlotsSemaphore = NULL;
+        return RLGlfwPostFrameCallbackFailOwned("frame callback semaphore/state mismatch", hwnd, user, userDtor);
+    }
 }
 
 int RLPostWindowFrameCallbackByHandleEx(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, RLFrameCallbackKind kind)
@@ -3085,8 +3306,8 @@ int RLGetCurrentContextFrameCallbackQueueStats(unsigned int *queued, unsigned in
     if (!pd || !pd->win32Hwnd) return 0;
 
     RLGlfwGlobalLock();
-    if (queued != NULL) *queued = pd->frameCallbackQueuedCount;
-    if (queuedCritical != NULL) *queuedCritical = pd->frameCallbackCriticalQueuedCount;
+    if (queued != NULL) *queued = RLGlfwGetQueuedFrameCallbackCount(pd);
+    if (queuedCritical != NULL) *queuedCritical = pd->criticalFrameCallbackQueuedCount;
     if (queuedPeak != NULL) *queuedPeak = pd->frameCallbackQueuedPeak;
     if (dropped != NULL) *dropped = pd->frameCallbackDroppedCount;
     if (droppedNormal != NULL) *droppedNormal = pd->frameCallbackDroppedNormalCount;
@@ -3105,7 +3326,7 @@ void RLResetCurrentContextFrameCallbackQueueStats(void)
     if (!pd || !pd->win32Hwnd) return;
 
     RLGlfwGlobalLock();
-    pd->frameCallbackQueuedPeak = pd->frameCallbackQueuedCount;
+    pd->frameCallbackQueuedPeak = RLGlfwGetQueuedFrameCallbackCount(pd);
     pd->frameCallbackDroppedCount = 0;
     pd->frameCallbackDroppedNormalCount = 0;
     pd->frameCallbackDroppedCriticalCount = 0;
@@ -3942,8 +4163,12 @@ int InitPlatform(void)
     platform.eventThread = NULL;
     platform.createdEvent = NULL;
     platform.renderWakeEvent = NULL;
+    platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+    platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
     platform.eventThreadHandle = NULL;
     platform.eventThreadStop = 0;
+    platform.frameCallbackQueuedHint = 0;
+    platform.frameCallbackCriticalQueuedHint = 0;
 #endif
 
     // Check window creation flags
@@ -4105,8 +4330,38 @@ int InitPlatform(void)
 
         platform.createdEvent = RLEventCreate(false);
         platform.renderWakeEvent = RLEventCreate(false);
+        platform.normalFrameCallbackSlotsAvailableSemaphore =
+            RLSemaphoreCreate(RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY, RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY);
+        platform.criticalFrameCallbackSlotsAvailableSemaphore =
+            RLSemaphoreCreate(RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY, RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY);
         platform.eventThreadStop = 0;
         platform.closing = 0;
+        platform.frameCallbackQueuedHint = 0;
+        platform.frameCallbackCriticalQueuedHint = 0;
+
+        if ((platform.createdEvent == NULL) || (platform.renderWakeEvent == NULL) ||
+            (platform.normalFrameCallbackSlotsAvailableSemaphore == NULL) ||
+            (platform.criticalFrameCallbackSlotsAvailableSemaphore == NULL))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: event-thread synchronization allocation failed");
+            if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
+            if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
+            if (platform.normalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(platform.normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(platform.normalFrameCallbackSlotsAvailableSemaphore);
+                platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
+            if (platform.criticalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(platform.criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(platform.criticalFrameCallbackSlotsAvailableSemaphore);
+                platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
+            RLGlfwGlobalRelease();
+            platform.glfwAcquired = false;
+            return -1;
+        }
 
         // Register this platform so shutdown/close can broadcast-wake sleeping render threads.
         RLGlfwPlatformRegister(&platform);
@@ -4119,6 +4374,18 @@ int InitPlatform(void)
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: share-group bind failed");
             if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
             if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
+            if (platform.normalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(platform.normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(platform.normalFrameCallbackSlotsAvailableSemaphore);
+                platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
+            if (platform.criticalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(platform.criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(platform.criticalFrameCallbackSlotsAvailableSemaphore);
+                platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
             RLGlfwPlatformUnregister(&platform);
             RLGlfwGlobalRelease();
             platform.glfwAcquired = false;
@@ -4137,6 +4404,18 @@ int InitPlatform(void)
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to create event thread");
             if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
             if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
+            if (platform.normalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(platform.normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(platform.normalFrameCallbackSlotsAvailableSemaphore);
+                platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
+            if (platform.criticalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(platform.criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(platform.criticalFrameCallbackSlotsAvailableSemaphore);
+                platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
             RLGlfwPlatformUnregister(&platform);
             RLSharedGpuContextUnbindShareGroup(ctx);
 	    	platform.win32Hwnd = NULL;
@@ -4159,6 +4438,18 @@ int InitPlatform(void)
 
             if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
             if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
+            if (platform.normalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(platform.normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(platform.normalFrameCallbackSlotsAvailableSemaphore);
+                platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
+            if (platform.criticalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(platform.criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(platform.criticalFrameCallbackSlotsAvailableSemaphore);
+                platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
 
             RLGlfwPlatformUnregister(&platform);
             RLSharedGpuContextUnbindShareGroup(RLGetCurrentContext());
@@ -4623,8 +4914,12 @@ void ClosePlatform(void)
         // Otherwise another thread broadcasting a wake during shutdown could touch freed handles.
         RLEvent *createdEvt = platform.createdEvent;
         RLEvent *wakeEvt = platform.renderWakeEvent;
+        RLSemaphore *normalFrameCallbackSlotsSemaphore = platform.normalFrameCallbackSlotsAvailableSemaphore;
+        RLSemaphore *criticalFrameCallbackSlotsSemaphore = platform.criticalFrameCallbackSlotsAvailableSemaphore;
         platform.createdEvent = NULL;
         platform.renderWakeEvent = NULL;
+        platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+        platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
 
         RLGlfwPlatformUnregister(&platform);
         platform.eventThread = NULL;
@@ -4635,6 +4930,16 @@ void ClosePlatform(void)
 
         if (createdEvt) RLEventDestroy(createdEvt);
         if (wakeEvt) RLEventDestroy(wakeEvt);
+        if (normalFrameCallbackSlotsSemaphore)
+        {
+            RLSemaphoreClose(normalFrameCallbackSlotsSemaphore);
+            RLSemaphoreRelease(normalFrameCallbackSlotsSemaphore);
+        }
+        if (criticalFrameCallbackSlotsSemaphore)
+        {
+            RLSemaphoreClose(criticalFrameCallbackSlotsSemaphore);
+            RLSemaphoreRelease(criticalFrameCallbackSlotsSemaphore);
+        }
 
 
         // Release global GLFW init refcount (only if we successfully acquired in InitPlatform).

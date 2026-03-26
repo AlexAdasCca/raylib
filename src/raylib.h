@@ -1251,8 +1251,8 @@ typedef intptr_t (*RLWindowRenderThreadInvoke)(void* hwnd, void* user);
 RLAPI intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait);
 
 // Frame callback queue priority.
-// - NORMAL: best-effort callback (may be dropped under queue pressure).
-// - CRITICAL: queue-preserving callback for lifecycle/cleanup operations.
+// - NORMAL: bounded callback queue with finite backpressure; enqueue may fail on timeout under sustained pressure.
+// - CRITICAL: bounded callback queue for lifecycle/cleanup operations with longer finite backpressure.
 typedef enum RLFrameCallbackKind {
     RL_FRAME_CALLBACK_KIND_NORMAL = 0,
     RL_FRAME_CALLBACK_KIND_CRITICAL = 1
@@ -1260,7 +1260,7 @@ typedef enum RLFrameCallbackKind {
 
 // NOTE: Frame callback is frame-safe for drawing.
 // The callback is executed on target window render thread at a fixed point inside RLEndDrawing() before final batch flush/swap.
-// Returns 1 on successful enqueue, 0 on invalid arguments, close/stop state, unsupported mode, allocation failure or queue-full.
+// Returns 1 on successful enqueue, 0 on invalid arguments, close/stop state, unsupported mode, allocation failure or queue wait timeout.
 RLAPI int RLPostWindowFrameCallbackByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user);
 // Extended frame callback API with callback kind.
 RLAPI int RLPostWindowFrameCallbackByHandleEx(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, RLFrameCallbackKind kind);

@@ -460,12 +460,29 @@ typedef struct _GLFWwin32ThreadTaskSlot
     #define GLFW_WIN32_THREAD_DRAIN_BUDGET 256
 #endif
 
+#ifndef GLFW_WIN32_THREAD_TASK_WAIT_CRITICAL_MS
+    #define GLFW_WIN32_THREAD_TASK_WAIT_CRITICAL_MS 50u
+#endif
+
+#ifndef GLFW_WIN32_THREAD_TASK_WAIT_STATE_MS
+    #define GLFW_WIN32_THREAD_TASK_WAIT_STATE_MS 20u
+#endif
+
+#ifndef GLFW_WIN32_THREAD_TASK_WAIT_INPUT_MS
+    #define GLFW_WIN32_THREAD_TASK_WAIT_INPUT_MS 8u
+#endif
+
+#ifndef GLFW_WIN32_THREAD_TASK_WAIT_MAINTENANCE_MS
+    #define GLFW_WIN32_THREAD_TASK_WAIT_MAINTENANCE_MS 8u
+#endif
+
 struct GLFWthread
 {
     DWORD                 tid;
     HANDLE                wakeEvent;
     HWND                  dispatchWindow;
     CRITICAL_SECTION       tasksLock;
+    HANDLE                taskSlotsAvailableSemaphore;
     _GLFWwin32ThreadTaskSlot tasksRing[GLFW_WIN32_THREAD_TASK_CAPACITY];
     unsigned int          tasksHead;
     unsigned int          tasksTail;

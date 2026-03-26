@@ -796,6 +796,8 @@ void _glfwTerminateWin32(void)
             _glfwDiscardThreadTasksWin32(ctx);
             DeleteCriticalSection(&ctx->tasksLock);
 
+            if (ctx->taskSlotsAvailableSemaphore)
+                CloseHandle(ctx->taskSlotsAvailableSemaphore);
             if (ctx->wakeEvent)
                 CloseHandle(ctx->wakeEvent);
 

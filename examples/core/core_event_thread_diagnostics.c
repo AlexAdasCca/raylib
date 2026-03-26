@@ -31,6 +31,7 @@
 #if defined(_WIN32)
 #include <windows.h>
 #include <process.h>     // _beginthreadex
+#include "../../src/rglfwglobal.h"
 #ifndef CP_UTF8
 #define CP_UTF8 65001
 #endif
@@ -521,6 +522,727 @@ static void RunApiSmokeOnce(void)
     gApiSmoke.dirExistsOk = RLDirectoryExists(appDir) ? 1 : 0;
     gApiSmoke.changeDirOk = RLChangeDirectory(workDir) ? 1 : 0;
 }
+
+#if defined(_WIN32)
+#define QUEUE_SELFTEST_FRAME_CALLBACK_NORMAL_CAPACITY 1024u
+#define QUEUE_SELFTEST_FRAME_CALLBACK_CRITICAL_CAPACITY 256u
+#define SEMAPHORE_SELFTEST_WAITER_COUNT 4u
+
+typedef struct QueueSaturationNativeState
+{
+    void *windowHandle;
+    HANDLE blockerEnteredEvent;
+    HANDLE blockerReleaseEvent;
+    HANDLE workerDoneEvent;
+    volatile LONG acceptedCount;
+    volatile LONG failedCount;
+    volatile LONG executedCount;
+    volatile LONG blockerStarted;
+    volatile LONG blockerReleased;
+} QueueSaturationNativeState;
+
+typedef struct QueueSaturationFrameState
+{
+    void *windowHandle;
+    HANDLE workerDoneEvent;
+    volatile LONG acceptedNormalCount;
+    volatile LONG failedNormalCount;
+    volatile LONG executedNormalCount;
+    volatile LONG acceptedCriticalCount;
+    volatile LONG failedCriticalCount;
+    volatile LONG executedCriticalCount;
+} QueueSaturationFrameState;
+
+typedef struct FrameCallbackCloseWaiterState
+{
+    void *windowHandle;
+    volatile LONG startedCount;
+    volatile LONG acceptedCount;
+    volatile LONG failedCount;
+} FrameCallbackCloseWaiterState;
+
+typedef struct SemaphoreSelfTestState
+{
+    volatile LONG waitingCount;
+    volatile LONG successCount;
+    volatile LONG failureCount;
+} SemaphoreSelfTestState;
+
+static intptr_t QueueSaturationNativeBlockingCallback(void *windowHandle, void *user)
+{
+    (void)windowHandle;
+    QueueSaturationNativeState *state = (QueueSaturationNativeState *)user;
+    if (state == NULL) return 0;
+
+    InterlockedExchange(&state->blockerStarted, 1);
+    if (state->blockerEnteredEvent != NULL) SetEvent(state->blockerEnteredEvent);
+    if (state->blockerReleaseEvent != NULL) WaitForSingleObject(state->blockerReleaseEvent, 5000);
+    InterlockedExchange(&state->blockerReleased, 1);
+    return 1;
+}
+
+static intptr_t QueueSaturationNativeCountCallback(void *windowHandle, void *user)
+{
+    (void)windowHandle;
+    QueueSaturationNativeState *state = (QueueSaturationNativeState *)user;
+    if (state != NULL) InterlockedIncrement(&state->executedCount);
+    return 1;
+}
+
+static unsigned __stdcall QueueSaturationNativeWorkerThread(void *arg)
+{
+    QueueSaturationNativeState *state = (QueueSaturationNativeState *)arg;
+    if (state == NULL) return 0;
+
+    if (RLInvokeOnWindowRenderThreadByHandle(state->windowHandle, QueueSaturationNativeBlockingCallback, state, 0) == 0)
+    {
+        InterlockedIncrement(&state->failedCount);
+        if (state->workerDoneEvent != NULL) SetEvent(state->workerDoneEvent);
+        return 0;
+    }
+
+    if (state->blockerEnteredEvent != NULL) WaitForSingleObject(state->blockerEnteredEvent, 5000);
+
+    for (int i = 0; i < 5000; i++)
+    {
+        if (RLInvokeOnWindowRenderThreadByHandle(state->windowHandle, QueueSaturationNativeCountCallback, state, 0) != 0)
+        {
+            InterlockedIncrement(&state->acceptedCount);
+        }
+        else
+        {
+            InterlockedIncrement(&state->failedCount);
+        }
+    }
+
+    if (state->blockerReleaseEvent != NULL) SetEvent(state->blockerReleaseEvent);
+    if (state->workerDoneEvent != NULL) SetEvent(state->workerDoneEvent);
+    return 0;
+}
+
+static intptr_t QueueSaturationFrameNormalCallback(void *windowHandle, void *user)
+{
+    (void)windowHandle;
+    QueueSaturationFrameState *state = (QueueSaturationFrameState *)user;
+    if (state != NULL) InterlockedIncrement(&state->executedNormalCount);
+    return 1;
+}
+
+static intptr_t QueueSaturationFrameCriticalCallback(void *windowHandle, void *user)
+{
+    (void)windowHandle;
+    QueueSaturationFrameState *state = (QueueSaturationFrameState *)user;
+    if (state != NULL) InterlockedIncrement(&state->executedCriticalCount);
+    return 1;
+}
+
+static unsigned __stdcall QueueSaturationFrameWorkerThread(void *arg)
+{
+    QueueSaturationFrameState *state = (QueueSaturationFrameState *)arg;
+    if (state == NULL) return 0;
+
+    for (int i = 0; i < 1100; i++)
+    {
+        if (RLPostWindowFrameCallbackByHandleEx(state->windowHandle,
+                                                QueueSaturationFrameNormalCallback,
+                                                state,
+                                                RL_FRAME_CALLBACK_KIND_NORMAL) != 0)
+        {
+            InterlockedIncrement(&state->acceptedNormalCount);
+        }
+        else
+        {
+            InterlockedIncrement(&state->failedNormalCount);
+        }
+    }
+
+    for (int i = 0; i < 280; i++)
+    {
+        if (RLPostWindowFrameCallbackByHandleEx(state->windowHandle,
+                                                QueueSaturationFrameCriticalCallback,
+                                                state,
+                                                RL_FRAME_CALLBACK_KIND_CRITICAL) != 0)
+        {
+            InterlockedIncrement(&state->acceptedCriticalCount);
+        }
+        else
+        {
+            InterlockedIncrement(&state->failedCriticalCount);
+        }
+    }
+
+    if (state->workerDoneEvent != NULL) SetEvent(state->workerDoneEvent);
+    return 0;
+}
+
+static intptr_t FrameCallbackCloseNoopCallback(void *windowHandle, void *user)
+{
+    (void)windowHandle;
+    (void)user;
+    return 1;
+}
+
+typedef struct FrameCallbackCloseWaiterThreadArg
+{
+    FrameCallbackCloseWaiterState *state;
+    RLFrameCallbackKind callbackKind;
+} FrameCallbackCloseWaiterThreadArg;
+
+typedef struct SemaphoreSelfTestThreadArg
+{
+    SemaphoreSelfTestState *state;
+    RLSemaphore *semaphoreHandle;
+} SemaphoreSelfTestThreadArg;
+
+static unsigned __stdcall FrameCallbackCloseWaiterThread(void *arg)
+{
+    FrameCallbackCloseWaiterThreadArg *threadArg = (FrameCallbackCloseWaiterThreadArg *)arg;
+    if ((threadArg == NULL) || (threadArg->state == NULL))
+    {
+        if (threadArg != NULL) RL_FREE(threadArg);
+        return 0;
+    }
+
+    FrameCallbackCloseWaiterState *state = threadArg->state;
+    RLFrameCallbackKind callbackKind = threadArg->callbackKind;
+    RL_FREE(threadArg);
+
+    InterlockedIncrement(&state->startedCount);
+
+    if (RLPostWindowFrameCallbackByHandleEx(state->windowHandle,
+                                            FrameCallbackCloseNoopCallback,
+                                            NULL,
+                                            callbackKind) != 0)
+    {
+        InterlockedIncrement(&state->acceptedCount);
+    }
+    else
+    {
+        InterlockedIncrement(&state->failedCount);
+    }
+
+    return 0;
+}
+
+static unsigned __stdcall SemaphoreSelfTestThread(void *arg)
+{
+    SemaphoreSelfTestThreadArg *threadArg = (SemaphoreSelfTestThreadArg *)arg;
+    if ((threadArg == NULL) || (threadArg->state == NULL) || (threadArg->semaphoreHandle == NULL))
+    {
+        if (threadArg != NULL)
+        {
+            if (threadArg->semaphoreHandle != NULL) RLSemaphoreRelease(threadArg->semaphoreHandle);
+            RL_FREE(threadArg);
+        }
+        return 0;
+    }
+
+    SemaphoreSelfTestState *state = threadArg->state;
+    RLSemaphore *semaphoreHandle = threadArg->semaphoreHandle;
+    RL_FREE(threadArg);
+
+    InterlockedIncrement(&state->waitingCount);
+    if (RLSemaphoreWaitTimeout(semaphoreHandle, 5000u))
+    {
+        InterlockedIncrement(&state->successCount);
+    }
+    else
+    {
+        InterlockedIncrement(&state->failureCount);
+    }
+
+    RLSemaphoreRelease(semaphoreHandle);
+    return 0;
+}
+
+static int WaitForLongValue(volatile LONG *value, LONG expectedValue, DWORD timeoutMs)
+{
+    const DWORD startTick = GetTickCount();
+    while ((GetTickCount() - startTick) < timeoutMs)
+    {
+        if (InterlockedCompareExchange((volatile LONG *)value, 0, 0) >= expectedValue) return 1;
+        Sleep(1);
+    }
+
+    return (InterlockedCompareExchange((volatile LONG *)value, 0, 0) >= expectedValue) ? 1 : 0;
+}
+
+static int RunSemaphoreSelfTest(void)
+{
+    SemaphoreSelfTestState state = { 0 };
+    HANDLE waiterHandles[SEMAPHORE_SELFTEST_WAITER_COUNT];
+    RLSemaphore *semaphoreHandle = NULL;
+    int result = 1;
+
+    memset(waiterHandles, 0, sizeof(waiterHandles));
+
+    semaphoreHandle = RLSemaphoreCreate(0u, SEMAPHORE_SELFTEST_WAITER_COUNT);
+    if (semaphoreHandle == NULL)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: failed to create semaphore");
+        return 1;
+    }
+
+    for (unsigned int waiterIndex = 0u; waiterIndex < SEMAPHORE_SELFTEST_WAITER_COUNT; waiterIndex++)
+    {
+        SemaphoreSelfTestThreadArg *threadArg =
+            (SemaphoreSelfTestThreadArg *)RL_MALLOC(sizeof(SemaphoreSelfTestThreadArg));
+        if (threadArg == NULL)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: failed to allocate thread arg");
+            goto cleanup;
+        }
+
+        threadArg->state = &state;
+        threadArg->semaphoreHandle = RLSemaphoreRetain(semaphoreHandle);
+        if (threadArg->semaphoreHandle == NULL)
+        {
+            RL_FREE(threadArg);
+            RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: failed to retain semaphore for waiter");
+            goto cleanup;
+        }
+
+        {
+            uintptr_t threadHandleValue = _beginthreadex(NULL, 0, SemaphoreSelfTestThread, threadArg, 0, NULL);
+            if (threadHandleValue == 0u)
+            {
+                RLSemaphoreRelease(threadArg->semaphoreHandle);
+                RL_FREE(threadArg);
+                RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: failed to start waiter thread");
+                goto cleanup;
+            }
+            waiterHandles[waiterIndex] = (HANDLE)threadHandleValue;
+        }
+    }
+
+    if (!WaitForLongValue(&state.waitingCount, (LONG)SEMAPHORE_SELFTEST_WAITER_COUNT, 1000u))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: waiters did not enter wait state in time");
+        goto cleanup;
+    }
+
+    Sleep(50);
+    RLSemaphoreReleaseOne(semaphoreHandle);
+    if (!WaitForLongValue(&state.successCount, 1, 1000u))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: first ReleaseOne did not wake exactly one waiter in time");
+        goto cleanup;
+    }
+    if (InterlockedCompareExchange(&state.failureCount, 0, 0) != 0)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: unexpected waiter failure before close");
+        goto cleanup;
+    }
+
+    RLSemaphoreReleaseOne(semaphoreHandle);
+    if (!WaitForLongValue(&state.successCount, 2, 1000u))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: second ReleaseOne did not wake a second waiter in time");
+        goto cleanup;
+    }
+    if (InterlockedCompareExchange(&state.failureCount, 0, 0) != 0)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: unexpected waiter failure before close");
+        goto cleanup;
+    }
+
+    RLSemaphoreClose(semaphoreHandle);
+
+    for (unsigned int waiterIndex = 0u; waiterIndex < SEMAPHORE_SELFTEST_WAITER_COUNT; waiterIndex++)
+    {
+        if (waiterHandles[waiterIndex] == NULL) continue;
+        WaitForSingleObject(waiterHandles[waiterIndex], 8000u);
+        CloseHandle(waiterHandles[waiterIndex]);
+        waiterHandles[waiterIndex] = NULL;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "semaphore-selftest: waiting=%ld success=%ld failure=%ld",
+               InterlockedCompareExchange(&state.waitingCount, 0, 0),
+               InterlockedCompareExchange(&state.successCount, 0, 0),
+               InterlockedCompareExchange(&state.failureCount, 0, 0));
+
+    if ((InterlockedCompareExchange(&state.successCount, 0, 0) != 2) ||
+        (InterlockedCompareExchange(&state.failureCount, 0, 0) != 2))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "semaphore-selftest: failed invariants");
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO, "semaphore-selftest: PASSED");
+    result = 0;
+
+cleanup:
+    if (semaphoreHandle != NULL)
+    {
+        RLSemaphoreClose(semaphoreHandle);
+        for (unsigned int waiterIndex = 0u; waiterIndex < SEMAPHORE_SELFTEST_WAITER_COUNT; waiterIndex++)
+        {
+            if (waiterHandles[waiterIndex] == NULL) continue;
+            WaitForSingleObject(waiterHandles[waiterIndex], 8000u);
+            CloseHandle(waiterHandles[waiterIndex]);
+            waiterHandles[waiterIndex] = NULL;
+        }
+        RLSemaphoreRelease(semaphoreHandle);
+    }
+
+    return result;
+}
+
+static int PumpFramesUntilCondition(double timeoutSeconds, bool (*conditionFn)(void *user), void *user)
+{
+    const double startTime = RLGetTime();
+
+    while ((RLGetTime() - startTime) < timeoutSeconds)
+    {
+        if ((conditionFn != NULL) && conditionFn(user)) return 1;
+        RLBeginDrawing();
+        RLClearBackground(BLACK);
+        RLEndDrawing();
+    }
+
+    return ((conditionFn != NULL) && conditionFn(user)) ? 1 : 0;
+}
+
+static bool QueueSaturationNativeDone(void *user)
+{
+    QueueSaturationNativeState *state = (QueueSaturationNativeState *)user;
+    if (state == NULL) return true;
+
+    return (WaitForSingleObject(state->workerDoneEvent, 0) == WAIT_OBJECT_0) &&
+           (InterlockedCompareExchange(&state->executedCount, 0, 0) >= InterlockedCompareExchange(&state->acceptedCount, 0, 0)) &&
+           (InterlockedCompareExchange(&state->blockerReleased, 0, 0) != 0);
+}
+
+static bool QueueSaturationFrameDone(void *user)
+{
+    QueueSaturationFrameState *state = (QueueSaturationFrameState *)user;
+    if (state == NULL) return true;
+
+    return (WaitForSingleObject(state->workerDoneEvent, 0) == WAIT_OBJECT_0) &&
+           (InterlockedCompareExchange(&state->executedNormalCount, 0, 0) >= InterlockedCompareExchange(&state->acceptedNormalCount, 0, 0)) &&
+           (InterlockedCompareExchange(&state->executedCriticalCount, 0, 0) >= InterlockedCompareExchange(&state->acceptedCriticalCount, 0, 0));
+}
+
+static RLEventThreadDiagStats SubtractEventThreadDiagStats(RLEventThreadDiagStats afterStats, RLEventThreadDiagStats beforeStats)
+{
+    RLEventThreadDiagStats deltaStats = afterStats;
+
+    deltaStats.nativeTaskQueueDroppedCount -= beforeStats.nativeTaskQueueDroppedCount;
+    deltaStats.nativeTaskQueueDroppedInputCount -= beforeStats.nativeTaskQueueDroppedInputCount;
+    deltaStats.nativeTaskQueueDroppedStateCount -= beforeStats.nativeTaskQueueDroppedStateCount;
+    deltaStats.nativeTaskQueueDroppedCriticalCount -= beforeStats.nativeTaskQueueDroppedCriticalCount;
+    deltaStats.nativeTaskQueueDroppedMaintenanceCount -= beforeStats.nativeTaskQueueDroppedMaintenanceCount;
+    deltaStats.frameCallbackDroppedCount -= beforeStats.frameCallbackDroppedCount;
+    deltaStats.frameCallbackDroppedNormalCount -= beforeStats.frameCallbackDroppedNormalCount;
+    deltaStats.frameCallbackDroppedCriticalCount -= beforeStats.frameCallbackDroppedCriticalCount;
+    deltaStats.frameCallbackEvictedNormalForCriticalCount -= beforeStats.frameCallbackEvictedNormalForCriticalCount;
+
+    return deltaStats;
+}
+
+static int RunQueueSaturationSelfTest(void)
+{
+    QueueSaturationNativeState nativeState = { 0 };
+    QueueSaturationFrameState frameState = { 0 };
+    FrameCallbackCloseWaiterState closeWaiterState = { 0 };
+    int result = 1;
+    HANDLE nativeWorkerHandle = NULL;
+    HANDLE frameWorkerHandle = NULL;
+    HANDLE closeWaiterHandles[8] = { 0 };
+    RLEventThreadDiagStats nativeStatsBefore = { 0 };
+    RLEventThreadDiagStats frameStatsBefore = { 0 };
+
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD | RL_E_FLAG_WINDOW_RESIZABLE);
+    RLInitWindow(640, 360, "raylib [queue-saturation] selftest");
+    if (!RLIsWindowReady())
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to initialize window");
+        return 1;
+    }
+
+    RLSetTargetFPS(120);
+    RLEnableEventDiagStats();
+    RLResetEventThreadDiagStatsForCurrentContext();
+    nativeStatsBefore = RLGetEventThreadDiagStats();
+
+    nativeState.windowHandle = RLGetWindowHandle();
+    nativeState.blockerEnteredEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    nativeState.blockerReleaseEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    nativeState.workerDoneEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+
+    if ((nativeState.blockerEnteredEvent == NULL) || (nativeState.blockerReleaseEvent == NULL) || (nativeState.workerDoneEvent == NULL))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to create native-task events");
+        goto cleanup;
+    }
+
+    {
+        uintptr_t nativeWorkerHandleValue = _beginthreadex(NULL, 0, QueueSaturationNativeWorkerThread, &nativeState, 0, NULL);
+        if (nativeWorkerHandleValue == 0)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to start native-task worker");
+            goto cleanup;
+        }
+        nativeWorkerHandle = (HANDLE)nativeWorkerHandleValue;
+    }
+
+    if (!PumpFramesUntilCondition(8.0, QueueSaturationNativeDone, &nativeState))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: native-task phase timed out");
+        goto cleanup;
+    }
+
+    WaitForSingleObject(nativeWorkerHandle, 8000);
+    CloseHandle(nativeWorkerHandle);
+    nativeWorkerHandle = NULL;
+
+    {
+        RLEventThreadDiagStats nativeStats = SubtractEventThreadDiagStats(RLGetEventThreadDiagStats(), nativeStatsBefore);
+        const long accepted = InterlockedCompareExchange(&nativeState.acceptedCount, 0, 0);
+        const long failed = InterlockedCompareExchange(&nativeState.failedCount, 0, 0);
+        const long executed = InterlockedCompareExchange(&nativeState.executedCount, 0, 0);
+        const unsigned long long dropped = nativeStats.nativeTaskQueueDroppedCount;
+        const unsigned long long droppedNoise = (dropped > (unsigned long long)failed) ? (dropped - (unsigned long long)failed) : 0u;
+
+        RLTraceLog(RL_E_LOG_INFO,
+                   "queue-selftest: native-task accepted=%ld failed=%ld executed=%ld dropped=%llu droppedNoise=%llu tasksPostFailed=%llu",
+                   accepted, failed, executed, dropped, droppedNoise, nativeStats.tasksPostFailed);
+
+        if ((accepted <= 0) || (failed <= 0) || (executed != accepted) || (dropped < (unsigned long long)failed) || (droppedNoise > 4u))
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: native-task phase failed invariants");
+            goto cleanup;
+        }
+    }
+
+    RLResetEventThreadDiagStatsForCurrentContext();
+    frameStatsBefore = RLGetEventThreadDiagStats();
+
+    frameState.windowHandle = RLGetWindowHandle();
+    frameState.workerDoneEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (frameState.workerDoneEvent == NULL)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to create frame-callback worker event");
+        goto cleanup;
+    }
+
+    {
+        uintptr_t frameWorkerHandleValue = _beginthreadex(NULL, 0, QueueSaturationFrameWorkerThread, &frameState, 0, NULL);
+        if (frameWorkerHandleValue == 0)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to start frame-callback worker");
+            goto cleanup;
+        }
+        frameWorkerHandle = (HANDLE)frameWorkerHandleValue;
+    }
+
+    Sleep(200);
+
+    if (!PumpFramesUntilCondition(8.0, QueueSaturationFrameDone, &frameState))
+    {
+        RLEventThreadDiagStats frameStatsOnTimeout = SubtractEventThreadDiagStats(RLGetEventThreadDiagStats(), frameStatsBefore);
+        RLTraceLog(RL_E_LOG_WARNING,
+                   "queue-selftest: frame-callback timeout stats normal accepted=%ld failed=%ld executed=%ld | critical accepted=%ld failed=%ld executed=%ld | dropped=%llu droppedNormal=%llu droppedCritical=%llu evicted=%llu",
+                   InterlockedCompareExchange(&frameState.acceptedNormalCount, 0, 0),
+                   InterlockedCompareExchange(&frameState.failedNormalCount, 0, 0),
+                   InterlockedCompareExchange(&frameState.executedNormalCount, 0, 0),
+                   InterlockedCompareExchange(&frameState.acceptedCriticalCount, 0, 0),
+                   InterlockedCompareExchange(&frameState.failedCriticalCount, 0, 0),
+                   InterlockedCompareExchange(&frameState.executedCriticalCount, 0, 0),
+                   frameStatsOnTimeout.frameCallbackDroppedCount,
+                   frameStatsOnTimeout.frameCallbackDroppedNormalCount,
+                   frameStatsOnTimeout.frameCallbackDroppedCriticalCount,
+                   frameStatsOnTimeout.frameCallbackEvictedNormalForCriticalCount);
+        RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: frame-callback phase timed out");
+        goto cleanup;
+    }
+
+    WaitForSingleObject(frameWorkerHandle, 8000);
+    CloseHandle(frameWorkerHandle);
+    frameWorkerHandle = NULL;
+
+    {
+        RLEventThreadDiagStats frameStats = SubtractEventThreadDiagStats(RLGetEventThreadDiagStats(), frameStatsBefore);
+        const long acceptedNormal = InterlockedCompareExchange(&frameState.acceptedNormalCount, 0, 0);
+        const long failedNormal = InterlockedCompareExchange(&frameState.failedNormalCount, 0, 0);
+        const long executedNormal = InterlockedCompareExchange(&frameState.executedNormalCount, 0, 0);
+        const long acceptedCritical = InterlockedCompareExchange(&frameState.acceptedCriticalCount, 0, 0);
+        const long failedCritical = InterlockedCompareExchange(&frameState.failedCriticalCount, 0, 0);
+        const long executedCritical = InterlockedCompareExchange(&frameState.executedCriticalCount, 0, 0);
+
+        RLTraceLog(RL_E_LOG_INFO,
+                   "queue-selftest: frame-callback normal accepted=%ld failed=%ld executed=%ld | critical accepted=%ld failed=%ld executed=%ld | dropped=%llu droppedNormal=%llu droppedCritical=%llu evicted=%llu",
+                   acceptedNormal,
+                   failedNormal,
+                   executedNormal,
+                   acceptedCritical,
+                   failedCritical,
+                   executedCritical,
+                   frameStats.frameCallbackDroppedCount,
+                   frameStats.frameCallbackDroppedNormalCount,
+                   frameStats.frameCallbackDroppedCriticalCount,
+                   frameStats.frameCallbackEvictedNormalForCriticalCount);
+
+        if ((acceptedNormal <= 0) ||
+            (acceptedCritical <= 0) ||
+            ((failedNormal + failedCritical) <= 0) ||
+            (executedNormal != acceptedNormal) ||
+            (executedCritical != acceptedCritical) ||
+            (frameStats.frameCallbackDroppedNormalCount != (unsigned long long)failedNormal) ||
+            (frameStats.frameCallbackDroppedCriticalCount != (unsigned long long)failedCritical) ||
+            (frameStats.frameCallbackDroppedCount != (unsigned long long)(failedNormal + failedCritical)) ||
+            (frameStats.frameCallbackEvictedNormalForCriticalCount != 0))
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: frame-callback phase failed invariants");
+            goto cleanup;
+        }
+    }
+
+    {
+        unsigned int queuedCount = 0u;
+        unsigned int queuedCriticalCount = 0u;
+        const unsigned int closeWaiterCount = (unsigned int)(sizeof(closeWaiterHandles)/sizeof(closeWaiterHandles[0]));
+
+        for (unsigned int callbackIndex = 0u; callbackIndex < QUEUE_SELFTEST_FRAME_CALLBACK_NORMAL_CAPACITY; callbackIndex++)
+        {
+            if (RLPostWindowFrameCallbackByHandleEx(RLGetWindowHandle(),
+                                                    FrameCallbackCloseNoopCallback,
+                                                    NULL,
+                                                    RL_FRAME_CALLBACK_KIND_NORMAL) == 0)
+            {
+                RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to prefill normal frame-callback queue");
+                goto cleanup;
+            }
+        }
+
+        for (unsigned int callbackIndex = 0u; callbackIndex < QUEUE_SELFTEST_FRAME_CALLBACK_CRITICAL_CAPACITY; callbackIndex++)
+        {
+            if (RLPostWindowFrameCallbackByHandleEx(RLGetWindowHandle(),
+                                                    FrameCallbackCloseNoopCallback,
+                                                    NULL,
+                                                    RL_FRAME_CALLBACK_KIND_CRITICAL) == 0)
+            {
+                RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to prefill critical frame-callback queue");
+                goto cleanup;
+            }
+        }
+
+        if (!RLGetCurrentContextFrameCallbackQueueStats(&queuedCount, &queuedCriticalCount, NULL, NULL, NULL, NULL, NULL))
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to query frame-callback queue stats before close-waiter phase");
+            goto cleanup;
+        }
+
+        if ((queuedCount != (QUEUE_SELFTEST_FRAME_CALLBACK_NORMAL_CAPACITY + QUEUE_SELFTEST_FRAME_CALLBACK_CRITICAL_CAPACITY)) ||
+            (queuedCriticalCount != QUEUE_SELFTEST_FRAME_CALLBACK_CRITICAL_CAPACITY))
+        {
+            RLTraceLog(RL_E_LOG_WARNING,
+                       "queue-selftest: unexpected prefill queue counts total=%u critical=%u",
+                       queuedCount,
+                       queuedCriticalCount);
+            goto cleanup;
+        }
+
+        closeWaiterState.windowHandle = RLGetWindowHandle();
+
+        for (unsigned int waiterIndex = 0u; waiterIndex < closeWaiterCount; waiterIndex++)
+        {
+            FrameCallbackCloseWaiterThreadArg *threadArg =
+                (FrameCallbackCloseWaiterThreadArg *)RL_MALLOC(sizeof(FrameCallbackCloseWaiterThreadArg));
+            if (threadArg == NULL)
+            {
+                RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to allocate close-waiter thread arg");
+                goto cleanup;
+            }
+
+            threadArg->state = &closeWaiterState;
+            threadArg->callbackKind = (waiterIndex < (closeWaiterCount/2u))
+                                      ? RL_FRAME_CALLBACK_KIND_NORMAL
+                                      : RL_FRAME_CALLBACK_KIND_CRITICAL;
+
+            {
+                uintptr_t waiterHandleValue = _beginthreadex(NULL, 0, FrameCallbackCloseWaiterThread, threadArg, 0, NULL);
+                if (waiterHandleValue == 0u)
+                {
+                    RL_FREE(threadArg);
+                    RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to start close-waiter thread");
+                    goto cleanup;
+                }
+                closeWaiterHandles[waiterIndex] = (HANDLE)waiterHandleValue;
+            }
+        }
+
+        {
+            const double waiterStartTime = RLGetTime();
+            while ((RLGetTime() - waiterStartTime) < 1.0)
+            {
+                if (InterlockedCompareExchange(&closeWaiterState.startedCount, 0, 0) >= (LONG)closeWaiterCount) break;
+                Sleep(1);
+            }
+        }
+
+        Sleep(50);
+        RLCloseWindow();
+
+        for (unsigned int waiterIndex = 0u; waiterIndex < closeWaiterCount; waiterIndex++)
+        {
+            if (closeWaiterHandles[waiterIndex] == NULL) continue;
+            WaitForSingleObject(closeWaiterHandles[waiterIndex], 8000);
+            CloseHandle(closeWaiterHandles[waiterIndex]);
+            closeWaiterHandles[waiterIndex] = NULL;
+        }
+
+        {
+            const long started = InterlockedCompareExchange(&closeWaiterState.startedCount, 0, 0);
+            const long accepted = InterlockedCompareExchange(&closeWaiterState.acceptedCount, 0, 0);
+            const long failed = InterlockedCompareExchange(&closeWaiterState.failedCount, 0, 0);
+
+            RLTraceLog(RL_E_LOG_INFO,
+                       "queue-selftest: frame-callback close-waiters started=%ld accepted=%ld failed=%ld",
+                       started,
+                       accepted,
+                       failed);
+
+            if ((started != (long)closeWaiterCount) ||
+                (accepted != 0) ||
+                (failed != (long)closeWaiterCount))
+            {
+                RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: frame-callback close-waiter phase failed invariants");
+                goto cleanup;
+            }
+        }
+    }
+
+    RLTraceLog(RL_E_LOG_INFO, "queue-selftest: PASSED");
+    result = 0;
+
+cleanup:
+    if (nativeState.blockerReleaseEvent != NULL) SetEvent(nativeState.blockerReleaseEvent);
+    if (nativeWorkerHandle != NULL)
+    {
+        WaitForSingleObject(nativeWorkerHandle, 8000);
+        CloseHandle(nativeWorkerHandle);
+    }
+    if (frameWorkerHandle != NULL)
+    {
+        WaitForSingleObject(frameWorkerHandle, 8000);
+        CloseHandle(frameWorkerHandle);
+    }
+    for (unsigned int waiterIndex = 0u; waiterIndex < (unsigned int)(sizeof(closeWaiterHandles)/sizeof(closeWaiterHandles[0])); waiterIndex++)
+    {
+        if (closeWaiterHandles[waiterIndex] == NULL) continue;
+        WaitForSingleObject(closeWaiterHandles[waiterIndex], 8000);
+        CloseHandle(closeWaiterHandles[waiterIndex]);
+    }
+    if (nativeState.blockerEnteredEvent != NULL) CloseHandle(nativeState.blockerEnteredEvent);
+    if (nativeState.blockerReleaseEvent != NULL) CloseHandle(nativeState.blockerReleaseEvent);
+    if (nativeState.workerDoneEvent != NULL) CloseHandle(nativeState.workerDoneEvent);
+    if (frameState.workerDoneEvent != NULL) CloseHandle(frameState.workerDoneEvent);
+    if (RLIsWindowReady()) RLCloseWindow();
+    return result;
+}
+#endif
 
 static void AddMarker(RLVector2 p, float r)
 {
@@ -1253,6 +1975,18 @@ int main(int argc, char **argv)
         const char *uncRootOverride = (argc >= 4)? argv[3] : NULL;
         return RunFileIoSmokeCli(rootOverride, uncRootOverride);
     }
+
+#if defined(_WIN32)
+    if ((argc >= 2) && (strcmp(argv[1], "--queue-saturation-selftest") == 0))
+    {
+        return RunQueueSaturationSelfTest();
+    }
+
+    if ((argc >= 2) && (strcmp(argv[1], "--semaphore-selftest") == 0))
+    {
+        return RunSemaphoreSelfTest();
+    }
+#endif
 
     // RLSetTraceLogLevel(RL_E_LOG_NONE); // Disable trace log message
 

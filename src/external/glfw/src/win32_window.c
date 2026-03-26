@@ -263,6 +263,22 @@ _GLFWwin32ThreadContext* _glfwGetThreadContextWin32(void)
             return NULL;
         }
 
+        ctx->taskSlotsAvailableSemaphore = CreateSemaphoreW(NULL,
+                                                            GLFW_WIN32_THREAD_TASK_CAPACITY,
+                                                            GLFW_WIN32_THREAD_TASK_CAPACITY,
+                                                            NULL);
+        if (!ctx->taskSlotsAvailableSemaphore)
+        {
+            if (_glfw.win32.threadLock)
+                _glfwPlatformUnlockMutex(_glfw.win32.threadLock);
+
+            CloseHandle(ctx->wakeEvent);
+            ctx->wakeEvent = NULL;
+            _glfw_free(ctx);
+            _glfwInputError(GLFW_PLATFORM_ERROR, "Win32: Failed to create thread task-slot semaphore");
+            return NULL;
+        }
+
         InitializeCriticalSection(&ctx->tasksLock);
         ctx->tasksHead = 0;
         ctx->tasksTail = 0;
@@ -395,6 +411,8 @@ void _glfwDrainThreadTasksWin32(_GLFWwin32ThreadContext* ctx)
             const _GLFWwin32ThreadTaskSlot task = ctx->tasksRing[ctx->tasksHead];
             ctx->tasksHead = (ctx->tasksHead + 1u) % GLFW_WIN32_THREAD_TASK_CAPACITY;
             ctx->tasksCount--;
+            if (ctx->taskSlotsAvailableSemaphore)
+                ReleaseSemaphore(ctx->taskSlotsAvailableSemaphore, 1, NULL);
 
             fn = task.fn;
             user = task.user;
@@ -430,6 +448,8 @@ void _glfwDiscardThreadTasksWin32(_GLFWwin32ThreadContext* ctx)
         releaseTaskSlotPayload(task);
         ctx->tasksHead = (ctx->tasksHead + 1u) % GLFW_WIN32_THREAD_TASK_CAPACITY;
         ctx->tasksCount--;
+        if (ctx->taskSlotsAvailableSemaphore)
+            ReleaseSemaphore(ctx->taskSlotsAvailableSemaphore, 1, NULL);
     }
     ctx->tasksTail = ctx->tasksHead;
     ctx->wakePosted = 0;
@@ -445,10 +465,21 @@ int _glfwPostTaskWin32(_GLFWwin32ThreadContext* ctx, void (*fn)(void* user), voi
     return _glfwPostTaskWin32Ex(ctx, fn, user, &meta);
 }
 
-static int isDroppableClass(unsigned char taskClass)
+static DWORD getTaskQueueWaitTimeoutMs(unsigned char taskClass)
 {
-    return (taskClass == (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT) ||
-           (taskClass == (unsigned char)GLFW_THREAD_TASK_CLASS_MAINTENANCE);
+    switch (taskClass)
+    {
+        case GLFW_THREAD_TASK_CLASS_CRITICAL:
+            return (DWORD)GLFW_WIN32_THREAD_TASK_WAIT_CRITICAL_MS;
+        case GLFW_THREAD_TASK_CLASS_STATE:
+            return (DWORD)GLFW_WIN32_THREAD_TASK_WAIT_STATE_MS;
+        case GLFW_THREAD_TASK_CLASS_INPUT:
+            return (DWORD)GLFW_WIN32_THREAD_TASK_WAIT_INPUT_MS;
+        case GLFW_THREAD_TASK_CLASS_MAINTENANCE:
+            return (DWORD)GLFW_WIN32_THREAD_TASK_WAIT_MAINTENANCE_MS;
+        default:
+            return (DWORD)GLFW_WIN32_THREAD_TASK_WAIT_STATE_MS;
+    }
 }
 
 static void releaseTaskSlotPayload(_GLFWwin32ThreadTaskSlot* slot)
@@ -461,50 +492,21 @@ static void releaseTaskSlotPayload(_GLFWwin32ThreadTaskSlot* slot)
     slot->userDtor = NULL;
 }
 
-static int evictOldestDroppableLocked(_GLFWwin32ThreadContext* ctx)
+static int waitForTaskSlotCredit(_GLFWwin32ThreadContext* ctx, unsigned char taskClass)
 {
-    unsigned int logicalDropIndex = 0;
-    unsigned int logicalOffset = 0;
-    int dropCandidateFound = 0;
-
-    if (!ctx || (ctx->tasksCount == 0))
+    if (!ctx || !ctx->taskSlotsAvailableSemaphore)
         return 0;
 
-    for (logicalOffset = 0; logicalOffset < ctx->tasksCount; logicalOffset++)
+    if (ctx->tid == GetCurrentThreadId())
     {
-        const unsigned int ringIndex = (ctx->tasksHead + logicalOffset) % GLFW_WIN32_THREAD_TASK_CAPACITY;
-        _GLFWwin32ThreadTaskSlot* taskSlot = &ctx->tasksRing[ringIndex];
-        if (taskSlot->droppable || isDroppableClass(taskSlot->taskClass))
-        {
-            logicalDropIndex = logicalOffset;
-            dropCandidateFound = 1;
-            break;
-        }
+        if (WaitForSingleObject(ctx->taskSlotsAvailableSemaphore, 0) == WAIT_OBJECT_0)
+            return 1;
+
+        _glfwDrainThreadTasksWin32(ctx);
+        return (WaitForSingleObject(ctx->taskSlotsAvailableSemaphore, 0) == WAIT_OBJECT_0);
     }
 
-    if (!dropCandidateFound) return 0;
-
-    {
-        const unsigned int droppedRingIndex = (ctx->tasksHead + logicalDropIndex) % GLFW_WIN32_THREAD_TASK_CAPACITY;
-        const unsigned char droppedTaskClass = ctx->tasksRing[droppedRingIndex].taskClass;
-        releaseTaskSlotPayload(&ctx->tasksRing[droppedRingIndex]);
-        ctx->tasksDropped++;
-        if (droppedTaskClass < 4) ctx->tasksDroppedByClass[droppedTaskClass]++;
-    }
-
-    // Stable compaction by logical index:
-    // Move [logicalDropIndex + 1, tasksCount - 1] one slot toward head.
-    for (logicalOffset = logicalDropIndex; (logicalOffset + 1u) < ctx->tasksCount; logicalOffset++)
-    {
-        const unsigned int dstRingIndex = (ctx->tasksHead + logicalOffset) % GLFW_WIN32_THREAD_TASK_CAPACITY;
-        const unsigned int srcRingIndex = (ctx->tasksHead + logicalOffset + 1u) % GLFW_WIN32_THREAD_TASK_CAPACITY;
-        ctx->tasksRing[dstRingIndex] = ctx->tasksRing[srcRingIndex];
-    }
-
-    ctx->tasksCount--;
-    ctx->tasksTail = (ctx->tasksHead + ctx->tasksCount) % GLFW_WIN32_THREAD_TASK_CAPACITY;
-
-    return 1;
+    return (WaitForSingleObject(ctx->taskSlotsAvailableSemaphore, getTaskQueueWaitTimeoutMs(taskClass)) == WAIT_OBJECT_0);
 }
 
 int _glfwPostTaskWin32Ex(_GLFWwin32ThreadContext* ctx, void (*fn)(void* user), void* user, const GLFWthreadtaskmeta* meta)
@@ -533,21 +535,27 @@ int _glfwPostTaskWin32Ex(_GLFWwin32ThreadContext* ctx, void (*fn)(void* user), v
     if (localMeta.taskClass > (unsigned char)GLFW_THREAD_TASK_CLASS_MAINTENANCE)
         localMeta.taskClass = (unsigned char)GLFW_THREAD_TASK_CLASS_STATE;
 
+    if (!waitForTaskSlotCredit(ctx, localMeta.taskClass))
+    {
+        EnterCriticalSection(&ctx->tasksLock);
+        ctx->tasksDropped++;
+        if (localMeta.taskClass < 4) ctx->tasksDroppedByClass[localMeta.taskClass]++;
+        LeaveCriticalSection(&ctx->tasksLock);
+
+        if (localMeta.userDtor && user) localMeta.userDtor(user);
+        _glfwInputError(GLFW_PLATFORM_ERROR, "Win32: Thread task queue enqueue timed out");
+        return 0;
+    }
+
     int shouldWake = 0;
     EnterCriticalSection(&ctx->tasksLock);
     if (ctx->tasksCount >= GLFW_WIN32_THREAD_TASK_CAPACITY)
     {
-        // Queue is full: preserve critical/state work by evicting old droppable tasks when possible.
-        if (!evictOldestDroppableLocked(ctx))
-        {
-            // No low-priority task available to evict -> drop incoming.
-            ctx->tasksDropped++;
-            if (localMeta.taskClass < 4) ctx->tasksDroppedByClass[localMeta.taskClass]++;
-            LeaveCriticalSection(&ctx->tasksLock);
-            if (localMeta.userDtor && user) localMeta.userDtor(user);
-            _glfwInputError(GLFW_PLATFORM_ERROR, "Win32: Thread task queue overflow (task dropped)");
-            return 0;
-        }
+        LeaveCriticalSection(&ctx->tasksLock);
+        ReleaseSemaphore(ctx->taskSlotsAvailableSemaphore, 1, NULL);
+        if (localMeta.userDtor && user) localMeta.userDtor(user);
+        _glfwInputError(GLFW_PLATFORM_ERROR, "Win32: Thread task queue credit/state mismatch");
+        return 0;
     }
 
     ctx->tasksRing[ctx->tasksTail].fn = fn;

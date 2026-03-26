@@ -74,6 +74,17 @@ void      RLEventWait(RLEvent* eventHandle);
 bool      RLEventWaitTimeout(RLEvent* eventHandle, uint32_t timeoutMs);
 void      RLEventDestroy(RLEvent* eventHandle);
 
+// Counting semaphore
+typedef struct RLSemaphore RLSemaphore;
+RLSemaphore* RLSemaphoreCreate(uint32_t initialCount, uint32_t maxCount);
+RLSemaphore* RLSemaphoreRetain(RLSemaphore* semaphoreHandle);
+void         RLSemaphoreClose(RLSemaphore* semaphoreHandle);
+bool         RLSemaphoreTryAcquire(RLSemaphore* semaphoreHandle);
+bool         RLSemaphoreWaitTimeout(RLSemaphore* semaphoreHandle, uint32_t timeoutMs);
+void         RLSemaphoreReleaseOne(RLSemaphore* semaphoreHandle);
+void         RLSemaphoreReleaseCount(RLSemaphore* semaphoreHandle, uint32_t releaseCount);
+void         RLSemaphoreRelease(RLSemaphore* semaphoreHandle);
+
 #ifdef __cplusplus
 }
 #endif

@@ -207,6 +207,17 @@ struct RLEvent
     bool signaled{false};
 };
 
+struct RLSemaphore
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    uint32_t availableCount{0};
+    uint32_t maxCount{0};
+    uint32_t referenceCount{1};
+    uint32_t waitingCount{0};
+    bool closing{false};
+};
+
 extern "C" void RLThreadSetNameCurrent(const char* nameUtf8)
 {
     if (nameUtf8 == nullptr || nameUtf8[0] == '\0') return;
@@ -361,4 +372,127 @@ extern "C" bool RLEventWaitTimeout(RLEvent* eventHandle, uint32_t timeoutMs)
 extern "C" void RLEventDestroy(RLEvent* eventHandle)
 {
     delete eventHandle;
+}
+
+extern "C" RLSemaphore* RLSemaphoreCreate(uint32_t initialCount, uint32_t maxCount)
+{
+    if (maxCount == 0u) return nullptr;
+    if (initialCount > maxCount) initialCount = maxCount;
+
+    RLSemaphore* semaphoreHandle = new RLSemaphore{};
+    semaphoreHandle->availableCount = initialCount;
+    semaphoreHandle->maxCount = maxCount;
+    return semaphoreHandle;
+}
+
+extern "C" RLSemaphore* RLSemaphoreRetain(RLSemaphore* semaphoreHandle)
+{
+    if (semaphoreHandle == nullptr) return nullptr;
+
+    std::lock_guard<std::mutex> lock(semaphoreHandle->mutex);
+    if (semaphoreHandle->closing) return nullptr;
+    semaphoreHandle->referenceCount++;
+    return semaphoreHandle;
+}
+
+extern "C" void RLSemaphoreClose(RLSemaphore* semaphoreHandle)
+{
+    if (semaphoreHandle == nullptr) return;
+
+    {
+        std::lock_guard<std::mutex> lock(semaphoreHandle->mutex);
+        semaphoreHandle->closing = true;
+    }
+
+    semaphoreHandle->condition.notify_all();
+}
+
+extern "C" bool RLSemaphoreTryAcquire(RLSemaphore* semaphoreHandle)
+{
+    if (semaphoreHandle == nullptr) return false;
+
+    std::lock_guard<std::mutex> lock(semaphoreHandle->mutex);
+    if (semaphoreHandle->closing) return false;
+    if (semaphoreHandle->availableCount == 0u) return false;
+    semaphoreHandle->availableCount--;
+    return true;
+}
+
+extern "C" bool RLSemaphoreWaitTimeout(RLSemaphore* semaphoreHandle, uint32_t timeoutMs)
+{
+    if (semaphoreHandle == nullptr) return false;
+
+    std::unique_lock<std::mutex> lock(semaphoreHandle->mutex);
+    semaphoreHandle->waitingCount++;
+    const bool ready = semaphoreHandle->condition.wait_for(
+        lock,
+        std::chrono::milliseconds(timeoutMs),
+        [semaphoreHandle]()
+        {
+            return semaphoreHandle->closing || (semaphoreHandle->availableCount > 0u);
+        });
+    semaphoreHandle->waitingCount--;
+
+    if (!ready || semaphoreHandle->closing || (semaphoreHandle->availableCount == 0u)) return false;
+    semaphoreHandle->availableCount--;
+    return true;
+}
+
+extern "C" void RLSemaphoreReleaseOne(RLSemaphore* semaphoreHandle)
+{
+    if (semaphoreHandle == nullptr) return;
+
+    uint32_t waitingCount = 0u;
+    {
+        std::lock_guard<std::mutex> lock(semaphoreHandle->mutex);
+        if (semaphoreHandle->availableCount < semaphoreHandle->maxCount)
+        {
+            semaphoreHandle->availableCount++;
+            waitingCount = semaphoreHandle->waitingCount;
+        }
+    }
+
+    if (waitingCount > 0u) semaphoreHandle->condition.notify_one();
+}
+
+extern "C" void RLSemaphoreReleaseCount(RLSemaphore* semaphoreHandle, uint32_t releaseCount)
+{
+    if ((semaphoreHandle == nullptr) || (releaseCount == 0u)) return;
+
+    uint32_t addedCount = 0u;
+    uint32_t waitingCount = 0u;
+    {
+        std::lock_guard<std::mutex> lock(semaphoreHandle->mutex);
+        const uint32_t previousCount = semaphoreHandle->availableCount;
+        uint64_t nextCount = (uint64_t)semaphoreHandle->availableCount + (uint64_t)releaseCount;
+        if (nextCount > (uint64_t)semaphoreHandle->maxCount) nextCount = semaphoreHandle->maxCount;
+        semaphoreHandle->availableCount = (uint32_t)nextCount;
+        addedCount = semaphoreHandle->availableCount - previousCount;
+        waitingCount = semaphoreHandle->waitingCount;
+    }
+
+    if ((addedCount == 0u) || (waitingCount == 0u)) return;
+
+    const uint32_t wakeCount = (addedCount < waitingCount) ? addedCount : waitingCount;
+    if (wakeCount >= 4u)
+    {
+        semaphoreHandle->condition.notify_all();
+        return;
+    }
+
+    for (uint32_t wakeIndex = 0u; wakeIndex < wakeCount; wakeIndex++) semaphoreHandle->condition.notify_one();
+}
+
+extern "C" void RLSemaphoreRelease(RLSemaphore* semaphoreHandle)
+{
+    if (semaphoreHandle == nullptr) return;
+
+    bool shouldDelete = false;
+    {
+        std::lock_guard<std::mutex> lock(semaphoreHandle->mutex);
+        if (semaphoreHandle->referenceCount > 0u) semaphoreHandle->referenceCount--;
+        shouldDelete = (semaphoreHandle->referenceCount == 0u);
+    }
+
+    if (shouldDelete) delete semaphoreHandle;
 }
