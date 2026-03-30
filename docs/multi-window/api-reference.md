@@ -116,13 +116,51 @@ Large diagnostics structure for event-thread mode.
 Notable field groups:
 - payload allocation counters
 - native Win32 task queue depth and dropped counts
-- frame callback queue depth and dropped counts
+- frame callback queue depth, peak, dropped, executed, cleared, and inline-fallback counts
 - pump timing
 - swap and wait costs
 - thread-mismatch counters
 
 ### `RLThreadMismatchDiagStats`
 Compact diagnostics structure summarizing render-thread mismatch handling for GPU-write APIs.
+
+### `RLFrameCallbackQueueStats`
+Lightweight queue snapshot for the current window/context frame-callback queues.
+
+Inline fallback means:
+- the caller is already on the target render thread
+- the selected frame-callback queue has no free slot at that moment
+- instead of waiting for queue space, the callback executes immediately on that render thread
+
+Accounting rules:
+- inline-fallback callbacks count as `executed*`
+- they also count as `inlineFallback*`
+- they do not become queued entries, so they do not increase `queued*`
+- they are not counted as dropped or cleared
+- once execution begins, ownership of `user` follows the normal callback-executed rule
+
+Key fields:
+- `queuedCount`: total queued callbacks
+- `queuedNormalCount`: queued normal callbacks
+- `queuedCriticalCount`: queued critical callbacks
+- `queuedPeakCount`: peak queued count since last reset
+- `queuedPeakNormalCount`: peak queued normal count since last reset
+- `queuedPeakCriticalCount`: peak queued critical count since last reset
+- `droppedCount`: total dropped callbacks
+- `droppedNormalCount`: dropped normal callbacks
+- `droppedCriticalCount`: dropped critical callbacks
+- `executedCount`: total executed callbacks
+- `executedNormalCount`: executed normal callbacks
+- `executedCriticalCount`: executed critical callbacks
+- `clearedCount`: queued callbacks cleared before execution
+- `clearedNormalCount`: cleared normal callbacks
+- `clearedCriticalCount`: cleared critical callbacks
+- `inlineFallbackCount`: queue-saturated callbacks executed immediately on the render thread
+- `inlineFallbackNormalCount`: normal callbacks executed via inline fallback
+- `inlineFallbackCriticalCount`: critical callbacks executed via inline fallback
+
+Use case:
+- Poll only frame-callback queue state without reading the full `RLEventThreadDiagStats` snapshot.
 
 ## Feature Flags
 
@@ -279,6 +317,47 @@ Notes:
 Use case:
 - Explicitly force deferred shared-GPU deletion at controlled points.
 
+### `RLSharedGpuDiagStats`
+Structured diagnostics snapshot for the current context's share-group.
+
+Key fields:
+- `hasShareGroup`: whether the current context is currently bound to a share-group
+- `usesSharedTrackedScope`: whether tracked-object scope has been promoted from per-context to share-group scope
+- `contextRefCount`: number of contexts still attached to the group
+- `liveObjectCount` / `pendingDeleteCount`: live shared objects and deferred-delete queue depth
+- `ownerEntryCount` / `orphanedOwnerCount`: current owner metadata entries and orphaned owner entries
+- `framebufferAttachmentMapCount` / `framebufferDepthMapCount`: current framebuffer attachment/depth mapping table sizes
+- `programLocEntryCount` / `programUseScopeCount` / `pendingProgramFenceCount`: shader-program coordination state
+- `textureTraceCount`: number of texture trace metadata records
+- `live*` / `pending*`: per-object-type live and pending counts
+- `framebufferMapHitCount` / `framebufferMapMissCount` / `framebufferReleaseSkippedCount`: framebuffer mapping effectiveness counters
+- `releaseUntrackedCount`: number of release calls observed on untracked objects
+- `unregisteredRetainRejectCount` / `unregisteredReleaseRejectCount`: strict-mode reject counters for unregistered retain/release
+
+Use case:
+- Capture a machine-readable share-group snapshot before or after create/unload/flush checkpoints.
+
+### `RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void)`
+Return the current share-group diagnostics snapshot.
+
+Returns:
+- zero-filled snapshot when no share-group is currently bound on this thread
+- populated snapshot for the current context's share-group otherwise
+
+Notes:
+- This is the structured counterpart to `RLDebugDumpSharedGpuState()`.
+- The returned data is suitable for logs, assertions, or automated tests.
+
+### `void RLDebugDumpSharedGpuState(const char *label)`
+Dump the current share-group diagnostics snapshot to the trace log.
+
+Parameters:
+- `label`: optional label included in the log output
+
+Notes:
+- Output format is intended for human diagnosis.
+- For stable programmatic checks, prefer `RLGetSharedGpuDiagStats()`.
+
 ## Shared Shader Coordination APIs
 
 ### `bool RLBeginSharedShaderUse(RLShader shader, int policy)`
@@ -305,6 +384,38 @@ Configure polling slice and timeout used by the phased shared-shader fence wait 
 Parameters:
 - `waitSliceUs`: microseconds per poll slice
 - `waitTimeoutUs`: total timeout in microseconds
+
+## Lightweight Frame-Callback Queue API
+
+### `bool RLGetCurrentWindowFrameCallbackQueueStats(RLFrameCallbackQueueStats *outStats)`
+Get a lightweight frame-callback queue snapshot for the current window/context.
+
+Parameters:
+- `outStats`: destination structure
+
+Returns:
+- `true` when queue stats are available for the current window/context
+- `false` when the current backend/window mode does not expose these stats
+
+Notes:
+- This is the lightweight companion to the `frameCallbackQueue*` fields in `RLEventThreadDiagStats`.
+- Prefer this API when you only need current frame-callback queue state.
+- Available on the Win32 + desktop GLFW backend.
+
+### `bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueueStats *outStats)`
+Get a lightweight frame-callback queue snapshot for a specific raylib window.
+
+Parameters:
+- `hwnd`: target window handle
+- `outStats`: destination structure
+
+Returns:
+- `true` when queue stats are available for the target window
+- `false` when the handle is unknown or the current backend/window mode does not expose these stats
+
+Notes:
+- Use this when the querying thread is not currently bound to the target window/context.
+- Available on the Win32 + desktop GLFW backend.
 
 ## Shared Ownership APIs
 
@@ -461,6 +572,27 @@ Use this for:
 - Win32 UI operations
 - HWND-affine state changes
 
+### `intptr_t RLWin32InvokeOnWindowThreadByHandleEx(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait, void (*userDtor)(void*))`
+Run `fn` on the target window's Win32 thread with explicit payload ownership transfer.
+
+Parameters:
+- `hwnd`: target window handle
+- `fn`: callback to execute on the window thread
+- `user`: opaque payload
+- `wait`: synchronization flag; `0` posts asynchronously, non-zero waits until completion
+- `userDtor`: optional destructor for `user`
+
+Ownership rules:
+- if dispatch is rejected before execution, `userDtor(user)` is called before return
+- if an asynchronous request is accepted but later canceled before callback execution, `userDtor(user)` is called
+- if the callback executes, ownership transfers to the callback implementation
+
+Notes:
+- This is the ownership-managed companion to `RLWin32InvokeOnWindowThreadByHandle()`.
+- Automated coverage is available in `examples/core/core_event_thread_diagnostics.c` via `--invoke-owned-selftest`.
+- The synchronous path preserves the callback return value, including zero.
+- The callback implementation becomes responsible for `user` as soon as execution begins.
+
 ### `intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait)`
 Run `fn` on the target window's render thread.
 
@@ -473,6 +605,27 @@ Parameters:
 Important note:
 - This is not frame-safe.
 - In non-event-thread mode it only works when called from the same thread that owns the target GL context.
+
+### `intptr_t RLInvokeOnWindowRenderThreadByHandleEx(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait, void (*userDtor)(void*))`
+Run `fn` on the target window's render thread with explicit payload ownership transfer.
+
+Parameters:
+- `hwnd`: target window handle
+- `fn`: render-thread callback
+- `user`: opaque payload
+- `wait`: synchronization flag; `0` posts asynchronously, non-zero waits until completion
+- `userDtor`: optional destructor for `user`
+
+Ownership rules:
+- if dispatch is rejected before execution, `userDtor(user)` is called before return
+- if a queued invoke is later rejected during close/stop before callback execution, `userDtor(user)` is called
+- if the callback executes, ownership transfers to the callback implementation
+
+Notes:
+- This is the ownership-managed companion to `RLInvokeOnWindowRenderThreadByHandle()`.
+- Automated coverage is available in `examples/core/core_event_thread_diagnostics.c` via `--invoke-owned-selftest`.
+- It closes the common leak-prone path where asynchronous invoke payloads otherwise need ad-hoc cleanup on enqueue failure.
+- The callback implementation becomes responsible for `user` as soon as execution begins.
 
 ## Frame-Safe Render Callback APIs
 
@@ -515,6 +668,9 @@ Return value:
 
 Notes:
 - Callback executes at a fixed point inside `RLEndDrawing()` before final batch flush/swap.
+- If the caller is already on the target render thread and the selected queue is saturated, the callback may execute immediately as inline fallback instead of waiting for queue space.
+- Inline fallback still counts as successful execution, not as drop or clear.
+- If the callback never executes, the framework may call `userDtor(user)` during enqueue failure, close, stop, or queue cleanup.
 - If the callback executes, ownership of `user` transfers to the callback implementation.
 - The queue is bounded; enqueue may fail under pressure.
 

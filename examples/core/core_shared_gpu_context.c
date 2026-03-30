@@ -30,9 +30,6 @@
     #include <process.h> // _beginthreadex
 #endif
 
-// Internal helper for debug dumping of share-group state (live refs/pending deletes)
-#include "rl_shared_gpu.h"
-
 #if defined(PLATFORM_DESKTOP)
     #define GLSL_VERSION 330
 #else
@@ -94,6 +91,49 @@ static void PrintMemDiagStatsLine(const char *stageName, RLMemoryDiagStats stats
         stats.peakOutstandingBytes,
         stats.allocFailCount,
         stats.reallocFailCount);
+}
+
+static void PrintSharedGpuDiagStatsLine(const char *stageName)
+{
+    RLSharedGpuDiagStats sharedGpuDiagStats = RLGetSharedGpuDiagStats();
+    const char *trackedScopeText = sharedGpuDiagStats.usesSharedTrackedScope ? "share_group" : "context";
+
+    printf("SHARED_GPU_DIAG: %s has_group=%d tracked_scope=%s ctx_refs=%u live=%llu pending=%llu owners=%llu orphaned=%llu untracked_release=%llu reject_retain=%llu reject_release=%llu\n",
+        (stageName != NULL) ? stageName : "(unknown)",
+        sharedGpuDiagStats.hasShareGroup,
+        trackedScopeText,
+        sharedGpuDiagStats.contextRefCount,
+        sharedGpuDiagStats.liveObjectCount,
+        sharedGpuDiagStats.pendingDeleteCount,
+        sharedGpuDiagStats.ownerEntryCount,
+        sharedGpuDiagStats.orphanedOwnerCount,
+        sharedGpuDiagStats.releaseUntrackedCount,
+        sharedGpuDiagStats.unregisteredRetainRejectCount,
+        sharedGpuDiagStats.unregisteredReleaseRejectCount);
+
+    printf("SHARED_GPU_DIAG: %s live_tex=%llu live_buf=%llu live_vao=%llu live_fbo=%llu live_rbo=%llu live_prog=%llu pending_tex=%llu pending_buf=%llu pending_vao=%llu pending_fbo=%llu pending_rbo=%llu pending_prog=%llu map_attach=%llu map_depth=%llu map_hit=%llu map_miss=%llu map_release_skip=%llu prog_locs=%llu prog_scopes=%llu pending_fences=%llu texture_trace=%llu\n",
+        (stageName != NULL) ? stageName : "(unknown)",
+        sharedGpuDiagStats.liveTextureCount,
+        sharedGpuDiagStats.liveBufferCount,
+        sharedGpuDiagStats.liveVertexArrayCount,
+        sharedGpuDiagStats.liveFramebufferCount,
+        sharedGpuDiagStats.liveRenderbufferCount,
+        sharedGpuDiagStats.liveProgramCount,
+        sharedGpuDiagStats.pendingTextureCount,
+        sharedGpuDiagStats.pendingBufferCount,
+        sharedGpuDiagStats.pendingVertexArrayCount,
+        sharedGpuDiagStats.pendingFramebufferCount,
+        sharedGpuDiagStats.pendingRenderbufferCount,
+        sharedGpuDiagStats.pendingProgramCount,
+        sharedGpuDiagStats.framebufferAttachmentMapCount,
+        sharedGpuDiagStats.framebufferDepthMapCount,
+        sharedGpuDiagStats.framebufferMapHitCount,
+        sharedGpuDiagStats.framebufferMapMissCount,
+        sharedGpuDiagStats.framebufferReleaseSkippedCount,
+        sharedGpuDiagStats.programLocEntryCount,
+        sharedGpuDiagStats.programUseScopeCount,
+        sharedGpuDiagStats.pendingProgramFenceCount,
+        sharedGpuDiagStats.textureTraceCount);
 }
 
 static const char *GetShaderModeLabel(SharedShaderTestMode mode)
@@ -158,7 +198,7 @@ static void TraceReentryTestCallback(int logLevel, const char *text, va_list arg
         RLDebugDumpTrackedObjectState("trace-reentry-test: nested tracked dump");
 
         gTraceReentryTestState.nestedSharedDumpCount++;
-        RLSharedGpuDebugDumpState("trace-reentry-test: nested shared dump");
+        RLDebugDumpSharedGpuState("trace-reentry-test: nested shared dump");
     }
 
     gTraceReentryTestState.callbackDepth--;
@@ -279,7 +319,8 @@ static void ValidateSharedObjectIdApis(void)
     if ((rboId != 0) && (!RLSharedRetainRenderbuffer(rboId) || !RLSharedReleaseRenderbuffer(rboId)))
         RLTraceLog(RL_E_LOG_WARNING, "verify: renderbuffer retain/release validation failed (id=%u)", rboId);
 
-    RLSharedGpuDebugDumpState("recreate: after low-level retain/release validation");
+    RLDebugDumpSharedGpuState("recreate: after low-level retain/release validation");
+    PrintSharedGpuDiagStatsLine("recreate_after_low_level_validation");
 
     if (vaoId != 0) rlUnloadVertexArray(vaoId);
     if (vboId != 0) rlUnloadVertexBuffer(vboId);
@@ -439,7 +480,8 @@ static unsigned __stdcall WorkerThread(void *arg)
 
     if (gEvtWorkerHeld) SetEvent(gEvtWorkerHeld);
 
-    RLSharedGpuDebugDumpState("worker: after retain");
+    RLDebugDumpSharedGpuState("worker: after retain");
+    PrintSharedGpuDiagStatsLine("worker_after_retain");
 
     bool unloaded = false;
     double workerStartTime = RLGetTime();
@@ -515,7 +557,8 @@ static unsigned __stdcall WorkerThread(void *arg)
 
             // Drain any deferred deletes on this context.
             FlushPendingSharedDeletesForCurrentWindow("worker");
-            RLSharedGpuDebugDumpState("worker: after unload+flush");
+            RLDebugDumpSharedGpuState("worker: after unload+flush");
+            PrintSharedGpuDiagStatsLine("worker_after_unload_flush");
             unloaded = true;
         }
 
@@ -538,7 +581,8 @@ static unsigned __stdcall WorkerThread(void *arg)
         else if (workerLocalShader.id != 0) RLUnloadShader(workerLocalShader);
         RLUnloadRenderTexture(gPack.rt);
         FlushPendingSharedDeletesForCurrentWindow("worker");
-        RLSharedGpuDebugDumpState("worker: cleanup on early close");
+        RLDebugDumpSharedGpuState("worker: cleanup on early close");
+        PrintSharedGpuDiagStatsLine("worker_cleanup_on_early_close");
         unloaded = true;
     }
 
@@ -612,7 +656,8 @@ int main(int argc, char **argv)
     gPack.shader = LoadTintShaderFromMemory();
     gPack.rt = RLLoadRenderTexture(240, 180);
 
-    RLSharedGpuDebugDumpState("main: after create");
+    RLDebugDumpSharedGpuState("main: after create");
+    PrintSharedGpuDiagStatsLine("main_after_create");
 
     // ---- Phase B: worker window/context (different thread) ----
     gEvtReady = CreateEventA(NULL, TRUE, FALSE, NULL);
@@ -701,7 +746,8 @@ int main(int argc, char **argv)
             RLUnloadShader(gPack.shader);
             RLUnloadRenderTexture(gPack.rt);
             FlushPendingSharedDeletesForCurrentWindow("main");
-            RLSharedGpuDebugDumpState("main: after unload+flush");
+            RLDebugDumpSharedGpuState("main: after unload+flush");
+            PrintSharedGpuDiagStatsLine("main_after_unload_flush");
             mainUnloaded = true;
         }
 
@@ -737,11 +783,13 @@ int main(int argc, char **argv)
         RLUnloadShader(gPack.shader);
         RLUnloadRenderTexture(gPack.rt);
         FlushPendingSharedDeletesForCurrentWindow("main");
-        RLSharedGpuDebugDumpState("main: cleanup on early close");
+        RLDebugDumpSharedGpuState("main: cleanup on early close");
+        PrintSharedGpuDiagStatsLine("main_cleanup_on_early_close");
         mainUnloaded = true;
     }
 
-    RLSharedGpuDebugDumpState("main: before close");
+    RLDebugDumpSharedGpuState("main: before close");
+    PrintSharedGpuDiagStatsLine("main_before_close");
     RLCloseWindow();
     RLDestroyContext(mainCtx);
     PrintMemDiagStatsLine("phase_b_post_destroy", RLGetMemoryDiagStats());
@@ -776,7 +824,8 @@ int main(int argc, char **argv)
     RLShader sh2 = LoadTintShaderFromMemory();
     RLRenderTexture2D rt2 = RLLoadRenderTexture(256, 256);
 
-    RLSharedGpuDebugDumpState("recreate: after create");
+    RLDebugDumpSharedGpuState("recreate: after create");
+    PrintSharedGpuDiagStatsLine("recreate_after_create");
     ValidateSharedObjectIdApis();
 
     double recreatePhaseStartTime = RLGetTime();
@@ -812,7 +861,8 @@ int main(int argc, char **argv)
     RLUnloadShader(sh2);
     RLUnloadRenderTexture(rt2);
     FlushPendingSharedDeletesForCurrentWindow("recreate");
-    RLSharedGpuDebugDumpState("recreate: after unload+flush");
+    RLDebugDumpSharedGpuState("recreate: after unload+flush");
+    PrintSharedGpuDiagStatsLine("recreate_after_unload_flush");
 
     RLCloseWindow();
     RLDestroyContext(ctx2);

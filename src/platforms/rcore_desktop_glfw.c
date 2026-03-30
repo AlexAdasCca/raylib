@@ -125,6 +125,8 @@
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 #if defined(_WIN32)
+typedef struct RLWin32UserInvokeCall RLWin32UserInvokeCall;
+
 #ifndef RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY
     #define RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY 1024u
 #endif
@@ -233,10 +235,21 @@ typedef struct {
     volatile long frameCallbackQueuedHint;
     volatile long frameCallbackCriticalQueuedHint;
     unsigned int frameCallbackQueuedPeak;
+    unsigned int frameCallbackNormalQueuedPeak;
+    unsigned int frameCallbackCriticalQueuedPeak;
     unsigned long long frameCallbackDroppedCount;
     unsigned long long frameCallbackDroppedNormalCount;
     unsigned long long frameCallbackDroppedCriticalCount;
-    unsigned long long frameCallbackEvictedNormalForCriticalCount;
+    unsigned long long frameCallbackExecutedCount;
+    unsigned long long frameCallbackExecutedNormalCount;
+    unsigned long long frameCallbackExecutedCriticalCount;
+    unsigned long long frameCallbackClearedCount;
+    unsigned long long frameCallbackClearedNormalCount;
+    unsigned long long frameCallbackClearedCriticalCount;
+    unsigned long long frameCallbackInlineFallbackCount;
+    unsigned long long frameCallbackInlineFallbackNormalCount;
+    unsigned long long frameCallbackInlineFallbackCriticalCount;
+    RLWin32UserInvokeCall* pendingWindowThreadInvokeHead;
 #endif
 } PlatformData;
 
@@ -785,12 +798,19 @@ typedef struct
     RLEvent *done;
 } RLGlfwThreadCall;
 
+typedef enum
+{
+    RL_GLFW_RENDER_CALL_DROP_NONE = 0,
+    RL_GLFW_RENDER_CALL_DROP_FREE_USER = 1,
+    RL_GLFW_RENDER_CALL_DROP_RENDER_INVOKE = 2
+} RLGlfwRenderCallDropKind;
+
 typedef struct
 {
     RLContext *ctx;
     void (*fn)(void *user);
     void *user;
-    void (*userDtor)(void *user);
+    unsigned char dropKind; // RLGlfwRenderCallDropKind
 } RLGlfwRenderCall;
 
 // Forward declaration: avoid implicit int prototype in C (MSVC) before definition.
@@ -838,11 +858,29 @@ static void RLGlfwFreeTaskUser(void *user)
     if (user) RL_FREE(user);
 }
 
+static void RLGlfwDropRenderInvokeCall(void* user);
+
 static void RLGlfwDropRenderCall(void *user)
 {
     RLGlfwRenderCall *call = (RLGlfwRenderCall *)user;
     if (!call) return;
-    if (call->userDtor && call->user) call->userDtor(call->user);
+    if (call->user)
+    {
+        if (call->dropKind == (unsigned char)RL_GLFW_RENDER_CALL_DROP_FREE_USER)
+        {
+            RLGlfwFreeTaskUser(call->user);
+        }
+        else if (call->dropKind == (unsigned char)RL_GLFW_RENDER_CALL_DROP_RENDER_INVOKE)
+        {
+            RLGlfwDropRenderInvokeCall(call->user);
+        }
+        else if (call->dropKind != (unsigned char)RL_GLFW_RENDER_CALL_DROP_NONE)
+        {
+            TRACELOG(RL_E_LOG_WARNING,
+                     "EVENTTHREAD: unexpected render-call drop kind=%u call=%p ctx=%p fn=%p user=%p",
+                     (unsigned int)call->dropKind, (void *)call, (void *)call->ctx, (void *)call->fn, call->user);
+        }
+    }
     RL_DIAG_RENDERCALL_FREE(sizeof(RLGlfwRenderCall));
     RL_FREE(call);
 }
@@ -976,7 +1014,6 @@ static void RLGlfwRunOnEventThread(void (*fn)(void *user), void *user, bool wait
     {
         RL_DIAG_TASK_POST_FAILED();
         if (done) RLEventDestroy(done);
-        RL_FREE(call);
         TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to post thread call");
         return;
     }
@@ -989,7 +1026,7 @@ static void RLGlfwRunOnEventThread(void (*fn)(void *user), void *user, bool wait
     }
 }
 
-static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void *user, unsigned char taskClass, bool droppable, void (*userDtor)(void *user))
+static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void *user, unsigned char taskClass, bool droppable, RLGlfwRenderCallDropKind dropKind)
 {
     // Render thread tasks should be idempotent and short.
     // If called on the render thread, execute immediately.
@@ -1027,7 +1064,7 @@ static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void
     call->ctx = ctx;
     call->fn = fn;
     call->user = user;
-    call->userDtor = userDtor;
+    call->dropKind = (unsigned char)dropKind;
 
     if (!RLGlfwPostTaskToThread(platform.renderThread, RLGlfwRenderCallTrampoline, call, taskClass, droppable, RLGlfwDropRenderCall))
     {
@@ -1051,7 +1088,7 @@ static inline void RLGlfwQueuePendingDrain(RLContext *ctx, PlatformData *pd)
     if (!RLAtomicCASLong(&pd->pendingQueued, 0, 1)) return;
 
     RLSetCurrentContext(ctx);
-    RLGlfwRunOnRenderThread(ctx, RLGlfwTask_DrainPendingInput, pd, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, NULL);
+    RLGlfwRunOnRenderThread(ctx, RLGlfwTask_DrainPendingInput, pd, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RL_GLFW_RENDER_CALL_DROP_NONE);
 }
 #endif // RL_EVENTTHREAD_COALESCE_STATE
 
@@ -2648,13 +2685,85 @@ typedef intptr_t (*RLWin32WindowThreadInvoke)(void* hwnd, void* user);
 #endif
 
 
-typedef struct RLWin32UserInvokeCall
+struct RLWin32UserInvokeCall
 {
     RLWin32WindowThreadInvoke fn;
     void* hwnd;
     void* user;
+    void (*userDtor)(void* user);
+    RLWin32UserInvokeCall* nextPending;
+    unsigned char pendingLinked;
+    int dispatched;
     int autoFree;
-} RLWin32UserInvokeCall;
+};
+
+static void RLWin32LinkPendingInvokeLocked(PlatformData* platformData, RLWin32UserInvokeCall* invokeCall)
+{
+    if ((platformData == NULL) || (invokeCall == NULL)) return;
+    invokeCall->nextPending = platformData->pendingWindowThreadInvokeHead;
+    invokeCall->pendingLinked = 1u;
+    platformData->pendingWindowThreadInvokeHead = invokeCall;
+}
+
+static void RLWin32UnlinkPendingInvokeLocked(PlatformData* platformData, RLWin32UserInvokeCall* invokeCall)
+{
+    if ((platformData == NULL) || (invokeCall == NULL) || !invokeCall->pendingLinked) return;
+
+    RLWin32UserInvokeCall** link = &platformData->pendingWindowThreadInvokeHead;
+    while (*link != NULL)
+    {
+        if (*link == invokeCall)
+        {
+            *link = invokeCall->nextPending;
+            invokeCall->nextPending = NULL;
+            invokeCall->pendingLinked = 0u;
+            return;
+        }
+        link = &(*link)->nextPending;
+    }
+}
+
+static void RLWin32UnlinkPendingInvokeFromAnyPlatformLocked(RLWin32UserInvokeCall* invokeCall)
+{
+    if ((invokeCall == NULL) || !invokeCall->pendingLinked) return;
+
+    for (RLGlfwPlatformNode* it = gRlGlfwPdHead; it; it = it->next)
+    {
+        PlatformData* platformData = it->pd;
+        if (platformData == NULL) continue;
+        RLWin32UnlinkPendingInvokeLocked(platformData, invokeCall);
+        if (!invokeCall->pendingLinked) return;
+    }
+}
+
+static void RLWin32CancelPendingInvokesLocked(PlatformData* platformData)
+{
+    if (platformData == NULL) return;
+
+    RLWin32UserInvokeCall* invokeCall = platformData->pendingWindowThreadInvokeHead;
+    platformData->pendingWindowThreadInvokeHead = NULL;
+
+    while (invokeCall != NULL)
+    {
+        RLWin32UserInvokeCall* nextInvoke = invokeCall->nextPending;
+        invokeCall->nextPending = NULL;
+        invokeCall->pendingLinked = 0u;
+        if (invokeCall->userDtor && invokeCall->user)
+        {
+            invokeCall->userDtor(invokeCall->user);
+            invokeCall->user = NULL;
+        }
+        RL_FREE(invokeCall);
+        invokeCall = nextInvoke;
+    }
+}
+
+static intptr_t RLWin32InvokeFailOwned(void* hwnd, void* user, void (*userDtor)(void*))
+{
+    (void)hwnd;
+    if (userDtor && user) userDtor(user);
+    return (intptr_t)0;
+}
 
 static LRESULT RLWin32Dispatch_InvokeUser(GLFWwindow* window, HWND hWnd, void* user)
 {
@@ -2662,10 +2771,20 @@ static LRESULT RLWin32Dispatch_InvokeUser(GLFWwindow* window, HWND hWnd, void* u
     RLWin32UserInvokeCall* invokeCall = (RLWin32UserInvokeCall*)user;
     if (!invokeCall || !invokeCall->fn)
     {
+        if (invokeCall && invokeCall->userDtor && invokeCall->user)
+        {
+            invokeCall->userDtor(invokeCall->user);
+            invokeCall->user = NULL;
+        }
         if (invokeCall && invokeCall->autoFree) RL_FREE(invokeCall);
         return (LRESULT)0;
     }
 
+    RLGlfwGlobalLock();
+    RLWin32UnlinkPendingInvokeFromAnyPlatformLocked(invokeCall);
+    RLGlfwGlobalUnlock();
+
+    invokeCall->dispatched = 1;
     const intptr_t callResult = invokeCall->fn(
                                     invokeCall->hwnd ? invokeCall->hwnd : (void*)hWnd, 
                                     invokeCall->user);
@@ -2676,9 +2795,16 @@ static LRESULT RLWin32Dispatch_InvokeUser(GLFWwindow* window, HWND hWnd, void* u
 
 intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait)
 {
-    if (!hwnd || !fn) return (intptr_t)0;
+    return RLWin32InvokeOnWindowThreadByHandleEx(hwnd, fn, user, wait, NULL);
+}
+
+intptr_t RLWin32InvokeOnWindowThreadByHandleEx(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait, void (*userDtor)(void*))
+{
+    if (!hwnd || !fn) return RLWin32InvokeFailOwned(hwnd, user, userDtor);
 
     HWND hNativeWindowHandle = (HWND)hwnd;
+    PlatformData* platformData = RLWin32FindPlatformByHwnd(hNativeWindowHandle);
+    if (!platformData) return RLWin32InvokeFailOwned(hwnd, user, userDtor);
 
     // If already on the owning window thread, run inline.
     const DWORD ownerTid = GetWindowThreadProcessId(hNativeWindowHandle, NULL);
@@ -2689,22 +2815,54 @@ intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvo
 
     if (wait)
     {
-        RLWin32UserInvokeCall call = { fn, hwnd, user, 0 };
-        return (intptr_t)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_InvokeUser, &call);
+        RLWin32UserInvokeCall call = { fn, hwnd, user, NULL, 0, 0 };
+        const intptr_t result = (intptr_t)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_InvokeUser, &call);
+        if (!call.dispatched)
+        {
+            if (userDtor && user) userDtor(user);
+            return (intptr_t)0;
+        }
+        return result;
     }
 
     RLWin32UserInvokeCall* call = (RLWin32UserInvokeCall*)RL_CALLOC(1, sizeof(RLWin32UserInvokeCall));
-    if (!call) return (intptr_t)0;
+    if (!call) return RLWin32InvokeFailOwned(hwnd, user, userDtor);
 
     call->fn = fn;
     call->hwnd = hwnd;
     call->user = user;
+    call->userDtor = userDtor;
+    call->nextPending = NULL;
+    call->pendingLinked = 0u;
+    call->dispatched = 0;
     call->autoFree = 1;
 
-    return PostMessageW(hNativeWindowHandle,                        /* hWnd */
-                        RLWin32GetDispatchMessageId(),              /* Msg */
-                        (WPARAM)RLWin32Dispatch_InvokeUser,         /* wParam */
-                        (LPARAM)call) ? (intptr_t)1 : (intptr_t)0;  /* lParam */
+    RLGlfwGlobalLock();
+    if (platformData->closing || platformData->eventThreadStop)
+    {
+        RLGlfwGlobalUnlock();
+        if (call->userDtor && call->user) call->userDtor(call->user);
+        RL_FREE(call);
+        return (intptr_t)0;
+    }
+
+    RLWin32LinkPendingInvokeLocked(platformData, call);
+
+    if (!PostMessageW(hNativeWindowHandle,                          /* hWnd */
+                      RLWin32GetDispatchMessageId(),                /* Msg */
+                      (WPARAM)RLWin32Dispatch_InvokeUser,           /* wParam */
+                      (LPARAM)call))                                /* lParam */
+    {
+        RLWin32UnlinkPendingInvokeLocked(platformData, call);
+        RLGlfwGlobalUnlock();
+        if (call->userDtor && call->user) call->userDtor(call->user);
+        RL_FREE(call);
+        return (intptr_t)0;
+    }
+
+    RLGlfwGlobalUnlock();
+
+    return (intptr_t)1;
 }
 
 #ifndef RL_WINDOW_RENDER_THREAD_INVOKE_DEFINED
@@ -2713,23 +2871,34 @@ typedef intptr_t (*RLWindowRenderThreadInvoke)(void* hwnd, void* user);
 #endif
 
 extern void RLDiag_ResetEventThreadDiagCoreOnly(void);
-extern void RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly(void);
-
-
 typedef struct RLRenderUserInvokeCall
 {
     RLWindowRenderThreadInvoke fn;
     void* hwnd;
     void* user;
+    void (*userDtor)(void* user);
     intptr_t result;
     RLEvent* done;
     int autoFree;
 } RLRenderUserInvokeCall;
 
+static intptr_t RLGlfwInvokeRenderThreadFail(const char* reason, void* hwnd, int wait);
+
+static intptr_t RLGlfwInvokeRenderThreadFailOwned(const char* reason, void* hwnd, int wait, void* user, void (*userDtor)(void*))
+{
+    if (userDtor && user) userDtor(user);
+    return RLGlfwInvokeRenderThreadFail(reason, hwnd, wait);
+}
+
 static void RLGlfwDropRenderInvokeCall(void* user)
 {
     RLRenderUserInvokeCall* invokeCall = (RLRenderUserInvokeCall*)user;
     if (!invokeCall) return;
+    if (invokeCall->userDtor && invokeCall->user)
+    {
+        invokeCall->userDtor(invokeCall->user);
+        invokeCall->user = NULL;
+    }
     if (invokeCall->done) RLEventDestroy(invokeCall->done);
     RL_FREE(invokeCall);
 }
@@ -2739,6 +2908,11 @@ static void RLGlfwTask_InvokeUserOnRenderThread(void* user)
     RLRenderUserInvokeCall* invokeCall = (RLRenderUserInvokeCall*)user;
     if (!invokeCall || !invokeCall->fn)
     {
+        if (invokeCall && invokeCall->userDtor && invokeCall->user)
+        {
+            invokeCall->userDtor(invokeCall->user);
+            invokeCall->user = NULL;
+        }
         if (invokeCall && invokeCall->done) RLEventSignal(invokeCall->done);
         if (invokeCall && invokeCall->autoFree) RL_FREE(invokeCall);
         return;
@@ -2749,6 +2923,11 @@ static void RLGlfwTask_InvokeUserOnRenderThread(void* user)
     if (pd && (pd->closing || pd->eventThreadStop))
     {
         invokeCall->result = (intptr_t)0;
+        if (invokeCall->userDtor && invokeCall->user)
+        {
+            invokeCall->userDtor(invokeCall->user);
+            invokeCall->user = NULL;
+        }
     }
     else
     {
@@ -2763,6 +2942,60 @@ static unsigned int RLGlfwGetQueuedFrameCallbackCount(const PlatformData* pd)
 {
     if (pd == NULL) return 0u;
     return pd->normalFrameCallbackQueuedCount + pd->criticalFrameCallbackQueuedCount;
+}
+
+static void RLGlfwUpdateFrameCallbackPeaksLocked(PlatformData* pd)
+{
+    unsigned int totalQueuedCount;
+
+    if (pd == NULL) return;
+
+    totalQueuedCount = RLGlfwGetQueuedFrameCallbackCount(pd);
+    if (totalQueuedCount > pd->frameCallbackQueuedPeak) pd->frameCallbackQueuedPeak = totalQueuedCount;
+    if (pd->normalFrameCallbackQueuedCount > pd->frameCallbackNormalQueuedPeak)
+    {
+        pd->frameCallbackNormalQueuedPeak = pd->normalFrameCallbackQueuedCount;
+    }
+    if (pd->criticalFrameCallbackQueuedCount > pd->frameCallbackCriticalQueuedPeak)
+    {
+        pd->frameCallbackCriticalQueuedPeak = pd->criticalFrameCallbackQueuedCount;
+    }
+}
+
+static void RLGlfwAccumulateFrameCallbackDroppedLocked(PlatformData* pd, RLFrameCallbackKind kind, unsigned int count)
+{
+    if ((pd == NULL) || (count == 0u)) return;
+
+    pd->frameCallbackDroppedCount += count;
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackDroppedCriticalCount += count;
+    else pd->frameCallbackDroppedNormalCount += count;
+}
+
+static void RLGlfwAccumulateFrameCallbackExecutedLocked(PlatformData* pd, RLFrameCallbackKind kind, unsigned int count)
+{
+    if ((pd == NULL) || (count == 0u)) return;
+
+    pd->frameCallbackExecutedCount += count;
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackExecutedCriticalCount += count;
+    else pd->frameCallbackExecutedNormalCount += count;
+}
+
+static void RLGlfwAccumulateFrameCallbackClearedLocked(PlatformData* pd, RLFrameCallbackKind kind, unsigned int count)
+{
+    if ((pd == NULL) || (count == 0u)) return;
+
+    pd->frameCallbackClearedCount += count;
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackClearedCriticalCount += count;
+    else pd->frameCallbackClearedNormalCount += count;
+}
+
+static void RLGlfwAccumulateFrameCallbackInlineFallbackLocked(PlatformData* pd, RLFrameCallbackKind kind, unsigned int count)
+{
+    if ((pd == NULL) || (count == 0u)) return;
+
+    pd->frameCallbackInlineFallbackCount += count;
+    if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackInlineFallbackCriticalCount += count;
+    else pd->frameCallbackInlineFallbackNormalCount += count;
 }
 
 static unsigned int RLGlfwGetFrameCallbackWaitTimeoutMs(RLFrameCallbackKind kind)
@@ -2811,13 +3044,7 @@ static int RLGlfwTryEnqueueFrameCallbackLocked(PlatformData* pd, RLWindowRenderT
         RLGlfwAddFrameCallbackHint(&pd->frameCallbackCriticalQueuedHint, 1);
     }
 
-    {
-        const unsigned int totalQueuedCount = RLGlfwGetQueuedFrameCallbackCount(pd);
-        if (totalQueuedCount > pd->frameCallbackQueuedPeak)
-        {
-            pd->frameCallbackQueuedPeak = totalQueuedCount;
-        }
-    }
+    RLGlfwUpdateFrameCallbackPeaksLocked(pd);
 
     return 1;
 }
@@ -2874,6 +3101,7 @@ static void RLGlfwClearFrameCallbackQueueLocked(RLRenderFrameCallbackSlot* callb
                                                 unsigned int* callbackHead,
                                                 unsigned int* callbackTail,
                                                 unsigned int* callbackQueuedCount,
+                                                PlatformData* platformData,
                                                 RLFrameCallbackKind kind,
                                                 RLSemaphore* slotsAvailableSemaphore,
                                                 volatile long* totalQueuedHint,
@@ -2903,6 +3131,7 @@ static void RLGlfwClearFrameCallbackQueueLocked(RLRenderFrameCallbackSlot* callb
 
     if (releasedCount > 0u)
     {
+        RLGlfwAccumulateFrameCallbackClearedLocked(platformData, kind, releasedCount);
         RLGlfwAddFrameCallbackHint(totalQueuedHint, -(long)releasedCount);
         if ((kind == RL_FRAME_CALLBACK_KIND_CRITICAL) && (criticalQueuedHint != NULL))
         {
@@ -2921,6 +3150,7 @@ static void RLGlfwClearFrameCallbacksLocked(PlatformData* pd)
                                         &pd->criticalFrameCallbackHead,
                                         &pd->criticalFrameCallbackTail,
                                         &pd->criticalFrameCallbackQueuedCount,
+                                        pd,
                                         RL_FRAME_CALLBACK_KIND_CRITICAL,
                                         pd->criticalFrameCallbackSlotsAvailableSemaphore,
                                         &pd->frameCallbackQueuedHint,
@@ -2930,6 +3160,7 @@ static void RLGlfwClearFrameCallbacksLocked(PlatformData* pd)
                                         &pd->normalFrameCallbackHead,
                                         &pd->normalFrameCallbackTail,
                                         &pd->normalFrameCallbackQueuedCount,
+                                        pd,
                                         RL_FRAME_CALLBACK_KIND_NORMAL,
                                         pd->normalFrameCallbackSlotsAvailableSemaphore,
                                         &pd->frameCallbackQueuedHint,
@@ -3001,12 +3232,29 @@ static void RLGlfwDrainFrameCallbacksCurrentContext(void)
         for (unsigned int callbackIndex = 0u; callbackIndex < callbackBatchCount; callbackIndex++)
         {
             RLRenderFrameCallbackSlot* callbackSlot = &callbackBatch[callbackIndex];
+            const RLFrameCallbackKind callbackKind = (callbackSlot->kind == (unsigned char)RL_FRAME_CALLBACK_KIND_CRITICAL)
+                                                   ? RL_FRAME_CALLBACK_KIND_CRITICAL
+                                                   : RL_FRAME_CALLBACK_KIND_NORMAL;
             callbacksExecuted++;
-            if (callbackSlot->kind == RL_FRAME_CALLBACK_KIND_CRITICAL) callbacksCriticalExecuted++;
+            if (callbackKind == RL_FRAME_CALLBACK_KIND_CRITICAL) callbacksCriticalExecuted++;
 
             if (!pd->closing && !pd->eventThreadStop && callbackSlot->fn)
             {
                 callbackSlot->fn(callbackSlot->hwnd, callbackSlot->user);
+                RLGlfwGlobalLock();
+                RLGlfwAccumulateFrameCallbackExecutedLocked(pd, callbackKind, 1u);
+                RLGlfwGlobalUnlock();
+            }
+            else
+            {
+                if (callbackSlot->userDtor && callbackSlot->user)
+                {
+                    callbackSlot->userDtor(callbackSlot->user);
+                    callbackSlot->user = NULL;
+                }
+                RLGlfwGlobalLock();
+                RLGlfwAccumulateFrameCallbackClearedLocked(pd, callbackKind, 1u);
+                RLGlfwGlobalUnlock();
             }
         }
     }
@@ -3051,20 +3299,25 @@ static intptr_t RLGlfwInvoke_DeletePendingSharedGpuResourcesOnRenderThread(void*
 
 intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait)
 {
-    if (!hwnd) return RLGlfwInvokeRenderThreadFail("invalid hwnd", hwnd, wait);
-    if (!fn) return RLGlfwInvokeRenderThreadFail("invalid callback", hwnd, wait);
+    return RLInvokeOnWindowRenderThreadByHandleEx(hwnd, fn, user, wait, NULL);
+}
+
+intptr_t RLInvokeOnWindowRenderThreadByHandleEx(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait, void (*userDtor)(void*))
+{
+    if (!hwnd) return RLGlfwInvokeRenderThreadFailOwned("invalid hwnd", hwnd, wait, user, userDtor);
+    if (!fn) return RLGlfwInvokeRenderThreadFailOwned("invalid callback", hwnd, wait, user, userDtor);
 
     HWND hNativeWindowHandle = (HWND)hwnd;
     PlatformData* pd = RLWin32FindPlatformByHwnd(hNativeWindowHandle);
-    if (!pd || !pd->ownerCtx) return RLGlfwInvokeRenderThreadFail("unknown window or missing owner context", hwnd, wait);
-    if (pd->closing || pd->eventThreadStop) return RLGlfwInvokeRenderThreadFail("window is closing/stopped", hwnd, wait);
+    if (!pd || !pd->ownerCtx) return RLGlfwInvokeRenderThreadFailOwned("unknown window or missing owner context", hwnd, wait, user, userDtor);
+    if (pd->closing || pd->eventThreadStop) return RLGlfwInvokeRenderThreadFailOwned("window is closing/stopped", hwnd, wait, user, userDtor);
 
     // Non-event-thread mode: only safe from the thread that currently owns this GL context.
     if (!pd->useEventThread)
     {
         if (glfwGetCurrentContext() != pd->handle)
         {
-            return RLGlfwInvokeRenderThreadFail("non-event-thread mode requires current context ownership", hwnd, wait);
+            return RLGlfwInvokeRenderThreadFailOwned("non-event-thread mode requires current context ownership", hwnd, wait, user, userDtor);
         }
 
         RLContext* prev = RLGetCurrentContext();
@@ -3086,21 +3339,29 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
 
     if (!pd->renderThread || !pd->renderWakeEvent)
     {
-        return RLGlfwInvokeRenderThreadFail("render-thread/wake-event unavailable", hwnd, wait);
+        return RLGlfwInvokeRenderThreadFailOwned("render-thread/wake-event unavailable", hwnd, wait, user, userDtor);
     }
 
     RLRenderUserInvokeCall* invokeCall = (RLRenderUserInvokeCall*)RL_CALLOC(1, sizeof(RLRenderUserInvokeCall));
     if (!invokeCall)
     {
         RL_DIAG_TASK_POST_FAILED();
-        return RLGlfwInvokeRenderThreadFail("OOM: invoke call allocation failed", hwnd, wait);
+        return RLGlfwInvokeRenderThreadFailOwned("OOM: invoke call allocation failed", hwnd, wait, user, userDtor);
     }
 
     invokeCall->fn = fn;
     invokeCall->hwnd = hwnd;
     invokeCall->user = user;
+    invokeCall->userDtor = userDtor;
     invokeCall->done = wait ? RLEventCreate(false) : NULL;
     invokeCall->autoFree = wait ? 0 : 1;
+    if (wait && (invokeCall->done == NULL))
+    {
+        if (invokeCall->userDtor && invokeCall->user) invokeCall->userDtor(invokeCall->user);
+        RL_FREE(invokeCall);
+        RL_DIAG_TASK_POST_FAILED();
+        return RLGlfwInvokeRenderThreadFail("OOM: invoke wait event allocation failed", hwnd, wait);
+    }
 
     RLGlfwRenderCall* renderCall = (RLGlfwRenderCall*)RL_CALLOC(1, sizeof(RLGlfwRenderCall));
 
@@ -3108,6 +3369,7 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
     {
         RL_DIAG_TASK_POST_FAILED();
         if (invokeCall->done) RLEventDestroy(invokeCall->done);
+        if (invokeCall->userDtor && invokeCall->user) invokeCall->userDtor(invokeCall->user);
         RL_FREE(invokeCall);
         return RLGlfwInvokeRenderThreadFail("OOM: render call allocation failed", hwnd, wait);
     }
@@ -3118,7 +3380,7 @@ intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadIn
     renderCall->ctx = pd->ownerCtx;
     renderCall->fn = RLGlfwTask_InvokeUserOnRenderThread;
     renderCall->user = invokeCall;
-    renderCall->userDtor = RLGlfwDropRenderInvokeCall;
+    renderCall->dropKind = (unsigned char)RL_GLFW_RENDER_CALL_DROP_RENDER_INVOKE;
 
     if (!RLGlfwPostTaskToThread(pd->renderThread, RLGlfwRenderCallTrampoline, renderCall, (unsigned char)GLFW_THREAD_TASK_CLASS_CRITICAL, false, RLGlfwDropRenderCall))
     {
@@ -3192,6 +3454,10 @@ int RLPostWindowFrameCallbackByHandleEx2(void* hwnd, RLWindowRenderThreadInvoke 
                 if (previousContext != pd->ownerCtx) RLSetCurrentContext(pd->ownerCtx);
                 (void)fn(hwnd, user);
                 if (previousContext != pd->ownerCtx) RLSetCurrentContext(previousContext);
+                RLGlfwGlobalLock();
+                RLGlfwAccumulateFrameCallbackExecutedLocked(pd, kind, 1u);
+                RLGlfwAccumulateFrameCallbackInlineFallbackLocked(pd, kind, 1u);
+                RLGlfwGlobalUnlock();
                 TRACELOG(RL_E_LOG_WARNING,
                          "EVENTTHREAD: frame callback queue saturated on render thread; executed callback immediately (hwnd=%p kind=%u)",
                          hwnd, (unsigned int)kind);
@@ -3224,6 +3490,10 @@ int RLPostWindowFrameCallbackByHandleEx2(void* hwnd, RLWindowRenderThreadInvoke 
             if (previousContext != pd->ownerCtx) RLSetCurrentContext(pd->ownerCtx);
             (void)fn(hwnd, user);
             if (previousContext != pd->ownerCtx) RLSetCurrentContext(previousContext);
+            RLGlfwGlobalLock();
+            RLGlfwAccumulateFrameCallbackExecutedLocked(pd, kind, 1u);
+            RLGlfwAccumulateFrameCallbackInlineFallbackLocked(pd, kind, 1u);
+            RLGlfwGlobalUnlock();
             TRACELOG(RL_E_LOG_WARNING,
                      "EVENTTHREAD: frame callback queue saturated on render thread; executed callback immediately (hwnd=%p kind=%u)",
                      hwnd, (unsigned int)kind);
@@ -3235,9 +3505,7 @@ int RLPostWindowFrameCallbackByHandleEx2(void* hwnd, RLWindowRenderThreadInvoke 
             RLSemaphoreRelease(frameCallbackSlotsSemaphore);
             frameCallbackSlotsSemaphore = NULL;
             RLGlfwGlobalLock();
-            pd->frameCallbackDroppedCount++;
-            if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackDroppedCriticalCount++;
-            else pd->frameCallbackDroppedNormalCount++;
+            RLGlfwAccumulateFrameCallbackDroppedLocked(pd, kind, 1u);
             RLGlfwGlobalUnlock();
             RL_DIAG_TASK_POST_FAILED();
             return RLGlfwPostFrameCallbackFailOwned("frame callback queue wait timed out", hwnd, user, userDtor);
@@ -3295,51 +3563,75 @@ int RLDeletePendingSharedGpuResourcesByHandle(void* hwnd, int wait)
     return 1;
 }
 
-int RLGetCurrentContextFrameCallbackQueueStats(unsigned int *queued, unsigned int *queuedCritical, unsigned int *queuedPeak,
-                                               unsigned long long *dropped, unsigned long long *droppedNormal,
-                                               unsigned long long *droppedCritical, unsigned long long *evictedNormalForCritical)
-{
-    RLContext* currentCtx = RLGetCurrentContext();
-    if (!currentCtx || !currentCtx->platformData) return 0;
-
-    PlatformData* pd = (PlatformData*)currentCtx->platformData;
-    if (!pd || !pd->win32Hwnd) return 0;
-
-    RLGlfwGlobalLock();
-    if (queued != NULL) *queued = RLGlfwGetQueuedFrameCallbackCount(pd);
-    if (queuedCritical != NULL) *queuedCritical = pd->criticalFrameCallbackQueuedCount;
-    if (queuedPeak != NULL) *queuedPeak = pd->frameCallbackQueuedPeak;
-    if (dropped != NULL) *dropped = pd->frameCallbackDroppedCount;
-    if (droppedNormal != NULL) *droppedNormal = pd->frameCallbackDroppedNormalCount;
-    if (droppedCritical != NULL) *droppedCritical = pd->frameCallbackDroppedCriticalCount;
-    if (evictedNormalForCritical != NULL) *evictedNormalForCritical = pd->frameCallbackEvictedNormalForCriticalCount;
-    RLGlfwGlobalUnlock();
-    return 1;
-}
-
-void RLResetCurrentContextFrameCallbackQueueStats(void)
-{
-    RLContext* currentCtx = RLGetCurrentContext();
-    if (!currentCtx || !currentCtx->platformData) return;
-
-    PlatformData* pd = (PlatformData*)currentCtx->platformData;
-    if (!pd || !pd->win32Hwnd) return;
-
-    RLGlfwGlobalLock();
-    pd->frameCallbackQueuedPeak = RLGlfwGetQueuedFrameCallbackCount(pd);
-    pd->frameCallbackDroppedCount = 0;
-    pd->frameCallbackDroppedNormalCount = 0;
-    pd->frameCallbackDroppedCriticalCount = 0;
-    pd->frameCallbackEvictedNormalForCriticalCount = 0;
-    RLGlfwGlobalUnlock();
-}
-
 static intptr_t RLGlfwInvoke_ResetNativeDiagStatsOnRenderThread(void* hwnd, void* user)
 {
     (void)hwnd;
     (void)user;
-    RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly();
+    glfwResetCurrentThreadTaskQueueStats();
+
+    RLContext* currentCtx = RLGetCurrentContext();
+    if (!currentCtx || !currentCtx->platformData) return (intptr_t)1;
+
+    PlatformData* platformData = (PlatformData*)currentCtx->platformData;
+    if (!platformData || !platformData->win32Hwnd) return (intptr_t)1;
+
+    RLGlfwGlobalLock();
+    platformData->frameCallbackQueuedPeak = RLGlfwGetQueuedFrameCallbackCount(platformData);
+    platformData->frameCallbackNormalQueuedPeak = platformData->normalFrameCallbackQueuedCount;
+    platformData->frameCallbackCriticalQueuedPeak = platformData->criticalFrameCallbackQueuedCount;
+    platformData->frameCallbackDroppedCount = 0;
+    platformData->frameCallbackDroppedNormalCount = 0;
+    platformData->frameCallbackDroppedCriticalCount = 0;
+    platformData->frameCallbackExecutedCount = 0;
+    platformData->frameCallbackExecutedNormalCount = 0;
+    platformData->frameCallbackExecutedCriticalCount = 0;
+    platformData->frameCallbackClearedCount = 0;
+    platformData->frameCallbackClearedNormalCount = 0;
+    platformData->frameCallbackClearedCriticalCount = 0;
+    platformData->frameCallbackInlineFallbackCount = 0;
+    platformData->frameCallbackInlineFallbackNormalCount = 0;
+    platformData->frameCallbackInlineFallbackCriticalCount = 0;
+    RLGlfwGlobalUnlock();
     return (intptr_t)1;
+}
+
+bool RLGetCurrentWindowFrameCallbackQueueStats(RLFrameCallbackQueueStats *outStats)
+{
+    if (outStats == NULL) return false;
+    return RLGetWindowFrameCallbackQueueStatsByHandle(RLGetWindowHandle(), outStats);
+}
+
+bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueueStats *outStats)
+{
+    if (outStats == NULL) return false;
+    *outStats = (RLFrameCallbackQueueStats){ 0 };
+    if (hwnd == NULL) return false;
+
+    PlatformData* platformData = RLWin32FindPlatformByHwnd((HWND)hwnd);
+    if (!platformData || !platformData->ownerCtx) return false;
+
+    RLGlfwGlobalLock();
+    outStats->queuedCount = RLGlfwGetQueuedFrameCallbackCount(platformData);
+    outStats->queuedNormalCount = platformData->normalFrameCallbackQueuedCount;
+    outStats->queuedCriticalCount = platformData->criticalFrameCallbackQueuedCount;
+    outStats->queuedPeakCount = platformData->frameCallbackQueuedPeak;
+    outStats->queuedPeakNormalCount = platformData->frameCallbackNormalQueuedPeak;
+    outStats->queuedPeakCriticalCount = platformData->frameCallbackCriticalQueuedPeak;
+    outStats->droppedCount = platformData->frameCallbackDroppedCount;
+    outStats->droppedNormalCount = platformData->frameCallbackDroppedNormalCount;
+    outStats->droppedCriticalCount = platformData->frameCallbackDroppedCriticalCount;
+    outStats->executedCount = platformData->frameCallbackExecutedCount;
+    outStats->executedNormalCount = platformData->frameCallbackExecutedNormalCount;
+    outStats->executedCriticalCount = platformData->frameCallbackExecutedCriticalCount;
+    outStats->clearedCount = platformData->frameCallbackClearedCount;
+    outStats->clearedNormalCount = platformData->frameCallbackClearedNormalCount;
+    outStats->clearedCriticalCount = platformData->frameCallbackClearedCriticalCount;
+    outStats->inlineFallbackCount = platformData->frameCallbackInlineFallbackCount;
+    outStats->inlineFallbackNormalCount = platformData->frameCallbackInlineFallbackNormalCount;
+    outStats->inlineFallbackCriticalCount = platformData->frameCallbackInlineFallbackCriticalCount;
+    RLGlfwGlobalUnlock();
+
+    return true;
 }
 
 int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait)
@@ -4907,6 +5199,7 @@ void ClosePlatform(void)
         // This prevents tasks from touching CORE/ctx after they are freed by higher-level teardown.
         RLGlfwDrainRenderThreadTasks();
         RLGlfwGlobalLock();
+        RLWin32CancelPendingInvokesLocked(&platform);
         RLGlfwClearFrameCallbacksLocked(&platform);
         RLGlfwGlobalUnlock();
 
@@ -4959,6 +5252,7 @@ void ClosePlatform(void)
     // Non event-thread path: serialize window destruction against other threads polling events
     // (glfwPollEvents/glfwWaitEvents are global and can race with glfwDestroyWindow).
     RLGlfwGlobalLock();
+    RLWin32CancelPendingInvokesLocked(&platform);
     RLGlfwClearFrameCallbacksLocked(&platform);
 
     if (platform.handle)
@@ -5095,7 +5389,7 @@ static void FramebufferSizeCallback(GLFWwindow *window, int width, int height)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_FBSIZE, sizeof(RLGlfwSizeI2));
             framebufferSizeEvent->w = width; framebufferSizeEvent->h = height;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_FramebufferSize, framebufferSizeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_FramebufferSize, framebufferSizeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
 #endif
         }
@@ -5187,7 +5481,7 @@ static void WindowContentScaleCallback(GLFWwindow *window, float scalex, float s
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_SCALE, sizeof(RLGlfwWindowScaleEvent));
             scaleEvent->sx = scalex; scaleEvent->sy = scaley;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowContentScale, scaleEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowContentScale, scaleEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
 #endif
         }
@@ -5245,7 +5539,7 @@ static void WindowPosCallback(GLFWwindow *window, int x, int y)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_WINPOS, sizeof(RLGlfwPosI2));
             windowPosEvent->x = x; windowPosEvent->y = y;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowPos, windowPosEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowPos, windowPosEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
 #endif
         }
@@ -5284,7 +5578,7 @@ static void WindowIconifyCallback(GLFWwindow *window, int iconified)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowIconifyEvent));
             iconifyEvent->iconified = iconified;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowIconify, iconifyEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowIconify, iconifyEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
 #endif
         }
@@ -5322,7 +5616,7 @@ static void WindowMaximizeCallback(GLFWwindow *window, int maximized)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowMaximizeEvent));
             maximizeEvent->maximized = maximized;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowMaximize, maximizeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowMaximize, maximizeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
 #endif
         }
@@ -5390,7 +5684,7 @@ static void WindowRefreshCallback(GLFWwindow *window)
             RLGlfwSignalWakeByPolicy(pd, false);
             return;
 #else
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowRefresh, NULL, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, NULL);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowRefresh, NULL, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RL_GLFW_RENDER_CALL_DROP_NONE);
             RLGlfwSignalWakeByPolicy(pd, false);
             return;
 #endif
@@ -5433,7 +5727,7 @@ static void WindowCloseCallback(GLFWwindow *window)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_WINCLOSE, sizeof(RLGlfwWindowCloseEvent));
             closeEvent->shouldClose = 1;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowClose, closeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_CRITICAL, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowClose, closeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_CRITICAL, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             RLGlfwSignalWakeByPolicy(pd, true);
             return;
         }
@@ -5485,7 +5779,7 @@ static void WindowFocusCallback(GLFWwindow *window, int focused)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwWindowFocusEvent));
             focusEvent->focused = focused;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowFocus, focusEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowFocus, focusEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
 #endif
         }
@@ -5543,7 +5837,7 @@ static void WindowDropCallback(GLFWwindow *window, int count, const char **paths
                     memcpy(dropEvent->paths[i], paths[i], n + 1);
                 }
             }
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Drop, dropEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Drop, dropEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
         }
     }
@@ -5619,7 +5913,7 @@ static void KeyCallback(GLFWwindow *window, int key, int scancode, int action, i
             keyEvent->scancode = scancode;
             keyEvent->action = action;
             keyEvent->mods = combinedMods;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Key, keyEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Key, keyEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
         }
     }
@@ -5669,7 +5963,7 @@ static void CharCallback(GLFWwindow *window, unsigned int codepoint)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_CHAR, sizeof(RLGlfwCharEvent));
             charEvent->codepoint = codepoint;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Char, charEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Char, charEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
         }
     }
@@ -5709,7 +6003,7 @@ static void MouseButtonCallback(GLFWwindow *window, int button, int action, int 
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEBUTTON, sizeof(RLGlfwMouseButtonEvent));
             mouseButtonEvent->button = button; mouseButtonEvent->action = action; mouseButtonEvent->mods = mods;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseButton, mouseButtonEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseButton, mouseButtonEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
         }
     }
@@ -5777,7 +6071,7 @@ static void MouseCursorPosCallback(GLFWwindow *window, double x, double y)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEMOVE, sizeof(RLGlfwMouseMoveEvent));
             mouseMoveEvent->xpos = x; mouseMoveEvent->ypos = y;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseMove, mouseMoveEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseMove, mouseMoveEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
 #endif
         }
@@ -5842,7 +6136,7 @@ static void MouseScrollCallback(GLFWwindow *window, double xoffset, double yoffs
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_MOUSEWHEEL, sizeof(RLGlfwMouseWheelEvent));
             mouseWheelEvent->xoffset = xoffset;
             mouseWheelEvent->yoffset = yoffset;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseWheel, mouseWheelEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_MouseWheel, mouseWheelEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
 #endif
         }
@@ -5873,7 +6167,7 @@ static void CursorEnterCallback(GLFWwindow *window, int enter)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwCursorEnterEvent));
             cursorEnterEvent->entered = enter;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_CursorEnter, cursorEnterEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_CursorEnter, cursorEnterEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
             return;
         }
     }
@@ -5923,7 +6217,7 @@ static void JoystickCallback(int jid, int event)
                 strncpy(joystickEvent->name, name, MAX_GAMEPAD_NAME_LENGTH - 1);
             }
 
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Joystick, joystickEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RLGlfwFreeTaskUser);
+            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_Joystick, joystickEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_INPUT, true, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
         }
         return;
     }
@@ -6426,6 +6720,10 @@ static void RLGlfwTask_DestroyWindow(void *user)
     (void)user;
     if (platform.handle != NULL)
     {
+        RLGlfwGlobalLock();
+        RLWin32CancelPendingInvokesLocked(&platform);
+        RLGlfwGlobalUnlock();
+
         // Disarm per-window callbacks first so no further render-thread tasks are enqueued.
         glfwSetWindowUserPointer(platform.handle, NULL);
         glfwSetWindowSizeCallback(platform.handle, NULL);

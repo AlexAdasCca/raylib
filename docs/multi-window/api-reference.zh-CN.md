@@ -204,7 +204,7 @@ typedef enum RLFrameCallbackKind {
 |---|---|
 | `payloadAlloc*` / `payloadFree*` | 跨线程消息或输入数据的分配统计 |
 | `nativeTaskQueue*` | GLFW Win32 本地任务队列的深度、峰值和丢弃统计 |
-| `frameCallbackQueue*` | 帧回调队列的深度、峰值和丢弃统计 |
+| `frameCallbackQueue*` | 帧回调队列的深度、峰值、丢弃、执行、清空和 inline fallback 统计 |
 | `pump*` | 事件泵执行次数和耗时 |
 | `swapCost*` / `waitCost*` / `frameCpu*` | 帧阶段耗时诊断 |
 | `threadMismatch*` | GPU 写入错线程检测与切换统计 |
@@ -227,6 +227,46 @@ typedef enum RLFrameCallbackKind {
 | `rejectedCount` | 被拒绝的次数 |
 | `lastApi` | 最近触发 mismatch 的 API 名 |
 | `lastWindowHandle` | 最近相关窗口句柄 |
+
+## 2.13 `RLFrameCallbackQueueStats`
+
+说明：
+- 当前窗口 / 当前上下文的 frame-callback 队列轻量快照
+
+`inline fallback` 的含义：
+- 调用线程此时已经是目标窗口的 render thread
+- 所选 frame-callback 队列当下没有可用槽位
+- 系统不会继续等待队列腾出空间，而是直接在当前 render thread 立即执行该回调
+
+注意：
+- 进入 inline fallback 的回调会计入 `executed*`
+- 同时也会计入 `inlineFallback*`
+- 不会真正进入队列，因此不会增加 `queued*`
+- 也不算 dropped 或 cleared
+- 一旦开始执行，`user` 的所有权仍按“回调已执行成功”的规则转移给回调实现
+
+关键字段：
+
+| 字段 | 含义 |
+|---|---|
+| `queuedCount` | 当前总排队回调数 |
+| `queuedNormalCount` | 当前 normal 回调排队数 |
+| `queuedCriticalCount` | 当前 critical 回调排队数 |
+| `queuedPeakCount` | 自上次 reset 以来的峰值 |
+| `queuedPeakNormalCount` | 自上次 reset 以来的 normal 队列峰值 |
+| `queuedPeakCriticalCount` | 自上次 reset 以来的 critical 队列峰值 |
+| `droppedCount` | 总丢弃数 |
+| `droppedNormalCount` | 普通回调丢弃数 |
+| `droppedCriticalCount` | critical 回调丢弃数 |
+| `executedCount` | 已执行回调总数 |
+| `executedNormalCount` | 已执行 normal 回调数 |
+| `executedCriticalCount` | 已执行 critical 回调数 |
+| `clearedCount` | 已入队但在执行前被清掉的回调总数 |
+| `clearedNormalCount` | 被清掉的 normal 回调数 |
+| `clearedCriticalCount` | 被清掉的 critical 回调数 |
+| `inlineFallbackCount` | 队列饱和时直接在 render thread 立即执行的回调总数 |
+| `inlineFallbackNormalCount` | 通过 inline fallback 执行的 normal 回调数 |
+| `inlineFallbackCriticalCount` | 通过 inline fallback 执行的 critical 回调数 |
 
 ## 3. 标志位
 
@@ -393,6 +433,60 @@ Note：
 线程要求：
 - 当前线程必须持有属于该共享组的当前 GL 上下文
 
+### `RLSharedGpuDiagStats`
+
+功能：
+- 当前线程当前上下文所属共享组的结构化诊断快照
+
+建议重点关注的字段：
+
+| 字段 | 含义 |
+|---|---|
+| `hasShareGroup` | 当前上下文是否已绑定共享组 |
+| `usesSharedTrackedScope` | tracked-object 作用域是否已从 context 提升为 share-group |
+| `contextRefCount` | 当前仍附着在该共享组上的上下文数量 |
+| `liveObjectCount` / `pendingDeleteCount` | 当前 live 共享对象数与延迟删除队列长度 |
+| `ownerEntryCount` / `orphanedOwnerCount` | 所有权元数据条目数与 orphan 条目数 |
+| `framebufferAttachmentMapCount` / `framebufferDepthMapCount` | framebuffer 附件映射表与 depth 映射表的当前条目数 |
+| `programLocEntryCount` / `programUseScopeCount` / `pendingProgramFenceCount` | 共享着色器程序协调相关状态 |
+| `textureTraceCount` | 纹理追踪元数据条目数 |
+| `live*` / `pending*` | 各对象类型的 live / pending 数量 |
+| `framebufferMapHitCount` / `framebufferMapMissCount` / `framebufferReleaseSkippedCount` | framebuffer 附件映射命中、缺失、跳过释放统计 |
+| `releaseUntrackedCount` | 对未跟踪对象调用 release 的次数 |
+| `unregisteredRetainRejectCount` / `unregisteredReleaseRejectCount` | strict 模式下未注册 retain/release 被拒绝的次数 |
+
+适用场景：
+- 在 create、retain、unload、flush、close 等关键检查点采集共享 GPU 状态
+- 用于自动化日志和断言，而不依赖文本 dump 格式
+
+### `RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void)`
+
+功能：
+- 返回当前共享组的结构化诊断快照
+
+返回语义：
+- 如果当前线程没有绑定共享组，返回零初始化快照
+- 如果当前线程已有共享组，返回当前快照
+
+Note：
+- 这是 `RLDebugDumpSharedGpuState()` 的结构化对应接口
+- 做自动化判断或稳定日志解析时，应优先使用这个接口
+
+### `void RLDebugDumpSharedGpuState(const char *label)`
+
+功能：
+- 将当前共享组快照按人类可读格式输出到 trace log
+
+参数：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `label` | `const char *` | 输出日志时附带的标签，可传 `NULL` |
+
+Note：
+- 该接口面向人工排查
+- 若需要稳定格式，应使用 `RLGetSharedGpuDiagStats()`
+
 ## 7. 共享着色器 API
 
 ### `bool RLBeginSharedShaderUse(RLShader shader, int policy)`
@@ -424,7 +518,49 @@ Note：
 | `waitSliceUs` | 单次 polling slice，单位微秒 |
 | `waitTimeoutUs` | 总超时，单位微秒 |
 
-## 8. 所有权与认领 API
+## 8. 轻量 Frame-Callback 队列 API
+
+### `bool RLGetCurrentWindowFrameCallbackQueueStats(RLFrameCallbackQueueStats *outStats)`
+
+功能：
+- 获取当前窗口 / 当前上下文的 frame-callback 队列轻量快照
+
+参数：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `outStats` | `RLFrameCallbackQueueStats *` | 输出结构体 |
+
+返回值：
+- `true`：当前窗口 / 当前上下文可提供队列统计
+- `false`：当前后端或当前窗口模式不支持该统计
+
+说明：
+- 这是 `RLEventThreadDiagStats` 中 `frameCallbackQueue*` 字段的轻量对应接口
+- 只关心当前队列状态时，优先使用这个接口
+- 仅在 Win32 + desktop GLFW 后端可用
+
+### `bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueueStats *outStats)`
+
+功能：
+- 获取指定 raylib 窗口的 frame-callback 队列轻量快照
+
+参数：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `hwnd` | `void*` | 目标窗口句柄 |
+| `outStats` | `RLFrameCallbackQueueStats *` | 输出结构体 |
+
+返回值：
+- `true`：目标窗口可提供队列统计
+- `false`：句柄未知，或当前后端 / 窗口模式不支持该统计
+
+说明：
+- 适用于查询线程当前没有绑定到目标窗口 / 目标上下文的场景
+- 仅在 Win32 + desktop GLFW 后端可用
+
+## 9. 所有权与认领 API
 
 ### `RLContext* RLGetSharedObjectOwnerContext(RLSharedObjectType type, unsigned int objectId)`
 
@@ -713,6 +849,32 @@ static intptr_t UpdateStyle(void* hwnd, void* user)
 intptr_t result = RLWin32InvokeOnWindowThreadByHandle(hwnd, UpdateStyle, NULL, 1);
 ```
 
+### `intptr_t RLWin32InvokeOnWindowThreadByHandleEx(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait, void (*userDtor)(void*))`
+
+功能：
+- 在目标窗口所属的 Win32 线程上执行 `fn`，并显式声明用户数据的所有权接管规则
+
+参数：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `hwnd` | `void*` | 目标窗口句柄 |
+| `fn` | `RLWin32WindowThreadInvoke` | 回调函数 |
+| `user` | `void*` | 用户数据 |
+| `wait` | `int` | 非零表示等待完成；0 表示异步投递 |
+| `userDtor` | `void (*)(void*)` | 当回调未执行时用于释放 `user` 的析构函数 |
+
+所有权规则：
+- 如果派发在执行前被拒绝，API 返回前调用 `userDtor(user)`
+- 如果异步请求已经被接受，但在回调真正执行前又被取消，调用 `userDtor(user)`
+- 如果回调真正执行，`user` 的所有权转移给回调实现
+
+说明：
+- 这是 `RLWin32InvokeOnWindowThreadByHandle()` 的托管所有权版本
+- 可通过 `examples/core/core_event_thread_diagnostics.c` 的 `--invoke-owned-selftest` 自动化验证
+- 同步路径会保留回调的真实返回值，包括 `0`
+- 一旦回调开始执行，`user` 的生命周期就由回调实现自己负责
+
 ### `intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait)`
 
 功能：
@@ -730,6 +892,32 @@ intptr_t result = RLWin32InvokeOnWindowThreadByHandle(hwnd, UpdateStyle, NULL, 1
 | `fn` | `RLWindowRenderThreadInvoke` | 回调函数 |
 | `user` | `void*` | 用户数据 |
 | `wait` | `int` | 同步标志，非时间单位 |
+
+### `intptr_t RLInvokeOnWindowRenderThreadByHandleEx(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait, void (*userDtor)(void*))`
+
+功能：
+- 在目标窗口的渲染线程上执行 `fn`，并显式声明用户数据的所有权接管规则
+
+参数：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `hwnd` | `void*` | 目标窗口句柄 |
+| `fn` | `RLWindowRenderThreadInvoke` | 回调函数 |
+| `user` | `void*` | 用户数据 |
+| `wait` | `int` | 非零表示等待完成；0 表示异步投递 |
+| `userDtor` | `void (*)(void*)` | 当回调未执行时用于释放 `user` 的析构函数 |
+
+所有权规则：
+- 如果派发在执行前被拒绝，API 返回前调用 `userDtor(user)`
+- 如果已入队 invoke 在 close / stop 阶段被拒绝而未真正执行，调用 `userDtor(user)`
+- 如果回调真正执行，`user` 的所有权转移给回调实现
+
+说明：
+- 这是 `RLInvokeOnWindowRenderThreadByHandle()` 的托管所有权版本
+- 可通过 `examples/core/core_event_thread_diagnostics.c` 的 `--invoke-owned-selftest` 自动化验证
+- 它补齐了异步 invoke 在入队失败或关闭拒绝路径上的 payload 清理语义
+- 一旦回调开始执行，`user` 的生命周期就由回调实现自己负责
 
 ## 12. 帧边界安全回调 API
 
@@ -805,6 +993,11 @@ intptr_t result = RLWin32InvokeOnWindowThreadByHandle(hwnd, UpdateStyle, NULL, 1
 > [!IMPORTANT]
 > 回调已经成功执行后，再由框架调用 `userDtor`是错误行为。这种操作会破坏 API 的所有权契约。所以在执行成功时，所有权和生命周期交由调用方或回调内部自己管理。
 
+补充说明：
+- 如果调用线程已经是目标 render thread，而所选队列当前已满，系统可能直接在当前 render thread 立即执行回调。这种情况就叫 `inline fallback`。
+- `inline fallback` 仍然属于“回调执行成功”，因此计入执行统计，不计入 dropped 或 cleared。
+- 如果回调最终没有执行，框架可能在入队失败、窗口关闭、停止或队列清理阶段调用 `userDtor(user)`。
+
 ## 13. 按句柄触发共享清理
 
 ### `int RLDeletePendingSharedGpuResourcesByHandle(void* hwnd, int wait)`
@@ -838,7 +1031,7 @@ int ok = RLDeletePendingSharedGpuResourcesByHandle(hwnd, 1);
 示例：
 ```c
 RLEventThreadDiagStats stats = RLGetEventThreadDiagStats();
-printf("frameNormalDepthPeak=%u\\n", stats.frameCallbackQueueDepthPeakNormal);
+printf("frameNormalPeak=%u\\n", stats.frameCallbackQueuePeakNormalCount);
 ```
 
 ### `void RLResetEventThreadDiagStats(void)`

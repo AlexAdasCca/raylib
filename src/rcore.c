@@ -1050,31 +1050,62 @@ RLTrackedPromotionResult RLTrackedObjectPromoteContextEntriesToShareGroup(RLCont
                 (entry->scopeValue != contextScopeValue)) continue;
 
             RLTrackedObjectEntry moved = *entry;
+            RLTrackedObjectEntry *target = NULL;
+            unsigned char targetOriginalState = 0u;
+            const size_t mask = rlTrackedObjectTable.capacity - 1u;
+            size_t firstReusableIndex = (size_t)-1;
+            size_t probeIndex = (size_t)(RLTrackedObjectHash(moved.kind,
+                RL_TRACKED_SCOPE_SHARE_GROUP, shareScopeValue, moved.key) & mask);
 
-            entry->refCount = 0u;
-            entry->ownerContext = NULL;
-            entry->ownerOrphaned = 0u;
-            entry->snapshot = NULL;
-            entry->snapshotSize = 0u;
-            entry->state = 2u;
-            rlTrackedObjectTable.used--;
-            rlTrackedObjectTable.tombstones++;
+            // Promotion needs a share-scope insertion target, but we cannot rely on the
+            // generic finder while the source slot is still active under its old context scope.
+            // During this probe, treat the source slot as a reusable candidate.
+            for (;;)
+            {
+                RLTrackedObjectEntry *candidate = &rlTrackedObjectTable.entries[probeIndex];
 
-            RLTrackedObjectEntry *target = RLTrackedObjectFindEntry(moved.kind,
-                RL_TRACKED_SCOPE_SHARE_GROUP, shareScopeValue, moved.key, true);
+                if (candidate == entry)
+                {
+                    if (firstReusableIndex == (size_t)-1) firstReusableIndex = probeIndex;
+                }
+                else if (candidate->state == 0u)
+                {
+                    if (firstReusableIndex != (size_t)-1)
+                    {
+                        target = &rlTrackedObjectTable.entries[firstReusableIndex];
+                        targetOriginalState = (target == entry)? 1u : target->state;
+                    }
+                    else
+                    {
+                        target = candidate;
+                        targetOriginalState = 0u;
+                    }
+                    break;
+                }
+                else if (candidate->state == 1u)
+                {
+                    if ((candidate->kind == moved.kind) &&
+                        (candidate->scopeKind == (unsigned char)RL_TRACKED_SCOPE_SHARE_GROUP) &&
+                        (candidate->scopeValue == shareScopeValue) &&
+                        (candidate->key == moved.key))
+                    {
+                        target = candidate;
+                        targetOriginalState = 1u;
+                        break;
+                    }
+                }
+                else if ((candidate->state == 2u) && (firstReusableIndex == (size_t)-1))
+                {
+                    firstReusableIndex = probeIndex;
+                }
+
+                probeIndex = (probeIndex + 1u) & mask;
+            }
+
             if (target == NULL)
             {
-                entry->refCount = moved.refCount;
-                entry->ownerContext = moved.ownerContext;
-                entry->ownerOrphaned = moved.ownerOrphaned;
-                entry->snapshot = moved.snapshot;
-                entry->snapshotSize = moved.snapshotSize;
-                entry->state = 1u;
-                rlTrackedObjectTable.used++;
-                rlTrackedObjectTable.tombstones--;
-
                 TRACELOG(RL_E_LOG_WARNING,
-                    "TRACKED_OBJECT: promote restore kind=%s key=%llu sourceCtx=%p shareGroup=%p reason=no-target-slot",
+                    "TRACKED_OBJECT: promote skipped kind=%s key=%llu sourceCtx=%p shareGroup=%p reason=no-target-slot",
                     RLTrackedObjectKindName(moved.kind),
                     (unsigned long long)moved.key,
                     (void *)ctx,
@@ -1082,20 +1113,56 @@ RLTrackedPromotionResult RLTrackedObjectPromoteContextEntriesToShareGroup(RLCont
                 continue;
             }
 
-            if (target->state == 2u) rlTrackedObjectTable.tombstones--;
-            else if (target->state != 1u) rlTrackedObjectTable.used++;
+            if ((target != entry) && (targetOriginalState == 1u))
+            {
+                TRACELOG(RL_E_LOG_WARNING,
+                    "TRACKED_OBJECT: promote skipped kind=%s key=%llu sourceCtx=%p shareGroup=%p reason=unexpected-active-target",
+                    RLTrackedObjectKindName(moved.kind),
+                    (unsigned long long)moved.key,
+                    (void *)ctx,
+                    shareGroup);
+                continue;
+            }
 
-            target->key = moved.key;
-            target->kind = moved.kind;
-            target->scopeKind = (unsigned char)RL_TRACKED_SCOPE_SHARE_GROUP;
-            target->scopeValue = shareScopeValue;
-            target->refCount = moved.refCount;
-            target->ownerContext = moved.ownerContext;
-            target->ownerOrphaned = moved.ownerOrphaned;
-            target->snapshot = moved.snapshot;
-            target->snapshotSize = moved.snapshotSize;
-            target->state = 1u;
-            migratedCount++;
+            if (target == entry)
+            {
+                entry->scopeKind = (unsigned char)RL_TRACKED_SCOPE_SHARE_GROUP;
+                entry->scopeValue = shareScopeValue;
+                migratedCount++;
+            }
+            else
+            {
+                if (targetOriginalState == 2u)
+                {
+                    rlTrackedObjectTable.tombstones--;
+                    rlTrackedObjectTable.used++;
+                }
+                else if (targetOriginalState == 0u)
+                {
+                    rlTrackedObjectTable.used++;
+                }
+
+                target->key = moved.key;
+                target->kind = moved.kind;
+                target->scopeKind = (unsigned char)RL_TRACKED_SCOPE_SHARE_GROUP;
+                target->scopeValue = shareScopeValue;
+                target->refCount = moved.refCount;
+                target->ownerContext = moved.ownerContext;
+                target->ownerOrphaned = moved.ownerOrphaned;
+                target->snapshot = moved.snapshot;
+                target->snapshotSize = moved.snapshotSize;
+                target->state = 1u;
+
+                entry->refCount = 0u;
+                entry->ownerContext = NULL;
+                entry->ownerOrphaned = 0u;
+                entry->snapshot = NULL;
+                entry->snapshotSize = 0u;
+                entry->state = 2u;
+                rlTrackedObjectTable.used--;
+                rlTrackedObjectTable.tombstones++;
+                migratedCount++;
+            }
 
             if (logPromotions)
             {
@@ -1908,14 +1975,8 @@ extern void glfwGetCurrentThreadTaskQueueStatsEx(unsigned int *queued, unsigned 
                                                  unsigned long long *droppedCritical, unsigned long long *droppedState,
                                                  unsigned long long *droppedInput, unsigned long long *droppedMaintenance,
                                                  unsigned long long *wakeSent, unsigned long long *wakeDedup);
-extern void glfwResetCurrentThreadTaskQueueStats(void);
-extern int RLGetCurrentContextFrameCallbackQueueStats(unsigned int *queued, unsigned int *queuedCritical, unsigned int *queuedPeak,
-                                                      unsigned long long *dropped, unsigned long long *droppedNormal,
-                                                      unsigned long long *droppedCritical, unsigned long long *evictedNormalForCritical);
-extern void RLResetCurrentContextFrameCallbackQueueStats(void);
 extern RLSharedGpuTrackingDiagStats RLSharedGpuGetTrackingDiagStats(void);
 extern void RLSharedGpuResetTrackingDiagStats(void);
-extern int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait);
 #endif
 
 typedef enum RLDiagPayloadKind {
@@ -2239,16 +2300,6 @@ void RLDiag_ResetEventThreadDiagCoreOnly(void)
 #endif
 }
 
-void RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly(void)
-{
-#if RL_EVENT_DIAG_STATS
-    #if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
-    glfwResetCurrentThreadTaskQueueStats();
-    RLResetCurrentContextFrameCallbackQueueStats();
-    #endif
-#endif
-}
-
 RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
 {
     RLEventThreadDiagStats out = { 0 };
@@ -2306,10 +2357,30 @@ RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
                                          &out.nativeTaskQueueDroppedCriticalCount, &out.nativeTaskQueueDroppedStateCount,
                                          &out.nativeTaskQueueDroppedInputCount, &out.nativeTaskQueueDroppedMaintenanceCount,
                                          &out.nativeTaskWakeSentCount, &out.nativeTaskWakeDedupCount);
-    RLGetCurrentContextFrameCallbackQueueStats(&out.frameCallbackQueueCount, &out.frameCallbackQueueCriticalCount,
-                                               &out.frameCallbackQueuePeakCount, &out.frameCallbackDroppedCount,
-                                               &out.frameCallbackDroppedNormalCount, &out.frameCallbackDroppedCriticalCount,
-                                               &out.frameCallbackEvictedNormalForCriticalCount);
+    {
+        RLFrameCallbackQueueStats frameCallbackQueueStats = { 0 };
+        if (RLGetCurrentWindowFrameCallbackQueueStats(&frameCallbackQueueStats))
+        {
+            out.frameCallbackQueueCount = frameCallbackQueueStats.queuedCount;
+            out.frameCallbackQueueNormalCount = frameCallbackQueueStats.queuedNormalCount;
+            out.frameCallbackQueueCriticalCount = frameCallbackQueueStats.queuedCriticalCount;
+            out.frameCallbackQueuePeakCount = frameCallbackQueueStats.queuedPeakCount;
+            out.frameCallbackQueuePeakNormalCount = frameCallbackQueueStats.queuedPeakNormalCount;
+            out.frameCallbackQueuePeakCriticalCount = frameCallbackQueueStats.queuedPeakCriticalCount;
+            out.frameCallbackDroppedCount = frameCallbackQueueStats.droppedCount;
+            out.frameCallbackDroppedNormalCount = frameCallbackQueueStats.droppedNormalCount;
+            out.frameCallbackDroppedCriticalCount = frameCallbackQueueStats.droppedCriticalCount;
+            out.frameCallbackExecutedCount = frameCallbackQueueStats.executedCount;
+            out.frameCallbackExecutedNormalCount = frameCallbackQueueStats.executedNormalCount;
+            out.frameCallbackExecutedCriticalCount = frameCallbackQueueStats.executedCriticalCount;
+            out.frameCallbackClearedCount = frameCallbackQueueStats.clearedCount;
+            out.frameCallbackClearedNormalCount = frameCallbackQueueStats.clearedNormalCount;
+            out.frameCallbackClearedCriticalCount = frameCallbackQueueStats.clearedCriticalCount;
+            out.frameCallbackInlineFallbackCount = frameCallbackQueueStats.inlineFallbackCount;
+            out.frameCallbackInlineFallbackNormalCount = frameCallbackQueueStats.inlineFallbackNormalCount;
+            out.frameCallbackInlineFallbackCriticalCount = frameCallbackQueueStats.inlineFallbackCriticalCount;
+        }
+    }
 #endif
 
     out.pumpCalls = (unsigned long long)RLDiag_Load64(&rlDiag_pumpCalls);
@@ -2366,7 +2437,12 @@ RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
 void RLResetEventThreadDiagStats(void)
 {
     RLDiag_ResetEventThreadDiagCoreOnly();
-    RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly();
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+    {
+        void* windowHandle = RLGetWindowHandle();
+        if ((windowHandle != NULL) && RLResetEventThreadDiagStatsByHandle(windowHandle, 1)) return;
+    }
+#endif
 }
 
 void RLResetEventThreadDiagStatsForCurrentContext(void)
@@ -2383,7 +2459,12 @@ void RLEnableEventDiagStats(void)
 #if RL_EVENT_DIAG_STATS
     RLDiag_Store64(&rlDiag_runtimeEnabled, 1);
     RLDiag_ResetEventThreadDiagCoreOnly();
-    RLDiag_ResetEventThreadDiagNativeCurrentThreadOnly();
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+    {
+        void* windowHandle = RLGetWindowHandle();
+        if (windowHandle != NULL) (void)RLResetEventThreadDiagStatsByHandle(windowHandle, 1);
+    }
+#endif
 #endif
 }
 
@@ -3968,6 +4049,51 @@ int RLGetSharedGpuTrackingMode(void)
             return RL_SHARED_GPU_TRACKING_STRICT;
         }
     }
+}
+
+RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void)
+{
+    RLSharedGpuDiagStats out = { 0 };
+    RLSharedGpuDiagStatsInternal internalStats = RLSharedGpuGetDiagStats();
+
+    out.hasShareGroup = internalStats.hasShareGroup;
+    out.usesSharedTrackedScope = internalStats.usesSharedTrackedScope;
+    out.contextRefCount = internalStats.contextRefCount;
+    out.liveObjectCount = internalStats.liveObjectCount;
+    out.pendingDeleteCount = internalStats.pendingDeleteCount;
+    out.ownerEntryCount = internalStats.ownerEntryCount;
+    out.orphanedOwnerCount = internalStats.orphanedOwnerCount;
+    out.framebufferAttachmentMapCount = internalStats.framebufferAttachmentMapCount;
+    out.framebufferDepthMapCount = internalStats.framebufferDepthMapCount;
+    out.programLocEntryCount = internalStats.programLocEntryCount;
+    out.programUseScopeCount = internalStats.programUseScopeCount;
+    out.pendingProgramFenceCount = internalStats.pendingProgramFenceCount;
+    out.textureTraceCount = internalStats.textureTraceCount;
+    out.liveTextureCount = internalStats.liveTextureCount;
+    out.liveBufferCount = internalStats.liveBufferCount;
+    out.liveVertexArrayCount = internalStats.liveVertexArrayCount;
+    out.liveFramebufferCount = internalStats.liveFramebufferCount;
+    out.liveRenderbufferCount = internalStats.liveRenderbufferCount;
+    out.liveProgramCount = internalStats.liveProgramCount;
+    out.pendingTextureCount = internalStats.pendingTextureCount;
+    out.pendingBufferCount = internalStats.pendingBufferCount;
+    out.pendingVertexArrayCount = internalStats.pendingVertexArrayCount;
+    out.pendingFramebufferCount = internalStats.pendingFramebufferCount;
+    out.pendingRenderbufferCount = internalStats.pendingRenderbufferCount;
+    out.pendingProgramCount = internalStats.pendingProgramCount;
+    out.releaseUntrackedCount = internalStats.releaseUntrackedCount;
+    out.framebufferMapHitCount = internalStats.framebufferMapHitCount;
+    out.framebufferMapMissCount = internalStats.framebufferMapMissCount;
+    out.framebufferReleaseSkippedCount = internalStats.framebufferReleaseSkippedCount;
+    out.unregisteredRetainRejectCount = internalStats.unregisteredRetainRejectCount;
+    out.unregisteredReleaseRejectCount = internalStats.unregisteredReleaseRejectCount;
+
+    return out;
+}
+
+void RLDebugDumpSharedGpuState(const char *label)
+{
+    RLSharedGpuDebugDumpState(label);
 }
 
 static RLThreadMismatchDiagStats rlThreadMismatchDiagStats = { 0 };

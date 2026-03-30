@@ -851,17 +851,69 @@ void RLSharedGpuReleaseFramebufferTree(unsigned int framebufferId)
     }
 }
 
-RLSharedGpuFramebufferMapStats RLSharedGpuGetFramebufferMapStats(void)
+RLSharedGpuDiagStatsInternal RLSharedGpuGetDiagStats(void)
 {
-    RLSharedGpuFramebufferMapStats out = { 0 };
+    RLSharedGpuDiagStatsInternal out = { 0 };
     PinnedGroup pinned = PinExistingGroupForCurrentContext();
     RLSharedGpuGroup *shareGroup = pinned.get();
     if (!shareGroup) return out;
 
+    out.hasShareGroup = 1;
+    out.contextRefCount = shareGroup->ctxRefs.load(std::memory_order_relaxed);
+    out.usesSharedTrackedScope = (shareGroup->trackedScopePolicy.load(std::memory_order_relaxed) == RL_SHARED_GPU_TRACKED_SCOPE_SHARE_GROUP);
+
+    {
     RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
-    out.mapHitCount = (unsigned long long)shareGroup->fboAttachmentMapHitCount;
-    out.mapMissCount = (unsigned long long)shareGroup->fboAttachmentMapMissCount;
-    out.releaseSkippedCount = (unsigned long long)shareGroup->fboAttachmentReleaseSkippedCount;
+        out.liveObjectCount = (unsigned long long)shareGroup->refs.size();
+        out.pendingDeleteCount = (unsigned long long)shareGroup->pending.size();
+        out.ownerEntryCount = (unsigned long long)shareGroup->owners.size();
+        out.orphanedOwnerCount = (unsigned long long)shareGroup->orphanedOwners.size();
+        out.framebufferAttachmentMapCount = (unsigned long long)shareGroup->framebufferAttachments.size();
+        out.framebufferDepthMapCount = (unsigned long long)shareGroup->framebufferDepth.size();
+        out.programLocEntryCount = (unsigned long long)shareGroup->programLocs.size();
+        out.programUseScopeCount = (unsigned long long)shareGroup->programUseScopes.size();
+        out.pendingProgramFenceCount = (unsigned long long)shareGroup->pendingProgramFences.size();
+        out.textureTraceCount = (unsigned long long)shareGroup->textureTrace.size();
+        out.releaseUntrackedCount = (unsigned long long)shareGroup->releaseUntrackedCount;
+        out.framebufferMapHitCount = (unsigned long long)shareGroup->fboAttachmentMapHitCount;
+        out.framebufferMapMissCount = (unsigned long long)shareGroup->fboAttachmentMapMissCount;
+        out.framebufferReleaseSkippedCount = (unsigned long long)shareGroup->fboAttachmentReleaseSkippedCount;
+
+        for (auto &refEntry : shareGroup->refs) {
+            uint32_t objectTypeBits = 0;
+            uint32_t objectId = 0;
+            SplitKey(refEntry.first, objectTypeBits, objectId);
+            switch (objectTypeBits)
+            {
+                case RL_SHARED_GPU_OBJECT_TEXTURE: out.liveTextureCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_BUFFER: out.liveBufferCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_VERTEX_ARRAY: out.liveVertexArrayCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_FRAMEBUFFER: out.liveFramebufferCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_RENDERBUFFER: out.liveRenderbufferCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_PROGRAM: out.liveProgramCount += 1; break;
+                default: break;
+            }
+        }
+
+        for (auto &pendingKey : shareGroup->pending) {
+            uint32_t objectTypeBits = 0;
+            uint32_t objectId = 0;
+            SplitKey(pendingKey, objectTypeBits, objectId);
+            switch (objectTypeBits)
+            {
+                case RL_SHARED_GPU_OBJECT_TEXTURE: out.pendingTextureCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_BUFFER: out.pendingBufferCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_VERTEX_ARRAY: out.pendingVertexArrayCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_FRAMEBUFFER: out.pendingFramebufferCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_RENDERBUFFER: out.pendingRenderbufferCount += 1; break;
+                case RL_SHARED_GPU_OBJECT_PROGRAM: out.pendingProgramCount += 1; break;
+                default: break;
+            }
+        }
+    }
+
+    out.unregisteredRetainRejectCount = gUnregisteredRetainRejectCount.load(std::memory_order_relaxed);
+    out.unregisteredReleaseRejectCount = gUnregisteredReleaseRejectCount.load(std::memory_order_relaxed);
     return out;
 }
 
@@ -1234,59 +1286,50 @@ bool RLSharedGpuPopPendingDelete(RLSharedGpuObjectType *typeOut, unsigned int *i
 
 void RLSharedGpuDebugDumpState(const char *label)
 {
-    PinnedGroup pinned = PinExistingGroupForCurrentContext();
-    RLSharedGpuGroup *shareGroup = pinned.get();
-    if (!shareGroup) {
+    RLSharedGpuDiagStatsInternal stats = RLSharedGpuGetDiagStats();
+    if (!stats.hasShareGroup) {
         RLTraceLog(RL_E_LOG_INFO, "SHARED_GPU: %s: no share-group bound on current context", label ? label : "state");
         return;
     }
 
-    uint32_t liveByType[8] = {0};
-    uint32_t pendByType[8] = {0};
-    size_t live = 0, pend = 0, untrackedRelease = 0;
-    size_t fboMapHit = 0, fboMapMiss = 0, fboReleaseSkipped = 0;
-    const unsigned long long rejectRetain = gUnregisteredRetainRejectCount.load(std::memory_order_relaxed);
-    const unsigned long long rejectRelease = gUnregisteredReleaseRejectCount.load(std::memory_order_relaxed);
-
-    {
-    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
-        live = shareGroup->refs.size();
-        pend = shareGroup->pending.size();
-        untrackedRelease = shareGroup->releaseUntrackedCount;
-        fboMapHit = shareGroup->fboAttachmentMapHitCount;
-        fboMapMiss = shareGroup->fboAttachmentMapMissCount;
-        fboReleaseSkipped = shareGroup->fboAttachmentReleaseSkippedCount;
-        for (auto &refEntry : shareGroup->refs) {
-            uint32_t objectTypeBits = 0, objectId = 0;
-            SplitKey(refEntry.first, objectTypeBits, objectId);
-            if (objectTypeBits < 8) liveByType[objectTypeBits] += 1;
-        }
-        for (auto &pendingKey : shareGroup->pending) {
-            uint32_t objectTypeBits = 0, objectId = 0;
-            SplitKey(pendingKey, objectTypeBits, objectId);
-            if (objectTypeBits < 8) pendByType[objectTypeBits] += 1;
-        }
-    }
-
     RLTraceLog(RL_E_LOG_INFO,
-        "SHARED_GPU: %s: live=%zu pending=%zu untrackedRelease=%zu | live(tex=%u buf=%u vao=%u fbo=%u rbo=%u prog=%u) "
-        "pend(tex=%u buf=%u vao=%u fbo=%u rbo=%u prog=%u) fboMap(hit=%zu miss=%zu releaseSkip=%zu) reject(retain=%llu release=%llu)",
+        "SHARED_GPU: %s: ctxRefs=%u live=%llu pending=%llu owners=%llu orphaned=%llu trackedScope=%s untrackedRelease=%llu | "
+        "live(tex=%llu buf=%llu vao=%llu fbo=%llu rbo=%llu prog=%llu) pend(tex=%llu buf=%llu vao=%llu fbo=%llu rbo=%llu prog=%llu)",
         label ? label : "state",
-        live, pend, untrackedRelease,
-        liveByType[RL_SHARED_GPU_OBJECT_TEXTURE],
-        liveByType[RL_SHARED_GPU_OBJECT_BUFFER],
-        liveByType[RL_SHARED_GPU_OBJECT_VERTEX_ARRAY],
-        liveByType[RL_SHARED_GPU_OBJECT_FRAMEBUFFER],
-        liveByType[RL_SHARED_GPU_OBJECT_RENDERBUFFER],
-        liveByType[RL_SHARED_GPU_OBJECT_PROGRAM],
-        pendByType[RL_SHARED_GPU_OBJECT_TEXTURE],
-        pendByType[RL_SHARED_GPU_OBJECT_BUFFER],
-        pendByType[RL_SHARED_GPU_OBJECT_VERTEX_ARRAY],
-        pendByType[RL_SHARED_GPU_OBJECT_FRAMEBUFFER],
-        pendByType[RL_SHARED_GPU_OBJECT_RENDERBUFFER],
-        pendByType[RL_SHARED_GPU_OBJECT_PROGRAM],
-        fboMapHit, fboMapMiss, fboReleaseSkipped,
-        rejectRetain, rejectRelease);
+        stats.contextRefCount,
+        stats.liveObjectCount,
+        stats.pendingDeleteCount,
+        stats.ownerEntryCount,
+        stats.orphanedOwnerCount,
+        stats.usesSharedTrackedScope ? "share-group" : "context",
+        stats.releaseUntrackedCount,
+        stats.liveTextureCount,
+        stats.liveBufferCount,
+        stats.liveVertexArrayCount,
+        stats.liveFramebufferCount,
+        stats.liveRenderbufferCount,
+        stats.liveProgramCount,
+        stats.pendingTextureCount,
+        stats.pendingBufferCount,
+        stats.pendingVertexArrayCount,
+        stats.pendingFramebufferCount,
+        stats.pendingRenderbufferCount,
+        stats.pendingProgramCount);
+    RLTraceLog(RL_E_LOG_INFO,
+        "SHARED_GPU: %s: maps(attach=%llu depth=%llu programLoc=%llu programScope=%llu pendingFence=%llu textureTrace=%llu) "
+        "fboMap(hit=%llu miss=%llu releaseSkip=%llu) reject(retain=%llu release=%llu)",
+        label ? label : "state",
+        stats.framebufferAttachmentMapCount,
+        stats.framebufferDepthMapCount,
+        stats.programLocEntryCount,
+        stats.programUseScopeCount,
+        stats.pendingProgramFenceCount,
+        stats.textureTraceCount,
+        stats.framebufferMapHitCount,
+        stats.framebufferMapMissCount,
+        stats.framebufferReleaseSkippedCount,
+        stats.unregisteredRetainRejectCount,
+        stats.unregisteredReleaseRejectCount);
 }
 
 void RLSharedGpuSetTextureDebugLabel(unsigned int id, const char *label, const char *sourceFile, int sourceLine)

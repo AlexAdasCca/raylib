@@ -78,13 +78,41 @@ void RLSharedGpuUnregisterFramebufferAttachments(unsigned int framebufferId);
 void RLSharedGpuRetainFramebufferTree(unsigned int framebufferId);
 void RLSharedGpuReleaseFramebufferTree(unsigned int framebufferId);
 
-typedef struct RLSharedGpuFramebufferMapStats {
-    unsigned long long mapHitCount;
-    unsigned long long mapMissCount;
-    unsigned long long releaseSkippedCount;
-} RLSharedGpuFramebufferMapStats;
+typedef struct RLSharedGpuDiagStatsInternal {
+    int hasShareGroup;
+    int usesSharedTrackedScope;
+    unsigned int contextRefCount;
+    unsigned long long liveObjectCount;
+    unsigned long long pendingDeleteCount;
+    unsigned long long ownerEntryCount;
+    unsigned long long orphanedOwnerCount;
+    unsigned long long framebufferAttachmentMapCount;
+    unsigned long long framebufferDepthMapCount;
+    unsigned long long programLocEntryCount;
+    unsigned long long programUseScopeCount;
+    unsigned long long pendingProgramFenceCount;
+    unsigned long long textureTraceCount;
+    unsigned long long liveTextureCount;
+    unsigned long long liveBufferCount;
+    unsigned long long liveVertexArrayCount;
+    unsigned long long liveFramebufferCount;
+    unsigned long long liveRenderbufferCount;
+    unsigned long long liveProgramCount;
+    unsigned long long pendingTextureCount;
+    unsigned long long pendingBufferCount;
+    unsigned long long pendingVertexArrayCount;
+    unsigned long long pendingFramebufferCount;
+    unsigned long long pendingRenderbufferCount;
+    unsigned long long pendingProgramCount;
+    unsigned long long releaseUntrackedCount;
+    unsigned long long framebufferMapHitCount;
+    unsigned long long framebufferMapMissCount;
+    unsigned long long framebufferReleaseSkippedCount;
+    unsigned long long unregisteredRetainRejectCount;
+    unsigned long long unregisteredReleaseRejectCount;
+} RLSharedGpuDiagStatsInternal;
 
-RLSharedGpuFramebufferMapStats RLSharedGpuGetFramebufferMapStats(void);
+RLSharedGpuDiagStatsInternal RLSharedGpuGetDiagStats(void);
 
 // Owner-query/transfer helpers (write-ownership control, per share-group object key).
 bool RLSharedGpuGetObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLContext **ownerOut);

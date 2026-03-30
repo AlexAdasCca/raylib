@@ -110,12 +110,12 @@ RLThreadMismatchDiagStats stats = RLGetThreadMismatchDiagStats();
 
 ## 5. 回归建议
 
-每次修改以下模块后，至少执行：
+每次修改多窗口实现后，需要执行以下测试：
 1. `core_shared_gpu_context --trace-reentry-selftest`
 2. `core_event_thread_diagnostics --queue-saturation-selftest`
 3. `core_event_thread_diagnostics --semaphore-selftest`
 
-并手动验证：
+需要手动验证以下功能：
 1. 事件线程模式下的创建与关闭。
 2. 共享窗口创建与关闭。
 3. 所有权转移与反向转移。

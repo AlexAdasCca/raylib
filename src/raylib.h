@@ -1149,6 +1149,40 @@ typedef enum RLSharedGpuTrackingMode {
     RL_SHARED_GPU_TRACKING_STRICT = 1      // Unregistered retain/release is rejected and reported.
 } RLSharedGpuTrackingMode;
 
+typedef struct RLSharedGpuDiagStats {
+    int hasShareGroup;                           // 1 when current context has a bound share-group, otherwise 0
+    int usesSharedTrackedScope;                  // 1 when tracked-object scope is promoted to share-group scope
+    unsigned int contextRefCount;                // Number of contexts currently attached to the share-group
+    unsigned long long liveObjectCount;          // Number of currently tracked live shared GPU objects
+    unsigned long long pendingDeleteCount;       // Number of deferred deletes waiting to be drained
+    unsigned long long ownerEntryCount;          // Number of owner entries recorded for shared objects
+    unsigned long long orphanedOwnerCount;       // Number of orphaned owner entries awaiting adoption or final release
+    unsigned long long framebufferAttachmentMapCount; // Number of framebuffer attachment-map entries
+    unsigned long long framebufferDepthMapCount; // Number of legacy framebuffer depth-map entries
+    unsigned long long programLocEntryCount;     // Number of program auxiliary-locs entries
+    unsigned long long programUseScopeCount;     // Number of shared shader use-scope entries
+    unsigned long long pendingProgramFenceCount; // Number of queued program fences pending release
+    unsigned long long textureTraceCount;        // Number of texture trace metadata entries
+    unsigned long long liveTextureCount;
+    unsigned long long liveBufferCount;
+    unsigned long long liveVertexArrayCount;
+    unsigned long long liveFramebufferCount;
+    unsigned long long liveRenderbufferCount;
+    unsigned long long liveProgramCount;
+    unsigned long long pendingTextureCount;
+    unsigned long long pendingBufferCount;
+    unsigned long long pendingVertexArrayCount;
+    unsigned long long pendingFramebufferCount;
+    unsigned long long pendingRenderbufferCount;
+    unsigned long long pendingProgramCount;
+    unsigned long long releaseUntrackedCount;    // Number of release calls observed for untracked objects
+    unsigned long long framebufferMapHitCount;   // Number of framebuffer tree retain/release mapping hits
+    unsigned long long framebufferMapMissCount;  // Number of framebuffer tree retain/release mapping misses
+    unsigned long long framebufferReleaseSkippedCount; // Number of mapped attachment releases skipped because attachment was absent
+    unsigned long long unregisteredRetainRejectCount;  // Number of strict-mode retain rejects on unregistered objects
+    unsigned long long unregisteredReleaseRejectCount; // Number of strict-mode release rejects on unregistered objects
+} RLSharedGpuDiagStats;
+
 // Query and transfer object write-ownership inside the same share-group.
 // Transfer requires current context to be the current owner (or owner unset) and target context in same share-group.
 // For object types that are also tracked by high-level object metadata (for example textures/render textures),
@@ -1170,6 +1204,8 @@ RLAPI bool RLTryAdoptOrphanedObject(RLSharedObjectType type, unsigned int object
 // Default mode is RL_SHARED_GPU_TRACKING_STRICT.
 RLAPI void RLSetSharedGpuTrackingMode(int mode);
 RLAPI int RLGetSharedGpuTrackingMode(void);
+RLAPI RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void);           // Get share-group diagnostics snapshot for current context
+RLAPI void RLDebugDumpSharedGpuState(const char *label);            // Dump share-group diagnostics snapshot to the log
 
 // Window-related functions
 RLAPI void RLInitWindow(int width, int height, const char *title);  // Initialize window and OpenGL context
@@ -1240,6 +1276,11 @@ RLAPI int RLWin32RemoveMessageHookByHandle(void* hwnd, void* token);
 typedef intptr_t (*RLWin32WindowThreadInvoke)(void* hwnd, void* user);
 #endif
 RLAPI intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait);
+// Extended window-thread invoke API with explicit payload ownership.
+// If userDtor is non-NULL, dispatch takes ownership of user on API entry:
+// - dispatch reject/post failure: userDtor is called before return,
+// - dispatched callback executed: ownership transfers to callback implementation.
+RLAPI intptr_t RLWin32InvokeOnWindowThreadByHandleEx(void* hwnd, RLWin32WindowThreadInvoke fn, void* user, int wait, void (*userDtor)(void*));
 
 // NOTE: Render-thread invoke is a raw thread-affinity primitive.
 // It runs on the target window render thread but does NOT guarantee frame-boundary timing.
@@ -1249,6 +1290,12 @@ RLAPI intptr_t RLWin32InvokeOnWindowThreadByHandle(void* hwnd, RLWin32WindowThre
 typedef intptr_t (*RLWindowRenderThreadInvoke)(void* hwnd, void* user);
 #endif
 RLAPI intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait);
+// Extended render-thread invoke API with explicit payload ownership.
+// If userDtor is non-NULL, dispatch takes ownership of user on API entry:
+// - dispatch reject/post failure: userDtor is called before return,
+// - queued invoke rejected during close/stop before execution: userDtor is called,
+// - invoked callback executed: ownership transfers to callback implementation.
+RLAPI intptr_t RLInvokeOnWindowRenderThreadByHandleEx(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait, void (*userDtor)(void*));
 
 // Frame callback queue priority.
 // - NORMAL: bounded callback queue with finite backpressure; enqueue may fail on timeout under sustained pressure.
@@ -2110,12 +2157,23 @@ typedef struct RLEventThreadDiagStats {
     unsigned int       nativeTaskQueueLastObservedCount;
     // Frame-safe callback queue metrics (Win32 + desktop GLFW event-thread path).
     unsigned int       frameCallbackQueueCount;
+    unsigned int       frameCallbackQueueNormalCount;
     unsigned int       frameCallbackQueueCriticalCount;
     unsigned int       frameCallbackQueuePeakCount;
+    unsigned int       frameCallbackQueuePeakNormalCount;
+    unsigned int       frameCallbackQueuePeakCriticalCount;
     unsigned long long frameCallbackDroppedCount;
     unsigned long long frameCallbackDroppedNormalCount;
     unsigned long long frameCallbackDroppedCriticalCount;
-    unsigned long long frameCallbackEvictedNormalForCriticalCount;
+    unsigned long long frameCallbackExecutedCount;
+    unsigned long long frameCallbackExecutedNormalCount;
+    unsigned long long frameCallbackExecutedCriticalCount;
+    unsigned long long frameCallbackClearedCount;
+    unsigned long long frameCallbackClearedNormalCount;
+    unsigned long long frameCallbackClearedCriticalCount;
+    unsigned long long frameCallbackInlineFallbackCount;
+    unsigned long long frameCallbackInlineFallbackNormalCount;
+    unsigned long long frameCallbackInlineFallbackCriticalCount;
     unsigned long long pumpCalls;
     unsigned long long pumpTasksExecutedTotal;
     unsigned int       pumpTasksExecutedMax;
@@ -2159,6 +2217,27 @@ typedef struct RLThreadMismatchDiagStats {
     char lastApi[64];                      // Last API name that triggered mismatch
 } RLThreadMismatchDiagStats;
 
+typedef struct RLFrameCallbackQueueStats {
+    unsigned int queuedCount;                          // Total queued frame callbacks (normal + critical)
+    unsigned int queuedNormalCount;                    // Queued normal frame callbacks
+    unsigned int queuedCriticalCount;                  // Queued critical frame callbacks
+    unsigned int queuedPeakCount;                      // Peak queued frame callbacks since last reset
+    unsigned int queuedPeakNormalCount;                // Peak queued normal frame callbacks since last reset
+    unsigned int queuedPeakCriticalCount;              // Peak queued critical frame callbacks since last reset
+    unsigned long long droppedCount;                   // Total dropped frame callbacks
+    unsigned long long droppedNormalCount;             // Dropped normal frame callbacks
+    unsigned long long droppedCriticalCount;           // Dropped critical frame callbacks
+    unsigned long long executedCount;                  // Total executed frame callbacks
+    unsigned long long executedNormalCount;            // Executed normal frame callbacks
+    unsigned long long executedCriticalCount;          // Executed critical frame callbacks
+    unsigned long long clearedCount;                   // Queued frame callbacks cleared before execution
+    unsigned long long clearedNormalCount;             // Cleared normal frame callbacks
+    unsigned long long clearedCriticalCount;           // Cleared critical frame callbacks
+    unsigned long long inlineFallbackCount;            // Queue-saturated callbacks executed immediately on render thread
+    unsigned long long inlineFallbackNormalCount;      // Normal callbacks executed via inline fallback
+    unsigned long long inlineFallbackCriticalCount;    // Critical callbacks executed via inline fallback
+} RLFrameCallbackQueueStats;
+
 typedef enum RLTrackedObjectDiagFlags {
     RL_TRACKED_OBJECT_DIAG_NONE = 0,
     RL_TRACKED_OBJECT_DIAG_LOG_RELEASE_CALLS = 0x01,        // Log tracked-object release calls and final refcount transitions
@@ -2181,6 +2260,8 @@ RLAPI unsigned int RLGetTrackedObjectDiagFlags(void);               // Get track
 RLAPI void RLDebugDumpTrackedObjectState(const char *label);        // Dump tracked-object table state to the log
 
 #if defined(_WIN32)
+RLAPI bool RLGetCurrentWindowFrameCallbackQueueStats(RLFrameCallbackQueueStats *outStats); // Get lightweight frame-callback queue stats for the current window/context
+RLAPI bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueueStats *outStats); // Get lightweight frame-callback queue stats for the specified raylib window
 RLAPI int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait); // Reset diagnostics and safely reset target window native queue stats on its render thread
 #endif
 

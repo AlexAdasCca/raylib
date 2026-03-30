@@ -568,6 +568,157 @@ typedef struct SemaphoreSelfTestState
     volatile LONG failureCount;
 } SemaphoreSelfTestState;
 
+typedef struct InvokeOwnedPayload
+{
+    volatile LONG *callbackCount;
+    volatile LONG *dtorCount;
+    HANDLE doneEvent;
+} InvokeOwnedPayload;
+
+typedef struct InvokeOwnedAsyncPostThreadArg
+{
+    void *windowHandle;
+    InvokeOwnedPayload *payload;
+    HANDLE workerDoneEvent;
+    int useWindowThread;
+    volatile LONG acceptedCount;
+} InvokeOwnedAsyncPostThreadArg;
+
+typedef struct InvokeOwnedRenderSaturationState
+{
+    void *windowHandle;
+    HANDLE blockerEnteredEvent;
+    HANDLE blockerReleaseEvent;
+    HANDLE workerDoneEvent;
+    volatile LONG blockerStarted;
+    volatile LONG blockerReleased;
+    volatile LONG acceptedCount;
+    volatile LONG failedCount;
+    volatile LONG callbackCount;
+    volatile LONG dtorCount;
+    InvokeOwnedPayload **payloads;
+    int payloadCapacity;
+} InvokeOwnedRenderSaturationState;
+
+#define INVOKE_OWNED_RENDER_POST_COUNT 5000
+
+static intptr_t InvokeOwnedCallback(void *windowHandle, void *user)
+{
+    (void)windowHandle;
+    InvokeOwnedPayload *payload = (InvokeOwnedPayload *)user;
+    if (payload != NULL)
+    {
+        if (payload->callbackCount != NULL) InterlockedIncrement(payload->callbackCount);
+        if (payload->doneEvent != NULL) SetEvent(payload->doneEvent);
+    }
+    return 1;
+}
+
+static void InvokeOwnedPayloadDtor(void *user)
+{
+    InvokeOwnedPayload *payload = (InvokeOwnedPayload *)user;
+    if (payload != NULL)
+    {
+        if (payload->dtorCount != NULL) InterlockedIncrement(payload->dtorCount);
+        if (payload->doneEvent != NULL) SetEvent(payload->doneEvent);
+    }
+}
+
+static unsigned __stdcall InvokeOwnedAsyncPostThread(void *arg)
+{
+    InvokeOwnedAsyncPostThreadArg *threadArg = (InvokeOwnedAsyncPostThreadArg *)arg;
+    if (threadArg == NULL) return 0;
+
+    if (threadArg->useWindowThread)
+    {
+        if (RLWin32InvokeOnWindowThreadByHandleEx(threadArg->windowHandle,
+                                                  InvokeOwnedCallback,
+                                                  threadArg->payload,
+                                                  0,
+                                                  InvokeOwnedPayloadDtor) != 0)
+        {
+            InterlockedIncrement(&threadArg->acceptedCount);
+        }
+    }
+    else
+    {
+        if (RLInvokeOnWindowRenderThreadByHandleEx(threadArg->windowHandle,
+                                                   InvokeOwnedCallback,
+                                                   threadArg->payload,
+                                                   0,
+                                                   InvokeOwnedPayloadDtor) != 0)
+        {
+            InterlockedIncrement(&threadArg->acceptedCount);
+        }
+    }
+
+    if (threadArg->workerDoneEvent != NULL) SetEvent(threadArg->workerDoneEvent);
+    return 0;
+}
+
+static intptr_t InvokeOwnedRenderBlockingCallback(void *windowHandle, void *user)
+{
+    (void)windowHandle;
+    InvokeOwnedRenderSaturationState *state = (InvokeOwnedRenderSaturationState *)user;
+    if (state == NULL) return 0;
+
+    InterlockedExchange(&state->blockerStarted, 1);
+    if (state->blockerEnteredEvent != NULL) SetEvent(state->blockerEnteredEvent);
+    if (state->blockerReleaseEvent != NULL) WaitForSingleObject(state->blockerReleaseEvent, 5000);
+    InterlockedExchange(&state->blockerReleased, 1);
+    return 1;
+}
+
+static unsigned __stdcall InvokeOwnedRenderSaturationThread(void *arg)
+{
+    InvokeOwnedRenderSaturationState *state = (InvokeOwnedRenderSaturationState *)arg;
+    if (state == NULL) return 0;
+
+    if (RLInvokeOnWindowRenderThreadByHandle(state->windowHandle,
+                                             InvokeOwnedRenderBlockingCallback,
+                                             state,
+                                             0) == 0)
+    {
+        InterlockedIncrement(&state->failedCount);
+        if (state->workerDoneEvent != NULL) SetEvent(state->workerDoneEvent);
+        return 0;
+    }
+
+    if (state->blockerEnteredEvent != NULL) WaitForSingleObject(state->blockerEnteredEvent, 5000);
+
+    for (int index = 0; index < state->payloadCapacity; index++)
+    {
+        InvokeOwnedPayload *payload = (InvokeOwnedPayload *)RL_CALLOC(1, sizeof(InvokeOwnedPayload));
+        if (payload == NULL)
+        {
+            InterlockedIncrement(&state->failedCount);
+            continue;
+        }
+
+        payload->callbackCount = &state->callbackCount;
+        payload->dtorCount = &state->dtorCount;
+        payload->doneEvent = NULL;
+        state->payloads[index] = payload;
+
+        if (RLInvokeOnWindowRenderThreadByHandleEx(state->windowHandle,
+                                                   InvokeOwnedCallback,
+                                                   payload,
+                                                   0,
+                                                   InvokeOwnedPayloadDtor) != 0)
+        {
+            InterlockedIncrement(&state->acceptedCount);
+        }
+        else
+        {
+            InterlockedIncrement(&state->failedCount);
+        }
+    }
+
+    if (state->blockerReleaseEvent != NULL) SetEvent(state->blockerReleaseEvent);
+    if (state->workerDoneEvent != NULL) SetEvent(state->workerDoneEvent);
+    return 0;
+}
+
 static intptr_t QueueSaturationNativeBlockingCallback(void *windowHandle, void *user)
 {
     (void)windowHandle;
@@ -904,6 +1055,297 @@ static int PumpFramesUntilCondition(double timeoutSeconds, bool (*conditionFn)(v
     return ((conditionFn != NULL) && conditionFn(user)) ? 1 : 0;
 }
 
+static bool InvokeOwnedAsyncPayloadDone(void *user)
+{
+    InvokeOwnedAsyncPostThreadArg *threadArg = (InvokeOwnedAsyncPostThreadArg *)user;
+    if (threadArg == NULL) return true;
+    if ((threadArg->workerDoneEvent == NULL) || (threadArg->payload == NULL)) return false;
+    if (WaitForSingleObject(threadArg->workerDoneEvent, 0) != WAIT_OBJECT_0) return false;
+    if (InterlockedCompareExchange(&threadArg->acceptedCount, 0, 0) == 0) return false;
+    return (threadArg->payload->doneEvent != NULL) &&
+           (WaitForSingleObject(threadArg->payload->doneEvent, 0) == WAIT_OBJECT_0);
+}
+
+static bool InvokeOwnedRenderSaturationDone(void *user)
+{
+    InvokeOwnedRenderSaturationState *state = (InvokeOwnedRenderSaturationState *)user;
+    if (state == NULL) return true;
+    if (state->workerDoneEvent == NULL) return false;
+    if (WaitForSingleObject(state->workerDoneEvent, 0) != WAIT_OBJECT_0) return false;
+    if (InterlockedCompareExchange(&state->blockerReleased, 0, 0) == 0) return false;
+    return InterlockedCompareExchange(&state->callbackCount, 0, 0) >=
+           InterlockedCompareExchange(&state->acceptedCount, 0, 0);
+}
+
+static void InvokeOwnedCloseHandle(HANDLE *handleSlot)
+{
+    if ((handleSlot == NULL) || (*handleSlot == NULL)) return;
+    CloseHandle(*handleSlot);
+    *handleSlot = NULL;
+}
+
+static void InvokeOwnedFreePayload(InvokeOwnedPayload **payloadSlot)
+{
+    if ((payloadSlot == NULL) || (*payloadSlot == NULL)) return;
+    if ((*payloadSlot)->doneEvent != NULL) CloseHandle((*payloadSlot)->doneEvent);
+    RL_FREE(*payloadSlot);
+    *payloadSlot = NULL;
+}
+
+static int RunInvokeOwnedSelfTest(void)
+{
+    InvokeOwnedAsyncPostThreadArg windowThreadArg = { 0 };
+    InvokeOwnedAsyncPostThreadArg renderThreadArg = { 0 };
+    InvokeOwnedRenderSaturationState renderSaturationState = { 0 };
+    volatile LONG windowCallbackCount = 0;
+    volatile LONG windowDtorCount = 0;
+    volatile LONG windowRejectCallbackCount = 0;
+    volatile LONG windowRejectDtorCount = 0;
+    volatile LONG renderCallbackCount = 0;
+    volatile LONG renderDtorCount = 0;
+    HANDLE windowWorkerHandle = NULL;
+    HANDLE renderWorkerHandle = NULL;
+    HANDLE saturationWorkerHandle = NULL;
+    InvokeOwnedPayload *windowInvalidPayload = NULL;
+    int result = 1;
+
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD | RL_E_FLAG_WINDOW_RESIZABLE);
+    RLInitWindow(640, 360, "raylib [invoke-owned] selftest");
+    if (!RLIsWindowReady())
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to initialize window");
+        return 1;
+    }
+
+    RLSetTargetFPS(120);
+
+    windowThreadArg.windowHandle = RLGetWindowHandle();
+    windowThreadArg.payload = (InvokeOwnedPayload *)RL_CALLOC(1, sizeof(InvokeOwnedPayload));
+    windowThreadArg.workerDoneEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    windowThreadArg.useWindowThread = 1;
+    if ((windowThreadArg.payload == NULL) || (windowThreadArg.workerDoneEvent == NULL))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to allocate window-thread async test resources");
+        goto cleanup;
+    }
+    windowThreadArg.payload->doneEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (windowThreadArg.payload->doneEvent == NULL)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to create window-thread done event");
+        goto cleanup;
+    }
+    windowThreadArg.payload->callbackCount = &windowCallbackCount;
+    windowThreadArg.payload->dtorCount = &windowDtorCount;
+
+    {
+        uintptr_t workerHandleValue = _beginthreadex(NULL, 0, InvokeOwnedAsyncPostThread, &windowThreadArg, 0, NULL);
+        if (workerHandleValue == 0u)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to start window-thread async worker");
+            goto cleanup;
+        }
+        windowWorkerHandle = (HANDLE)workerHandleValue;
+    }
+
+    if (!PumpFramesUntilCondition(4.0, InvokeOwnedAsyncPayloadDone, &windowThreadArg))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: window-thread async path timed out");
+        goto cleanup;
+    }
+
+    WaitForSingleObject(windowWorkerHandle, 8000);
+    InvokeOwnedCloseHandle(&windowWorkerHandle);
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "invoke-owned-selftest: window-thread async accepted=%ld callback=%ld dtor=%ld",
+               InterlockedCompareExchange(&windowThreadArg.acceptedCount, 0, 0),
+               InterlockedCompareExchange(windowThreadArg.payload->callbackCount, 0, 0),
+               InterlockedCompareExchange(windowThreadArg.payload->dtorCount, 0, 0));
+
+    if ((InterlockedCompareExchange(&windowThreadArg.acceptedCount, 0, 0) != 1) ||
+        (InterlockedCompareExchange(windowThreadArg.payload->callbackCount, 0, 0) != 1) ||
+        (InterlockedCompareExchange(windowThreadArg.payload->dtorCount, 0, 0) != 0))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: window-thread async path failed invariants");
+        goto cleanup;
+    }
+
+    windowInvalidPayload = (InvokeOwnedPayload *)RL_CALLOC(1, sizeof(InvokeOwnedPayload));
+    if (windowInvalidPayload == NULL)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to allocate window-thread reject payload");
+        goto cleanup;
+    }
+    windowInvalidPayload->callbackCount = &windowRejectCallbackCount;
+    windowInvalidPayload->dtorCount = &windowRejectDtorCount;
+
+    if (RLWin32InvokeOnWindowThreadByHandleEx(NULL,
+                                              InvokeOwnedCallback,
+                                              windowInvalidPayload,
+                                              0,
+                                              InvokeOwnedPayloadDtor) != 0)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: invalid window-thread invoke unexpectedly succeeded");
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "invoke-owned-selftest: window-thread reject callback=%ld dtor=%ld",
+               InterlockedCompareExchange(windowInvalidPayload->callbackCount, 0, 0),
+               InterlockedCompareExchange(windowInvalidPayload->dtorCount, 0, 0));
+
+    if ((InterlockedCompareExchange(windowInvalidPayload->callbackCount, 0, 0) != 0) ||
+        (InterlockedCompareExchange(windowInvalidPayload->dtorCount, 0, 0) != 1))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: window-thread reject path failed invariants");
+        goto cleanup;
+    }
+
+    renderThreadArg.windowHandle = RLGetWindowHandle();
+    renderThreadArg.payload = (InvokeOwnedPayload *)RL_CALLOC(1, sizeof(InvokeOwnedPayload));
+    renderThreadArg.workerDoneEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    renderThreadArg.useWindowThread = 0;
+    if ((renderThreadArg.payload == NULL) || (renderThreadArg.workerDoneEvent == NULL))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to allocate render-thread async test resources");
+        goto cleanup;
+    }
+    renderThreadArg.payload->doneEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (renderThreadArg.payload->doneEvent == NULL)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to create render-thread done event");
+        goto cleanup;
+    }
+    renderThreadArg.payload->callbackCount = &renderCallbackCount;
+    renderThreadArg.payload->dtorCount = &renderDtorCount;
+
+    {
+        uintptr_t workerHandleValue = _beginthreadex(NULL, 0, InvokeOwnedAsyncPostThread, &renderThreadArg, 0, NULL);
+        if (workerHandleValue == 0u)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to start render-thread async worker");
+            goto cleanup;
+        }
+        renderWorkerHandle = (HANDLE)workerHandleValue;
+    }
+
+    if (!PumpFramesUntilCondition(4.0, InvokeOwnedAsyncPayloadDone, &renderThreadArg))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: render-thread async path timed out");
+        goto cleanup;
+    }
+
+    WaitForSingleObject(renderWorkerHandle, 8000);
+    InvokeOwnedCloseHandle(&renderWorkerHandle);
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "invoke-owned-selftest: render-thread async accepted=%ld callback=%ld dtor=%ld",
+               InterlockedCompareExchange(&renderThreadArg.acceptedCount, 0, 0),
+               InterlockedCompareExchange(renderThreadArg.payload->callbackCount, 0, 0),
+               InterlockedCompareExchange(renderThreadArg.payload->dtorCount, 0, 0));
+
+    if ((InterlockedCompareExchange(&renderThreadArg.acceptedCount, 0, 0) != 1) ||
+        (InterlockedCompareExchange(renderThreadArg.payload->callbackCount, 0, 0) != 1) ||
+        (InterlockedCompareExchange(renderThreadArg.payload->dtorCount, 0, 0) != 0))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: render-thread async path failed invariants");
+        goto cleanup;
+    }
+
+    renderSaturationState.windowHandle = RLGetWindowHandle();
+    renderSaturationState.blockerEnteredEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    renderSaturationState.blockerReleaseEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    renderSaturationState.workerDoneEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    renderSaturationState.payloadCapacity = INVOKE_OWNED_RENDER_POST_COUNT;
+    renderSaturationState.payloads =
+        (InvokeOwnedPayload **)RL_CALLOC((size_t)renderSaturationState.payloadCapacity, sizeof(InvokeOwnedPayload *));
+    if ((renderSaturationState.blockerEnteredEvent == NULL) ||
+        (renderSaturationState.blockerReleaseEvent == NULL) ||
+        (renderSaturationState.workerDoneEvent == NULL) ||
+        (renderSaturationState.payloads == NULL))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to allocate render-thread saturation test resources");
+        goto cleanup;
+    }
+
+    {
+        uintptr_t workerHandleValue = _beginthreadex(NULL, 0, InvokeOwnedRenderSaturationThread, &renderSaturationState, 0, NULL);
+        if (workerHandleValue == 0u)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: failed to start render-thread saturation worker");
+            goto cleanup;
+        }
+        saturationWorkerHandle = (HANDLE)workerHandleValue;
+    }
+
+    if (!PumpFramesUntilCondition(8.0, InvokeOwnedRenderSaturationDone, &renderSaturationState))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: render-thread saturation path timed out");
+        goto cleanup;
+    }
+
+    WaitForSingleObject(saturationWorkerHandle, 8000);
+    InvokeOwnedCloseHandle(&saturationWorkerHandle);
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "invoke-owned-selftest: render-thread saturation accepted=%ld failed=%ld callback=%ld dtor=%ld",
+               InterlockedCompareExchange(&renderSaturationState.acceptedCount, 0, 0),
+               InterlockedCompareExchange(&renderSaturationState.failedCount, 0, 0),
+               InterlockedCompareExchange(&renderSaturationState.callbackCount, 0, 0),
+               InterlockedCompareExchange(&renderSaturationState.dtorCount, 0, 0));
+
+    if ((InterlockedCompareExchange(&renderSaturationState.acceptedCount, 0, 0) <= 0) ||
+        (InterlockedCompareExchange(&renderSaturationState.failedCount, 0, 0) <= 0) ||
+        (InterlockedCompareExchange(&renderSaturationState.callbackCount, 0, 0) !=
+         InterlockedCompareExchange(&renderSaturationState.acceptedCount, 0, 0)) ||
+        (InterlockedCompareExchange(&renderSaturationState.dtorCount, 0, 0) !=
+         InterlockedCompareExchange(&renderSaturationState.failedCount, 0, 0)))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "invoke-owned-selftest: render-thread saturation path failed invariants");
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO, "invoke-owned-selftest: PASSED");
+    result = 0;
+
+cleanup:
+    if (renderSaturationState.blockerReleaseEvent != NULL) SetEvent(renderSaturationState.blockerReleaseEvent);
+    if (windowWorkerHandle != NULL)
+    {
+        WaitForSingleObject(windowWorkerHandle, 8000);
+        InvokeOwnedCloseHandle(&windowWorkerHandle);
+    }
+    if (renderWorkerHandle != NULL)
+    {
+        WaitForSingleObject(renderWorkerHandle, 8000);
+        InvokeOwnedCloseHandle(&renderWorkerHandle);
+    }
+    if (saturationWorkerHandle != NULL)
+    {
+        WaitForSingleObject(saturationWorkerHandle, 8000);
+        InvokeOwnedCloseHandle(&saturationWorkerHandle);
+    }
+    InvokeOwnedFreePayload(&windowThreadArg.payload);
+    InvokeOwnedFreePayload(&renderThreadArg.payload);
+    InvokeOwnedFreePayload(&windowInvalidPayload);
+    if (renderSaturationState.payloads != NULL)
+    {
+        for (int index = 0; index < renderSaturationState.payloadCapacity; index++)
+        {
+            InvokeOwnedFreePayload(&renderSaturationState.payloads[index]);
+        }
+        RL_FREE(renderSaturationState.payloads);
+        renderSaturationState.payloads = NULL;
+    }
+    InvokeOwnedCloseHandle(&windowThreadArg.workerDoneEvent);
+    InvokeOwnedCloseHandle(&renderThreadArg.workerDoneEvent);
+    InvokeOwnedCloseHandle(&renderSaturationState.blockerEnteredEvent);
+    InvokeOwnedCloseHandle(&renderSaturationState.blockerReleaseEvent);
+    InvokeOwnedCloseHandle(&renderSaturationState.workerDoneEvent);
+    if (RLIsWindowReady()) RLCloseWindow();
+    return result;
+}
+
 static bool QueueSaturationNativeDone(void *user)
 {
     QueueSaturationNativeState *state = (QueueSaturationNativeState *)user;
@@ -936,7 +1378,15 @@ static RLEventThreadDiagStats SubtractEventThreadDiagStats(RLEventThreadDiagStat
     deltaStats.frameCallbackDroppedCount -= beforeStats.frameCallbackDroppedCount;
     deltaStats.frameCallbackDroppedNormalCount -= beforeStats.frameCallbackDroppedNormalCount;
     deltaStats.frameCallbackDroppedCriticalCount -= beforeStats.frameCallbackDroppedCriticalCount;
-    deltaStats.frameCallbackEvictedNormalForCriticalCount -= beforeStats.frameCallbackEvictedNormalForCriticalCount;
+    deltaStats.frameCallbackExecutedCount -= beforeStats.frameCallbackExecutedCount;
+    deltaStats.frameCallbackExecutedNormalCount -= beforeStats.frameCallbackExecutedNormalCount;
+    deltaStats.frameCallbackExecutedCriticalCount -= beforeStats.frameCallbackExecutedCriticalCount;
+    deltaStats.frameCallbackClearedCount -= beforeStats.frameCallbackClearedCount;
+    deltaStats.frameCallbackClearedNormalCount -= beforeStats.frameCallbackClearedNormalCount;
+    deltaStats.frameCallbackClearedCriticalCount -= beforeStats.frameCallbackClearedCriticalCount;
+    deltaStats.frameCallbackInlineFallbackCount -= beforeStats.frameCallbackInlineFallbackCount;
+    deltaStats.frameCallbackInlineFallbackNormalCount -= beforeStats.frameCallbackInlineFallbackNormalCount;
+    deltaStats.frameCallbackInlineFallbackCriticalCount -= beforeStats.frameCallbackInlineFallbackCriticalCount;
 
     return deltaStats;
 }
@@ -1043,7 +1493,7 @@ static int RunQueueSaturationSelfTest(void)
     {
         RLEventThreadDiagStats frameStatsOnTimeout = SubtractEventThreadDiagStats(RLGetEventThreadDiagStats(), frameStatsBefore);
         RLTraceLog(RL_E_LOG_WARNING,
-                   "queue-selftest: frame-callback timeout stats normal accepted=%ld failed=%ld executed=%ld | critical accepted=%ld failed=%ld executed=%ld | dropped=%llu droppedNormal=%llu droppedCritical=%llu evicted=%llu",
+                   "queue-selftest: frame-callback timeout stats normal accepted=%ld failed=%ld executed=%ld | critical accepted=%ld failed=%ld executed=%ld | dropped=%llu droppedNormal=%llu droppedCritical=%llu executedDiag=%llu/%llu/%llu cleared=%llu/%llu/%llu inlineFallback=%llu/%llu/%llu",
                    InterlockedCompareExchange(&frameState.acceptedNormalCount, 0, 0),
                    InterlockedCompareExchange(&frameState.failedNormalCount, 0, 0),
                    InterlockedCompareExchange(&frameState.executedNormalCount, 0, 0),
@@ -1053,7 +1503,15 @@ static int RunQueueSaturationSelfTest(void)
                    frameStatsOnTimeout.frameCallbackDroppedCount,
                    frameStatsOnTimeout.frameCallbackDroppedNormalCount,
                    frameStatsOnTimeout.frameCallbackDroppedCriticalCount,
-                   frameStatsOnTimeout.frameCallbackEvictedNormalForCriticalCount);
+                   frameStatsOnTimeout.frameCallbackExecutedCount,
+                   frameStatsOnTimeout.frameCallbackExecutedNormalCount,
+                   frameStatsOnTimeout.frameCallbackExecutedCriticalCount,
+                   frameStatsOnTimeout.frameCallbackClearedCount,
+                   frameStatsOnTimeout.frameCallbackClearedNormalCount,
+                   frameStatsOnTimeout.frameCallbackClearedCriticalCount,
+                   frameStatsOnTimeout.frameCallbackInlineFallbackCount,
+                   frameStatsOnTimeout.frameCallbackInlineFallbackNormalCount,
+                   frameStatsOnTimeout.frameCallbackInlineFallbackCriticalCount);
         RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: frame-callback phase timed out");
         goto cleanup;
     }
@@ -1072,7 +1530,7 @@ static int RunQueueSaturationSelfTest(void)
         const long executedCritical = InterlockedCompareExchange(&frameState.executedCriticalCount, 0, 0);
 
         RLTraceLog(RL_E_LOG_INFO,
-                   "queue-selftest: frame-callback normal accepted=%ld failed=%ld executed=%ld | critical accepted=%ld failed=%ld executed=%ld | dropped=%llu droppedNormal=%llu droppedCritical=%llu evicted=%llu",
+                   "queue-selftest: frame-callback normal accepted=%ld failed=%ld executed=%ld | critical accepted=%ld failed=%ld executed=%ld | dropped=%llu droppedNormal=%llu droppedCritical=%llu executedDiag=%llu/%llu/%llu cleared=%llu/%llu/%llu inlineFallback=%llu/%llu/%llu",
                    acceptedNormal,
                    failedNormal,
                    executedNormal,
@@ -1082,7 +1540,15 @@ static int RunQueueSaturationSelfTest(void)
                    frameStats.frameCallbackDroppedCount,
                    frameStats.frameCallbackDroppedNormalCount,
                    frameStats.frameCallbackDroppedCriticalCount,
-                   frameStats.frameCallbackEvictedNormalForCriticalCount);
+                   frameStats.frameCallbackExecutedCount,
+                   frameStats.frameCallbackExecutedNormalCount,
+                   frameStats.frameCallbackExecutedCriticalCount,
+                   frameStats.frameCallbackClearedCount,
+                   frameStats.frameCallbackClearedNormalCount,
+                   frameStats.frameCallbackClearedCriticalCount,
+                   frameStats.frameCallbackInlineFallbackCount,
+                   frameStats.frameCallbackInlineFallbackNormalCount,
+                   frameStats.frameCallbackInlineFallbackCriticalCount);
 
         if ((acceptedNormal <= 0) ||
             (acceptedCritical <= 0) ||
@@ -1092,7 +1558,11 @@ static int RunQueueSaturationSelfTest(void)
             (frameStats.frameCallbackDroppedNormalCount != (unsigned long long)failedNormal) ||
             (frameStats.frameCallbackDroppedCriticalCount != (unsigned long long)failedCritical) ||
             (frameStats.frameCallbackDroppedCount != (unsigned long long)(failedNormal + failedCritical)) ||
-            (frameStats.frameCallbackEvictedNormalForCriticalCount != 0))
+            (frameStats.frameCallbackExecutedNormalCount != (unsigned long long)acceptedNormal) ||
+            (frameStats.frameCallbackExecutedCriticalCount != (unsigned long long)acceptedCritical) ||
+            (frameStats.frameCallbackExecutedCount != (unsigned long long)(acceptedNormal + acceptedCritical)) ||
+            (frameStats.frameCallbackClearedCount != 0u) ||
+            (frameStats.frameCallbackInlineFallbackCount != 0u))
         {
             RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: frame-callback phase failed invariants");
             goto cleanup;
@@ -1128,11 +1598,15 @@ static int RunQueueSaturationSelfTest(void)
             }
         }
 
-        if (!RLGetCurrentContextFrameCallbackQueueStats(&queuedCount, &queuedCriticalCount, NULL, NULL, NULL, NULL, NULL))
+        RLFrameCallbackQueueStats frameCallbackQueueStats = { 0 };
+        if (!RLGetCurrentWindowFrameCallbackQueueStats(&frameCallbackQueueStats))
         {
             RLTraceLog(RL_E_LOG_WARNING, "queue-selftest: failed to query frame-callback queue stats before close-waiter phase");
             goto cleanup;
         }
+
+        queuedCount = frameCallbackQueueStats.queuedCount;
+        queuedCriticalCount = frameCallbackQueueStats.queuedCriticalCount;
 
         if ((queuedCount != (QUEUE_SELFTEST_FRAME_CALLBACK_NORMAL_CAPACITY + QUEUE_SELFTEST_FRAME_CALLBACK_CRITICAL_CAPACITY)) ||
             (queuedCriticalCount != QUEUE_SELFTEST_FRAME_CALLBACK_CRITICAL_CAPACITY))
@@ -1986,6 +2460,11 @@ int main(int argc, char **argv)
     {
         return RunSemaphoreSelfTest();
     }
+
+    if ((argc >= 2) && (strcmp(argv[1], "--invoke-owned-selftest") == 0))
+    {
+        return RunInvokeOwnedSelfTest();
+    }
 #endif
 
     // RLSetTraceLogLevel(RL_E_LOG_NONE); // Disable trace log message
@@ -2264,12 +2743,18 @@ int main(int argc, char **argv)
                 stats.nativeTaskQueueDroppedInputCount, stats.nativeTaskQueueDroppedMaintenanceCount), tx, ty, 16, RAYWHITE); ty += 20;
             RLDrawText(RLTextFormat("native wake sent/dedup: %llu / %llu",
                 stats.nativeTaskWakeSentCount, stats.nativeTaskWakeDedupCount), tx, ty, 16, RAYWHITE); ty += 20;
-            RLDrawText(RLTextFormat("frame-cb queued critical/total/peak: %u / %u / %u",
-                stats.frameCallbackQueueCriticalCount, stats.frameCallbackQueueCount, stats.frameCallbackQueuePeakCount), tx, ty, 16, RAYWHITE); ty += 20;
+            RLDrawText(RLTextFormat("frame-cb queued N/C/T: %u / %u / %u",
+                stats.frameCallbackQueueNormalCount, stats.frameCallbackQueueCriticalCount, stats.frameCallbackQueueCount), tx, ty, 16, RAYWHITE); ty += 20;
+            RLDrawText(RLTextFormat("frame-cb peak N/C/T: %u / %u / %u",
+                stats.frameCallbackQueuePeakNormalCount, stats.frameCallbackQueuePeakCriticalCount, stats.frameCallbackQueuePeakCount), tx, ty, 16, RAYWHITE); ty += 20;
             RLDrawText(RLTextFormat("frame-cb dropped total/N/C: %llu / %llu / %llu",
                 stats.frameCallbackDroppedCount, stats.frameCallbackDroppedNormalCount, stats.frameCallbackDroppedCriticalCount), tx, ty, 16, RAYWHITE); ty += 20;
-            RLDrawText(RLTextFormat("frame-cb evict N->C: %llu",
-                stats.frameCallbackEvictedNormalForCriticalCount), tx, ty, 16, RAYWHITE); ty += 20;
+            RLDrawText(RLTextFormat("frame-cb executed total/N/C: %llu / %llu / %llu",
+                stats.frameCallbackExecutedCount, stats.frameCallbackExecutedNormalCount, stats.frameCallbackExecutedCriticalCount), tx, ty, 16, RAYWHITE); ty += 20;
+            RLDrawText(RLTextFormat("frame-cb cleared total/N/C: %llu / %llu / %llu",
+                stats.frameCallbackClearedCount, stats.frameCallbackClearedNormalCount, stats.frameCallbackClearedCriticalCount), tx, ty, 16, RAYWHITE); ty += 20;
+            RLDrawText(RLTextFormat("frame-cb inline fallback total/N/C: %llu / %llu / %llu",
+                stats.frameCallbackInlineFallbackCount, stats.frameCallbackInlineFallbackNormalCount, stats.frameCallbackInlineFallbackCriticalCount), tx, ty, 16, RAYWHITE); ty += 20;
             RLDrawText(RLTextFormat("thread mismatch detected: %llu", stats.threadMismatchDetectedCount), tx, ty, 16, RAYWHITE); ty += 20;
             RLDrawText(RLTextFormat("mismatch handoff attempt/success/fail: %llu / %llu / %llu",
                 stats.threadMismatchHandoffAttemptedCount, stats.threadMismatchHandoffSuccessCount, stats.threadMismatchHandoffFailedCount), tx, ty, 16, RAYWHITE); ty += 20;
