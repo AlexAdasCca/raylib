@@ -96,9 +96,13 @@ RL_DIAG_ON_PUMP(RLGetTime() - pumpStartTime, executedTaskCount); // 记录耗时
 
 | 启动参数 | 示例程序 | 定义位置 | 验证目标 |
 | --- | --- | --- | --- |
-| `--trace-reentry-selftest` | `core_shared_gpu_context` | [`examples/core/core_shared_gpu_context.c:578`](G:/C、C++ Programing/jackalclient/raylib/raylib/examples/core/core_shared_gpu_context.c:578) | 验证日志回调重入隔离是否正确。 |
-| `--queue-saturation-selftest` | `core_event_thread_diagnostics` | [`examples/core/core_event_thread_diagnostics.c:1980`](G:/C、C++ Programing/jackalclient/raylib/raylib/examples/core/core_event_thread_diagnostics.c:1980) | 验证有界队列在压力下的等待、失败和关闭行为。 |
-| `--semaphore-selftest` | `core_event_thread_diagnostics` | [`examples/core/core_event_thread_diagnostics.c:1985`](G:/C、C++ Programing/jackalclient/raylib/raylib/examples/core/core_event_thread_diagnostics.c:1985) | 验证 `ReleaseOne` 与 `Close` 的唤醒语义。 |
+| `--trace-reentry-selftest` | `core_shared_gpu_context` | `examples/core/core_shared_gpu_context.c` | 验证日志回调重入隔离是否正确。 |
+| `--shared-gpu-diag-scope-selftest` | `core_shared_gpu_context` | `examples/core/core_shared_gpu_context.c` | 验证当前共享组诊断与全局 strict reject 诊断的作用域拆分及对应 reset API。 |
+| `--queue-saturation-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | 验证有界队列在压力下的等待、失败和关闭行为。 |
+| `--semaphore-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | 验证 `ReleaseOne` 与 `Close` 的唤醒语义。 |
+| `--invoke-owned-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | 验证 invoke 成功/失败路径下的 owned-payload 析构处理。 |
+| `--native-task-queue-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | 验证 native task queue 轻量 getter 与 reset API。 |
+| `--frame-callback-reset-all-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | 验证全部已跟踪窗口的 frame-callback 累计统计会被一起重置。 |
 
 ## 4. 队列实现细节
 

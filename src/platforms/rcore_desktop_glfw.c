@@ -1,4 +1,4 @@
-/**********************************************************************************************
+﻿/**********************************************************************************************
 *
 *   rcore_desktop_glfw - Functions to manage window, graphics device and inputs
 *
@@ -109,10 +109,6 @@
 #include "rl_context.h"
 #include "rl_shared_gpu.h"
 #include "rglfwglobal.h"
-
-#ifndef RL_FRAME_CALLBACK_DIAG_STATS
-    #define RL_FRAME_CALLBACK_DIAG_STATS 0
-#endif
 
 #if defined(_WIN32)
     // Assertions for the Win32 Route2/event-thread backend.

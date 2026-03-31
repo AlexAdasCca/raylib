@@ -89,9 +89,13 @@ Payload classification enum is defined in [`src/rcore.c`](G:/C、C++ Programing/
 
 | Self-test flag | Example | Location | Purpose |
 | --- | --- | --- | --- |
-| `--trace-reentry-selftest` | `core_shared_gpu_context` | [`examples/core/core_shared_gpu_context.c`](G:/C、C++ Programing/jackalclient/raylib/raylib/examples/core/core_shared_gpu_context.c:578) | Verifies trace callback isolation and no recursive callback entry under internal locks. |
-| `--queue-saturation-selftest` | `core_event_thread_diagnostics` | [`examples/core/core_event_thread_diagnostics.c`](G:/C、C++ Programing/jackalclient/raylib/raylib/examples/core/core_event_thread_diagnostics.c:1980) | Verifies bounded-queue behavior under pressure and close-state transitions. |
-| `--semaphore-selftest` | `core_event_thread_diagnostics` | [`examples/core/core_event_thread_diagnostics.c`](G:/C、C++ Programing/jackalclient/raylib/raylib/examples/core/core_event_thread_diagnostics.c:1985) | Verifies waiter wake, release semantics, and close-time failure behavior. |
+| `--trace-reentry-selftest` | `core_shared_gpu_context` | `examples/core/core_shared_gpu_context.c` | Verifies trace callback isolation and no recursive callback entry under internal locks. |
+| `--shared-gpu-diag-scope-selftest` | `core_shared_gpu_context` | `examples/core/core_shared_gpu_context.c` | Verifies current-group diagnostics vs global strict reject counters and the corresponding reset APIs. |
+| `--queue-saturation-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | Verifies bounded-queue behavior under pressure and close-state transitions. |
+| `--semaphore-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | Verifies waiter wake, release semantics, and close-time failure behavior. |
+| `--invoke-owned-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | Verifies owned-payload destructor handling on invoke success and failure paths. |
+| `--native-task-queue-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | Verifies native task queue lightweight getters and reset APIs without self-perturbation. |
+| `--frame-callback-reset-all-selftest` | `core_event_thread_diagnostics` | `examples/core/core_event_thread_diagnostics.c` | Verifies that all tracked windows' frame-callback cumulative counters are reset together. |
 
 ## 4. Queue Design: Code-Level Details
 
