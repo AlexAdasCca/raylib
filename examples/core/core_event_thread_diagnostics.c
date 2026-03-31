@@ -568,6 +568,28 @@ typedef struct SemaphoreSelfTestState
     volatile LONG failureCount;
 } SemaphoreSelfTestState;
 
+typedef struct NativeTaskQueueDiagSelfTestState
+{
+    void *windowHandle;
+} NativeTaskQueueDiagSelfTestState;
+
+typedef struct FrameCallbackResetAllWorkerState
+{
+    HANDLE readyEvent;
+    HANDLE stopEvent;
+    volatile LONG readyFlag;
+    volatile LONG failedFlag;
+    void *windowHandle;
+} FrameCallbackResetAllWorkerState;
+
+typedef struct FrameCallbackResetAllConditionState
+{
+    volatile LONG *mainCallbackCount;
+    volatile LONG *workerCallbackCount;
+    LONG expectedMainCallbacks;
+    LONG expectedWorkerCallbacks;
+} FrameCallbackResetAllConditionState;
+
 typedef struct InvokeOwnedPayload
 {
     volatile LONG *callbackCount;
@@ -601,6 +623,90 @@ typedef struct InvokeOwnedRenderSaturationState
 } InvokeOwnedRenderSaturationState;
 
 #define INVOKE_OWNED_RENDER_POST_COUNT 5000
+
+static int PumpFramesUntilCondition(double timeoutSeconds, bool (*conditionFn)(void *user), void *user);
+static bool QueueSaturationNativeDone(void *user);
+static void InvokeOwnedCloseHandle(HANDLE *handleSlot);
+
+static intptr_t FrameCallbackResetAllCountCallback(void *windowHandle, void *user)
+{
+    (void)windowHandle;
+    if (user != NULL) InterlockedIncrement((volatile LONG *)user);
+    return 1;
+}
+
+static bool FrameCallbackResetAllDone(void *user)
+{
+    FrameCallbackResetAllConditionState *state = (FrameCallbackResetAllConditionState *)user;
+    if (state == NULL) return true;
+    return (InterlockedCompareExchange(state->mainCallbackCount, 0, 0) >= state->expectedMainCallbacks) &&
+           (InterlockedCompareExchange(state->workerCallbackCount, 0, 0) >= state->expectedWorkerCallbacks);
+}
+
+static bool FrameCallbackStatsAreReset(const RLFrameCallbackQueueStats *stats)
+{
+    if (stats == NULL) return false;
+    return (stats->queuedCount == 0u) &&
+           (stats->queuedNormalCount == 0u) &&
+           (stats->queuedCriticalCount == 0u) &&
+           (stats->queuedPeakCount == 0u) &&
+           (stats->queuedPeakNormalCount == 0u) &&
+           (stats->queuedPeakCriticalCount == 0u) &&
+           (stats->droppedCount == 0ull) &&
+           (stats->droppedNormalCount == 0ull) &&
+           (stats->droppedCriticalCount == 0ull) &&
+           (stats->executedCount == 0ull) &&
+           (stats->executedNormalCount == 0ull) &&
+           (stats->executedCriticalCount == 0ull) &&
+           (stats->clearedCount == 0ull) &&
+           (stats->clearedNormalCount == 0ull) &&
+           (stats->clearedCriticalCount == 0ull) &&
+           (stats->inlineFallbackCount == 0ull) &&
+           (stats->inlineFallbackNormalCount == 0ull) &&
+           (stats->inlineFallbackCriticalCount == 0ull);
+}
+
+static unsigned __stdcall FrameCallbackResetAllWorkerThread(void *arg)
+{
+    FrameCallbackResetAllWorkerState *state = (FrameCallbackResetAllWorkerState *)arg;
+    RLContext *ctx = NULL;
+
+    if (state == NULL) return 0;
+
+    ctx = RLCreateContext();
+    if (ctx == NULL)
+    {
+        InterlockedExchange(&state->failedFlag, 1);
+        SetEvent(state->readyEvent);
+        return 0;
+    }
+
+    RLSetCurrentContext(ctx);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD | RL_E_FLAG_WINDOW_RESIZABLE);
+    RLInitWindow(320, 200, "raylib [frame-callback-reset-all] worker");
+    if (!RLIsWindowReady())
+    {
+        InterlockedExchange(&state->failedFlag, 1);
+        SetEvent(state->readyEvent);
+        RLDestroyContext(ctx);
+        return 0;
+    }
+
+    state->windowHandle = RLGetWindowHandle();
+    InterlockedExchange(&state->readyFlag, 1);
+    SetEvent(state->readyEvent);
+
+    while ((WaitForSingleObject(state->stopEvent, 0) != WAIT_OBJECT_0) && !RLWindowShouldClose())
+    {
+        RLBeginDrawing();
+        RLClearBackground(BLACK);
+        RLEndDrawing();
+    }
+
+    if (RLIsWindowReady()) RLCloseWindow();
+    RLDestroyContext(ctx);
+    return 0;
+}
 
 static intptr_t InvokeOwnedCallback(void *windowHandle, void *user)
 {
@@ -918,6 +1024,45 @@ static int WaitForLongValue(volatile LONG *value, LONG expectedValue, DWORD time
     return (InterlockedCompareExchange((volatile LONG *)value, 0, 0) >= expectedValue) ? 1 : 0;
 }
 
+static bool NativeTaskQueueStatsEqual(const RLNativeTaskQueueDiagStats *leftStats, const RLNativeTaskQueueDiagStats *rightStats)
+{
+    if ((leftStats == NULL) || (rightStats == NULL)) return false;
+
+    return (leftStats->queuedCount == rightStats->queuedCount) &&
+           (leftStats->peakCount == rightStats->peakCount) &&
+           (leftStats->droppedCount == rightStats->droppedCount) &&
+           (leftStats->droppedCriticalCount == rightStats->droppedCriticalCount) &&
+           (leftStats->droppedStateCount == rightStats->droppedStateCount) &&
+           (leftStats->droppedInputCount == rightStats->droppedInputCount) &&
+           (leftStats->droppedMaintenanceCount == rightStats->droppedMaintenanceCount) &&
+           (leftStats->wakeSentCount == rightStats->wakeSentCount) &&
+           (leftStats->wakeDedupCount == rightStats->wakeDedupCount);
+}
+
+static bool NativeTaskQueueStatsZero(const RLNativeTaskQueueDiagStats *stats)
+{
+    if (stats == NULL) return false;
+
+    return (stats->queuedCount == 0u) &&
+           (stats->peakCount == 0u) &&
+           (stats->droppedCount == 0u) &&
+           (stats->droppedCriticalCount == 0u) &&
+           (stats->droppedStateCount == 0u) &&
+           (stats->droppedInputCount == 0u) &&
+           (stats->droppedMaintenanceCount == 0u) &&
+           (stats->wakeSentCount == 0u) &&
+           (stats->wakeDedupCount == 0u);
+}
+
+static bool NativeTaskQueueDiagIdle(void *user)
+{
+    NativeTaskQueueDiagSelfTestState *state = (NativeTaskQueueDiagSelfTestState *)user;
+    RLNativeTaskQueueDiagStats stats = { 0 };
+    if ((state == NULL) || (state->windowHandle == NULL)) return false;
+    if (!RLGetNativeTaskQueueDiagStatsByHandle(state->windowHandle, &stats)) return false;
+    return (stats.queuedCount == 0u);
+}
+
 static int RunSemaphoreSelfTest(void)
 {
     SemaphoreSelfTestState state = { 0 };
@@ -1037,6 +1182,321 @@ cleanup:
         RLSemaphoreRelease(semaphoreHandle);
     }
 
+    return result;
+}
+
+static int RunNativeTaskQueueDiagSelfTest(void)
+{
+    QueueSaturationNativeState nativeState = { 0 };
+    NativeTaskQueueDiagSelfTestState waitState = { 0 };
+    RLNativeTaskQueueDiagStats resetCurrentStats = { 0 };
+    RLNativeTaskQueueDiagStats resetByHandleStats = { 0 };
+    RLNativeTaskQueueDiagStats currentStats = { 0 };
+    RLNativeTaskQueueDiagStats byHandleStats = { 0 };
+    HANDLE workerHandle = NULL;
+    int result = 1;
+
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD | RL_E_FLAG_WINDOW_RESIZABLE);
+    RLInitWindow(640, 360, "raylib [native-task-queue] selftest");
+    if (!RLIsWindowReady())
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: failed to initialize window");
+        return 1;
+    }
+
+    RLSetTargetFPS(120);
+    waitState.windowHandle = RLGetWindowHandle();
+
+    if (!PumpFramesUntilCondition(2.0, NativeTaskQueueDiagIdle, &waitState))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: queue did not become idle before reset");
+        goto cleanup;
+    }
+
+    RLResetCurrentWindowNativeTaskQueueDiagStats();
+    if (!RLGetCurrentWindowNativeTaskQueueDiagStats(&resetCurrentStats) ||
+        !RLGetNativeTaskQueueDiagStatsByHandle(waitState.windowHandle, &resetByHandleStats))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: failed to query reset baseline stats");
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "native-task-queue-selftest: baseline current queued=%u peak=%u dropped=%llu wakeSent=%llu wakeDedup=%llu",
+               resetCurrentStats.queuedCount,
+               resetCurrentStats.peakCount,
+               resetCurrentStats.droppedCount,
+               resetCurrentStats.wakeSentCount,
+               resetCurrentStats.wakeDedupCount);
+
+    if (!NativeTaskQueueStatsEqual(&resetCurrentStats, &resetByHandleStats) ||
+        !NativeTaskQueueStatsZero(&resetCurrentStats))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: reset baseline stats are inconsistent");
+        goto cleanup;
+    }
+
+    nativeState.windowHandle = waitState.windowHandle;
+    nativeState.blockerEnteredEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    nativeState.blockerReleaseEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    nativeState.workerDoneEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if ((nativeState.blockerEnteredEvent == NULL) ||
+        (nativeState.blockerReleaseEvent == NULL) ||
+        (nativeState.workerDoneEvent == NULL))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: failed to allocate worker events");
+        goto cleanup;
+    }
+
+    {
+        uintptr_t workerHandleValue = _beginthreadex(NULL, 0, QueueSaturationNativeWorkerThread, &nativeState, 0, NULL);
+        if (workerHandleValue == 0u)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: failed to start worker thread");
+            goto cleanup;
+        }
+        workerHandle = (HANDLE)workerHandleValue;
+    }
+
+    if (!PumpFramesUntilCondition(8.0, QueueSaturationNativeDone, &nativeState))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: saturation worker did not complete in time");
+        goto cleanup;
+    }
+
+    WaitForSingleObject(workerHandle, 8000);
+    InvokeOwnedCloseHandle(&workerHandle);
+
+    if (!PumpFramesUntilCondition(2.0, NativeTaskQueueDiagIdle, &waitState))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: queue did not drain after workload");
+        goto cleanup;
+    }
+
+    if (!RLGetCurrentWindowNativeTaskQueueDiagStats(&currentStats) ||
+        !RLGetNativeTaskQueueDiagStatsByHandle(waitState.windowHandle, &byHandleStats))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: failed to query post-workload stats");
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "native-task-queue-selftest: current queued=%u peak=%u dropped=%llu critical=%llu state=%llu input=%llu maintenance=%llu wakeSent=%llu wakeDedup=%llu",
+               currentStats.queuedCount,
+               currentStats.peakCount,
+               currentStats.droppedCount,
+               currentStats.droppedCriticalCount,
+               currentStats.droppedStateCount,
+               currentStats.droppedInputCount,
+               currentStats.droppedMaintenanceCount,
+               currentStats.wakeSentCount,
+               currentStats.wakeDedupCount);
+
+    if (!NativeTaskQueueStatsEqual(&currentStats, &byHandleStats))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: current/by-handle stats diverged");
+        goto cleanup;
+    }
+
+    if ((currentStats.peakCount == 0u) ||
+        (currentStats.wakeSentCount == 0u) ||
+        (InterlockedCompareExchange(&nativeState.acceptedCount, 0, 0) <= 0))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: workload did not produce observable queue activity");
+        goto cleanup;
+    }
+
+    if (RLResetNativeTaskQueueDiagStatsByHandle(waitState.windowHandle, 1) == 0)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: by-handle reset failed");
+        goto cleanup;
+    }
+
+    if (!RLGetCurrentWindowNativeTaskQueueDiagStats(&resetCurrentStats) ||
+        !RLGetNativeTaskQueueDiagStatsByHandle(waitState.windowHandle, &resetByHandleStats))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: failed to query reset-after-workload stats");
+        goto cleanup;
+    }
+
+    if (!NativeTaskQueueStatsEqual(&resetCurrentStats, &resetByHandleStats) ||
+        !NativeTaskQueueStatsZero(&resetCurrentStats))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "native-task-queue-selftest: reset-after-workload stats are inconsistent");
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO, "native-task-queue-selftest: PASSED");
+    result = 0;
+
+cleanup:
+    if (nativeState.blockerReleaseEvent != NULL) SetEvent(nativeState.blockerReleaseEvent);
+    if (workerHandle != NULL)
+    {
+        WaitForSingleObject(workerHandle, 8000);
+        InvokeOwnedCloseHandle(&workerHandle);
+    }
+    InvokeOwnedCloseHandle(&nativeState.blockerEnteredEvent);
+    InvokeOwnedCloseHandle(&nativeState.blockerReleaseEvent);
+    InvokeOwnedCloseHandle(&nativeState.workerDoneEvent);
+    if (RLIsWindowReady()) RLCloseWindow();
+    return result;
+}
+
+static int RunFrameCallbackResetAllSelfTest(void)
+{
+    FrameCallbackResetAllWorkerState workerState = { 0 };
+    FrameCallbackResetAllConditionState completionState = { 0 };
+    RLFrameCallbackQueueStats mainStatsBeforeReset = { 0 };
+    RLFrameCallbackQueueStats workerStatsBeforeReset = { 0 };
+    RLFrameCallbackQueueStats mainStatsAfterReset = { 0 };
+    RLFrameCallbackQueueStats workerStatsAfterReset = { 0 };
+    HANDLE workerThreadHandle = NULL;
+    volatile LONG mainCallbackCount = 0;
+    volatile LONG workerCallbackCount = 0;
+    const LONG expectedCallbacksPerWindow = 24;
+    int result = 1;
+
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_EVENT_THREAD | RL_E_FLAG_WINDOW_RESIZABLE);
+    RLInitWindow(640, 360, "raylib [frame-callback-reset-all] selftest");
+    if (!RLIsWindowReady())
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: failed to initialize primary window");
+        return 2;
+    }
+
+    workerState.readyEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    workerState.stopEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if ((workerState.readyEvent == NULL) || (workerState.stopEvent == NULL))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: failed to allocate worker events");
+        result = 2;
+        goto cleanup;
+    }
+
+    {
+        uintptr_t workerHandleValue = _beginthreadex(NULL, 0, FrameCallbackResetAllWorkerThread, &workerState, 0, NULL);
+        if (workerHandleValue == 0u)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: failed to start worker thread");
+            result = 2;
+            goto cleanup;
+        }
+        workerThreadHandle = (HANDLE)workerHandleValue;
+    }
+
+    if (WaitForSingleObject(workerState.readyEvent, 8000) != WAIT_OBJECT_0)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: worker did not become ready in time");
+        result = 2;
+        goto cleanup;
+    }
+
+    if ((InterlockedCompareExchange(&workerState.failedFlag, 0, 0) != 0) || (workerState.windowHandle == NULL))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: worker window initialization failed");
+        result = 2;
+        goto cleanup;
+    }
+
+    RLEnableFrameCallbackDiagStats();
+
+    completionState.mainCallbackCount = &mainCallbackCount;
+    completionState.workerCallbackCount = &workerCallbackCount;
+    completionState.expectedMainCallbacks = expectedCallbacksPerWindow;
+    completionState.expectedWorkerCallbacks = expectedCallbacksPerWindow;
+
+    for (LONG callbackIndex = 0; callbackIndex < expectedCallbacksPerWindow; callbackIndex++)
+    {
+        if (RLPostWindowFrameCallbackByHandleEx(RLGetWindowHandle(),
+                                                FrameCallbackResetAllCountCallback,
+                                                (void *)&mainCallbackCount,
+                                                RL_FRAME_CALLBACK_KIND_NORMAL) == 0)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: failed to post callback to primary window");
+            result = 2;
+            goto cleanup;
+        }
+
+        if (RLPostWindowFrameCallbackByHandleEx(workerState.windowHandle,
+                                                FrameCallbackResetAllCountCallback,
+                                                (void *)&workerCallbackCount,
+                                                RL_FRAME_CALLBACK_KIND_NORMAL) == 0)
+        {
+            RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: failed to post callback to worker window");
+            result = 2;
+            goto cleanup;
+        }
+    }
+
+    if (!PumpFramesUntilCondition(8.0, FrameCallbackResetAllDone, &completionState))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: callbacks did not complete in time");
+        result = 2;
+        goto cleanup;
+    }
+
+    if (!RLGetCurrentWindowFrameCallbackQueueStats(&mainStatsBeforeReset) ||
+        !RLGetWindowFrameCallbackQueueStatsByHandle(workerState.windowHandle, &workerStatsBeforeReset))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: failed to query stats before reset");
+        result = 2;
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "frame-callback-reset-all-selftest: before reset main executed=%llu peak=%u worker executed=%llu peak=%u",
+               mainStatsBeforeReset.executedCount,
+               mainStatsBeforeReset.queuedPeakCount,
+               workerStatsBeforeReset.executedCount,
+               workerStatsBeforeReset.queuedPeakCount);
+
+    if ((mainStatsBeforeReset.executedCount < (unsigned long long)expectedCallbacksPerWindow) ||
+        (workerStatsBeforeReset.executedCount < (unsigned long long)expectedCallbacksPerWindow))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: expected executed counters were not observed before reset");
+        result = 2;
+        goto cleanup;
+    }
+
+    RLResetAllFrameCallbackDiagStats();
+
+    if (!RLGetCurrentWindowFrameCallbackQueueStats(&mainStatsAfterReset) ||
+        !RLGetWindowFrameCallbackQueueStatsByHandle(workerState.windowHandle, &workerStatsAfterReset))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: failed to query stats after reset");
+        result = 2;
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO,
+               "frame-callback-reset-all-selftest: after reset main executed=%llu peak=%u worker executed=%llu peak=%u",
+               mainStatsAfterReset.executedCount,
+               mainStatsAfterReset.queuedPeakCount,
+               workerStatsAfterReset.executedCount,
+               workerStatsAfterReset.queuedPeakCount);
+
+    if (!FrameCallbackStatsAreReset(&mainStatsAfterReset) ||
+        !FrameCallbackStatsAreReset(&workerStatsAfterReset))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "frame-callback-reset-all-selftest: reset-all did not clear both windows");
+        result = 2;
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO, "frame-callback-reset-all-selftest: PASSED");
+    result = 0;
+
+cleanup:
+    if (workerState.stopEvent != NULL) SetEvent(workerState.stopEvent);
+    if (workerThreadHandle != NULL)
+    {
+        WaitForSingleObject(workerThreadHandle, 8000);
+        InvokeOwnedCloseHandle(&workerThreadHandle);
+    }
+    InvokeOwnedCloseHandle(&workerState.readyEvent);
+    InvokeOwnedCloseHandle(&workerState.stopEvent);
+    if (RLIsWindowReady()) RLCloseWindow();
     return result;
 }
 
@@ -2464,6 +2924,16 @@ int main(int argc, char **argv)
     if ((argc >= 2) && (strcmp(argv[1], "--invoke-owned-selftest") == 0))
     {
         return RunInvokeOwnedSelfTest();
+    }
+
+    if ((argc >= 2) && (strcmp(argv[1], "--native-task-queue-selftest") == 0))
+    {
+        return RunNativeTaskQueueDiagSelfTest();
+    }
+
+    if ((argc >= 2) && (strcmp(argv[1], "--frame-callback-reset-all-selftest") == 0))
+    {
+        return RunFrameCallbackResetAllSelfTest();
     }
 #endif
 

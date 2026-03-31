@@ -197,17 +197,19 @@ typedef enum RLFrameCallbackKind {
 说明：
 - 大型诊断结构
 - 用于读取当前窗口或当前上下文的事件线程分离模式的统计数据
+- 标记为 `(*)` 的字段组是其他诊断子系统的镜像副本；可以通过本结构统一读取，但 `RLResetEventThreadDiagStats*()` 与 `RLEnableEventDiagStats()` / `RLDisableEventDiagStats()` 不会去重置或禁用这些源子系统。关闭 event diag 后，`RLGetEventThreadDiagStats()` 也不会再填充这些镜像 `(*)` 字段；如仍需读取真实值，应改用对应子系统的独立 API
 
 建议关注的字段分组：
 
 | 字段组 | 说明 |
 |---|---|
 | `payloadAlloc*` / `payloadFree*` | 跨线程消息或输入数据的分配统计 |
-| `nativeTaskQueue*` | GLFW Win32 本地任务队列的深度、峰值和丢弃统计 |
-| `frameCallbackQueue*` | 帧回调队列的深度、峰值、丢弃、执行、清空和 inline fallback 统计 |
+| `nativeTaskQueue* (*)` | GLFW Win32 本地任务队列的深度、峰值和丢弃统计 |
+| `frameCallbackQueue* (*)` | 帧回调队列的深度、峰值、丢弃、执行、清空和 inline fallback 统计 |
 | `pump*` | 事件泵执行次数和耗时 |
 | `swapCost*` / `waitCost*` / `frameCpu*` | 帧阶段耗时诊断 |
-| `threadMismatch*` | GPU 写入错线程检测与切换统计 |
+| `threadMismatch* (*)` | GPU 写入错线程检测与切换统计 |
+| `sharedUnregistered* (*)` | shared-GPU 未注册 retain/release 拒绝统计 |
 
 ## 2.12 `RLThreadMismatchDiagStats`
 
@@ -433,7 +435,7 @@ Note：
 线程要求：
 - 当前线程必须持有属于该共享组的当前 GL 上下文
 
-### `RLSharedGpuDiagStats`
+### `RLSharedGpuGroupDiagStats`
 
 功能：
 - 当前线程当前上下文所属共享组的结构化诊断快照
@@ -453,24 +455,60 @@ Note：
 | `live*` / `pending*` | 各对象类型的 live / pending 数量 |
 | `framebufferMapHitCount` / `framebufferMapMissCount` / `framebufferReleaseSkippedCount` | framebuffer 附件映射命中、缺失、跳过释放统计 |
 | `releaseUntrackedCount` | 对未跟踪对象调用 release 的次数 |
-| `unregisteredRetainRejectCount` / `unregisteredReleaseRejectCount` | strict 模式下未注册 retain/release 被拒绝的次数 |
 
 适用场景：
 - 在 create、retain、unload、flush、close 等关键检查点采集共享 GPU 状态
 - 用于自动化日志和断言，而不依赖文本 dump 格式
 
-### `RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void)`
+### `RLSharedGpuGroupDiagStats RLGetCurrentSharedGpuGroupDiagStats(void)` / `RLSharedGpuGroupDiagStats RLGetSharedGpuGroupDiagStatsForContext(RLContext *ctx)`
 
 功能：
-- 返回当前共享组的结构化诊断快照
+- 返回当前上下文共享组或指定上下文共享组的结构化诊断快照
 
 返回语义：
-- 如果当前线程没有绑定共享组，返回零初始化快照
-- 如果当前线程已有共享组，返回当前快照
+- 如果目标上下文没有绑定共享组，返回零初始化快照
+- 如果目标上下文已有共享组，返回当前快照
 
 Note：
 - 这是 `RLDebugDumpSharedGpuState()` 的结构化对应接口
 - 做自动化判断或稳定日志解析时，应优先使用这个接口
+- `live/pending/owner` 相关字段属于即时快照状态
+- `releaseUntrackedCount` 和 framebuffer 映射计数属于共享组累计诊断字段；关闭共享 GPU 累计诊断计数后，这些字段会停止增长
+
+### `RLSharedGpuTrackingRejectDiagStats`
+
+功能：
+- strict 模式下未注册 retain/release 被拒绝的全局累计统计
+
+### `RLSharedGpuTrackingRejectDiagStats RLGetSharedGpuTrackingRejectDiagStats(void)` / `void RLResetSharedGpuTrackingRejectDiagStats(void)`
+
+功能：
+- 读取或重置 strict 模式下未注册 retain/release 被拒绝的全局累计统计
+
+说明：
+- 这组 reject 计数是进程级全局统计，不隶属于某一个共享组
+
+### `void RLEnableSharedGpuCumulativeDiagStats(void)` / `void RLDisableSharedGpuCumulativeDiagStats(void)` / `bool RLIsSharedGpuCumulativeDiagStatsEnabled(void)`
+
+功能：
+- 在运行时启用、禁用或查询共享 GPU 的累计诊断统计
+
+说明：
+- 只有在构建时打开 `RL_SHARED_GPU_DIAG_STATS=1` 时，这组累计统计才真正生效
+- 这些接口只控制累计诊断计数，不会关闭共享组所有权和引用计数逻辑
+- 这组开关同时影响：
+  - 当前共享组的累计诊断字段（`releaseUntrackedCount`、framebuffer 映射计数）
+  - strict 模式下未注册 retain/release 的全局 reject 计数
+- 启用这组开关不会隐式重置计数
+
+### `void RLResetCurrentSharedGpuGroupDiagStats(void)` / `bool RLResetSharedGpuGroupDiagStatsForContext(RLContext *ctx)`
+
+功能：
+- 重置当前上下文所属共享组，或指定上下文所属共享组的累计诊断字段
+
+说明：
+- 这组 reset 只作用于共享组自身的累计诊断字段
+- 不会重置 strict 模式下未注册 retain/release 的全局 reject 计数
 
 ### `void RLDebugDumpSharedGpuState(const char *label)`
 
@@ -485,7 +523,7 @@ Note：
 
 Note：
 - 该接口面向人工排查
-- 若需要稳定格式，应使用 `RLGetSharedGpuDiagStats()`
+- 若需要稳定格式，应使用 `RLGetCurrentSharedGpuGroupDiagStats()` 或 `RLGetSharedGpuGroupDiagStatsForContext()`
 
 ## 7. 共享着色器 API
 
@@ -539,6 +577,7 @@ Note：
 - 这是 `RLEventThreadDiagStats` 中 `frameCallbackQueue*` 字段的轻量对应接口
 - 只关心当前队列状态时，优先使用这个接口
 - 仅在 Win32 + desktop GLFW 后端可用
+- 即使关闭 frame-callback 累计诊断计数，`queuedCount/queuedNormalCount/queuedCriticalCount` 这类当前队列状态仍然有效
 
 ### `bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueueStats *outStats)`
 
@@ -559,6 +598,69 @@ Note：
 说明：
 - 适用于查询线程当前没有绑定到目标窗口 / 目标上下文的场景
 - 仅在 Win32 + desktop GLFW 后端可用
+
+### `void RLEnableFrameCallbackDiagStats(void)` / `void RLDisableFrameCallbackDiagStats(void)` / `bool RLIsFrameCallbackDiagStatsEnabled(void)`
+
+功能：
+- 在运行时启用、禁用或查询 frame-callback 累计诊断统计状态
+
+说明：
+- 只有在构建时打开 `RL_FRAME_CALLBACK_DIAG_STATS=1` 时，这组累计统计才真正生效
+- 这组开关只影响峰值、dropped、executed、cleared、inline fallback 这类累计统计
+- 不会关闭 frame-callback 队列本身
+
+### `void RLResetCurrentWindowFrameCallbackDiagStats(void)` / `int RLResetWindowFrameCallbackDiagStatsByHandle(void* hwnd, int wait)` / `void RLResetAllFrameCallbackDiagStats(void)`
+
+功能：
+- 重置当前窗口、指定窗口或全部已跟踪 raylib 窗口的 frame-callback 累计诊断统计
+
+参数（按句柄版本）：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `hwnd` | `void*` | 目标窗口句柄 |
+| `wait` | `int` | 为保持接口风格保留；当前实现直接完成重置，不使用该值 |
+
+## 8.1 轻量 Native Task Queue API
+
+### `bool RLGetCurrentWindowNativeTaskQueueDiagStats(RLNativeTaskQueueDiagStats *outStats)`
+
+功能：
+- 获取当前窗口 / 当前上下文 render thread 的 native task queue 轻量快照
+
+说明：
+- 这是 `RLEventThreadDiagStats` 中 `nativeTaskQueue*` 字段的轻量对应接口
+- 仅在 Win32 + desktop GLFW 后端可用
+- 直接读取 backend 的原生任务队列统计，而不是事件诊断快照中的镜像副本
+- 读取动作本身不会再额外投递一条诊断任务，因此不会反过来污染这组队列计数
+
+### `bool RLGetNativeTaskQueueDiagStatsByHandle(void* hwnd, RLNativeTaskQueueDiagStats *outStats)`
+
+功能：
+- 获取指定 raylib 窗口 render thread 的 native task queue 轻量快照
+
+参数：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `hwnd` | `void*` | 目标窗口句柄 |
+| `outStats` | `RLNativeTaskQueueDiagStats *` | 输出结构体 |
+
+返回值：
+- `true`：目标窗口 render thread 可提供队列统计
+- `false`：句柄未知，或当前模式下无法安全查询目标线程
+
+### `void RLResetCurrentWindowNativeTaskQueueDiagStats(void)` / `int RLResetNativeTaskQueueDiagStatsByHandle(void* hwnd, int wait)`
+
+功能：
+- 重置当前窗口或指定窗口 render thread 的 native task queue 诊断统计
+
+参数（按句柄版本）：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `hwnd` | `void*` | 目标窗口句柄 |
+| `wait` | `int` | 为与其他按句柄 reset 接口保持一致而保留，当前实现忽略该参数 |
 
 ## 9. 所有权与认领 API
 
@@ -1039,16 +1141,24 @@ printf("frameNormalPeak=%u\\n", stats.frameCallbackQueuePeakNormalCount);
 功能：
 - 重置当前窗口或当前上下文的事件线程诊断统计
 
+说明：
+- 只重置 `RLEventThreadDiagStats` 自身拥有的 core event/task/pump 计数字段
+- 标记为 `(*)` 的镜像字段组不会被这个 API 重置
+
 Note：
 - 仅重置统计计数，不改变运行模式和调度策略。
 
 ### `void RLResetEventThreadDiagStatsForCurrentContext(void)`
 
 功能：
-- 重置当前窗口或当前上下文的事件线程诊断，并安全地重置原生队列统计
+- 重置当前窗口或当前上下文的事件线程诊断
 
 适用场景：
 - 需要按上下文粒度对齐一次压测窗口。
+
+说明：
+- 只重置 `RLEventThreadDiagStats` 自身拥有的 core event/task/pump 计数字段
+- 标记为 `(*)` 的镜像字段组不会被这个 API 重置
 
 ### `void RLEnableEventDiagStats(void)` / `void RLDisableEventDiagStats(void)` / `bool RLIsEventDiagStatsEnabled(void)`
 
@@ -1057,6 +1167,20 @@ Note：
 
 > [!NOTE]
 > 只有在构建时打开宏 `RL_EVENT_DIAG_STATS=1` 时，这些统计才真正有效。
+
+补充说明：
+- 这组开关控制的是事件线程核心 task/pump 统计
+- 标记为 `(*)` 的镜像字段组继续使用各自独立的运行时开关和 reset API
+- 关闭后，`RLGetEventThreadDiagStats()` 不再填充这些镜像 `(*)` 字段
+
+### `void RLEnableThreadMismatchDiagStats(void)` / `void RLDisableThreadMismatchDiagStats(void)` / `bool RLIsThreadMismatchDiagStatsEnabled(void)`
+
+功能：
+- 在运行时启用、禁用或查询 GPU 写入线程错误的累计诊断统计
+
+说明：
+- 只有在构建时打开 `RL_THREAD_MISMATCH_DIAG_STATS=1` 时，这组统计才真正生效
+- 这组开关只影响 mismatch 计数，不会关闭错误线程保护、切换或拒绝逻辑
 
 ### `RLThreadMismatchDiagStats RLGetThreadMismatchDiagStats(void)`
 
@@ -1083,6 +1207,9 @@ Note：
 |---|---|---|
 | `flags` | `unsigned int` | `RL_TRACKED_OBJECT_DIAG_*` 按位或组合 |
 
+说明：
+- 只有在构建时打开 `RL_TRACKED_OBJECT_DIAG=1` 时，这些诊断标志和 dump/audit 行为才真正生效
+
 ### `void RLDebugDumpTrackedObjectState(const char *label)`
 
 功能：
@@ -1104,11 +1231,16 @@ Note：
 | 参数     | 类型      | 说明                    |
 | ------ | ------- | --------------------- |
 | `hwnd` | `void*` | 目标窗口句柄                |
-| `wait` | `int`   | 非零表示等待同步完成，`0` 表示异步提交 |
+| `wait` | `int`   | 兼容性保留参数，当前实现忽略该值 |
 
 返回值：
-- 非零表示请求成功提交并完成（`wait != 0` 时）
+- 非零表示目标句柄有效，且 core event/task/pump 计数已重置
 - 零表示失败
+
+说明：
+- 该 API 会先校验句柄是否属于已知 raylib 窗口
+- 只重置 `RLEventThreadDiagStats` 自身拥有的 core event/task/pump 计数字段
+- 标记为 `(*)` 的镜像字段组不会被这个 API 重置
 
 示例：
 ```c

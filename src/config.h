@@ -316,6 +316,30 @@
     #define RL_EVENT_DIAG_STATS 1
 #endif
 
+// Enable thread-mismatch diagnostic counters for GPU-write APIs.
+// NOTE: This option only controls mismatch diagnostics accumulation, not mismatch handling itself.
+#ifndef RL_THREAD_MISMATCH_DIAG_STATS
+    #define RL_THREAD_MISMATCH_DIAG_STATS 1
+#endif
+
+// Enable cumulative frame-callback queue diagnostics (peaks, dropped/executed/cleared/inline-fallback).
+// NOTE: Queue occupancy/state still works normally even when this diagnostics option is disabled.
+#ifndef RL_FRAME_CALLBACK_DIAG_STATS
+    #define RL_FRAME_CALLBACK_DIAG_STATS 1
+#endif
+
+// Enable cumulative shared-GPU diagnostics counters (untracked release, framebuffer map hit/miss, strict-mode rejects).
+// NOTE: Share-group ownership/refcount logic remains functional even when this diagnostics option is disabled.
+#ifndef RL_SHARED_GPU_DIAG_STATS
+    #define RL_SHARED_GPU_DIAG_STATS 1
+#endif
+
+// Enable tracked-object diagnostic flags and dump/audit helpers.
+// NOTE: Tracked-object ownership/refcount bookkeeping remains functional even when this diagnostics option is disabled.
+#ifndef RL_TRACKED_OBJECT_DIAG
+    #define RL_TRACKED_OBJECT_DIAG 1
+#endif
+
 
 //------------------------------------------------------------------------------------
 // Win32 event-thread: coalesce high-frequency state updates (mouse move, wheel, window pos/scale/fbsize)

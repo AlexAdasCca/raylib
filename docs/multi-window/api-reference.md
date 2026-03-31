@@ -115,11 +115,14 @@ Large diagnostics structure for event-thread mode.
 
 Notable field groups:
 - payload allocation counters
-- native Win32 task queue depth and dropped counts
-- frame callback queue depth, peak, dropped, executed, cleared, and inline-fallback counts
+- native Win32 task queue depth and dropped counts `(*)`
+- frame callback queue depth, peak, dropped, executed, cleared, and inline-fallback counts `(*)`
 - pump timing
 - swap and wait costs
-- thread-mismatch counters
+- thread-mismatch counters `(*)`
+- shared-GPU reject counters `(*)`
+
+`(*)` means the fields are mirrored from other diagnostics sources. Reading them through `RLEventThreadDiagStats` is supported, but `RLResetEventThreadDiagStats*()` and `RLEnableEventDiagStats()` / `RLDisableEventDiagStats()` do not reset or disable those source subsystems. When event diagnostics are disabled, `RLGetEventThreadDiagStats()` stops populating these mirrored `(*)` field groups; read the source-specific APIs directly if you still need them.
 
 ### `RLThreadMismatchDiagStats`
 Compact diagnostics structure summarizing render-thread mismatch handling for GPU-write APIs.
@@ -317,7 +320,7 @@ Notes:
 Use case:
 - Explicitly force deferred shared-GPU deletion at controlled points.
 
-### `RLSharedGpuDiagStats`
+### `RLSharedGpuGroupDiagStats`
 Structured diagnostics snapshot for the current context's share-group.
 
 Key fields:
@@ -332,21 +335,47 @@ Key fields:
 - `live*` / `pending*`: per-object-type live and pending counts
 - `framebufferMapHitCount` / `framebufferMapMissCount` / `framebufferReleaseSkippedCount`: framebuffer mapping effectiveness counters
 - `releaseUntrackedCount`: number of release calls observed on untracked objects
-- `unregisteredRetainRejectCount` / `unregisteredReleaseRejectCount`: strict-mode reject counters for unregistered retain/release
 
 Use case:
 - Capture a machine-readable share-group snapshot before or after create/unload/flush checkpoints.
 
-### `RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void)`
-Return the current share-group diagnostics snapshot.
+### `RLSharedGpuGroupDiagStats RLGetCurrentSharedGpuGroupDiagStats(void)` / `RLSharedGpuGroupDiagStats RLGetSharedGpuGroupDiagStatsForContext(RLContext *ctx)`
+Return the current share-group diagnostics snapshot for the current context or a specified context.
 
 Returns:
-- zero-filled snapshot when no share-group is currently bound on this thread
-- populated snapshot for the current context's share-group otherwise
+- zero-filled snapshot when the target context has no bound share-group
+- populated snapshot for the target context's share-group otherwise
 
 Notes:
 - This is the structured counterpart to `RLDebugDumpSharedGpuState()`.
 - The returned data is suitable for logs, assertions, or automated tests.
+- Live/pending/owner fields are snapshot state.
+- Cumulative group fields (`releaseUntrackedCount`, framebuffer-map counters) stop growing when shared-GPU cumulative diagnostics counting is disabled.
+
+### `RLSharedGpuTrackingRejectDiagStats`
+Process-wide reject counters for strict-mode unregistered retain/release.
+
+### `RLSharedGpuTrackingRejectDiagStats RLGetSharedGpuTrackingRejectDiagStats(void)` / `void RLResetSharedGpuTrackingRejectDiagStats(void)`
+Read or reset the process-wide strict-mode reject counters.
+
+Notes:
+- These counters are global and are not tied to the current share-group.
+
+### `void RLEnableSharedGpuCumulativeDiagStats(void)` / `void RLDisableSharedGpuCumulativeDiagStats(void)` / `bool RLIsSharedGpuCumulativeDiagStatsEnabled(void)`
+Runtime switch for shared-GPU cumulative diagnostics counting.
+
+Notes:
+- Effective only when the library is built with `RL_SHARED_GPU_DIAG_STATS=1`.
+- These APIs control cumulative counters only; they do not disable share-group ownership/refcount logic.
+- They affect current-group cumulative counters (`releaseUntrackedCount`, framebuffer-map counters) and the process-wide strict-mode reject counters.
+- Enabling diagnostics does not implicitly reset counters.
+
+### `void RLResetCurrentSharedGpuGroupDiagStats(void)` / `bool RLResetSharedGpuGroupDiagStatsForContext(RLContext *ctx)`
+Reset cumulative diagnostics counters for the current context share-group or for the share-group bound to a specified context.
+
+Notes:
+- These APIs reset only group-scoped cumulative counters.
+- They do not reset the process-wide strict-mode reject counters.
 
 ### `void RLDebugDumpSharedGpuState(const char *label)`
 Dump the current share-group diagnostics snapshot to the trace log.
@@ -356,7 +385,7 @@ Parameters:
 
 Notes:
 - Output format is intended for human diagnosis.
-- For stable programmatic checks, prefer `RLGetSharedGpuDiagStats()`.
+- For stable programmatic checks, prefer `RLGetCurrentSharedGpuGroupDiagStats()` / `RLGetSharedGpuGroupDiagStatsForContext()`.
 
 ## Shared Shader Coordination APIs
 
@@ -401,6 +430,7 @@ Notes:
 - This is the lightweight companion to the `frameCallbackQueue*` fields in `RLEventThreadDiagStats`.
 - Prefer this API when you only need current frame-callback queue state.
 - Available on the Win32 + desktop GLFW backend.
+- `queuedCount` / `queuedNormalCount` / `queuedCriticalCount` remain meaningful even when frame-callback diagnostics counting is disabled.
 
 ### `bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueueStats *outStats)`
 Get a lightweight frame-callback queue snapshot for a specific raylib window.
@@ -416,6 +446,50 @@ Returns:
 Notes:
 - Use this when the querying thread is not currently bound to the target window/context.
 - Available on the Win32 + desktop GLFW backend.
+
+### `void RLEnableFrameCallbackDiagStats(void)` / `void RLDisableFrameCallbackDiagStats(void)` / `bool RLIsFrameCallbackDiagStatsEnabled(void)`
+Runtime switch for frame-callback cumulative diagnostics counting.
+
+Notes:
+- Effective only when the library is built with `RL_FRAME_CALLBACK_DIAG_STATS=1`.
+- Controls cumulative counters such as peaks, dropped, executed, cleared, and inline fallback totals.
+- Does not disable the frame-callback queues themselves.
+
+### `void RLResetCurrentWindowFrameCallbackDiagStats(void)` / `int RLResetWindowFrameCallbackDiagStatsByHandle(void* hwnd, int wait)` / `void RLResetAllFrameCallbackDiagStats(void)`
+Reset frame-callback cumulative diagnostics for the current window, a specified window, or all tracked raylib windows.
+
+Parameters:
+- `hwnd`: target window handle for the by-handle variant
+- `wait`: compatibility parameter for the by-handle variant; the current implementation resets directly and does not use this value
+
+## Lightweight Native Task Queue API
+
+### `bool RLGetCurrentWindowNativeTaskQueueDiagStats(RLNativeTaskQueueDiagStats *outStats)`
+Get a lightweight native task-queue snapshot for the current window/context render thread.
+
+Notes:
+- This is the lightweight companion to the `nativeTaskQueue*` fields in `RLEventThreadDiagStats`.
+- Available on the Win32 + desktop GLFW backend.
+- Reads the backend task-queue source directly instead of the mirrored event-diag snapshot.
+- Does not enqueue a diagnostic task just to fetch the counters, so the read itself does not perturb the queue statistics.
+
+### `bool RLGetNativeTaskQueueDiagStatsByHandle(void* hwnd, RLNativeTaskQueueDiagStats *outStats)`
+Get a lightweight native task-queue snapshot for a specific raylib window render thread.
+
+Parameters:
+- `hwnd`: target window handle
+- `outStats`: destination structure
+
+Returns:
+- `true` when the target window render thread can provide queue stats
+- `false` when the handle is unknown or the target thread cannot be queried safely in the current mode
+
+### `void RLResetCurrentWindowNativeTaskQueueDiagStats(void)` / `int RLResetNativeTaskQueueDiagStatsByHandle(void* hwnd, int wait)`
+Reset native task-queue diagnostics for the current window or a specified window render thread.
+
+Parameters:
+- `hwnd`: target window handle for the by-handle variant
+- `wait`: reserved for API symmetry with other by-handle reset helpers; currently ignored
 
 ## Shared Ownership APIs
 
@@ -695,17 +769,35 @@ Reset event-thread diagnostics for the current context/window.
 Use case:
 - Reset baseline before scenario replay.
 
+Notes:
+- Resets only the core event/task/pump counters owned by `RLEventThreadDiagStats`.
+- Mirrored `(*)` field groups are not reset by this API.
+
 ### `void RLResetEventThreadDiagStatsForCurrentContext(void)`
-Reset event-thread diagnostics and safely reset native queue stats for the current context/window.
+Reset event-thread diagnostics for the current context/window.
 
 Use case:
 - Clear diagnostics between two test phases in the same window.
+
+Notes:
+- Resets only the core event/task/pump counters owned by `RLEventThreadDiagStats`.
+- Mirrored `(*)` field groups are not reset by this API.
 
 ### `void RLEnableEventDiagStats(void)` / `void RLDisableEventDiagStats(void)` / `bool RLIsEventDiagStatsEnabled(void)`
 Runtime switch for event diagnostics counting.
 
 Notes:
 - Effective only when the library is built with `RL_EVENT_DIAG_STATS=1`.
+- This switch controls the core event/task/pump counters in `RLEventThreadDiagStats`.
+- Mirrored `(*)` field groups keep using their own source-specific switches and reset APIs.
+- When disabled, `RLGetEventThreadDiagStats()` no longer populates the mirrored `(*)` field groups.
+
+### `void RLEnableThreadMismatchDiagStats(void)` / `void RLDisableThreadMismatchDiagStats(void)` / `bool RLIsThreadMismatchDiagStatsEnabled(void)`
+Runtime switch for thread-mismatch diagnostics counting.
+
+Notes:
+- Effective only when the library is built with `RL_THREAD_MISMATCH_DIAG_STATS=1`.
+- Controls mismatch counters only; it does not disable wrong-thread safety handling.
 
 ### `RLThreadMismatchDiagStats RLGetThreadMismatchDiagStats(void)`
 Return diagnostics for render-thread mismatch handling of GPU-write APIs.
@@ -732,6 +824,9 @@ Flags:
 Use case:
 - Enable only required diagnostics classes to control log volume.
 
+Notes:
+- Effective only when the library is built with `RL_TRACKED_OBJECT_DIAG=1`.
+
 ### `void RLDebugDumpTrackedObjectState(const char *label)`
 Dump tracked-object table state to the trace log.
 
@@ -740,4 +835,9 @@ By-handle reset variant for the target window.
 
 Parameters:
 - `hwnd`: target window handle
-- `wait`: synchronization flag; `0` posts asynchronously, non-zero waits until completion
+- `wait`: reserved compatibility parameter; currently ignored
+
+Notes:
+- Validates that the target handle belongs to a known raylib window.
+- Resets only the core event/task/pump counters owned by `RLEventThreadDiagStats`.
+- Mirrored `(*)` field groups are not reset by this API.

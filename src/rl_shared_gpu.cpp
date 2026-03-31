@@ -1,4 +1,5 @@
 #include "rl_shared_gpu.h"
+#include "config.h"
 #include "raylib.h"
 #include "rl_object_tracker.h"
 
@@ -54,10 +55,10 @@ struct RLSharedGpuGroup {
     std::unordered_map<uint64_t, std::shared_ptr<ProgramUseScope>> programUseScopes;
     std::deque<void*> pendingProgramFences;
     std::unordered_set<uint64_t> pendingSet; // dedupe
-    size_t releaseUntrackedCount = 0;
-    size_t fboAttachmentMapHitCount = 0;
-    size_t fboAttachmentMapMissCount = 0;
-    size_t fboAttachmentReleaseSkippedCount = 0;
+    uint64_t releaseUntrackedCount = 0;
+    uint64_t fboAttachmentMapHitCount = 0;
+    uint64_t fboAttachmentMapMissCount = 0;
+    uint64_t fboAttachmentReleaseSkippedCount = 0;
     std::atomic<uint32_t> ctxRefs{1};
     std::atomic<int> trackedScopePolicy{RL_SHARED_GPU_TRACKED_SCOPE_CONTEXT};
 };
@@ -80,6 +81,7 @@ static inline uint64_t MakeKey(uint32_t type, uint32_t id)
 static std::atomic<int> gTrackingMode((int)RL_SHARED_GPU_TRACKING_MODE_STRICT);
 static std::atomic<unsigned long long> gUnregisteredRetainRejectCount(0);
 static std::atomic<unsigned long long> gUnregisteredReleaseRejectCount(0);
+static std::atomic<int> gDiagStatsEnabled(1);
 static std::mutex gSharedGpuBindingMutex;
 
 class RLSharedGpuBindingLockScope {
@@ -95,6 +97,15 @@ private:
 static inline bool IsStrictTrackingEnabled(void)
 {
     return (gTrackingMode.load(std::memory_order_relaxed) == (int)RL_SHARED_GPU_TRACKING_MODE_STRICT);
+}
+
+static inline bool IsSharedGpuCumulativeDiagStatsEnabled(void)
+{
+#if RL_SHARED_GPU_DIAG_STATS
+    return (gDiagStatsEnabled.load(std::memory_order_relaxed) != 0);
+#else
+    return false;
+#endif
 }
 
 static inline void SplitKey(uint64_t key, uint32_t &type, uint32_t &id)
@@ -303,12 +314,12 @@ static void PushPendingDelete(RLSharedGpuGroup *shareGroup, uint64_t key)
 static void NoteUntrackedReleaseLocked(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectType type, uint64_t key)
 {
     if (!shareGroup || key == 0) return;
-    shareGroup->releaseUntrackedCount += 1;
+    if (IsSharedGpuCumulativeDiagStatsEnabled()) shareGroup->releaseUntrackedCount += 1;
     uint32_t keyType = 0, keyId = 0;
     SplitKey(key, keyType, keyId);
     RLTraceLog(RL_E_LOG_WARNING,
-        "SHARED_GPU: release on untracked object ignored (requestedType=%u keyType=%u id=%u untrackedCount=%zu)",
-        (unsigned)type, (unsigned)keyType, (unsigned)keyId, shareGroup->releaseUntrackedCount);
+        "SHARED_GPU: release on untracked object ignored (requestedType=%u keyType=%u id=%u untrackedCount=%llu)",
+        (unsigned)type, (unsigned)keyType, (unsigned)keyId, (unsigned long long)shareGroup->releaseUntrackedCount);
 }
 
 static void RegisterObjectInGroup(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectType type, unsigned int id)
@@ -405,7 +416,7 @@ static void RetainObjectInGroup(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectT
     {
         if (IsStrictTrackingEnabled())
         {
-            gUnregisteredRetainRejectCount.fetch_add(1, std::memory_order_relaxed);
+            if (IsSharedGpuCumulativeDiagStatsEnabled()) gUnregisteredRetainRejectCount.fetch_add(1, std::memory_order_relaxed);
             RLTraceLog(RL_E_LOG_WARNING,
                 "SHARED_GPU: retain on unregistered object rejected (type=%u id=%u)",
                 (unsigned)type, id);
@@ -432,7 +443,7 @@ static void RetainKeyLocked(RLSharedGpuGroup *shareGroup, uint64_t key)
     {
         if (IsStrictTrackingEnabled())
         {
-            gUnregisteredRetainRejectCount.fetch_add(1, std::memory_order_relaxed);
+            if (IsSharedGpuCumulativeDiagStatsEnabled()) gUnregisteredRetainRejectCount.fetch_add(1, std::memory_order_relaxed);
             uint32_t objectTypeBits = 0, objectId = 0;
             SplitKey(key, objectTypeBits, objectId);
             RLTraceLog(RL_E_LOG_WARNING,
@@ -462,7 +473,7 @@ static void ReleaseKeyLocked(RLSharedGpuGroup *shareGroup, RLSharedGpuObjectType
     if (refIt == shareGroup->refs.end()) {
         if (IsStrictTrackingEnabled())
         {
-            gUnregisteredReleaseRejectCount.fetch_add(1, std::memory_order_relaxed);
+            if (IsSharedGpuCumulativeDiagStatsEnabled()) gUnregisteredReleaseRejectCount.fetch_add(1, std::memory_order_relaxed);
             uint32_t keyType = 0, keyId = 0;
             SplitKey(key, keyType, keyId);
             RLTraceLog(RL_E_LOG_WARNING,
@@ -505,7 +516,7 @@ static void ReleaseObjectInGroup(RLSharedGpuGroup *shareGroup, RLSharedGpuObject
     if (refIt == shareGroup->refs.end()) {
         if (IsStrictTrackingEnabled())
         {
-            gUnregisteredReleaseRejectCount.fetch_add(1, std::memory_order_relaxed);
+            if (IsSharedGpuCumulativeDiagStatsEnabled()) gUnregisteredReleaseRejectCount.fetch_add(1, std::memory_order_relaxed);
             RLTraceLog(RL_E_LOG_WARNING,
                 "SHARED_GPU: release on unregistered object rejected (type=%u id=%u)",
                 (unsigned)type, id);
@@ -792,7 +803,7 @@ void RLSharedGpuRetainFramebufferTree(unsigned int framebufferId)
     auto framebufferIt = shareGroup->framebufferAttachments.find((uint32_t)framebufferId);
     if (framebufferIt != shareGroup->framebufferAttachments.end())
     {
-        shareGroup->fboAttachmentMapHitCount += 1;
+        if (IsSharedGpuCumulativeDiagStatsEnabled()) shareGroup->fboAttachmentMapHitCount += 1;
         std::unordered_set<uint64_t> dedup;
         for (const auto &attachmentEntry : framebufferIt->second)
         {
@@ -801,7 +812,7 @@ void RLSharedGpuRetainFramebufferTree(unsigned int framebufferId)
     }
     else
     {
-        shareGroup->fboAttachmentMapMissCount += 1;
+        if (IsSharedGpuCumulativeDiagStatsEnabled()) shareGroup->fboAttachmentMapMissCount += 1;
         // Backward-compatible fallback: use legacy depth mapping when generic map is unavailable.
         auto depthIt = shareGroup->framebufferDepth.find((uint32_t)framebufferId);
         if (depthIt != shareGroup->framebufferDepth.end()) RetainKeyLocked(shareGroup, depthIt->second);
@@ -819,12 +830,12 @@ void RLSharedGpuReleaseFramebufferTree(unsigned int framebufferId)
     auto framebufferIt = shareGroup->framebufferAttachments.find((uint32_t)framebufferId);
     if (framebufferIt != shareGroup->framebufferAttachments.end())
     {
-        shareGroup->fboAttachmentMapHitCount += 1;
+        if (IsSharedGpuCumulativeDiagStatsEnabled()) shareGroup->fboAttachmentMapHitCount += 1;
         std::unordered_set<uint64_t> dedup;
         for (const auto &attachmentEntry : framebufferIt->second)
         {
             if (!dedup.insert(attachmentEntry.second).second) continue;
-            if (shareGroup->refs.find(attachmentEntry.second) == shareGroup->refs.end()) shareGroup->fboAttachmentReleaseSkippedCount += 1;
+            if (IsSharedGpuCumulativeDiagStatsEnabled() && (shareGroup->refs.find(attachmentEntry.second) == shareGroup->refs.end())) shareGroup->fboAttachmentReleaseSkippedCount += 1;
             uint32_t objectTypeBits = 0, objectId = 0;
             SplitKey(attachmentEntry.second, objectTypeBits, objectId);
             ReleaseKeyLocked(shareGroup, (RLSharedGpuObjectType)objectTypeBits, attachmentEntry.second);
@@ -832,12 +843,12 @@ void RLSharedGpuReleaseFramebufferTree(unsigned int framebufferId)
     }
     else
     {
-        shareGroup->fboAttachmentMapMissCount += 1;
+        if (IsSharedGpuCumulativeDiagStatsEnabled()) shareGroup->fboAttachmentMapMissCount += 1;
         // Backward-compatible fallback: use legacy depth mapping when generic map is unavailable.
         auto depthIt = shareGroup->framebufferDepth.find((uint32_t)framebufferId);
         if (depthIt != shareGroup->framebufferDepth.end())
         {
-            if (shareGroup->refs.find(depthIt->second) == shareGroup->refs.end()) shareGroup->fboAttachmentReleaseSkippedCount += 1;
+            if (IsSharedGpuCumulativeDiagStatsEnabled() && (shareGroup->refs.find(depthIt->second) == shareGroup->refs.end())) shareGroup->fboAttachmentReleaseSkippedCount += 1;
             uint32_t objectTypeBits = 0, objectId = 0;
             SplitKey(depthIt->second, objectTypeBits, objectId);
             ReleaseKeyLocked(shareGroup, (RLSharedGpuObjectType)objectTypeBits, depthIt->second);
@@ -851,10 +862,10 @@ void RLSharedGpuReleaseFramebufferTree(unsigned int framebufferId)
     }
 }
 
-RLSharedGpuDiagStatsInternal RLSharedGpuGetDiagStats(void)
+RLSharedGpuGroupDiagStatsInternal RLSharedGpuGetGroupDiagStatsForContextInternal(RLContext *ctx)
 {
-    RLSharedGpuDiagStatsInternal out = { 0 };
-    PinnedGroup pinned = PinExistingGroupForCurrentContext();
+    RLSharedGpuGroupDiagStatsInternal out = { 0 };
+    PinnedGroup pinned = PinExistingGroupForContext(ctx);
     RLSharedGpuGroup *shareGroup = pinned.get();
     if (!shareGroup) return out;
 
@@ -912,8 +923,6 @@ RLSharedGpuDiagStatsInternal RLSharedGpuGetDiagStats(void)
         }
     }
 
-    out.unregisteredRetainRejectCount = gUnregisteredRetainRejectCount.load(std::memory_order_relaxed);
-    out.unregisteredReleaseRejectCount = gUnregisteredReleaseRejectCount.load(std::memory_order_relaxed);
     return out;
 }
 
@@ -1286,7 +1295,8 @@ bool RLSharedGpuPopPendingDelete(RLSharedGpuObjectType *typeOut, unsigned int *i
 
 void RLSharedGpuDebugDumpState(const char *label)
 {
-    RLSharedGpuDiagStatsInternal stats = RLSharedGpuGetDiagStats();
+    RLSharedGpuGroupDiagStatsInternal stats = RLSharedGpuGetGroupDiagStatsForContextInternal(GetCurrentContextSafe());
+    RLSharedGpuTrackingRejectDiagStatsInternal rejectStats = RLSharedGpuGetTrackingRejectDiagStatsInternal();
     if (!stats.hasShareGroup) {
         RLTraceLog(RL_E_LOG_INFO, "SHARED_GPU: %s: no share-group bound on current context", label ? label : "state");
         return;
@@ -1328,8 +1338,8 @@ void RLSharedGpuDebugDumpState(const char *label)
         stats.framebufferMapHitCount,
         stats.framebufferMapMissCount,
         stats.framebufferReleaseSkippedCount,
-        stats.unregisteredRetainRejectCount,
-        stats.unregisteredReleaseRejectCount);
+        rejectStats.unregisteredRetainRejectCount,
+        rejectStats.unregisteredReleaseRejectCount);
 }
 
 void RLSharedGpuSetTextureDebugLabel(unsigned int id, const char *label, const char *sourceFile, int sourceLine)
@@ -1377,15 +1387,57 @@ RLSharedGpuTrackingModeInternal RLSharedGpuGetTrackingMode(void)
     return (RLSharedGpuTrackingModeInternal)gTrackingMode.load(std::memory_order_relaxed);
 }
 
-RLSharedGpuTrackingDiagStats RLSharedGpuGetTrackingDiagStats(void)
+void RLSharedGpuEnableCumulativeDiagStats(void)
 {
-    RLSharedGpuTrackingDiagStats out = { 0 };
+#if RL_SHARED_GPU_DIAG_STATS
+    gDiagStatsEnabled.store(1, std::memory_order_relaxed);
+#endif
+}
+
+void RLSharedGpuDisableCumulativeDiagStats(void)
+{
+#if RL_SHARED_GPU_DIAG_STATS
+    gDiagStatsEnabled.store(0, std::memory_order_relaxed);
+#endif
+}
+
+bool RLSharedGpuIsCumulativeDiagStatsEnabled(void)
+{
+#if RL_SHARED_GPU_DIAG_STATS
+    return IsSharedGpuCumulativeDiagStatsEnabled();
+#else
+    return false;
+#endif
+}
+
+bool RLSharedGpuResetGroupDiagStatsForContextInternal(RLContext *ctx)
+{
+#if RL_SHARED_GPU_DIAG_STATS
+    PinnedGroup pinned = PinExistingGroupForContext(ctx);
+    RLSharedGpuGroup *shareGroup = pinned.get();
+    if (shareGroup == nullptr) return false;
+
+    RLSharedGpuGroupLockScope shareGroupLock(shareGroup);
+    shareGroup->releaseUntrackedCount = 0;
+    shareGroup->fboAttachmentMapHitCount = 0;
+    shareGroup->fboAttachmentMapMissCount = 0;
+    shareGroup->fboAttachmentReleaseSkippedCount = 0;
+    return true;
+#else
+    (void)ctx;
+    return false;
+#endif
+}
+
+RLSharedGpuTrackingRejectDiagStatsInternal RLSharedGpuGetTrackingRejectDiagStatsInternal(void)
+{
+    RLSharedGpuTrackingRejectDiagStatsInternal out = { 0 };
     out.unregisteredRetainRejectCount = gUnregisteredRetainRejectCount.load(std::memory_order_relaxed);
     out.unregisteredReleaseRejectCount = gUnregisteredReleaseRejectCount.load(std::memory_order_relaxed);
     return out;
 }
 
-void RLSharedGpuResetTrackingDiagStats(void)
+void RLSharedGpuResetTrackingRejectDiagStatsInternal(void)
 {
     gUnregisteredRetainRejectCount.store(0, std::memory_order_relaxed);
     gUnregisteredReleaseRejectCount.store(0, std::memory_order_relaxed);

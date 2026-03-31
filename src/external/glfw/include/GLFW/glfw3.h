@@ -4712,6 +4712,12 @@ GLFWAPI void glfwGetCurrentThreadTaskQueueStatsEx(unsigned int* queued, unsigned
                                                   unsigned long long* droppedInput, unsigned long long* droppedMaintenance,
                                                   unsigned long long* wakeSent, unsigned long long* wakeDedup);
 GLFWAPI void glfwResetCurrentThreadTaskQueueStats(void);
+GLFWAPI void glfwGetThreadTaskQueueStatsEx(GLFWthread* thread,
+                                           unsigned int* queued, unsigned int* queuedPeak, unsigned long long* dropped,
+                                           unsigned long long* droppedCritical, unsigned long long* droppedState,
+                                           unsigned long long* droppedInput, unsigned long long* droppedMaintenance,
+                                           unsigned long long* wakeSent, unsigned long long* wakeDedup);
+GLFWAPI void glfwResetThreadTaskQueueStats(GLFWthread* thread);
 
 /*! @brief Returns the value of an input option for the specified window.
  *

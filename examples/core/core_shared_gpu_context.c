@@ -56,6 +56,7 @@ static RLShader LoadTintShaderFromMemory(void);
 static void FlushPendingSharedDeletesForCurrentWindow(const char *tag);
 static bool HasCommandLineFlag(int argc, char **argv, const char *flagText);
 static int RunTraceReentrySelfTest(void);
+static int RunSharedGpuDiagScopeSelfTest(void);
 #if defined(_WIN32)
 static volatile LONG gOwnerTransferMainToWorkerDone = 0;
 #endif
@@ -95,45 +96,46 @@ static void PrintMemDiagStatsLine(const char *stageName, RLMemoryDiagStats stats
 
 static void PrintSharedGpuDiagStatsLine(const char *stageName)
 {
-    RLSharedGpuDiagStats sharedGpuDiagStats = RLGetSharedGpuDiagStats();
-    const char *trackedScopeText = sharedGpuDiagStats.usesSharedTrackedScope ? "share_group" : "context";
+    RLSharedGpuGroupDiagStats sharedGpuGroupDiagStats = RLGetCurrentSharedGpuGroupDiagStats();
+    RLSharedGpuTrackingRejectDiagStats sharedGpuRejectDiagStats = RLGetSharedGpuTrackingRejectDiagStats();
+    const char *trackedScopeText = sharedGpuGroupDiagStats.usesSharedTrackedScope ? "share_group" : "context";
 
     printf("SHARED_GPU_DIAG: %s has_group=%d tracked_scope=%s ctx_refs=%u live=%llu pending=%llu owners=%llu orphaned=%llu untracked_release=%llu reject_retain=%llu reject_release=%llu\n",
         (stageName != NULL) ? stageName : "(unknown)",
-        sharedGpuDiagStats.hasShareGroup,
+        sharedGpuGroupDiagStats.hasShareGroup,
         trackedScopeText,
-        sharedGpuDiagStats.contextRefCount,
-        sharedGpuDiagStats.liveObjectCount,
-        sharedGpuDiagStats.pendingDeleteCount,
-        sharedGpuDiagStats.ownerEntryCount,
-        sharedGpuDiagStats.orphanedOwnerCount,
-        sharedGpuDiagStats.releaseUntrackedCount,
-        sharedGpuDiagStats.unregisteredRetainRejectCount,
-        sharedGpuDiagStats.unregisteredReleaseRejectCount);
+        sharedGpuGroupDiagStats.contextRefCount,
+        sharedGpuGroupDiagStats.liveObjectCount,
+        sharedGpuGroupDiagStats.pendingDeleteCount,
+        sharedGpuGroupDiagStats.ownerEntryCount,
+        sharedGpuGroupDiagStats.orphanedOwnerCount,
+        sharedGpuGroupDiagStats.releaseUntrackedCount,
+        sharedGpuRejectDiagStats.unregisteredRetainRejectCount,
+        sharedGpuRejectDiagStats.unregisteredReleaseRejectCount);
 
     printf("SHARED_GPU_DIAG: %s live_tex=%llu live_buf=%llu live_vao=%llu live_fbo=%llu live_rbo=%llu live_prog=%llu pending_tex=%llu pending_buf=%llu pending_vao=%llu pending_fbo=%llu pending_rbo=%llu pending_prog=%llu map_attach=%llu map_depth=%llu map_hit=%llu map_miss=%llu map_release_skip=%llu prog_locs=%llu prog_scopes=%llu pending_fences=%llu texture_trace=%llu\n",
         (stageName != NULL) ? stageName : "(unknown)",
-        sharedGpuDiagStats.liveTextureCount,
-        sharedGpuDiagStats.liveBufferCount,
-        sharedGpuDiagStats.liveVertexArrayCount,
-        sharedGpuDiagStats.liveFramebufferCount,
-        sharedGpuDiagStats.liveRenderbufferCount,
-        sharedGpuDiagStats.liveProgramCount,
-        sharedGpuDiagStats.pendingTextureCount,
-        sharedGpuDiagStats.pendingBufferCount,
-        sharedGpuDiagStats.pendingVertexArrayCount,
-        sharedGpuDiagStats.pendingFramebufferCount,
-        sharedGpuDiagStats.pendingRenderbufferCount,
-        sharedGpuDiagStats.pendingProgramCount,
-        sharedGpuDiagStats.framebufferAttachmentMapCount,
-        sharedGpuDiagStats.framebufferDepthMapCount,
-        sharedGpuDiagStats.framebufferMapHitCount,
-        sharedGpuDiagStats.framebufferMapMissCount,
-        sharedGpuDiagStats.framebufferReleaseSkippedCount,
-        sharedGpuDiagStats.programLocEntryCount,
-        sharedGpuDiagStats.programUseScopeCount,
-        sharedGpuDiagStats.pendingProgramFenceCount,
-        sharedGpuDiagStats.textureTraceCount);
+        sharedGpuGroupDiagStats.liveTextureCount,
+        sharedGpuGroupDiagStats.liveBufferCount,
+        sharedGpuGroupDiagStats.liveVertexArrayCount,
+        sharedGpuGroupDiagStats.liveFramebufferCount,
+        sharedGpuGroupDiagStats.liveRenderbufferCount,
+        sharedGpuGroupDiagStats.liveProgramCount,
+        sharedGpuGroupDiagStats.pendingTextureCount,
+        sharedGpuGroupDiagStats.pendingBufferCount,
+        sharedGpuGroupDiagStats.pendingVertexArrayCount,
+        sharedGpuGroupDiagStats.pendingFramebufferCount,
+        sharedGpuGroupDiagStats.pendingRenderbufferCount,
+        sharedGpuGroupDiagStats.pendingProgramCount,
+        sharedGpuGroupDiagStats.framebufferAttachmentMapCount,
+        sharedGpuGroupDiagStats.framebufferDepthMapCount,
+        sharedGpuGroupDiagStats.framebufferMapHitCount,
+        sharedGpuGroupDiagStats.framebufferMapMissCount,
+        sharedGpuGroupDiagStats.framebufferReleaseSkippedCount,
+        sharedGpuGroupDiagStats.programLocEntryCount,
+        sharedGpuGroupDiagStats.programUseScopeCount,
+        sharedGpuGroupDiagStats.pendingProgramFenceCount,
+        sharedGpuGroupDiagStats.textureTraceCount);
 }
 
 static const char *GetShaderModeLabel(SharedShaderTestMode mode)
@@ -275,6 +277,146 @@ static int RunTraceReentrySelfTest(void)
 
     RLTraceLog(RL_E_LOG_INFO, "trace-reentry-test: PASSED");
     return 0;
+}
+
+static bool SharedGpuGroupDiagStatsEqual(RLSharedGpuGroupDiagStats left, RLSharedGpuGroupDiagStats right)
+{
+    return (left.hasShareGroup == right.hasShareGroup) &&
+           (left.usesSharedTrackedScope == right.usesSharedTrackedScope) &&
+           (left.contextRefCount == right.contextRefCount) &&
+           (left.liveObjectCount == right.liveObjectCount) &&
+           (left.pendingDeleteCount == right.pendingDeleteCount) &&
+           (left.ownerEntryCount == right.ownerEntryCount) &&
+           (left.orphanedOwnerCount == right.orphanedOwnerCount) &&
+           (left.framebufferAttachmentMapCount == right.framebufferAttachmentMapCount) &&
+           (left.framebufferDepthMapCount == right.framebufferDepthMapCount) &&
+           (left.programLocEntryCount == right.programLocEntryCount) &&
+           (left.programUseScopeCount == right.programUseScopeCount) &&
+           (left.pendingProgramFenceCount == right.pendingProgramFenceCount) &&
+           (left.textureTraceCount == right.textureTraceCount) &&
+           (left.liveTextureCount == right.liveTextureCount) &&
+           (left.liveBufferCount == right.liveBufferCount) &&
+           (left.liveVertexArrayCount == right.liveVertexArrayCount) &&
+           (left.liveFramebufferCount == right.liveFramebufferCount) &&
+           (left.liveRenderbufferCount == right.liveRenderbufferCount) &&
+           (left.liveProgramCount == right.liveProgramCount) &&
+           (left.pendingTextureCount == right.pendingTextureCount) &&
+           (left.pendingBufferCount == right.pendingBufferCount) &&
+           (left.pendingVertexArrayCount == right.pendingVertexArrayCount) &&
+           (left.pendingFramebufferCount == right.pendingFramebufferCount) &&
+           (left.pendingRenderbufferCount == right.pendingRenderbufferCount) &&
+           (left.pendingProgramCount == right.pendingProgramCount) &&
+           (left.releaseUntrackedCount == right.releaseUntrackedCount) &&
+           (left.framebufferMapHitCount == right.framebufferMapHitCount) &&
+           (left.framebufferMapMissCount == right.framebufferMapMissCount) &&
+           (left.framebufferReleaseSkippedCount == right.framebufferReleaseSkippedCount);
+}
+
+static int RunSharedGpuDiagScopeSelfTest(void)
+{
+    RLContext *context = RLCreateContext();
+    RLSharedGpuTrackingMode originalTrackingMode;
+    bool cumulativeEnabledBefore = false;
+    RLSharedGpuGroupDiagStats currentGroupStats = { 0 };
+    RLSharedGpuGroupDiagStats contextGroupStats = { 0 };
+    RLSharedGpuTrackingRejectDiagStats rejectStats = { 0 };
+    RLRenderTexture2D renderTexture = { 0 };
+    int result = 2;
+
+    if (context == NULL)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "shared-gpu-diag-scope-selftest: failed to create context");
+        return 2;
+    }
+
+    RLSetCurrentContext(context);
+    RLSetConfigFlags(RL_E_FLAG_WINDOW_RESIZABLE | RL_E_FLAG_WINDOW_EVENT_THREAD);
+    RLInitWindow(360, 220, "raylib [shared-gpu-diag] selftest");
+    if (!RLIsWindowReady())
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "shared-gpu-diag-scope-selftest: window init failed");
+        RLDestroyContext(context);
+        return 2;
+    }
+
+    renderTexture = RLLoadRenderTexture(64, 64);
+    originalTrackingMode = (RLSharedGpuTrackingMode)RLGetSharedGpuTrackingMode();
+    cumulativeEnabledBefore = RLIsSharedGpuCumulativeDiagStatsEnabled();
+
+    RLEnableSharedGpuCumulativeDiagStats();
+    RLResetCurrentSharedGpuGroupDiagStats();
+    RLResetSharedGpuTrackingRejectDiagStats();
+
+    if (!RLIsSharedGpuCumulativeDiagStatsEnabled())
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "shared-gpu-diag-scope-selftest: cumulative diagnostics switch did not enable");
+        goto cleanup;
+    }
+
+    currentGroupStats = RLGetCurrentSharedGpuGroupDiagStats();
+    contextGroupStats = RLGetSharedGpuGroupDiagStatsForContext(context);
+    if (!currentGroupStats.hasShareGroup || !contextGroupStats.hasShareGroup)
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "shared-gpu-diag-scope-selftest: expected current context to have a share-group");
+        goto cleanup;
+    }
+
+    if (!SharedGpuGroupDiagStatsEqual(currentGroupStats, contextGroupStats))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "shared-gpu-diag-scope-selftest: current/for-context group snapshots diverged");
+        goto cleanup;
+    }
+
+    RLSetSharedGpuTrackingMode(RL_SHARED_GPU_TRACKING_STRICT);
+    (void)RLSharedReleaseBuffer(123456u);
+
+    rejectStats = RLGetSharedGpuTrackingRejectDiagStats();
+    if ((rejectStats.unregisteredRetainRejectCount != 0ull) ||
+        (rejectStats.unregisteredReleaseRejectCount == 0ull))
+    {
+        RLTraceLog(RL_E_LOG_WARNING,
+                   "shared-gpu-diag-scope-selftest: strict reject counters failed invariants (retain=%llu release=%llu)",
+                   rejectStats.unregisteredRetainRejectCount,
+                   rejectStats.unregisteredReleaseRejectCount);
+        goto cleanup;
+    }
+
+    if (!RLResetSharedGpuGroupDiagStatsForContext(context))
+    {
+        RLTraceLog(RL_E_LOG_WARNING, "shared-gpu-diag-scope-selftest: group reset for context failed");
+        goto cleanup;
+    }
+
+    rejectStats = RLGetSharedGpuTrackingRejectDiagStats();
+    if (rejectStats.unregisteredReleaseRejectCount == 0ull)
+    {
+        RLTraceLog(RL_E_LOG_WARNING,
+                   "shared-gpu-diag-scope-selftest: group reset incorrectly cleared global reject counters");
+        goto cleanup;
+    }
+
+    RLResetSharedGpuTrackingRejectDiagStats();
+    rejectStats = RLGetSharedGpuTrackingRejectDiagStats();
+    if ((rejectStats.unregisteredRetainRejectCount != 0ull) ||
+        (rejectStats.unregisteredReleaseRejectCount != 0ull))
+    {
+        RLTraceLog(RL_E_LOG_WARNING,
+                   "shared-gpu-diag-scope-selftest: reject reset failed (retain=%llu release=%llu)",
+                   rejectStats.unregisteredRetainRejectCount,
+                   rejectStats.unregisteredReleaseRejectCount);
+        goto cleanup;
+    }
+
+    RLTraceLog(RL_E_LOG_INFO, "shared-gpu-diag-scope-selftest: PASSED");
+    result = 0;
+
+cleanup:
+    if (renderTexture.id != 0u) RLUnloadRenderTexture(renderTexture);
+    RLSetSharedGpuTrackingMode((int)originalTrackingMode);
+    if (!cumulativeEnabledBefore) RLDisableSharedGpuCumulativeDiagStats();
+    RLCloseWindow();
+    RLDestroyContext(context);
+    return result;
 }
 
 static void FlushPendingSharedDeletesForCurrentWindow(const char *tag)
@@ -622,6 +764,11 @@ int main(int argc, char **argv)
     if (HasCommandLineFlag(argc, argv, "--trace-reentry-selftest"))
     {
         return RunTraceReentrySelfTest();
+    }
+
+    if (HasCommandLineFlag(argc, argv, "--shared-gpu-diag-scope-selftest"))
+    {
+        return RunSharedGpuDiagScopeSelfTest();
     }
 
     const int screenWidth = 900;

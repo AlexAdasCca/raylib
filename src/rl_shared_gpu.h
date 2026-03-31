@@ -78,7 +78,7 @@ void RLSharedGpuUnregisterFramebufferAttachments(unsigned int framebufferId);
 void RLSharedGpuRetainFramebufferTree(unsigned int framebufferId);
 void RLSharedGpuReleaseFramebufferTree(unsigned int framebufferId);
 
-typedef struct RLSharedGpuDiagStatsInternal {
+typedef struct RLSharedGpuGroupDiagStatsInternal {
     int hasShareGroup;
     int usesSharedTrackedScope;
     unsigned int contextRefCount;
@@ -108,11 +108,9 @@ typedef struct RLSharedGpuDiagStatsInternal {
     unsigned long long framebufferMapHitCount;
     unsigned long long framebufferMapMissCount;
     unsigned long long framebufferReleaseSkippedCount;
-    unsigned long long unregisteredRetainRejectCount;
-    unsigned long long unregisteredReleaseRejectCount;
-} RLSharedGpuDiagStatsInternal;
+} RLSharedGpuGroupDiagStatsInternal;
 
-RLSharedGpuDiagStatsInternal RLSharedGpuGetDiagStats(void);
+RLSharedGpuGroupDiagStatsInternal RLSharedGpuGetGroupDiagStatsForContextInternal(RLContext *ctx);
 
 // Owner-query/transfer helpers (write-ownership control, per share-group object key).
 bool RLSharedGpuGetObjectOwner(RLSharedGpuObjectType type, unsigned int id, RLContext **ownerOut);
@@ -170,14 +168,18 @@ void RLSharedGpuGroupSetSharedTrackedScope(void *groupHandle);
 // Runtime tracking policy for unregistered object retain/release handling.
 void RLSharedGpuSetTrackingMode(RLSharedGpuTrackingModeInternal mode);
 RLSharedGpuTrackingModeInternal RLSharedGpuGetTrackingMode(void);
+void RLSharedGpuEnableCumulativeDiagStats(void);
+void RLSharedGpuDisableCumulativeDiagStats(void);
+bool RLSharedGpuIsCumulativeDiagStatsEnabled(void);
+bool RLSharedGpuResetGroupDiagStatsForContextInternal(RLContext *ctx);
 
-typedef struct RLSharedGpuTrackingDiagStats {
+typedef struct RLSharedGpuTrackingRejectDiagStatsInternal {
     unsigned long long unregisteredRetainRejectCount;
     unsigned long long unregisteredReleaseRejectCount;
-} RLSharedGpuTrackingDiagStats;
+} RLSharedGpuTrackingRejectDiagStatsInternal;
 
-RLSharedGpuTrackingDiagStats RLSharedGpuGetTrackingDiagStats(void);
-void RLSharedGpuResetTrackingDiagStats(void);
+RLSharedGpuTrackingRejectDiagStatsInternal RLSharedGpuGetTrackingRejectDiagStatsInternal(void);
+void RLSharedGpuResetTrackingRejectDiagStatsInternal(void);
 
 #ifdef __cplusplus
 }

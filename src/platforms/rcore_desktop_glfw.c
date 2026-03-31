@@ -110,6 +110,10 @@
 #include "rl_shared_gpu.h"
 #include "rglfwglobal.h"
 
+#ifndef RL_FRAME_CALLBACK_DIAG_STATS
+    #define RL_FRAME_CALLBACK_DIAG_STATS 0
+#endif
+
 #if defined(_WIN32)
     // Assertions for the Win32 Route2/event-thread backend.
     // Enabled in Debug builds (when NDEBUG is not defined) or when RLGLFW_DIAGNOSTICS is defined.
@@ -126,6 +130,7 @@
 //----------------------------------------------------------------------------------
 #if defined(_WIN32)
 typedef struct RLWin32UserInvokeCall RLWin32UserInvokeCall;
+static int rlFrameCallbackDiagRuntimeEnabled = 1;
 
 #ifndef RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY
     #define RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY 1024u
@@ -157,6 +162,15 @@ typedef struct RLRenderFrameCallbackSlot
     void (*userDtor)(void* user);
     unsigned char kind; // RLFrameCallbackKind
 } RLRenderFrameCallbackSlot;
+
+static int RLGlfwFrameCallbackDiagIsEnabledLocked(void)
+{
+#if RL_FRAME_CALLBACK_DIAG_STATS
+    return (rlFrameCallbackDiagRuntimeEnabled != 0);
+#else
+    return 0;
+#endif
+}
 #endif
 
 typedef struct {
@@ -2362,9 +2376,9 @@ static PlatformData* RLWin32FindPlatformByHwnd(HWND hwnd)
     return out;
 }
 
-static int RLWin32IsKnownWindowHandle_Internal(HWND hwnd)
+int RLWin32IsKnownWindowHandle_Internal(void *hwnd)
 {
-    return (RLWin32FindPlatformByHwnd(hwnd) != NULL);
+    return (RLWin32FindPlatformByHwnd((HWND)hwnd) != NULL);
 }
 
 // --- Dispatch handlers (run on the HWND owner thread) ---
@@ -2870,7 +2884,6 @@ intptr_t RLWin32InvokeOnWindowThreadByHandleEx(void* hwnd, RLWin32WindowThreadIn
 typedef intptr_t (*RLWindowRenderThreadInvoke)(void* hwnd, void* user);
 #endif
 
-extern void RLDiag_ResetEventThreadDiagCoreOnly(void);
 typedef struct RLRenderUserInvokeCall
 {
     RLWindowRenderThreadInvoke fn;
@@ -2949,6 +2962,7 @@ static void RLGlfwUpdateFrameCallbackPeaksLocked(PlatformData* pd)
     unsigned int totalQueuedCount;
 
     if (pd == NULL) return;
+    if (!RLGlfwFrameCallbackDiagIsEnabledLocked()) return;
 
     totalQueuedCount = RLGlfwGetQueuedFrameCallbackCount(pd);
     if (totalQueuedCount > pd->frameCallbackQueuedPeak) pd->frameCallbackQueuedPeak = totalQueuedCount;
@@ -2965,6 +2979,7 @@ static void RLGlfwUpdateFrameCallbackPeaksLocked(PlatformData* pd)
 static void RLGlfwAccumulateFrameCallbackDroppedLocked(PlatformData* pd, RLFrameCallbackKind kind, unsigned int count)
 {
     if ((pd == NULL) || (count == 0u)) return;
+    if (!RLGlfwFrameCallbackDiagIsEnabledLocked()) return;
 
     pd->frameCallbackDroppedCount += count;
     if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackDroppedCriticalCount += count;
@@ -2974,6 +2989,7 @@ static void RLGlfwAccumulateFrameCallbackDroppedLocked(PlatformData* pd, RLFrame
 static void RLGlfwAccumulateFrameCallbackExecutedLocked(PlatformData* pd, RLFrameCallbackKind kind, unsigned int count)
 {
     if ((pd == NULL) || (count == 0u)) return;
+    if (!RLGlfwFrameCallbackDiagIsEnabledLocked()) return;
 
     pd->frameCallbackExecutedCount += count;
     if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackExecutedCriticalCount += count;
@@ -2983,6 +2999,7 @@ static void RLGlfwAccumulateFrameCallbackExecutedLocked(PlatformData* pd, RLFram
 static void RLGlfwAccumulateFrameCallbackClearedLocked(PlatformData* pd, RLFrameCallbackKind kind, unsigned int count)
 {
     if ((pd == NULL) || (count == 0u)) return;
+    if (!RLGlfwFrameCallbackDiagIsEnabledLocked()) return;
 
     pd->frameCallbackClearedCount += count;
     if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackClearedCriticalCount += count;
@@ -2992,6 +3009,7 @@ static void RLGlfwAccumulateFrameCallbackClearedLocked(PlatformData* pd, RLFrame
 static void RLGlfwAccumulateFrameCallbackInlineFallbackLocked(PlatformData* pd, RLFrameCallbackKind kind, unsigned int count)
 {
     if ((pd == NULL) || (count == 0u)) return;
+    if (!RLGlfwFrameCallbackDiagIsEnabledLocked()) return;
 
     pd->frameCallbackInlineFallbackCount += count;
     if (kind == RL_FRAME_CALLBACK_KIND_CRITICAL) pd->frameCallbackInlineFallbackCriticalCount += count;
@@ -3297,6 +3315,37 @@ static intptr_t RLGlfwInvoke_DeletePendingSharedGpuResourcesOnRenderThread(void*
     return RLDeletePendingSharedGpuResources() ? (intptr_t)1 : (intptr_t)0;
 }
 
+static void RLGlfwResetFrameCallbackDiagStatsLocked(PlatformData* platformData)
+{
+    if (platformData == NULL) return;
+
+    platformData->frameCallbackQueuedPeak = RLGlfwGetQueuedFrameCallbackCount(platformData);
+    platformData->frameCallbackNormalQueuedPeak = platformData->normalFrameCallbackQueuedCount;
+    platformData->frameCallbackCriticalQueuedPeak = platformData->criticalFrameCallbackQueuedCount;
+    platformData->frameCallbackDroppedCount = 0;
+    platformData->frameCallbackDroppedNormalCount = 0;
+    platformData->frameCallbackDroppedCriticalCount = 0;
+    platformData->frameCallbackExecutedCount = 0;
+    platformData->frameCallbackExecutedNormalCount = 0;
+    platformData->frameCallbackExecutedCriticalCount = 0;
+    platformData->frameCallbackClearedCount = 0;
+    platformData->frameCallbackClearedNormalCount = 0;
+    platformData->frameCallbackClearedCriticalCount = 0;
+    platformData->frameCallbackInlineFallbackCount = 0;
+    platformData->frameCallbackInlineFallbackNormalCount = 0;
+    platformData->frameCallbackInlineFallbackCriticalCount = 0;
+}
+
+static void RLGlfwResetAllFrameCallbackDiagStatsLocked(void)
+{
+    RLGlfwPlatformNode* it = gRlGlfwPdHead;
+    while (it != NULL)
+    {
+        RLGlfwResetFrameCallbackDiagStatsLocked(it->pd);
+        it = it->next;
+    }
+}
+
 intptr_t RLInvokeOnWindowRenderThreadByHandle(void* hwnd, RLWindowRenderThreadInvoke fn, void* user, int wait)
 {
     return RLInvokeOnWindowRenderThreadByHandleEx(hwnd, fn, user, wait, NULL);
@@ -3563,42 +3612,54 @@ int RLDeletePendingSharedGpuResourcesByHandle(void* hwnd, int wait)
     return 1;
 }
 
-static intptr_t RLGlfwInvoke_ResetNativeDiagStatsOnRenderThread(void* hwnd, void* user)
-{
-    (void)hwnd;
-    (void)user;
-    glfwResetCurrentThreadTaskQueueStats();
-
-    RLContext* currentCtx = RLGetCurrentContext();
-    if (!currentCtx || !currentCtx->platformData) return (intptr_t)1;
-
-    PlatformData* platformData = (PlatformData*)currentCtx->platformData;
-    if (!platformData || !platformData->win32Hwnd) return (intptr_t)1;
-
-    RLGlfwGlobalLock();
-    platformData->frameCallbackQueuedPeak = RLGlfwGetQueuedFrameCallbackCount(platformData);
-    platformData->frameCallbackNormalQueuedPeak = platformData->normalFrameCallbackQueuedCount;
-    platformData->frameCallbackCriticalQueuedPeak = platformData->criticalFrameCallbackQueuedCount;
-    platformData->frameCallbackDroppedCount = 0;
-    platformData->frameCallbackDroppedNormalCount = 0;
-    platformData->frameCallbackDroppedCriticalCount = 0;
-    platformData->frameCallbackExecutedCount = 0;
-    platformData->frameCallbackExecutedNormalCount = 0;
-    platformData->frameCallbackExecutedCriticalCount = 0;
-    platformData->frameCallbackClearedCount = 0;
-    platformData->frameCallbackClearedNormalCount = 0;
-    platformData->frameCallbackClearedCriticalCount = 0;
-    platformData->frameCallbackInlineFallbackCount = 0;
-    platformData->frameCallbackInlineFallbackNormalCount = 0;
-    platformData->frameCallbackInlineFallbackCriticalCount = 0;
-    RLGlfwGlobalUnlock();
-    return (intptr_t)1;
-}
-
 bool RLGetCurrentWindowFrameCallbackQueueStats(RLFrameCallbackQueueStats *outStats)
 {
     if (outStats == NULL) return false;
     return RLGetWindowFrameCallbackQueueStatsByHandle(RLGetWindowHandle(), outStats);
+}
+
+bool RLGetCurrentWindowNativeTaskQueueDiagStats(RLNativeTaskQueueDiagStats *outStats)
+{
+    if (outStats == NULL) return false;
+    return RLGetNativeTaskQueueDiagStatsByHandle(RLGetWindowHandle(), outStats);
+}
+
+void RLEnableFrameCallbackDiagStats(void)
+{
+#if RL_FRAME_CALLBACK_DIAG_STATS
+    RLGlfwGlobalLock();
+    rlFrameCallbackDiagRuntimeEnabled = 1;
+    RLGlfwResetAllFrameCallbackDiagStatsLocked();
+    RLGlfwGlobalUnlock();
+#endif
+}
+
+void RLDisableFrameCallbackDiagStats(void)
+{
+#if RL_FRAME_CALLBACK_DIAG_STATS
+    RLGlfwGlobalLock();
+    rlFrameCallbackDiagRuntimeEnabled = 0;
+    RLGlfwGlobalUnlock();
+#endif
+}
+
+bool RLIsFrameCallbackDiagStatsEnabled(void)
+{
+#if RL_FRAME_CALLBACK_DIAG_STATS
+    bool enabled;
+    RLGlfwGlobalLock();
+    enabled = (rlFrameCallbackDiagRuntimeEnabled != 0);
+    RLGlfwGlobalUnlock();
+    return enabled;
+#else
+    return false;
+#endif
+}
+
+void RLResetCurrentWindowFrameCallbackDiagStats(void)
+{
+    void* hwnd = RLGetWindowHandle();
+    if (hwnd != NULL) (void)RLResetWindowFrameCallbackDiagStatsByHandle(hwnd, 1);
 }
 
 bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueueStats *outStats)
@@ -3634,13 +3695,69 @@ bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueue
     return true;
 }
 
-int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait)
+int RLResetWindowFrameCallbackDiagStatsByHandle(void* hwnd, int wait)
 {
+    PlatformData* platformData;
     if (hwnd == NULL) return 0;
+    (void)wait;
 
-    RLDiag_ResetEventThreadDiagCoreOnly();
-    return (RLInvokeOnWindowRenderThreadByHandle(hwnd, RLGlfwInvoke_ResetNativeDiagStatsOnRenderThread, NULL, wait) != 0)? 1 : 0;
+    platformData = RLWin32FindPlatformByHwnd((HWND)hwnd);
+    if ((platformData == NULL) || (platformData->ownerCtx == NULL)) return 0;
+
+    RLGlfwGlobalLock();
+    RLGlfwResetFrameCallbackDiagStatsLocked(platformData);
+    RLGlfwGlobalUnlock();
+    return 1;
 }
+
+void RLResetAllFrameCallbackDiagStats(void)
+{
+    RLGlfwGlobalLock();
+    RLGlfwResetAllFrameCallbackDiagStatsLocked();
+    RLGlfwGlobalUnlock();
+}
+
+bool RLGetNativeTaskQueueDiagStatsByHandle(void* hwnd, RLNativeTaskQueueDiagStats *outStats)
+{
+    if (outStats == NULL) return false;
+    *outStats = (RLNativeTaskQueueDiagStats){ 0 };
+    if (hwnd == NULL) return false;
+
+    PlatformData* platformData = RLWin32FindPlatformByHwnd((HWND)hwnd);
+    if ((platformData == NULL) || (platformData->renderThread == NULL)) return false;
+
+    glfwGetThreadTaskQueueStatsEx(platformData->renderThread,
+                                  &outStats->queuedCount,
+                                  &outStats->peakCount,
+                                  &outStats->droppedCount,
+                                  &outStats->droppedCriticalCount,
+                                  &outStats->droppedStateCount,
+                                  &outStats->droppedInputCount,
+                                  &outStats->droppedMaintenanceCount,
+                                  &outStats->wakeSentCount,
+                                  &outStats->wakeDedupCount);
+    return true;
+}
+
+void RLResetCurrentWindowNativeTaskQueueDiagStats(void)
+{
+    void* hwnd = RLGetWindowHandle();
+    if (hwnd != NULL) (void)RLResetNativeTaskQueueDiagStatsByHandle(hwnd, 1);
+}
+
+int RLResetNativeTaskQueueDiagStatsByHandle(void* hwnd, int wait)
+{
+    PlatformData* platformData;
+    if (hwnd == NULL) return 0;
+    (void)wait;
+
+    platformData = RLWin32FindPlatformByHwnd((HWND)hwnd);
+    if ((platformData == NULL) || (platformData->renderThread == NULL)) return 0;
+
+    glfwResetThreadTaskQueueStats(platformData->renderThread);
+    return 1;
+}
+
 #endif
 
 

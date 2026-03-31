@@ -482,6 +482,9 @@ static RLTrackedObjectTable rlTrackedObjectTable = { 0 };
 // -1: writer holds lock
 // >=0: number of active readers
 static volatile long rlTrackedObjectRwState = 0;
+#ifndef RL_TRACKED_OBJECT_DIAG
+    #define RL_TRACKED_OBJECT_DIAG 0
+#endif
 static volatile unsigned int rlTrackedObjectDiagFlags = 0u;
 
 typedef enum RLTrackedScopeKind
@@ -530,7 +533,12 @@ static const char *RLTrackedObjectStateName(unsigned char state)
 
 static int RLTrackedObjectDiagHasFlag(unsigned int flag)
 {
+#if RL_TRACKED_OBJECT_DIAG
     return ((rlTrackedObjectDiagFlags & flag) != 0u);
+#else
+    (void)flag;
+    return 0;
+#endif
 }
 
 static void RLTrackedObjectReadLock(void)
@@ -1638,16 +1646,25 @@ static void RLTrackedObjectAuditContextDestroy(RLContext *ownerContext)
 
 void RLSetTrackedObjectDiagFlags(unsigned int flags)
 {
+#if RL_TRACKED_OBJECT_DIAG
     rlTrackedObjectDiagFlags = flags;
+#else
+    (void)flags;
+#endif
 }
 
 unsigned int RLGetTrackedObjectDiagFlags(void)
 {
+#if RL_TRACKED_OBJECT_DIAG
     return rlTrackedObjectDiagFlags;
+#else
+    return 0u;
+#endif
 }
 
 void RLDebugDumpTrackedObjectState(const char *label)
 {
+#if RL_TRACKED_OBJECT_DIAG
     RLContext *currentContext = RLGetCurrentContext();
     RLTrackedScopeKind currentScopeKind = RL_TRACKED_SCOPE_CONTEXT;
     uintptr_t currentScopeValue = 0u;
@@ -1700,6 +1717,9 @@ void RLDebugDumpTrackedObjectState(const char *label)
         activeLogged,
         tombstoneLogged,
         omitted);
+#else
+    (void)label;
+#endif
 }
 
 
@@ -1967,6 +1987,12 @@ int RLTextFormatTo(char *outText, int outTextSize, const char *text, ...); // Fo
 #ifndef RL_EVENT_DIAG_STATS
     #define RL_EVENT_DIAG_STATS 0
 #endif
+#ifndef RL_THREAD_MISMATCH_DIAG_STATS
+    #define RL_THREAD_MISMATCH_DIAG_STATS 0
+#endif
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+extern int RLWin32IsKnownWindowHandle_Internal(void *hwnd);
+#endif
 
 #if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
 // GLFW Win32 task queue stats extension (implemented in external/glfw/src/window.c).
@@ -1975,8 +2001,6 @@ extern void glfwGetCurrentThreadTaskQueueStatsEx(unsigned int *queued, unsigned 
                                                  unsigned long long *droppedCritical, unsigned long long *droppedState,
                                                  unsigned long long *droppedInput, unsigned long long *droppedMaintenance,
                                                  unsigned long long *wakeSent, unsigned long long *wakeDedup);
-extern RLSharedGpuTrackingDiagStats RLSharedGpuGetTrackingDiagStats(void);
-extern void RLSharedGpuResetTrackingDiagStats(void);
 #endif
 
 typedef enum RLDiagPayloadKind {
@@ -2296,7 +2320,6 @@ void RLDiag_ResetEventThreadDiagCoreOnly(void)
     RLDiag_Store64(&rlDiag_waitCostMaxUs, 0);
     RLDiag_Store64(&rlDiag_frameCpuLastUs, 0);
     RLDiag_Store64(&rlDiag_frameCpuMaxUs, 0);
-    RLSharedGpuResetTrackingDiagStats();
 #endif
 }
 
@@ -2305,6 +2328,7 @@ RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
     RLEventThreadDiagStats out = { 0 };
 
 #if RL_EVENT_DIAG_STATS
+    const bool eventDiagEnabled = (RLDiag_Load64(&rlDiag_runtimeEnabled) != 0);
     out.renderCallAlloc = (unsigned long long)RLDiag_Load64(&rlDiag_renderCallAlloc);
     out.renderCallFree  = (unsigned long long)RLDiag_Load64(&rlDiag_renderCallFree);
 
@@ -2352,36 +2376,61 @@ RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
     out.tasksPostFailed = (unsigned long long)RLDiag_Load64(&rlDiag_tasksPostFailed);
     out.taskQueueDepthCurrent = (unsigned long long)RLDiag_Load64(&rlDiag_taskQueueDepthCurrent);
     out.taskQueueDepthMax = (unsigned long long)RLDiag_Load64(&rlDiag_taskQueueDepthMax);
-#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
-    glfwGetCurrentThreadTaskQueueStatsEx(&out.nativeTaskQueueCount, &out.nativeTaskQueuePeakCount, &out.nativeTaskQueueDroppedCount,
-                                         &out.nativeTaskQueueDroppedCriticalCount, &out.nativeTaskQueueDroppedStateCount,
-                                         &out.nativeTaskQueueDroppedInputCount, &out.nativeTaskQueueDroppedMaintenanceCount,
-                                         &out.nativeTaskWakeSentCount, &out.nativeTaskWakeDedupCount);
+    if (eventDiagEnabled)
     {
-        RLFrameCallbackQueueStats frameCallbackQueueStats = { 0 };
-        if (RLGetCurrentWindowFrameCallbackQueueStats(&frameCallbackQueueStats))
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+        glfwGetCurrentThreadTaskQueueStatsEx(&out.nativeTaskQueueCount, &out.nativeTaskQueuePeakCount, &out.nativeTaskQueueDroppedCount,
+                                             &out.nativeTaskQueueDroppedCriticalCount, &out.nativeTaskQueueDroppedStateCount,
+                                             &out.nativeTaskQueueDroppedInputCount, &out.nativeTaskQueueDroppedMaintenanceCount,
+                                             &out.nativeTaskWakeSentCount, &out.nativeTaskWakeDedupCount);
         {
-            out.frameCallbackQueueCount = frameCallbackQueueStats.queuedCount;
-            out.frameCallbackQueueNormalCount = frameCallbackQueueStats.queuedNormalCount;
-            out.frameCallbackQueueCriticalCount = frameCallbackQueueStats.queuedCriticalCount;
-            out.frameCallbackQueuePeakCount = frameCallbackQueueStats.queuedPeakCount;
-            out.frameCallbackQueuePeakNormalCount = frameCallbackQueueStats.queuedPeakNormalCount;
-            out.frameCallbackQueuePeakCriticalCount = frameCallbackQueueStats.queuedPeakCriticalCount;
-            out.frameCallbackDroppedCount = frameCallbackQueueStats.droppedCount;
-            out.frameCallbackDroppedNormalCount = frameCallbackQueueStats.droppedNormalCount;
-            out.frameCallbackDroppedCriticalCount = frameCallbackQueueStats.droppedCriticalCount;
-            out.frameCallbackExecutedCount = frameCallbackQueueStats.executedCount;
-            out.frameCallbackExecutedNormalCount = frameCallbackQueueStats.executedNormalCount;
-            out.frameCallbackExecutedCriticalCount = frameCallbackQueueStats.executedCriticalCount;
-            out.frameCallbackClearedCount = frameCallbackQueueStats.clearedCount;
-            out.frameCallbackClearedNormalCount = frameCallbackQueueStats.clearedNormalCount;
-            out.frameCallbackClearedCriticalCount = frameCallbackQueueStats.clearedCriticalCount;
-            out.frameCallbackInlineFallbackCount = frameCallbackQueueStats.inlineFallbackCount;
-            out.frameCallbackInlineFallbackNormalCount = frameCallbackQueueStats.inlineFallbackNormalCount;
-            out.frameCallbackInlineFallbackCriticalCount = frameCallbackQueueStats.inlineFallbackCriticalCount;
+            RLFrameCallbackQueueStats frameCallbackQueueStats = { 0 };
+            if (RLGetCurrentWindowFrameCallbackQueueStats(&frameCallbackQueueStats))
+            {
+                out.frameCallbackQueueCount = frameCallbackQueueStats.queuedCount;
+                out.frameCallbackQueueNormalCount = frameCallbackQueueStats.queuedNormalCount;
+                out.frameCallbackQueueCriticalCount = frameCallbackQueueStats.queuedCriticalCount;
+                out.frameCallbackQueuePeakCount = frameCallbackQueueStats.queuedPeakCount;
+                out.frameCallbackQueuePeakNormalCount = frameCallbackQueueStats.queuedPeakNormalCount;
+                out.frameCallbackQueuePeakCriticalCount = frameCallbackQueueStats.queuedPeakCriticalCount;
+                out.frameCallbackDroppedCount = frameCallbackQueueStats.droppedCount;
+                out.frameCallbackDroppedNormalCount = frameCallbackQueueStats.droppedNormalCount;
+                out.frameCallbackDroppedCriticalCount = frameCallbackQueueStats.droppedCriticalCount;
+                out.frameCallbackExecutedCount = frameCallbackQueueStats.executedCount;
+                out.frameCallbackExecutedNormalCount = frameCallbackQueueStats.executedNormalCount;
+                out.frameCallbackExecutedCriticalCount = frameCallbackQueueStats.executedCriticalCount;
+                out.frameCallbackClearedCount = frameCallbackQueueStats.clearedCount;
+                out.frameCallbackClearedNormalCount = frameCallbackQueueStats.clearedNormalCount;
+                out.frameCallbackClearedCriticalCount = frameCallbackQueueStats.clearedCriticalCount;
+                out.frameCallbackInlineFallbackCount = frameCallbackQueueStats.inlineFallbackCount;
+                out.frameCallbackInlineFallbackNormalCount = frameCallbackQueueStats.inlineFallbackNormalCount;
+                out.frameCallbackInlineFallbackCriticalCount = frameCallbackQueueStats.inlineFallbackCriticalCount;
+            }
+        }
+#endif
+
+        {
+            RLThreadMismatchDiagStats mismatchStats = RLGetThreadMismatchDiagStats();
+            out.threadMismatchDetectedCount = mismatchStats.detectedCount;
+            out.threadMismatchHandoffAttemptedCount = mismatchStats.handoffAttemptedCount;
+            out.threadMismatchHandoffSuccessCount = mismatchStats.handoffSuccessCount;
+            out.threadMismatchHandoffFailedCount = mismatchStats.handoffFailedCount;
+            out.threadMismatchDeferredQueuedCount = mismatchStats.deferredQueuedCount;
+            out.threadMismatchDeferredExecutedCount = mismatchStats.deferredExecutedCount;
+            out.threadMismatchDeferredFailedCount = mismatchStats.deferredFailedCount;
+            out.threadMismatchRejectedCount = mismatchStats.rejectedCount;
+            out.threadMismatchLastCallerThreadId = mismatchStats.lastCallerThreadId;
+            out.threadMismatchLastWindowHandle = mismatchStats.lastWindowHandle;
+            strncpy(out.threadMismatchLastApi, mismatchStats.lastApi, sizeof(out.threadMismatchLastApi) - 1);
+            out.threadMismatchLastApi[sizeof(out.threadMismatchLastApi) - 1] = '\0';
+        }
+
+        {
+            RLSharedGpuTrackingRejectDiagStatsInternal sharedTrackingStats = RLSharedGpuGetTrackingRejectDiagStatsInternal();
+            out.sharedUnregisteredRetainRejectCount = sharedTrackingStats.unregisteredRetainRejectCount;
+            out.sharedUnregisteredReleaseRejectCount = sharedTrackingStats.unregisteredReleaseRejectCount;
         }
     }
-#endif
 
     out.pumpCalls = (unsigned long long)RLDiag_Load64(&rlDiag_pumpCalls);
     out.pumpTasksExecutedTotal = (unsigned long long)RLDiag_Load64(&rlDiag_pumpTasksTotal);
@@ -2408,27 +2457,6 @@ RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
     out.frameCpuLastMs  = (double)frameCpuLastUs / 1000.0;
     out.frameCpuMaxMs   = (double)frameCpuMaxUs / 1000.0;
 
-    {
-        RLThreadMismatchDiagStats mismatchStats = RLGetThreadMismatchDiagStats();
-        out.threadMismatchDetectedCount = mismatchStats.detectedCount;
-        out.threadMismatchHandoffAttemptedCount = mismatchStats.handoffAttemptedCount;
-        out.threadMismatchHandoffSuccessCount = mismatchStats.handoffSuccessCount;
-        out.threadMismatchHandoffFailedCount = mismatchStats.handoffFailedCount;
-        out.threadMismatchDeferredQueuedCount = mismatchStats.deferredQueuedCount;
-        out.threadMismatchDeferredExecutedCount = mismatchStats.deferredExecutedCount;
-        out.threadMismatchDeferredFailedCount = mismatchStats.deferredFailedCount;
-        out.threadMismatchRejectedCount = mismatchStats.rejectedCount;
-        out.threadMismatchLastCallerThreadId = mismatchStats.lastCallerThreadId;
-        out.threadMismatchLastWindowHandle = mismatchStats.lastWindowHandle;
-        strncpy(out.threadMismatchLastApi, mismatchStats.lastApi, sizeof(out.threadMismatchLastApi) - 1);
-        out.threadMismatchLastApi[sizeof(out.threadMismatchLastApi) - 1] = '\0';
-    }
-
-    {
-        RLSharedGpuTrackingDiagStats sharedTrackingStats = RLSharedGpuGetTrackingDiagStats();
-        out.sharedUnregisteredRetainRejectCount = sharedTrackingStats.unregisteredRetainRejectCount;
-        out.sharedUnregisteredReleaseRejectCount = sharedTrackingStats.unregisteredReleaseRejectCount;
-    }
 #endif
 
     return out;
@@ -2437,21 +2465,24 @@ RLEventThreadDiagStats RLGetEventThreadDiagStats(void)
 void RLResetEventThreadDiagStats(void)
 {
     RLDiag_ResetEventThreadDiagCoreOnly();
-#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
-    {
-        void* windowHandle = RLGetWindowHandle();
-        if ((windowHandle != NULL) && RLResetEventThreadDiagStatsByHandle(windowHandle, 1)) return;
-    }
-#endif
 }
 
 void RLResetEventThreadDiagStatsForCurrentContext(void)
 {
-#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
-    void* windowHandle = RLGetWindowHandle();
-    if ((windowHandle != NULL) && RLResetEventThreadDiagStatsByHandle(windowHandle, 1)) return;
-#endif
     RLResetEventThreadDiagStats();
+}
+
+int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait)
+{
+    (void)wait;
+    if (hwnd == NULL) return 0;
+#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
+    if (!RLWin32IsKnownWindowHandle_Internal(hwnd)) return 0;
+    RLDiag_ResetEventThreadDiagCoreOnly();
+    return 1;
+#else
+    return 0;
+#endif
 }
 
 void RLEnableEventDiagStats(void)
@@ -2459,12 +2490,6 @@ void RLEnableEventDiagStats(void)
 #if RL_EVENT_DIAG_STATS
     RLDiag_Store64(&rlDiag_runtimeEnabled, 1);
     RLDiag_ResetEventThreadDiagCoreOnly();
-#if defined(_WIN32) && defined(PLATFORM_DESKTOP_GLFW)
-    {
-        void* windowHandle = RLGetWindowHandle();
-        if (windowHandle != NULL) (void)RLResetEventThreadDiagStatsByHandle(windowHandle, 1);
-    }
-#endif
 #endif
 }
 
@@ -4051,10 +4076,40 @@ int RLGetSharedGpuTrackingMode(void)
     }
 }
 
-RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void)
+void RLEnableSharedGpuCumulativeDiagStats(void)
 {
-    RLSharedGpuDiagStats out = { 0 };
-    RLSharedGpuDiagStatsInternal internalStats = RLSharedGpuGetDiagStats();
+    RLSharedGpuEnableCumulativeDiagStats();
+}
+
+void RLDisableSharedGpuCumulativeDiagStats(void)
+{
+    RLSharedGpuDisableCumulativeDiagStats();
+}
+
+bool RLIsSharedGpuCumulativeDiagStatsEnabled(void)
+{
+    return RLSharedGpuIsCumulativeDiagStatsEnabled();
+}
+
+void RLResetCurrentSharedGpuGroupDiagStats(void)
+{
+    (void)RLSharedGpuResetGroupDiagStatsForContextInternal(RLGetCurrentContext());
+}
+
+bool RLResetSharedGpuGroupDiagStatsForContext(RLContext *ctx)
+{
+    return RLSharedGpuResetGroupDiagStatsForContextInternal(ctx);
+}
+
+RLSharedGpuGroupDiagStats RLGetCurrentSharedGpuGroupDiagStats(void)
+{
+    return RLGetSharedGpuGroupDiagStatsForContext(RLGetCurrentContext());
+}
+
+RLSharedGpuGroupDiagStats RLGetSharedGpuGroupDiagStatsForContext(RLContext *ctx)
+{
+    RLSharedGpuGroupDiagStats out = { 0 };
+    RLSharedGpuGroupDiagStatsInternal internalStats = RLSharedGpuGetGroupDiagStatsForContextInternal(ctx);
 
     out.hasShareGroup = internalStats.hasShareGroup;
     out.usesSharedTrackedScope = internalStats.usesSharedTrackedScope;
@@ -4085,10 +4140,22 @@ RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void)
     out.framebufferMapHitCount = internalStats.framebufferMapHitCount;
     out.framebufferMapMissCount = internalStats.framebufferMapMissCount;
     out.framebufferReleaseSkippedCount = internalStats.framebufferReleaseSkippedCount;
-    out.unregisteredRetainRejectCount = internalStats.unregisteredRetainRejectCount;
-    out.unregisteredReleaseRejectCount = internalStats.unregisteredReleaseRejectCount;
 
     return out;
+}
+
+RLSharedGpuTrackingRejectDiagStats RLGetSharedGpuTrackingRejectDiagStats(void)
+{
+    RLSharedGpuTrackingRejectDiagStatsInternal internalStats = RLSharedGpuGetTrackingRejectDiagStatsInternal();
+    RLSharedGpuTrackingRejectDiagStats out = { 0 };
+    out.unregisteredRetainRejectCount = internalStats.unregisteredRetainRejectCount;
+    out.unregisteredReleaseRejectCount = internalStats.unregisteredReleaseRejectCount;
+    return out;
+}
+
+void RLResetSharedGpuTrackingRejectDiagStats(void)
+{
+    RLSharedGpuResetTrackingRejectDiagStatsInternal();
 }
 
 void RLDebugDumpSharedGpuState(const char *label)
@@ -4097,6 +4164,8 @@ void RLDebugDumpSharedGpuState(const char *label)
 }
 
 static RLThreadMismatchDiagStats rlThreadMismatchDiagStats = { 0 };
+static volatile unsigned int rlThreadMismatchDiagRuntimeEnabled = 1u;
+static volatile unsigned int rlThreadMismatchDiagLock = 0u;
 
 static unsigned long long RLGetCurrentThreadIdForDiag(void)
 {
@@ -4108,8 +4177,58 @@ static unsigned long long RLGetCurrentThreadIdForDiag(void)
 #endif
 }
 
+static void RLThreadMismatchDiagLockAcquire(void)
+{
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    for (;;)
+    {
+    #if defined(_MSC_VER)
+        if (_InterlockedCompareExchange((volatile long *)&rlThreadMismatchDiagLock, 1, 0) == 0) break;
+    #elif defined(__GNUC__) || defined(__clang__)
+        unsigned int expected = 0u;
+        if (__atomic_compare_exchange_n(&rlThreadMismatchDiagLock, &expected, 1u, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) break;
+    #else
+        if (rlThreadMismatchDiagLock == 0u)
+        {
+            rlThreadMismatchDiagLock = 1u;
+            break;
+        }
+    #endif
+    }
+#endif
+}
+
+static void RLThreadMismatchDiagLockRelease(void)
+{
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    #if defined(_MSC_VER)
+        (void)_InterlockedExchange((volatile long *)&rlThreadMismatchDiagLock, 0);
+    #elif defined(__GNUC__) || defined(__clang__)
+        __atomic_store_n(&rlThreadMismatchDiagLock, 0u, __ATOMIC_RELEASE);
+    #else
+        rlThreadMismatchDiagLock = 0u;
+    #endif
+#endif
+}
+
+static int RLThreadMismatchDiagIsEnabled(void)
+{
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    return (rlThreadMismatchDiagRuntimeEnabled != 0u);
+#else
+    return 0;
+#endif
+}
+
 static void RLRecordThreadMismatch(const char *apiName, void *windowHandle)
 {
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    if (!RLThreadMismatchDiagIsEnabled())
+    {
+        RLThreadMismatchDiagLockRelease();
+        return;
+    }
     rlThreadMismatchDiagStats.detectedCount += 1;
     rlThreadMismatchDiagStats.lastCallerThreadId = RLGetCurrentThreadIdForDiag();
     rlThreadMismatchDiagStats.lastWindowHandle = windowHandle;
@@ -4117,58 +4236,168 @@ static void RLRecordThreadMismatch(const char *apiName, void *windowHandle)
     if (apiName == NULL) apiName = "(unknown)";
     strncpy(rlThreadMismatchDiagStats.lastApi, apiName, sizeof(rlThreadMismatchDiagStats.lastApi) - 1);
     rlThreadMismatchDiagStats.lastApi[sizeof(rlThreadMismatchDiagStats.lastApi) - 1] = '\0';
+    RLThreadMismatchDiagLockRelease();
+#else
+    (void)apiName;
+    (void)windowHandle;
+#endif
 }
 
 void RLRecordThreadMismatchHandoffAttempt(const char *apiName)
 {
     (void)apiName;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    if (!RLThreadMismatchDiagIsEnabled())
+    {
+        RLThreadMismatchDiagLockRelease();
+        return;
+    }
     rlThreadMismatchDiagStats.handoffAttemptedCount += 1;
+    RLThreadMismatchDiagLockRelease();
+#endif
 }
 
 void RLRecordThreadMismatchHandoffSuccess(const char *apiName)
 {
     (void)apiName;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    if (!RLThreadMismatchDiagIsEnabled())
+    {
+        RLThreadMismatchDiagLockRelease();
+        return;
+    }
     rlThreadMismatchDiagStats.handoffSuccessCount += 1;
+    RLThreadMismatchDiagLockRelease();
+#endif
 }
 
 void RLRecordThreadMismatchHandoffFailed(const char *apiName)
 {
     (void)apiName;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    if (!RLThreadMismatchDiagIsEnabled())
+    {
+        RLThreadMismatchDiagLockRelease();
+        return;
+    }
     rlThreadMismatchDiagStats.handoffFailedCount += 1;
+    RLThreadMismatchDiagLockRelease();
+#endif
 }
 
 void RLRecordThreadMismatchDeferredQueued(const char *apiName)
 {
     (void)apiName;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    if (!RLThreadMismatchDiagIsEnabled())
+    {
+        RLThreadMismatchDiagLockRelease();
+        return;
+    }
     rlThreadMismatchDiagStats.deferredQueuedCount += 1;
+    RLThreadMismatchDiagLockRelease();
+#endif
 }
 
 void RLRecordThreadMismatchDeferredExecuted(const char *apiName)
 {
     (void)apiName;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    if (!RLThreadMismatchDiagIsEnabled())
+    {
+        RLThreadMismatchDiagLockRelease();
+        return;
+    }
     rlThreadMismatchDiagStats.deferredExecutedCount += 1;
+    RLThreadMismatchDiagLockRelease();
+#endif
 }
 
 void RLRecordThreadMismatchDeferredFailed(const char *apiName)
 {
     (void)apiName;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    if (!RLThreadMismatchDiagIsEnabled())
+    {
+        RLThreadMismatchDiagLockRelease();
+        return;
+    }
     rlThreadMismatchDiagStats.deferredFailedCount += 1;
+    RLThreadMismatchDiagLockRelease();
+#endif
 }
 
 void RLRecordThreadMismatchReject(const char *apiName)
 {
     (void)apiName;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    if (!RLThreadMismatchDiagIsEnabled())
+    {
+        RLThreadMismatchDiagLockRelease();
+        return;
+    }
     rlThreadMismatchDiagStats.rejectedCount += 1;
+    RLThreadMismatchDiagLockRelease();
+#endif
+}
+
+void RLEnableThreadMismatchDiagStats(void)
+{
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    rlThreadMismatchDiagRuntimeEnabled = 1u;
+    rlThreadMismatchDiagStats = (RLThreadMismatchDiagStats){ 0 };
+    RLThreadMismatchDiagLockRelease();
+#endif
+}
+
+void RLDisableThreadMismatchDiagStats(void)
+{
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    rlThreadMismatchDiagRuntimeEnabled = 0u;
+    RLThreadMismatchDiagLockRelease();
+#endif
+}
+
+bool RLIsThreadMismatchDiagStatsEnabled(void)
+{
+    bool enabled = false;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
+    enabled = (RLThreadMismatchDiagIsEnabled() != 0);
+    RLThreadMismatchDiagLockRelease();
+#endif
+    return enabled;
 }
 
 RLThreadMismatchDiagStats RLGetThreadMismatchDiagStats(void)
 {
-    return rlThreadMismatchDiagStats;
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagStats out;
+    RLThreadMismatchDiagLockAcquire();
+    out = rlThreadMismatchDiagStats;
+    RLThreadMismatchDiagLockRelease();
+    return out;
+#else
+    return (RLThreadMismatchDiagStats){ 0 };
+#endif
 }
 
 void RLResetThreadMismatchDiagStats(void)
 {
+#if RL_THREAD_MISMATCH_DIAG_STATS
+    RLThreadMismatchDiagLockAcquire();
     rlThreadMismatchDiagStats = (RLThreadMismatchDiagStats){ 0 };
+    RLThreadMismatchDiagLockRelease();
+#endif
 }
 
 // Internal safety gate: when event-thread mode is active, GPU object writes must run on render thread.

@@ -1314,3 +1314,40 @@ GLFWAPI void glfwResetCurrentThreadTaskQueueStats(void)
     _glfwResetThreadTaskStatsWin32(ctx);
 #endif
 }
+
+GLFWAPI void glfwGetThreadTaskQueueStatsEx(GLFWthread* thread,
+                                           unsigned int* queued, unsigned int* queuedPeak, unsigned long long* dropped,
+                                           unsigned long long* droppedCritical, unsigned long long* droppedState,
+                                           unsigned long long* droppedInput, unsigned long long* droppedMaintenance,
+                                           unsigned long long* wakeSent, unsigned long long* wakeDedup)
+{
+    _GLFW_REQUIRE_INIT();
+
+#if defined(_GLFW_WIN32)
+    _glfwGetThreadTaskStatsExWin32((_GLFWwin32ThreadContext*) thread, queued, queuedPeak, dropped,
+                                   droppedCritical, droppedState, droppedInput, droppedMaintenance,
+                                   wakeSent, wakeDedup);
+#else
+    (void) thread;
+    if (queued) *queued = 0;
+    if (queuedPeak) *queuedPeak = 0;
+    if (dropped) *dropped = 0;
+    if (droppedCritical) *droppedCritical = 0;
+    if (droppedState) *droppedState = 0;
+    if (droppedInput) *droppedInput = 0;
+    if (droppedMaintenance) *droppedMaintenance = 0;
+    if (wakeSent) *wakeSent = 0;
+    if (wakeDedup) *wakeDedup = 0;
+#endif
+}
+
+GLFWAPI void glfwResetThreadTaskQueueStats(GLFWthread* thread)
+{
+    _GLFW_REQUIRE_INIT();
+
+#if defined(_GLFW_WIN32)
+    _glfwResetThreadTaskStatsWin32((_GLFWwin32ThreadContext*) thread);
+#else
+    (void) thread;
+#endif
+}

@@ -1149,7 +1149,7 @@ typedef enum RLSharedGpuTrackingMode {
     RL_SHARED_GPU_TRACKING_STRICT = 1      // Unregistered retain/release is rejected and reported.
 } RLSharedGpuTrackingMode;
 
-typedef struct RLSharedGpuDiagStats {
+typedef struct RLSharedGpuGroupDiagStats {
     int hasShareGroup;                           // 1 when current context has a bound share-group, otherwise 0
     int usesSharedTrackedScope;                  // 1 when tracked-object scope is promoted to share-group scope
     unsigned int contextRefCount;                // Number of contexts currently attached to the share-group
@@ -1179,9 +1179,12 @@ typedef struct RLSharedGpuDiagStats {
     unsigned long long framebufferMapHitCount;   // Number of framebuffer tree retain/release mapping hits
     unsigned long long framebufferMapMissCount;  // Number of framebuffer tree retain/release mapping misses
     unsigned long long framebufferReleaseSkippedCount; // Number of mapped attachment releases skipped because attachment was absent
+} RLSharedGpuGroupDiagStats;
+
+typedef struct RLSharedGpuTrackingRejectDiagStats {
     unsigned long long unregisteredRetainRejectCount;  // Number of strict-mode retain rejects on unregistered objects
     unsigned long long unregisteredReleaseRejectCount; // Number of strict-mode release rejects on unregistered objects
-} RLSharedGpuDiagStats;
+} RLSharedGpuTrackingRejectDiagStats;
 
 // Query and transfer object write-ownership inside the same share-group.
 // Transfer requires current context to be the current owner (or owner unset) and target context in same share-group.
@@ -1204,7 +1207,15 @@ RLAPI bool RLTryAdoptOrphanedObject(RLSharedObjectType type, unsigned int object
 // Default mode is RL_SHARED_GPU_TRACKING_STRICT.
 RLAPI void RLSetSharedGpuTrackingMode(int mode);
 RLAPI int RLGetSharedGpuTrackingMode(void);
-RLAPI RLSharedGpuDiagStats RLGetSharedGpuDiagStats(void);           // Get share-group diagnostics snapshot for current context
+RLAPI void RLEnableSharedGpuCumulativeDiagStats(void);              // Runtime enable shared-GPU cumulative diagnostics counting (effective only when RL_SHARED_GPU_DIAG_STATS=1 at build time)
+RLAPI void RLDisableSharedGpuCumulativeDiagStats(void);             // Runtime disable shared-GPU cumulative diagnostics counting
+RLAPI bool RLIsSharedGpuCumulativeDiagStatsEnabled(void);           // Check shared-GPU cumulative diagnostics runtime switch
+RLAPI void RLResetCurrentSharedGpuGroupDiagStats(void);             // Reset shared-GPU cumulative diagnostics for the current context share-group
+RLAPI bool RLResetSharedGpuGroupDiagStatsForContext(RLContext *ctx);// Reset shared-GPU cumulative diagnostics for the specified context share-group
+RLAPI RLSharedGpuGroupDiagStats RLGetCurrentSharedGpuGroupDiagStats(void);           // Get share-group diagnostics snapshot for current context
+RLAPI RLSharedGpuGroupDiagStats RLGetSharedGpuGroupDiagStatsForContext(RLContext *ctx); // Get share-group diagnostics snapshot for specified context
+RLAPI RLSharedGpuTrackingRejectDiagStats RLGetSharedGpuTrackingRejectDiagStats(void); // Get process-wide strict-mode reject counters
+RLAPI void RLResetSharedGpuTrackingRejectDiagStats(void);           // Reset process-wide strict-mode reject counters
 RLAPI void RLDebugDumpSharedGpuState(const char *label);            // Dump share-group diagnostics snapshot to the log
 
 // Window-related functions
@@ -2145,6 +2156,7 @@ typedef struct RLEventThreadDiagStats {
     unsigned long long tasksPostFailed;
     unsigned long long taskQueueDepthCurrent;
     unsigned long long taskQueueDepthMax;
+    // (*) Mirrored from the backend native task-queue diagnostics source when event diagnostics are enabled.
     unsigned int       nativeTaskQueueCount;
     unsigned int       nativeTaskQueuePeakCount;
     unsigned long long nativeTaskQueueDroppedCount;
@@ -2155,7 +2167,7 @@ typedef struct RLEventThreadDiagStats {
     unsigned long long nativeTaskWakeSentCount;
     unsigned long long nativeTaskWakeDedupCount;
     unsigned int       nativeTaskQueueLastObservedCount;
-    // Frame-safe callback queue metrics (Win32 + desktop GLFW event-thread path).
+    // (*) Mirrored from the frame-callback diagnostics source when event diagnostics are enabled (Win32 + desktop GLFW event-thread path).
     unsigned int       frameCallbackQueueCount;
     unsigned int       frameCallbackQueueNormalCount;
     unsigned int       frameCallbackQueueCriticalCount;
@@ -2187,7 +2199,7 @@ typedef struct RLEventThreadDiagStats {
     double             waitCostLastMs;
     double             frameCpuMaxMs;
     double             frameCpuLastMs;
-    // Thread-mismatch handling counters for GPU-write APIs.
+    // (*) Mirrored from the thread-mismatch diagnostics source for GPU-write APIs when event diagnostics are enabled.
     unsigned long long threadMismatchDetectedCount;
     unsigned long long threadMismatchHandoffAttemptedCount;
     unsigned long long threadMismatchHandoffSuccessCount;
@@ -2199,6 +2211,7 @@ typedef struct RLEventThreadDiagStats {
     unsigned long long threadMismatchLastCallerThreadId;
     void *threadMismatchLastWindowHandle;
     char threadMismatchLastApi[64];
+    // (*) Mirrored from the shared-GPU diagnostics source when event diagnostics are enabled.
     unsigned long long sharedUnregisteredRetainRejectCount;
     unsigned long long sharedUnregisteredReleaseRejectCount;
 } RLEventThreadDiagStats;
@@ -2238,6 +2251,18 @@ typedef struct RLFrameCallbackQueueStats {
     unsigned long long inlineFallbackCriticalCount;    // Critical callbacks executed via inline fallback
 } RLFrameCallbackQueueStats;
 
+typedef struct RLNativeTaskQueueDiagStats {
+    unsigned int queuedCount;                          // Current native task queue depth
+    unsigned int peakCount;                            // Peak native task queue depth since last reset
+    unsigned long long droppedCount;                   // Total dropped native tasks
+    unsigned long long droppedCriticalCount;           // Dropped critical native tasks
+    unsigned long long droppedStateCount;              // Dropped state-class native tasks
+    unsigned long long droppedInputCount;              // Dropped input-class native tasks
+    unsigned long long droppedMaintenanceCount;        // Dropped maintenance-class native tasks
+    unsigned long long wakeSentCount;                  // Wake signal send count
+    unsigned long long wakeDedupCount;                 // Wake signal deduplicated count
+} RLNativeTaskQueueDiagStats;
+
 typedef enum RLTrackedObjectDiagFlags {
     RL_TRACKED_OBJECT_DIAG_NONE = 0,
     RL_TRACKED_OBJECT_DIAG_LOG_RELEASE_CALLS = 0x01,        // Log tracked-object release calls and final refcount transitions
@@ -2249,20 +2274,33 @@ typedef enum RLTrackedObjectDiagFlags {
 
 RLAPI RLEventThreadDiagStats RLGetEventThreadDiagStats(void);
 RLAPI void RLResetEventThreadDiagStats(void);
-RLAPI void RLResetEventThreadDiagStatsForCurrentContext(void);      // Reset diagnostics and safely reset native queue stats for current context/window
-RLAPI void RLEnableEventDiagStats(void);                            // Runtime enable diagnostics counting (effective only when RL_EVENT_DIAG_STATS=1 at build time)
-RLAPI void RLDisableEventDiagStats(void);                           // Runtime disable diagnostics counting
+RLAPI void RLResetEventThreadDiagStatsForCurrentContext(void);      // Reset only the core event-diag counters for the current context/window
+RLAPI void RLEnableEventDiagStats(void);                            // Runtime enable core event-diag counting and mirrored (*) field population (effective only when RL_EVENT_DIAG_STATS=1 at build time)
+RLAPI void RLDisableEventDiagStats(void);                           // Runtime disable core event-diag counting and suppress mirrored (*) field population in RLGetEventThreadDiagStats()
 RLAPI bool RLIsEventDiagStatsEnabled(void);                         // Check runtime diagnostics switch
+RLAPI void RLEnableThreadMismatchDiagStats(void);                   // Runtime enable thread-mismatch diagnostics counting (effective only when RL_THREAD_MISMATCH_DIAG_STATS=1 at build time)
+RLAPI void RLDisableThreadMismatchDiagStats(void);                  // Runtime disable thread-mismatch diagnostics counting
+RLAPI bool RLIsThreadMismatchDiagStatsEnabled(void);                // Check thread-mismatch diagnostics runtime switch
 RLAPI RLThreadMismatchDiagStats RLGetThreadMismatchDiagStats(void); // Get thread-mismatch diagnostics for GPU-write APIs
 RLAPI void RLResetThreadMismatchDiagStats(void);                    // Reset thread-mismatch diagnostics
-RLAPI void RLSetTrackedObjectDiagFlags(unsigned int flags);         // Configure tracked-object diagnostics flags
+RLAPI void RLSetTrackedObjectDiagFlags(unsigned int flags);         // Configure tracked-object diagnostics flags (effective only when RL_TRACKED_OBJECT_DIAG=1 at build time)
 RLAPI unsigned int RLGetTrackedObjectDiagFlags(void);               // Get tracked-object diagnostics flags
 RLAPI void RLDebugDumpTrackedObjectState(const char *label);        // Dump tracked-object table state to the log
 
 #if defined(_WIN32)
+RLAPI void RLEnableFrameCallbackDiagStats(void);                                        // Runtime enable frame-callback cumulative diagnostics counting (effective only when RL_FRAME_CALLBACK_DIAG_STATS=1 at build time)
+RLAPI void RLDisableFrameCallbackDiagStats(void);                                       // Runtime disable frame-callback cumulative diagnostics counting
+RLAPI bool RLIsFrameCallbackDiagStatsEnabled(void);                                     // Check frame-callback cumulative diagnostics runtime switch
+RLAPI void RLResetCurrentWindowFrameCallbackDiagStats(void);                            // Reset frame-callback cumulative diagnostics for the current window/context
 RLAPI bool RLGetCurrentWindowFrameCallbackQueueStats(RLFrameCallbackQueueStats *outStats); // Get lightweight frame-callback queue stats for the current window/context
 RLAPI bool RLGetWindowFrameCallbackQueueStatsByHandle(void* hwnd, RLFrameCallbackQueueStats *outStats); // Get lightweight frame-callback queue stats for the specified raylib window
-RLAPI int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait); // Reset diagnostics and safely reset target window native queue stats on its render thread
+RLAPI int RLResetWindowFrameCallbackDiagStatsByHandle(void* hwnd, int wait);            // Reset frame-callback cumulative diagnostics for the specified raylib window
+RLAPI void RLResetAllFrameCallbackDiagStats(void);                                      // Reset frame-callback cumulative diagnostics for all tracked raylib windows
+RLAPI bool RLGetCurrentWindowNativeTaskQueueDiagStats(RLNativeTaskQueueDiagStats *outStats); // Get native task-queue stats for the current window/context render thread without enqueueing a diagnostic task
+RLAPI bool RLGetNativeTaskQueueDiagStatsByHandle(void* hwnd, RLNativeTaskQueueDiagStats *outStats); // Get native task-queue stats for the specified raylib window render thread without perturbing the queue counters
+RLAPI void RLResetCurrentWindowNativeTaskQueueDiagStats(void);                          // Reset native task-queue stats for the current window/context render thread
+RLAPI int RLResetNativeTaskQueueDiagStatsByHandle(void* hwnd, int wait);                // Reset native task-queue stats for the specified raylib window render thread; wait is currently ignored
+RLAPI int RLResetEventThreadDiagStatsByHandle(void* hwnd, int wait); // Reset only the core event-diag counters after validating the target window handle
 #endif
 
 #if defined(__cplusplus)
