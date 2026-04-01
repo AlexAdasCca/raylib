@@ -533,6 +533,7 @@ RLFont RLLoadFontFromImage(RLImage image, RLColor key, int firstChar)
     RLRectangle tempCharRecs[MAX_GLYPHS_FROM_IMAGE] = { 0 };
 
     RLColor *pixels = RLLoadImageColors(image);
+    if (pixels == NULL) return font;
 
     // Parse image data to get charSpacing and lineSpacing
     for (y = 0; y < image.height; y++)
@@ -612,6 +613,13 @@ RLFont RLLoadFontFromImage(RLImage image, RLColor key, int firstChar)
     // Now we move temp data to sized charValues and charRecs arrays
     font.glyphs = (RLGlyphInfo *)RL_MALLOC(font.glyphCount*sizeof(RLGlyphInfo));
     font.recs = (RLRectangle *)RL_MALLOC(font.glyphCount*sizeof(RLRectangle));
+    if ((font.glyphs == NULL) || (font.recs == NULL))
+    {
+        RL_FREE(font.glyphs);
+        RL_FREE(font.recs);
+        RLUnloadImage(fontClear);
+        return font;
+    }
 
     for (int i = 0; i < font.glyphCount; i++)
     {
@@ -761,6 +769,7 @@ RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fon
             if (requiredCodepoints == NULL)
             {
                 requiredCodepoints = (int *)RL_MALLOC(codepointCount*sizeof(int));
+                if (requiredCodepoints == NULL) return NULL;
                 for (int i = 0; i < codepointCount; i++) requiredCodepoints[i] = i + 32;
                 genFontChars = true;
             }
@@ -774,6 +783,11 @@ RLGlyphInfo *RLLoadFontData(const unsigned char *fileData, int dataSize, int fon
 
             // WARNING: Allocating space for maximum number of codepoints
             glyphs = (RLGlyphInfo *)RL_CALLOC(glyphCounter, sizeof(RLGlyphInfo));
+            if (glyphs == NULL)
+            {
+                if (genFontChars) RL_FREE(requiredCodepoints);
+                return NULL;
+            }
             glyphCounter = 0; // Reset to reuse
 
             int k = 0;
@@ -910,6 +924,7 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
 
     // NOTE: Rectangles memory is loaded here!
     RLRectangle *recs = (RLRectangle *)RL_MALLOC(glyphCount*sizeof(RLRectangle));
+    if (recs == NULL) return atlas;
 
     // Calculate image size based on total glyph width and glyph row count
     int totalWidth = 0;
@@ -958,6 +973,13 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
 
     int atlasDataSize = atlas.width*atlas.height; // Save total size for bounds checking
     atlas.data = (unsigned char *)RL_CALLOC(atlasDataSize, 1); // Create a bitmap to store characters (8 bpp)
+    if (atlas.data == NULL)
+    {
+        RL_FREE(recs);
+        atlas.width = 0;
+        atlas.height = 0;
+        return atlas;
+    }
     atlas.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
     atlas.mipmaps = 1;
 
@@ -1028,9 +1050,25 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
     {
         stbrp_context *context = (stbrp_context *)RL_MALLOC(sizeof(*context));
         stbrp_node *nodes = (stbrp_node *)RL_MALLOC(glyphCount*sizeof(*nodes));
+        if ((context == NULL) || (nodes == NULL))
+        {
+            RL_FREE(context);
+            RL_FREE(nodes);
+            RL_FREE(recs);
+            RLUnloadImage(atlas);
+            return atlas;
+        }
 
         stbrp_init_target(context, atlas.width, atlas.height, nodes, glyphCount);
         stbrp_rect *rects = (stbrp_rect *)RL_MALLOC(glyphCount*sizeof(stbrp_rect));
+        if (rects == NULL)
+        {
+            RL_FREE(context);
+            RL_FREE(nodes);
+            RL_FREE(recs);
+            RLUnloadImage(atlas);
+            return atlas;
+        }
 
         // Fill rectangles for packaging
         for (int i = 0; i < glyphCount; i++)
@@ -1096,6 +1134,14 @@ RLImage RLGenImageFontAtlas(const RLGlyphInfo *glyphs, RLRectangle **glyphRecs, 
 
     // Convert image data from GRAYSCALE to GRAY_ALPHA
     unsigned char *dataGrayAlpha = (unsigned char *)RL_MALLOC(atlas.width*atlas.height*sizeof(unsigned char)*2); // Two channels
+    if (dataGrayAlpha == NULL)
+    {
+        RL_FREE(recs);
+        RLUnloadImage(atlas);
+        atlas.width = 0;
+        atlas.height = 0;
+        return atlas;
+    }
 
     for (int i = 0, k = 0; i < atlas.width*atlas.height; i++, k += 2)
     {
@@ -1688,11 +1734,13 @@ RLRectangle RLGetGlyphAtlasRec(RLFont font, int codepoint)
 // Text strings management functions
 //----------------------------------------------------------------------------------
 // Load text as separate lines ('\n')
-// NOTE: Returned lines end with null terminator '\0'
+// NOTE: Returned lines end with null terminator '\0'; on allocation failure returns NULL and sets count to 0
 char **RLLoadTextLines(const char *text, int *count)
 {
     char **lines = NULL;
     int lineCount = 0;
+
+    if (count == NULL) return NULL;
 
     if (text != NULL)
     {
@@ -1706,11 +1754,23 @@ char **RLLoadTextLines(const char *text, int *count)
         }
 
         lines = (char **)RL_CALLOC(lineCount, sizeof(char *));
+        if (lines == NULL)
+        {
+            *count = 0;
+            return NULL;
+        }
         for (int i = 0, l = 0, lineLen = 0; i <= textLength; i++)
         {
             if ((text[i] == '\n') || (text[i] == '\0'))
             {
                 lines[l] = (char *)RL_CALLOC(lineLen + 1, 1);
+                if (lines[l] == NULL)
+                {
+                    for (int j = 0; j < l; j++) RL_FREE(lines[j]);
+                    RL_FREE(lines);
+                    *count = 0;
+                    return NULL;
+                }
                 strncpy(lines[l], &text[i - lineLen], lineLen);
                 lineLen = 0;
                 l++;
@@ -2072,6 +2132,7 @@ char *RLTextReplaceBetween(const char *text, const char *begin, const char *end,
                 int replaceLen = (replacement == NULL)? 0 : RLTextLength(replacement);
                 int toreplaceLen = endIndex - beginIndex - beginLen;
                 result = (char *)RL_CALLOC(textLen + replaceLen - toreplaceLen + 1, sizeof(char));
+                if (result == NULL) return NULL;
 
                 strncpy(result, text, beginIndex + beginLen); // Copy first text part
                 if (replacement != NULL) strncpy(result + beginIndex + beginLen, replacement, replaceLen); // Copy replacement (if provided)
@@ -2095,6 +2156,7 @@ char *RLTextInsert(const char *text, const char *insert, int position)
         int insertLen = RLTextLength(insert);
 
         result = (char *)RL_MALLOC(textLen + insertLen + 1);
+        if (result == NULL) return NULL;
 
         for (int i = 0; i < position; i++) result[i] = text[i];
         for (int i = position; i < insertLen + position; i++) result[i] = insert[i];
@@ -2344,6 +2406,7 @@ char *RLLoadUTF8(const int *codepoints, int length)
         // We allocate enough memory to fit all possible codepoints
         // NOTE: 5 bytes for every codepoint should be enough
         text = (char *)RL_CALLOC(length*5, 1);
+        if (text == NULL) return NULL;
         const char *utf8 = NULL;
         int size = 0;
 
@@ -2356,9 +2419,12 @@ char *RLLoadUTF8(const int *codepoints, int length)
 
         // Create second buffer and copy data manually to it
         char *temp = (char *)RL_CALLOC(size + 1, 1);
-        memcpy(temp, text, size);
-        RL_FREE(text);
-        text = temp;
+        if (temp != NULL)
+        {
+            memcpy(temp, text, size);
+            RL_FREE(text);
+            text = temp;
+        }
     }
 
     return text;
@@ -2382,6 +2448,11 @@ int *RLLoadCodepoints(const char *text, int *count)
 
         // Allocate a big enough buffer to store as many codepoints as text bytes
         codepoints = (int *)RL_CALLOC(textLength, sizeof(int));
+        if (codepoints == NULL)
+        {
+            *count = 0;
+            return NULL;
+        }
 
         int codepointSize = 0;
         for (int i = 0; i < textLength; codepointCount++)
@@ -2392,9 +2463,12 @@ int *RLLoadCodepoints(const char *text, int *count)
 
         // Create second buffer and copy data manually to it
         int *temp = (int *)RL_CALLOC(codepointCount, sizeof(int));
-        for (int i = 0; i < codepointCount; i++) temp[i] = codepoints[i];
-        RL_FREE(codepoints);
-        codepoints = temp;
+        if (temp != NULL)
+        {
+            for (int i = 0; i < codepointCount; i++) temp[i] = codepoints[i];
+            RL_FREE(codepoints);
+            codepoints = temp;
+        }
     }
 
     *count = codepointCount;
@@ -2724,6 +2798,7 @@ static RLFont LoadBMFont(const char *fileName)
 
     // Load all required images for further compose
     RLImage *imFonts = (RLImage *)RL_CALLOC(pageCount, sizeof(RLImage)); // Font atlases, multiple images
+    if (imFonts == NULL) { RLUnloadFileText(fileText); return font; }
 
     for (int i = 0; i < pageCount; i++)
     {
@@ -2741,6 +2816,13 @@ static RLFont LoadBMFont(const char *fileName)
                 .mipmaps = 1,
                 .format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
             };
+            if (imFontAlpha.data == NULL)
+            {
+                for (int j = 0; j <= i; j++) RLUnloadImage(imFonts[j]);
+                RL_FREE(imFonts);
+                RLUnloadFileText(fileText);
+                return font;
+            }
 
             for (int p = 0, pi = 0; p < (imFonts[i].width*imFonts[i].height*2); p += 2, pi++)
             {
@@ -2782,6 +2864,13 @@ static RLFont LoadBMFont(const char *fileName)
     font.glyphPadding = 0;
     font.glyphs = (RLGlyphInfo *)RL_MALLOC(glyphCount*sizeof(RLGlyphInfo));
     font.recs = (RLRectangle *)RL_MALLOC(glyphCount*sizeof(RLRectangle));
+    if ((font.glyphs == NULL) || (font.recs == NULL))
+    {
+        RL_FREE(font.glyphs);
+        RL_FREE(font.recs);
+        RLUnloadFileText(fileText);
+        return font;
+    }
 
     int charId = 0;
     int charX = 0;
@@ -2887,12 +2976,13 @@ static RLGlyphInfo *LoadFontDataBDF(const unsigned char *fileData, int dataSize,
     int charDWidthX = 0;            // Character advance X
     int charDWidthY = 0;            // Character advance Y (unused)
 
-    int *requiredCodepoints = (int *)RL_MALLOC(codepointCount*sizeof(int));
-
     if (fileData == NULL) return glyphs;
 
     // In case no chars count provided, default to 95
     codepointCount = (codepointCount > 0)? codepointCount : 95;
+
+    int *requiredCodepoints = (int *)RL_MALLOC(codepointCount*sizeof(int));
+    if (requiredCodepoints == NULL) return glyphs;
 
     if (codepoints == NULL)
     {
@@ -2907,6 +2997,11 @@ static RLGlyphInfo *LoadFontDataBDF(const unsigned char *fileData, int dataSize,
     }
 
     glyphs = (RLGlyphInfo *)RL_CALLOC(codepointCount, sizeof(RLGlyphInfo));
+    if (glyphs == NULL)
+    {
+        RL_FREE(requiredCodepoints);
+        return NULL;
+    }
 
     while (totalReadBytes <= dataSize)
     {
@@ -2996,6 +3091,12 @@ static RLGlyphInfo *LoadFontDataBDF(const unsigned char *fileData, int dataSize,
                     glyphs->advanceX = charDWidthX;
 
                     glyphs->image.data = RL_CALLOC(charBBw*charBBh, 1);
+                    if (glyphs->image.data == NULL)
+                    {
+                        RLUnloadFontData(glyphs, codepointCount);
+                        RL_FREE(requiredCodepoints);
+                        return NULL;
+                    }
                     glyphs->image.width = charBBw;
                     glyphs->image.height = charBBh;
                     glyphs->image.mipmaps = 1;

@@ -391,9 +391,19 @@ void RLSetWindowIcon(RLImage image)
 }
 
 // Set icon for window
+bool RLTrySetWindowIcons(RLImage *images, int count)
+{
+    (void)images;
+    (void)count;
+    return false;
+}
+
 void RLSetWindowIcons(RLImage *images, int count)
 {
-    TRACELOG(RL_E_LOG_WARNING, "SetWindowIcons() not available on target platform");
+    if (!RLTrySetWindowIcons(images, count))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowIcons() not available on target platform");
+    }
 }
 
 // Set title for window

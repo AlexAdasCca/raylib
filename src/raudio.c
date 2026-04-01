@@ -823,8 +823,18 @@ RLWave RLLoadWaveFromMemory(const char *fileType, const unsigned char *fileData,
             wave.channels = wav.channels;
             wave.data = (short *)RL_MALLOC((size_t)wave.frameCount*wave.channels*sizeof(short));
 
-            // NOTE: We are forcing conversion to 16bit sample size on reading
-            drwav_read_pcm_frames_s16(&wav, wave.frameCount, (drwav_int16 *)wave.data);
+            if (wave.data != NULL)
+            {
+                // NOTE: We are forcing conversion to 16bit sample size on reading
+                drwav_read_pcm_frames_s16(&wav, wave.frameCount, (drwav_int16 *)wave.data);
+            }
+            else
+            {
+                wave.frameCount = 0;
+                wave.sampleRate = 0;
+                wave.sampleSize = 0;
+                wave.channels = 0;
+            }
         }
         else TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to load WAV data");
 
@@ -846,8 +856,18 @@ RLWave RLLoadWaveFromMemory(const char *fileType, const unsigned char *fileData,
             wave.frameCount = (unsigned int)stb_vorbis_stream_length_in_samples(oggData);  // NOTE: It returns frames!
             wave.data = (short *)RL_MALLOC(wave.frameCount*wave.channels*sizeof(short));
 
-            // NOTE: Get the number of samples to process (be careful! we ask for number of shorts, not bytes!)
-            stb_vorbis_get_samples_short_interleaved(oggData, info.channels, (short *)wave.data, wave.frameCount*wave.channels);
+            if (wave.data != NULL)
+            {
+                // NOTE: Get the number of samples to process (be careful! we ask for number of shorts, not bytes!)
+                stb_vorbis_get_samples_short_interleaved(oggData, info.channels, (short *)wave.data, wave.frameCount*wave.channels);
+            }
+            else
+            {
+                wave.frameCount = 0;
+                wave.sampleRate = 0;
+                wave.sampleSize = 0;
+                wave.channels = 0;
+            }
             stb_vorbis_close(oggData);
         }
         else TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to load OGG data");
@@ -1261,6 +1281,11 @@ void RLWaveFormat(RLWave *wave, int sampleRate, int sampleSize, int channels)
     }
 
     void *data = RL_MALLOC(frameCount*channels*(sampleSize/8));
+    if (data == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to allocate memory for format conversion");
+        return;
+    }
 
     frameCount = (ma_uint32)ma_convert_frames(data, frameCount, formatOut, channels, sampleRate, wave->data, frameCountIn, formatIn, wave->channels, wave->sampleRate);
     if (frameCount == 0)
@@ -1309,6 +1334,11 @@ void RLWaveCrop(RLWave *wave, int initFrame, int finalFrame)
         int frameCount = finalFrame - initFrame;
 
         void *data = RL_MALLOC(frameCount*wave->channels*wave->sampleSize/8);
+        if (data == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "WAVE: Failed to allocate memory for crop");
+            return;
+        }
 
         memcpy(data, (unsigned char *)wave->data + (initFrame*wave->channels*wave->sampleSize/8), frameCount*wave->channels*wave->sampleSize/8);
 
@@ -1325,6 +1355,7 @@ void RLWaveCrop(RLWave *wave, int initFrame, int finalFrame)
 float *RLLoadWaveSamples(RLWave wave)
 {
     float *samples = (float *)RL_MALLOC(wave.frameCount*wave.channels*sizeof(float));
+    if (samples == NULL) return NULL;
 
     // NOTE: sampleCount is the total number of interlaced samples (including channels)
 
@@ -1359,6 +1390,11 @@ RLMusic RLLoadMusicStream(const char *fileName)
     else if (RLIsFileExtension(fileName, ".wav"))
     {
         drwav *ctxWav = (drwav *)RL_CALLOC(1, sizeof(drwav));
+        if (ctxWav == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "STREAM: WAV music context allocation failed");
+            return music;
+        }
         bool success = drwav_init_file(ctxWav, fileName, NULL);
 
         if (success)
@@ -1409,6 +1445,12 @@ RLMusic RLLoadMusicStream(const char *fileName)
     else if (RLIsFileExtension(fileName, ".mp3"))
     {
         drmp3 *ctxMp3 = (drmp3 *)RL_CALLOC(1, sizeof(drmp3));
+        if (ctxMp3 == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "STREAM: MP3 music context allocation failed");
+            return music;
+        }
+
         int result = drmp3_init_file(ctxMp3, fileName, NULL);
 
         if (result > 0)
@@ -1500,6 +1542,12 @@ RLMusic RLLoadMusicStream(const char *fileName)
     else if (RLIsFileExtension(fileName, ".mod"))
     {
         jar_mod_context_t *ctxMod = (jar_mod_context_t *)RL_CALLOC(1, sizeof(jar_mod_context_t));
+        if (ctxMod == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "STREAM: MOD music context allocation failed");
+            return music;
+        }
+
         jar_mod_init(ctxMod);
         int result = jar_mod_load_file(ctxMod, fileName);
 
@@ -1551,6 +1599,11 @@ RLMusic RLLoadMusicStreamFromMemory(const char *fileType, const unsigned char *d
     else if ((strcmp(fileType, ".wav") == 0) || (strcmp(fileType, ".WAV") == 0))
     {
         drwav *ctxWav = (drwav *)RL_CALLOC(1, sizeof(drwav));
+        if (ctxWav == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "WAVE: WAV stream context allocation failed");
+            return music;
+        }
 
         bool success = drwav_init_memory(ctxWav, (const void *)data, dataSize, NULL);
 
@@ -1603,6 +1656,12 @@ RLMusic RLLoadMusicStreamFromMemory(const char *fileType, const unsigned char *d
     else if ((strcmp(fileType, ".mp3") == 0) || (strcmp(fileType, ".MP3") == 0))
     {
         drmp3 *ctxMp3 = (drmp3 *)RL_CALLOC(1, sizeof(drmp3));
+        if (ctxMp3 == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "WAVE: MP3 stream context allocation failed");
+            return music;
+        }
+
         int success = drmp3_init_memory(ctxMp3, (const void *)data, dataSize, NULL);
 
         if (success)
@@ -1700,11 +1759,23 @@ RLMusic RLLoadMusicStreamFromMemory(const char *fileType, const unsigned char *d
     {
         jar_mod_context_t *ctxMod = (jar_mod_context_t *)RL_MALLOC(sizeof(jar_mod_context_t));
         int result = 0;
+        if (ctxMod == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "WAVE: MOD stream context allocation failed");
+            return music;
+        }
 
         jar_mod_init(ctxMod);
 
         // Copy data to allocated memory for default UnloadMusicStream
         unsigned char *newData = (unsigned char *)RL_MALLOC(dataSize);
+        if ((dataSize > 0) && (newData == NULL))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "WAVE: MOD stream backing buffer allocation failed");
+            jar_mod_unload(ctxMod);
+            RL_FREE(ctxMod);
+            return music;
+        }
         int it = dataSize/sizeof(unsigned char);
         for (int i = 0; i < it; i++) newData[i] = data[i];
 
@@ -2268,6 +2339,13 @@ void RLAttachAudioStreamProcessor(RLAudioStream stream, RLAudioCallback process)
     ma_mutex_lock(&AUDIO.System.lock);
 
     rAudioProcessor *processor = (rAudioProcessor *)RL_CALLOC(1, sizeof(rAudioProcessor));
+    if (processor == NULL)
+    {
+        ma_mutex_unlock(&AUDIO.System.lock);
+        TRACELOG(RL_E_LOG_WARNING, "AUDIO: Audio stream processor allocation failed");
+        return;
+    }
+
     processor->process = process;
 
     rAudioProcessor *last = stream.buffer->processor;
@@ -2321,6 +2399,13 @@ void RLAttachAudioMixedProcessor(RLAudioCallback process)
     ma_mutex_lock(&AUDIO.System.lock);
 
     rAudioProcessor *processor = (rAudioProcessor *)RL_CALLOC(1, sizeof(rAudioProcessor));
+    if (processor == NULL)
+    {
+        ma_mutex_unlock(&AUDIO.System.lock);
+        TRACELOG(RL_E_LOG_WARNING, "AUDIO: Mixed audio processor allocation failed");
+        return;
+    }
+
     processor->process = process;
 
     rAudioProcessor *last = AUDIO.mixedProcessor;
@@ -2846,12 +2931,16 @@ static unsigned char *RLLoadFileData(const char *fileName, int *dataSize)
             {
                 data = (unsigned char *)RL_MALLOC(size*sizeof(unsigned char));
 
-                // NOTE: fread() returns number of read elements instead of bytes, so we read [1 byte, size elements]
-                unsigned int count = (unsigned int)fread(data, sizeof(unsigned char), size, file);
-                *dataSize = count;
+                if (data != NULL)
+                {
+                    // NOTE: fread() returns number of read elements instead of bytes, so we read [1 byte, size elements]
+                    unsigned int count = (unsigned int)fread(data, sizeof(unsigned char), size, file);
+                    *dataSize = count;
 
-                if (count != size) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File partially loaded", fileName);
-                else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File loaded successfully", fileName);
+                    if (count != size) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File partially loaded", fileName);
+                    else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File loaded successfully", fileName);
+                }
+                else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to allocate memory for file reading", fileName);
             }
             else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to read file", fileName);
 
@@ -2879,12 +2968,23 @@ static bool RLSaveFileData(const char *fileName, void *data, int dataSize)
         if (file != NULL)
         {
             unsigned int count = (unsigned int)fwrite(data, sizeof(unsigned char), dataSize, file);
+            bool writeOk = false;
 
             if (count == 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write file", fileName);
             else if (count != dataSize) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File partially written", fileName);
-            else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File saved successfully", fileName);
+            else
+            {
+                TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File saved successfully", fileName);
+                writeOk = true;
+            }
 
-            fclose(file);
+            if (fclose(file) != 0)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to close file after writing", fileName);
+                return false;
+            }
+
+            return writeOk;
         }
         else
         {
@@ -2898,13 +2998,13 @@ static bool RLSaveFileData(const char *fileName, void *data, int dataSize)
         return false;
     }
 
-    return true;
+    return false;
 }
 
 // Save text data to file (write), string must be '\0' terminated
 static bool RLSaveFileText(const char *fileName, char *text)
 {
-    if (fileName != NULL)
+    if ((fileName != NULL) && (text != NULL))
     {
         FILE *file = NULL;
 #if defined(_WIN32)
@@ -2915,13 +3015,23 @@ static bool RLSaveFileText(const char *fileName, char *text)
 
         if (file != NULL)
         {
-            int count = 0;
-            if (text != NULL) count = fprintf(file, "%s", text);
+            int count = fprintf(file, "%s", text);
+            bool writeOk = false;
 
-            if (count == 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write text file", fileName);
-            else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Text file saved successfully", fileName);
+            if (count < 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write text file", fileName);
+            else
+            {
+                TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Text file saved successfully", fileName);
+                writeOk = true;
+            }
 
-            fclose(file);
+            if (fclose(file) != 0)
+            {
+                TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to close text file after writing", fileName);
+                return false;
+            }
+
+            return writeOk;
         }
         else
         {
@@ -2931,11 +3041,11 @@ static bool RLSaveFileText(const char *fileName, char *text)
     }
     else
     {
-        TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name or text provided is not valid");
         return false;
     }
 
-    return true;
+    return false;
 }
 #endif
 

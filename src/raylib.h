@@ -1240,6 +1240,7 @@ RLAPI void RLMaximizeWindow(void);                                  // Set windo
 RLAPI void RLMinimizeWindow(void);                                  // Set window state: minimized, if resizable
 RLAPI void RLRestoreWindow(void);                                   // Restore window from being minimized/maximized
 RLAPI void RLSetWindowIcon(RLImage image);                            // Set icon for window (single image, RGBA 32bit)
+RLAPI bool RLTrySetWindowIcons(RLImage *images, int count);           // Try to set icons for window (multiple images, RGBA 32bit), returns success/failure
 RLAPI void RLSetWindowIcons(RLImage *images, int count);              // Set icon for window (multiple images, RGBA 32bit)
 RLAPI void RLSetWindowTitle(const char *title);                     // Set title for window
 RLAPI void RLSetWindowPosition(int x, int y);                       // Set window position on screen
@@ -1487,7 +1488,7 @@ RLAPI void RLSetSaveFileDataCallback(RLSaveFileDataCallback callback);  // Set c
 RLAPI void RLSetLoadFileTextCallback(RLLoadFileTextCallback callback);  // Set custom file text data loader
 RLAPI void RLSetSaveFileTextCallback(RLSaveFileTextCallback callback);  // Set custom file text data saver
 
-RLAPI int RLFileRename(const char *fileName, const char *fileRename); // Rename file (if exists)
+RLAPI int RLFileRename(const char *fileName, const char *fileRename); // Rename file or move it to a destination path (if exists)
 RLAPI int RLFileRemove(const char *fileName);                         // Remove file (if exists)
 RLAPI int RLFileCopy(const char *srcPath, const char *dstPath);       // Copy file from one path to another, dstPath created if it doesn't exist
 RLAPI int RLFileMove(const char *srcPath, const char *dstPath);       // Move file from one directory to another, dstPath created if it doesn't exist
@@ -1891,7 +1892,7 @@ RLAPI const char *RLCodepointToUTF8(int codepoint, int *utf8Size);              
 // Text strings management functions (no UTF-8 strings, only byte chars)
 // WARNING 1: Most of these functions use internal static buffers[], it's recommended to store returned data on user-side for re-use
 // WARNING 2: Some strings allocate memory internally for the returned strings, those strings must be free by user using MemFree()
-RLAPI char **RLLoadTextLines(const char *text, int *count);                                   // Load text as separate lines ('\n')
+RLAPI char **RLLoadTextLines(const char *text, int *count);                                   // Load text as separate lines ('\n'), returns NULL on allocation failure
 RLAPI void RLUnloadTextLines(char **text, int lineCount);                                     // Unload text lines
 RLAPI int RLTextCopy(char *dst, const char *src);                                             // Copy one string to another, returns bytes copied
 RLAPI bool RLTextIsEqual(const char *text1, const char *text2);                               // Check if two text string are equal

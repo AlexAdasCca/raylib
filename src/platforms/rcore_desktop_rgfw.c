@@ -529,7 +529,7 @@ void RLSetWindowIcon(RLImage image)
 }
 
 // Set icon for window
-void RLSetWindowIcons(RLImage *images, int count)
+bool RLTrySetWindowIcons(RLImage *images, int count)
 {
     if ((images == NULL) || (count <= 0))
     {
@@ -553,6 +553,16 @@ void RLSetWindowIcons(RLImage *images, int count)
 
         if (smallIcon != NULL) RGFW_window_setIconEx(platform.window, (u8 *)smallIcon->data, RGFW_AREA(smallIcon->width, smallIcon->height), 4, RGFW_iconWindow);
         if (bigIcon != NULL) RGFW_window_setIconEx(platform.window, (u8 *)bigIcon->data, RGFW_AREA(bigIcon->width, bigIcon->height), 4, RGFW_iconTaskbar);
+    }
+
+    return true;
+}
+
+void RLSetWindowIcons(RLImage *images, int count)
+{
+    if (!RLTrySetWindowIcons(images, count))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "RGFW: Failed to set window icons");
     }
 }
 
@@ -994,8 +1004,10 @@ void RLPollInputEvents(void)
                         // at the moment we limit the number of drops at once to 1024 files but this behaviour should probably be reviewed
                         // TODO: Pointers should probably be reallocated for any new file added...
                         CORE.Window.dropFilepaths = (char **)RL_CALLOC(1024, sizeof(char *));
+                        if (CORE.Window.dropFilepaths == NULL) break;
 
                         CORE.Window.dropFilepaths[CORE.Window.dropFileCount] = (char *)RL_CALLOC(MAX_FILEPATH_LENGTH, sizeof(char));
+                        if (CORE.Window.dropFilepaths[CORE.Window.dropFileCount] == NULL) break;
                         strcpy(CORE.Window.dropFilepaths[CORE.Window.dropFileCount], event->droppedFiles[i]);
 
                         CORE.Window.dropFileCount++;
@@ -1003,6 +1015,7 @@ void RLPollInputEvents(void)
                     else if (CORE.Window.dropFileCount < 1024)
                     {
                         CORE.Window.dropFilepaths[CORE.Window.dropFileCount] = (char *)RL_CALLOC(MAX_FILEPATH_LENGTH, sizeof(char));
+                        if (CORE.Window.dropFilepaths[CORE.Window.dropFileCount] == NULL) break;
                         strcpy(CORE.Window.dropFilepaths[CORE.Window.dropFileCount], event->droppedFiles[i]);
 
                         CORE.Window.dropFileCount++;

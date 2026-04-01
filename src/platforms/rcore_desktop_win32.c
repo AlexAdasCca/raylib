@@ -910,9 +910,20 @@ void RLSetWindowIcon(RLImage image)
 }
 
 // Set icon for window
-void RLSetWindowIcons(RLImage *images, int count)
+bool RLTrySetWindowIcons(RLImage *images, int count)
 {
     // TODO: Implement SetWindowIcons()
+    (void)images;
+    (void)count;
+    return false;
+}
+
+void RLSetWindowIcons(RLImage *images, int count)
+{
+    if (!RLTrySetWindowIcons(images, count))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "WIN32: Failed to set window icons");
+    }
 }
 
 void RLSetWindowTitle(const char *title)

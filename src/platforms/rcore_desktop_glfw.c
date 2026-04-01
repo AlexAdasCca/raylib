@@ -1,4 +1,4 @@
-﻿/**********************************************************************************************
+/**********************************************************************************************
 *
 *   rcore_desktop_glfw - Functions to manage window, graphics device and inputs
 *
@@ -651,10 +651,28 @@ static bool RLGlfwHasAnotherWindowOnRenderThread(GLFWthread *renderThread, Platf
 static inline PlatformData *RLGetPlatformDataPtr(void)
 {
     RLContext *ctx = RLGetCurrentContext();
-    if ((ctx != NULL) && (ctx->platformData == NULL)) ctx->platformData = RL_CALLOC(1, sizeof(PlatformData));
+    if ((ctx != NULL) && (ctx->platformData == NULL))
+    {
+        ctx->platformData = RL_CALLOC(1, sizeof(PlatformData));
+        if (ctx->platformData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "PLATFORM: Failed to allocate PlatformData");
+            return NULL;
+        }
+    }
     return (PlatformData *)((ctx != NULL) ? ctx->platformData : NULL);
 }
-#define platform (*RLGetPlatformDataPtr())
+
+static inline PlatformData *RLGetPlatformDataRequired(void)
+{
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "PLATFORM: Required PlatformData unavailable");
+        RLGLFW_ASSERT(pd != NULL);
+    }
+    return pd;
+}
 
 
 //----------------------------------------------------------------------------------
@@ -906,14 +924,18 @@ static inline int RLGlfwPostTaskToThread(GLFWthread *thread, GLFWthreadtaskfun f
 
 static void RLGlfwWakeEventThread(void)
 {
-    if (platform.eventThread) glfwWakeThread(platform.eventThread);
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd != NULL) && pd->eventThread) glfwWakeThread(pd->eventThread);
 }
 
 static void RLGlfwWakeRenderThread(void)
 {
-    if (platform.renderWakeEvent) RLEventSignal(platform.renderWakeEvent);
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL) return;
+
+    if (pd->renderWakeEvent) RLEventSignal(pd->renderWakeEvent);
     // Also set the GLFW wake-event, in case the render thread is blocked in GLFW.
-    if (platform.renderThread) glfwWakeThread(platform.renderThread);
+    if (pd->renderThread) glfwWakeThread(pd->renderThread);
 }
 
 static void RLGlfwBarrierSignalTask(void *user)
@@ -957,8 +979,10 @@ static void RLGlfwPumpThreadTasksWithDiag(void)
 // executing tasks after the RLContext/Core are freed.
 static void RLGlfwDrainRenderThreadTasks(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+
     // Only meaningful when the render thread exists and we are on it.
-    if (!platform.renderThread || !RLGlfwIsThread(platform.renderThread))
+    if ((pd == NULL) || (pd->renderThread == NULL) || !RLGlfwIsThread(pd->renderThread))
     {
         // Best-effort: execute any tasks queued for the current thread.
         RLGlfwPumpThreadTasksWithDiag();
@@ -973,7 +997,7 @@ static void RLGlfwDrainRenderThreadTasks(void)
         return;
     }
 
-    if (!RLGlfwPostTaskToThread(platform.renderThread, RLGlfwBarrierSignalTask, done, (unsigned char)GLFW_THREAD_TASK_CLASS_MAINTENANCE, false, NULL))
+    if (!RLGlfwPostTaskToThread(pd->renderThread, RLGlfwBarrierSignalTask, done, (unsigned char)GLFW_THREAD_TASK_CLASS_MAINTENANCE, false, NULL))
     {
         RLEventDestroy(done);
         RLGlfwPumpThreadTasksWithDiag();
@@ -991,19 +1015,26 @@ static void RLGlfwDrainRenderThreadTasks(void)
     RLEventDestroy(done);
 }
 
-static void RLGlfwRunOnEventThread(void (*fn)(void *user), void *user, bool wait)
+static bool RLGlfwRunOnEventThread(void (*fn)(void *user), void *user, bool wait)
 {
-    if (!platform.useEventThread || RLGlfwIsThread(platform.eventThread))
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: PlatformData unavailable");
+        return false;
+    }
+
+    if (!pd->useEventThread || RLGlfwIsThread(pd->eventThread))
     {
         if (fn) fn(user);
-        return;
+        return true;
     }
 
     // If the event thread isn't ready yet, execute synchronously (initialization fallback).
-    if (!platform.eventThread)
+    if (!pd->eventThread)
     {
         if (fn) fn(user);
-        return;
+        return true;
     }
 
     RLEvent *done = wait ? RLEventCreate(false) : NULL;
@@ -1014,18 +1045,18 @@ static void RLGlfwRunOnEventThread(void (*fn)(void *user), void *user, bool wait
         RL_DIAG_TASK_POST_FAILED();
         if (done) RLEventDestroy(done);
         TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate thread call");
-        return;
+        return false;
     }
     call->fn = fn;
     call->user = user;
     call->done = done;
 
-    if (!RLGlfwPostTaskToThread(platform.eventThread, RLGlfwThreadCallTrampoline, call, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser))
+    if (!RLGlfwPostTaskToThread(pd->eventThread, RLGlfwThreadCallTrampoline, call, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RLGlfwFreeTaskUser))
     {
         RL_DIAG_TASK_POST_FAILED();
         if (done) RLEventDestroy(done);
         TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to post thread call");
-        return;
+        return false;
     }
     RLGlfwWakeEventThread();
 
@@ -1034,32 +1065,41 @@ static void RLGlfwRunOnEventThread(void (*fn)(void *user), void *user, bool wait
         RLEventWait(done);
         RLEventDestroy(done);
     }
+
+    return true;
 }
 
-static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void *user, unsigned char taskClass, bool droppable, RLGlfwRenderCallDropKind dropKind)
+static bool RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void *user, unsigned char taskClass, bool droppable, RLGlfwRenderCallDropKind dropKind)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: PlatformData unavailable for render-thread call");
+        return false;
+    }
+
     // Render thread tasks should be idempotent and short.
     // If called on the render thread, execute immediately.
-    if (!platform.useEventThread || RLGlfwIsThread(platform.renderThread))
+    if (!pd->useEventThread || RLGlfwIsThread(pd->renderThread))
     {
         RLSetCurrentContext(ctx);
         if (fn) fn(user);
-        return;
+        return true;
     }
 
     // In event-thread mode we expect a dedicated render thread.
     // If it is missing (and we're not in shutdown), something is inconsistent.
-    if (platform.useEventThread && !platform.closing)
+    if (pd->useEventThread && !pd->closing)
     {
-        RLGLFW_ASSERT(platform.renderThread != NULL);
+        RLGLFW_ASSERT(pd->renderThread != NULL);
     }
 
     // If render thread handle is missing, fall back to direct execution.
-    if (!platform.renderThread)
+    if (!pd->renderThread)
     {
         RLSetCurrentContext(ctx);
         if (fn) fn(user);
-        return;
+        return true;
     }
 
     RLGlfwRenderCall *call = (RLGlfwRenderCall *)RL_CALLOC(1, sizeof(RLGlfwRenderCall));
@@ -1067,7 +1107,7 @@ static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void
     {
         RL_DIAG_TASK_POST_FAILED();
         TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to allocate render call");
-        return;
+        return false;
     }
     RL_DIAG_RENDERCALL_ALLOC(sizeof(RLGlfwRenderCall));
     RL_DIAG_TASK_POSTED();
@@ -1076,12 +1116,14 @@ static void RLGlfwRunOnRenderThread(RLContext *ctx, void (*fn)(void *user), void
     call->user = user;
     call->dropKind = (unsigned char)dropKind;
 
-    if (!RLGlfwPostTaskToThread(platform.renderThread, RLGlfwRenderCallTrampoline, call, taskClass, droppable, RLGlfwDropRenderCall))
+    if (!RLGlfwPostTaskToThread(pd->renderThread, RLGlfwRenderCallTrampoline, call, taskClass, droppable, RLGlfwDropRenderCall))
     {
         RL_DIAG_TASK_POST_FAILED();
-        return;
+        return false;
     }
     RLGlfwWakeRenderThread();
+
+    return true;
 }
 
 #if RL_EVENTTHREAD_COALESCE_STATE
@@ -1098,7 +1140,11 @@ static inline void RLGlfwQueuePendingDrain(RLContext *ctx, PlatformData *pd)
     if (!RLAtomicCASLong(&pd->pendingQueued, 0, 1)) return;
 
     RLSetCurrentContext(ctx);
-    RLGlfwRunOnRenderThread(ctx, RLGlfwTask_DrainPendingInput, pd, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RL_GLFW_RENDER_CALL_DROP_NONE);
+    if (!RLGlfwRunOnRenderThread(ctx, RLGlfwTask_DrainPendingInput, pd, (unsigned char)GLFW_THREAD_TASK_CLASS_STATE, false, RL_GLFW_RENDER_CALL_DROP_NONE))
+    {
+        RLAtomicExchangeLong(&pd->pendingQueued, 0);
+        TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to queue pending-input drain on render thread");
+    }
 }
 #endif // RL_EVENTTHREAD_COALESCE_STATE
 
@@ -1152,7 +1198,7 @@ typedef struct
     int refresh;            // output
 
     int physW; int physH;   // output (mm)
-    int ok;                 // output: 1 if index valid
+    int isValid;            // output: 1 if index valid
 } RLGlfwMonitorInfo;
 
 #if defined(_WIN32)
@@ -1191,79 +1237,138 @@ static void RLGlfwTask_SetClipboardText(void *user);
 static void RLGlfwTask_GetClipboardText(void *user);
 static void RLGlfwTask_GetWindowContentScale(void *user);
 
-typedef struct { GLFWmonitor *monitor; int xpos; int ypos; int width; int height; int refreshRate; } RLGlfwMonitorTask;
-typedef struct { int count; GLFWimage *icons; } RLGlfwIconTask;
+typedef struct { int x; int y; int succeeded; } RLGlfwWindowPosTask;
+typedef struct { int width; int height; int succeeded; } RLGlfwWindowSizeTask;
+typedef struct { const char *title; int succeeded; } RLGlfwWindowTitleTask;
+typedef struct { int attrib; int value; int succeeded; } RLGlfwWindowAttribTask;
+typedef struct { int enable; int succeeded; } RLGlfwWindowRefreshCallbackTask;
+typedef struct { int minWidth; int minHeight; int maxWidth; int maxHeight; int succeeded; } RLGlfwWindowSizeLimitsTask;
+typedef struct { float opacity; int succeeded; } RLGlfwWindowOpacityTask;
+typedef struct { GLFWmonitor *monitor; int xpos; int ypos; int width; int height; int refreshRate; int succeeded; } RLGlfwMonitorTask;
+typedef struct { int succeeded; } RLGlfwWindowOpTask;
+typedef struct { int count; GLFWimage *icons; int succeeded; } RLGlfwIconTask;
 typedef struct { const char *out; } RLGlfwClipboardGetTask;
 typedef struct { float x; float y; } RLGlfwContentScaleTask;
 
 // Small helpers to keep window-affine GLFW calls on the Win32 event thread.
-static void RLGlfwSetWindowAttribThreadAware(int attrib, int value)
+static bool RLGlfwSetWindowAttribThreadAware(int attrib, int value)
 {
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL)) return false;
+
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        int av[2] = { attrib, value };
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowAttrib, av, true);
-        return;
+        RLGlfwWindowAttribTask windowAttribTask = { attrib, value, 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowAttrib, &windowAttribTask, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window attribute on event thread");
+            return false;
+        }
+        return windowAttribTask.succeeded ? true : false;
     }
 
-    glfwSetWindowAttrib(platform.handle, attrib, value);
+    glfwSetWindowAttrib(pd->handle, attrib, value);
+    return true;
 }
 
-static void RLGlfwSetWindowRefreshCallbackThreadAware(int enable)
+static bool RLGlfwSetWindowRefreshCallbackThreadAware(int enable)
 {
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL)) return false;
+
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        int enableValue = enable;
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowRefreshCallback, &enableValue, true);
-        return;
+        RLGlfwWindowRefreshCallbackTask refreshCallbackTask = { enable, 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowRefreshCallback, &refreshCallbackTask, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window refresh callback on event thread");
+            return false;
+        }
+        return refreshCallbackTask.succeeded ? true : false;
     }
 
-    glfwSetWindowRefreshCallback(platform.handle, enable ? WindowRefreshCallback : NULL);
+    glfwSetWindowRefreshCallback(pd->handle, enable ? WindowRefreshCallback : NULL);
+    return true;
 }
 
-static void RLGlfwHideWindowThreadAware(void)
+static bool RLGlfwHideWindowThreadAware(void)
 {
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL)) return false;
+
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_HideWindow, NULL, true);
-        return;
+        RLGlfwWindowOpTask hideWindowTask = { 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_HideWindow, &hideWindowTask, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to hide window on event thread");
+            return false;
+        }
+        return hideWindowTask.succeeded ? true : false;
     }
 
-    glfwHideWindow(platform.handle);
+    glfwHideWindow(pd->handle);
+    return true;
 }
 
-static void RLGlfwShowWindowThreadAware(void)
+static bool RLGlfwShowWindowThreadAware(void)
 {
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL)) return false;
+
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_ShowWindow, NULL, true);
-        return;
+        RLGlfwWindowOpTask showWindowTask = { 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_ShowWindow, &showWindowTask, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to show window on event thread");
+            return false;
+        }
+        return showWindowTask.succeeded ? true : false;
     }
 
-    glfwShowWindow(platform.handle);
+    glfwShowWindow(pd->handle);
+    return true;
 }
 
-static void RLGlfwFocusWindowThreadAware(void)
+static bool RLGlfwFocusWindowThreadAware(void)
 {
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL)) return false;
+
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_FocusWindow, NULL, true);
-        return;
+        RLGlfwWindowOpTask focusWindowTask = { 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_FocusWindow, &focusWindowTask, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to focus window on event thread");
+            return false;
+        }
+        return focusWindowTask.succeeded ? true : false;
     }
 
-    glfwFocusWindow(platform.handle);
+    glfwFocusWindow(pd->handle);
+    return true;
 }
 
-static void RLGlfwSetWindowMonitorThreadAware(GLFWmonitor *monitor, int xpos, int ypos, int width, int height, int refreshRate)
+static bool RLGlfwSetWindowMonitorThreadAware(GLFWmonitor *monitor, int xpos, int ypos, int width, int height, int refreshRate)
 {
-    RLGlfwMonitorTask task = { monitor, xpos, ypos, width, height, refreshRate };
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    PlatformData *pd = RLGetPlatformDataPtr();
+    RLGlfwMonitorTask windowMonitorTask = { monitor, xpos, ypos, width, height, refreshRate, 0 };
+    if ((pd == NULL) || (pd->handle == NULL)) return false;
+
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowMonitor, &task, true);
-        return;
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowMonitor, &windowMonitorTask, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window monitor on event thread");
+            return false;
+        }
+        return windowMonitorTask.succeeded ? true : false;
     }
 
-    glfwSetWindowMonitor(platform.handle, monitor, xpos, ypos, width, height, refreshRate);
+    glfwSetWindowMonitor(pd->handle, monitor, xpos, ypos, width, height, refreshRate);
+    return true;
 }
 #endif
 
@@ -1297,9 +1402,21 @@ bool RLWindowShouldClose(void)
 void RLToggleFullscreen(void)
 {
     RLGlfwMonitorInfo info = { 0 };
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for fullscreen toggle");
+        return;
+    }
 
     if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
+        const Point oldPreviousPosition = CORE.Window.previousPosition;
+        const Size oldPreviousScreen = CORE.Window.previousScreen;
+        const Size oldDisplay = CORE.Window.display;
+        const Point oldPosition = CORE.Window.position;
+        const Size oldScreen = CORE.Window.screen;
+
         // Store previous screen data (in case exiting fullscreen)
         CORE.Window.previousPosition = CORE.Window.position;
         CORE.Window.previousScreen = CORE.Window.screen;
@@ -1309,9 +1426,13 @@ void RLToggleFullscreen(void)
         info.index = monitorIndex;
 
 #if defined(_WIN32)
-        if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+        if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
         {
-            RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
+            if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+            {
+                TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor info on event thread");
+                info.isValid = 0;
+            }
         }
         else
 #endif
@@ -1336,12 +1457,12 @@ void RLToggleFullscreen(void)
                     info.modeW = mode->width;
                     info.modeH = mode->height;
                     info.refresh = mode->refreshRate;
-                    info.ok = 1;
+                    info.isValid = 1;
                 }
             }
         }
 
-        if (info.ok)
+        if (info.isValid)
         {
             CORE.Window.display.width = info.modeW;
             CORE.Window.display.height = info.modeH;
@@ -1355,21 +1476,33 @@ void RLToggleFullscreen(void)
 #if defined(_GLFW_X11) || defined(_GLFW_WAYLAND)
             // NOTE: X11 requires undecorating the window before switching to
             // fullscreen to avoid issues with framebuffer scaling
-            glfwSetWindowAttrib(platform.handle, GLFW_DECORATED, GLFW_FALSE);
+            glfwSetWindowAttrib(pd->handle, GLFW_DECORATED, GLFW_FALSE);
             FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
 #endif
 
             // WARNING: This function launches FramebufferSizeCallback()
 #if defined(_WIN32)
-            RLGlfwSetWindowMonitorThreadAware(info.monitor, 0, 0, CORE.Window.screen.width, CORE.Window.screen.height, GLFW_DONT_CARE);
+            if (!RLGlfwSetWindowMonitorThreadAware(info.monitor, 0, 0, CORE.Window.screen.width, CORE.Window.screen.height, GLFW_DONT_CARE))
+            {
+                CORE.Window.previousPosition = oldPreviousPosition;
+                CORE.Window.previousScreen = oldPreviousScreen;
+                CORE.Window.display = oldDisplay;
+                CORE.Window.position = oldPosition;
+                CORE.Window.screen = oldScreen;
+                FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
+                return;
+            }
 #else
-            glfwSetWindowMonitor(platform.handle, info.monitor, 0, 0, CORE.Window.screen.width, CORE.Window.screen.height, GLFW_DONT_CARE);
+            glfwSetWindowMonitor(pd->handle, info.monitor, 0, 0, CORE.Window.screen.width, CORE.Window.screen.height, GLFW_DONT_CARE);
 #endif
         }
         else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to get monitor");
     }
     else
     {
+        const Point oldPosition = CORE.Window.position;
+        const Size oldScreen = CORE.Window.screen;
+
         // Restore previous window position and size
         CORE.Window.position = CORE.Window.previousPosition;
         CORE.Window.screen = CORE.Window.previousScreen;
@@ -1390,17 +1523,23 @@ void RLToggleFullscreen(void)
 
         // WARNING: This function launches FramebufferSizeCallback()
 #if defined(_WIN32)
-        RLGlfwSetWindowMonitorThreadAware(NULL, CORE.Window.position.x, CORE.Window.position.y,
-            CORE.Window.screen.width, CORE.Window.screen.height, GLFW_DONT_CARE);
+        if (!RLGlfwSetWindowMonitorThreadAware(NULL, CORE.Window.position.x, CORE.Window.position.y,
+            CORE.Window.screen.width, CORE.Window.screen.height, GLFW_DONT_CARE))
+        {
+            CORE.Window.position = oldPosition;
+            CORE.Window.screen = oldScreen;
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
+            return;
+        }
 #else
-        glfwSetWindowMonitor(platform.handle, NULL, CORE.Window.position.x, CORE.Window.position.y,
+        glfwSetWindowMonitor(pd->handle, NULL, CORE.Window.position.x, CORE.Window.position.y,
             CORE.Window.screen.width, CORE.Window.screen.height, GLFW_DONT_CARE);
 #endif
 
 #if defined(_GLFW_X11) || defined(_GLFW_WAYLAND)
         // NOTE: X11 requires restoring the decorated window after switching from
         // fullscreen to avoid issues with framebuffer scaling
-        glfwSetWindowAttrib(platform.handle, GLFW_DECORATED, GLFW_TRUE);
+        glfwSetWindowAttrib(pd->handle, GLFW_DECORATED, GLFW_TRUE);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
 #endif
     }
@@ -1413,6 +1552,13 @@ void RLToggleFullscreen(void)
 // Toggle borderless windowed mode
 void RLToggleBorderlessWindowed(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for borderless toggle");
+        return;
+    }
+
     // Leave fullscreen before attempting to set borderless windowed mode
     // NOTE: Fullscreen already saves the previous position so it does not need to be set again later
     if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE)) RLToggleFullscreen();
@@ -1422,9 +1568,13 @@ void RLToggleBorderlessWindowed(void)
     info.index = monitorIndex;
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor info on event thread");
+            info.isValid = 0;
+        }
     }
     else
 #endif
@@ -1449,12 +1599,12 @@ void RLToggleBorderlessWindowed(void)
                 info.modeW = mode->width;
                 info.modeH = mode->height;
                 info.refresh = mode->refreshRate;
-                info.ok = 1;
+                info.isValid = 1;
             }
         }
     }
 
-    if (!info.ok)
+    if (!info.isValid)
     {
         TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to find selected monitor");
         return;
@@ -1462,6 +1612,11 @@ void RLToggleBorderlessWindowed(void)
 
     if (!FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE))
     {
+        const Point oldPreviousPosition = CORE.Window.previousPosition;
+        const Size oldPreviousScreen = CORE.Window.previousScreen;
+        const Point oldPosition = CORE.Window.position;
+        const Size oldScreen = CORE.Window.screen;
+
         // Store screen position and size
         // NOTE: If it was on fullscreen, screen position was already stored, so skip setting it here
         CORE.Window.previousPosition = CORE.Window.position;
@@ -1469,11 +1624,15 @@ void RLToggleBorderlessWindowed(void)
 
         // Set undecorated flag
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_FALSE);
+        if (!RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_FALSE))
+        {
+            CORE.Window.previousPosition = oldPreviousPosition;
+            CORE.Window.previousScreen = oldPreviousScreen;
+            return;
+        }
 #else
-        glfwSetWindowAttrib(platform.handle, GLFW_DECORATED, GLFW_FALSE);
+        glfwSetWindowAttrib(pd->handle, GLFW_DECORATED, GLFW_FALSE);
 #endif
-        FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
 
         // Get monitor position and size
         CORE.Window.position.x = info.posX;
@@ -1483,10 +1642,19 @@ void RLToggleBorderlessWindowed(void)
 
         // Set screen position and size
 #if defined(_WIN32)
-        RLGlfwSetWindowMonitorThreadAware(info.monitor, CORE.Window.position.x, CORE.Window.position.y,
-            CORE.Window.screen.width, CORE.Window.screen.height, info.refresh);
+        if (!RLGlfwSetWindowMonitorThreadAware(info.monitor, CORE.Window.position.x, CORE.Window.position.y,
+            CORE.Window.screen.width, CORE.Window.screen.height, info.refresh))
+        {
+            if (!RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_TRUE))
+                TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to restore window decoration after borderless transition failure");
+            CORE.Window.previousPosition = oldPreviousPosition;
+            CORE.Window.previousScreen = oldPreviousScreen;
+            CORE.Window.position = oldPosition;
+            CORE.Window.screen = oldScreen;
+            return;
+        }
 #else
-        glfwSetWindowMonitor(platform.handle, info.monitor, CORE.Window.position.x, CORE.Window.position.y,
+        glfwSetWindowMonitor(pd->handle, info.monitor, CORE.Window.position.x, CORE.Window.position.y,
             CORE.Window.screen.width, CORE.Window.screen.height, info.refresh);
 #endif
 
@@ -1495,25 +1663,28 @@ void RLToggleBorderlessWindowed(void)
     #if defined(_WIN32)
         RLGlfwFocusWindowThreadAware();
     #else
-        glfwFocusWindow(platform.handle);
+        glfwFocusWindow(pd->handle);
     #endif
 #endif
 
+        FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
     }
     else
     {
+        const Point oldPosition = CORE.Window.position;
+        const Size oldScreen = CORE.Window.screen;
+
         // Restore previous screen values
         CORE.Window.position = CORE.Window.previousPosition;
         CORE.Window.screen = CORE.Window.previousScreen;
 
         // Remove undecorated flag
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_TRUE);
+        if (!RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_TRUE)) return;
 #else
-        glfwSetWindowAttrib(platform.handle, GLFW_DECORATED, GLFW_TRUE);
+        glfwSetWindowAttrib(pd->handle, GLFW_DECORATED, GLFW_TRUE);
 #endif
-        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
 
     #if !defined(__APPLE__)
         // Make sure to restore size considering HighDPI scaling
@@ -1527,10 +1698,17 @@ void RLToggleBorderlessWindowed(void)
 
         // Return to previous screen size and position
 #if defined(_WIN32)
-        RLGlfwSetWindowMonitorThreadAware(NULL, CORE.Window.position.x, CORE.Window.position.y,
-            CORE.Window.screen.width, CORE.Window.screen.height, info.refresh);
+        if (!RLGlfwSetWindowMonitorThreadAware(NULL, CORE.Window.position.x, CORE.Window.position.y,
+            CORE.Window.screen.width, CORE.Window.screen.height, info.refresh))
+        {
+            if (!RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_FALSE))
+                TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to restore borderless decoration after windowed transition failure");
+            CORE.Window.position = oldPosition;
+            CORE.Window.screen = oldScreen;
+            return;
+        }
 #else
-        glfwSetWindowMonitor(platform.handle, NULL, CORE.Window.position.x, CORE.Window.position.y,
+        glfwSetWindowMonitor(pd->handle, NULL, CORE.Window.position.x, CORE.Window.position.y,
             CORE.Window.screen.width, CORE.Window.screen.height, info.refresh);
 #endif
 
@@ -1539,10 +1717,11 @@ void RLToggleBorderlessWindowed(void)
     #if defined(_WIN32)
         RLGlfwFocusWindowThreadAware();
     #else
-        glfwFocusWindow(platform.handle);
+        glfwFocusWindow(pd->handle);
     #endif
 #endif
 
+        FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_BORDERLESS_WINDOWED_MODE);
     }
 }
@@ -1550,20 +1729,29 @@ void RLToggleBorderlessWindowed(void)
 // Set window state: maximized, if resizable
 void RLMaximizeWindow(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window maximize");
+        return;
+    }
+
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE))
         {
-            RLGlfwRunOnEventThread(RLGlfwTask_MaximizeWindow, NULL, true);
-            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
+            RLGlfwWindowOpTask maximizeWindowTask = { 0 };
+            if (RLGlfwRunOnEventThread(RLGlfwTask_MaximizeWindow, &maximizeWindowTask, true) && (maximizeWindowTask.succeeded != 0))
+                FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
+            else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to maximize window on event thread");
         }
         return;
     }
 #endif
-    if (glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE)
+    if (glfwGetWindowAttrib(pd->handle, GLFW_RESIZABLE) == GLFW_TRUE)
     {
-        glfwMaximizeWindow(platform.handle);
+        glfwMaximizeWindow(pd->handle);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
     }
 }
@@ -1571,36 +1759,56 @@ void RLMaximizeWindow(void)
 // Set window state: minimized
 void RLMinimizeWindow(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window minimize");
+        return;
+    }
+
     // NOTE: Following function launches callback that sets appropriate flag!
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_IconifyWindow, NULL, true);
+        RLGlfwWindowOpTask iconifyWindowTask = { 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_IconifyWindow, &iconifyWindowTask, true) || !iconifyWindowTask.succeeded)
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to minimize window on event thread");
         return;
     }
 #endif
-    glfwIconifyWindow(platform.handle);
+    glfwIconifyWindow(pd->handle);
 }
 
 // Restore window from being minimized/maximized
 void RLRestoreWindow(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window restore");
+        return;
+    }
+
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE))
         {
-            RLGlfwRunOnEventThread(RLGlfwTask_RestoreWindow, NULL, true);
-            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
-            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
+            RLGlfwWindowOpTask restoreWindowTask = { 0 };
+            if (RLGlfwRunOnEventThread(RLGlfwTask_RestoreWindow, &restoreWindowTask, true) && (restoreWindowTask.succeeded != 0))
+            {
+                FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
+                FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
+            }
+            else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to restore window on event thread");
         }
         return;
     }
 #endif
-    if (glfwGetWindowAttrib(platform.handle, GLFW_RESIZABLE) == GLFW_TRUE)
+    if (glfwGetWindowAttrib(pd->handle, GLFW_RESIZABLE) == GLFW_TRUE)
     {
         // Restores the specified window if it was previously iconified (minimized) or maximized
-        glfwRestoreWindow(platform.handle);
+        glfwRestoreWindow(pd->handle);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MAXIMIZED);
     }
@@ -1615,6 +1823,13 @@ void RLSetWindowState(unsigned int flags)
     {
         TRACELOG(RL_E_LOG_WARNING, "WINDOW: SetWindowState called before window initialization, routing to SetConfigFlags");
         RLSetConfigFlags(flags);
+        return;
+    }
+
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for SetWindowState");
         return;
     }
 
@@ -1645,33 +1860,36 @@ void RLSetWindowState(unsigned int flags)
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_RESIZABLE, GLFW_TRUE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_RESIZABLE, GLFW_TRUE))
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE);
 #else
-        glfwSetWindowAttrib(platform.handle, GLFW_RESIZABLE, GLFW_TRUE);
-#endif
+        glfwSetWindowAttrib(pd->handle, GLFW_RESIZABLE, GLFW_TRUE);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE);
+#endif
     }
 
     // State change: RL_E_FLAG_WINDOW_UNDECORATED
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_FALSE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_FALSE))
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
 #else
-        glfwSetWindowAttrib(platform.handle, GLFW_DECORATED, GLFW_FALSE);
-#endif
+        glfwSetWindowAttrib(pd->handle, GLFW_DECORATED, GLFW_FALSE);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
+#endif
     }
 
     // State change: RL_E_FLAG_WINDOW_HIDDEN
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN))
     {
 #if defined(_WIN32)
-        RLGlfwHideWindowThreadAware();
+        if (RLGlfwHideWindowThreadAware())
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN);
 #else
-        glfwHideWindow(platform.handle);
-#endif
+        glfwHideWindow(pd->handle);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN);
+#endif
     }
 
     // State change: FLAG_WINDOW_MINIMIZED
@@ -1692,22 +1910,24 @@ void RLSetWindowState(unsigned int flags)
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_FOCUS_ON_SHOW, GLFW_FALSE))
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
 #else
-        glfwSetWindowAttrib(platform.handle, GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
-#endif
+        glfwSetWindowAttrib(pd->handle, GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
+#endif
     }
 
     // State change: FLAG_WINDOW_TOPMOST
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_TOPMOST) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_FLOATING, GLFW_TRUE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_FLOATING, GLFW_TRUE))
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_TOPMOST);
 #else
-        glfwSetWindowAttrib(platform.handle, GLFW_FLOATING, GLFW_TRUE);
-#endif
+        glfwSetWindowAttrib(pd->handle, GLFW_FLOATING, GLFW_TRUE);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_TOPMOST);
+#endif
     }
 
     // State change: FLAG_WINDOW_ALWAYS_RUN
@@ -1721,29 +1941,41 @@ void RLSetWindowState(unsigned int flags)
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE))
     {
 #if defined(_WIN32)
-        platform.broadcastWake = true;
+        PlatformData *pd = RLGetPlatformDataPtr();
+        if (pd != NULL)
+        {
+            pd->broadcastWake = true;
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE);
+        }
+        else TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for broadcast wake flag");
 #endif
+#if !defined(_WIN32)
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE);
+#endif
     }
 
     // State change: RL_E_FLAG_WINDOW_REFRESH_CALLBACK
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowRefreshCallbackThreadAware(1);
+        if (RLGlfwSetWindowRefreshCallbackThreadAware(1))
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK);
 #else
-        glfwSetWindowRefreshCallback(platform.handle, WindowRefreshCallback);
-#endif
+        glfwSetWindowRefreshCallback(pd->handle, WindowRefreshCallback);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK);
+#endif
     }
 
     // State change: RL_E_FLAG_WINDOW_SNAP_LAYOUT
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_TRUE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_TRUE))
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT);
 #endif
+#if !defined(_WIN32)
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT);
+#endif
     }
 
     /* RL_DYNAMIC_SET_WIN32_FLAGS */
@@ -1766,11 +1998,12 @@ void RLSetWindowState(unsigned int flags)
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH) != FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH)) && FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_MOUSE_PASSTHROUGH, GLFW_TRUE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_MOUSE_PASSTHROUGH, GLFW_TRUE))
+            FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH);
 #else
-        glfwSetWindowAttrib(platform.handle, GLFW_MOUSE_PASSTHROUGH, GLFW_TRUE);
-#endif
+        glfwSetWindowAttrib(pd->handle, GLFW_MOUSE_PASSTHROUGH, GLFW_TRUE);
         FLAG_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH);
+#endif
     }
 
     // State change: RL_E_FLAG_MSAA_4X_HINT
@@ -1795,6 +2028,13 @@ void RLClearWindowState(unsigned int flags)
     {
         TRACELOG(RL_E_LOG_WARNING, "WINDOW: ClearWindowState called before window initialization, clearing pending config flags");
         FLAG_CLEAR(CORE.Window.flags, flags);
+        return;
+    }
+
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for ClearWindowState");
         return;
     }
 
@@ -1825,22 +2065,24 @@ void RLClearWindowState(unsigned int flags)
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_RESIZABLE)))
     {
         #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_RESIZABLE, GLFW_FALSE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_RESIZABLE, GLFW_FALSE))
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE);
         #else
-        glfwSetWindowAttrib(platform.handle, GLFW_RESIZABLE, GLFW_FALSE);
-        #endif
+        glfwSetWindowAttrib(pd->handle, GLFW_RESIZABLE, GLFW_FALSE);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_RESIZABLE);
+        #endif
     }
 
     // State change: RL_E_FLAG_WINDOW_HIDDEN
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_HIDDEN)))
     {
         #if defined(_WIN32)
-        RLGlfwShowWindowThreadAware();
+        if (RLGlfwShowWindowThreadAware())
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN);
         #else
-        glfwShowWindow(platform.handle);
-        #endif
+        glfwShowWindow(pd->handle);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_HIDDEN);
+        #endif
     }
 
     // State change: RL_E_FLAG_WINDOW_MINIMIZED
@@ -1859,33 +2101,36 @@ void RLClearWindowState(unsigned int flags)
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNDECORATED)))
     {
         #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_TRUE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_DECORATED, GLFW_TRUE))
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
         #else
-        glfwSetWindowAttrib(platform.handle, GLFW_DECORATED, GLFW_TRUE);
-        #endif
+        glfwSetWindowAttrib(pd->handle, GLFW_DECORATED, GLFW_TRUE);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNDECORATED);
+        #endif
     }
 
     // State change: RL_E_FLAG_WINDOW_UNFOCUSED
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_UNFOCUSED)))
     {
         #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_FOCUS_ON_SHOW, GLFW_TRUE))
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
         #else
-        glfwSetWindowAttrib(platform.handle, GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
-        #endif
+        glfwSetWindowAttrib(pd->handle, GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_UNFOCUSED);
+        #endif
     }
 
     // State change: RL_E_FLAG_WINDOW_TOPMOST
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_TOPMOST)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_TOPMOST)))
     {
         #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_FLOATING, GLFW_FALSE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_FLOATING, GLFW_FALSE))
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_TOPMOST);
         #else
-        glfwSetWindowAttrib(platform.handle, GLFW_FLOATING, GLFW_FALSE);
-        #endif
+        glfwSetWindowAttrib(pd->handle, GLFW_FLOATING, GLFW_FALSE);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_TOPMOST);
+        #endif
     }
 
     // State change: RL_E_FLAG_WINDOW_ALWAYS_RUN
@@ -1899,29 +2144,41 @@ void RLClearWindowState(unsigned int flags)
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE)))
     {
 #if defined(_WIN32)
-        platform.broadcastWake = false;
+        PlatformData *pd = RLGetPlatformDataPtr();
+        if (pd != NULL)
+        {
+            pd->broadcastWake = false;
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE);
+        }
+        else TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for broadcast wake flag");
 #endif
+#if !defined(_WIN32)
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE);
+#endif
     }
 
     // State change: RL_E_FLAG_WINDOW_REFRESH_CALLBACK
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK)))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowRefreshCallbackThreadAware(0);
+        if (RLGlfwSetWindowRefreshCallbackThreadAware(0))
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK);
 #else
-        glfwSetWindowRefreshCallback(platform.handle, NULL);
-#endif
+        glfwSetWindowRefreshCallback(pd->handle, NULL);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK);
+#endif
     }
 
     // State change: RL_E_FLAG_WINDOW_SNAP_LAYOUT
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT)))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_FALSE);
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_FALSE))
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT);
 #endif
+#if !defined(_WIN32)
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT);
+#endif
     }
 
     /* RL_DYNAMIC_CLEAR_WIN32_FLAGS */
@@ -1944,11 +2201,12 @@ void RLClearWindowState(unsigned int flags)
     if ((FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH)) && (FLAG_IS_SET(flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH)))
     {
 #if defined(_WIN32)
-        RLGlfwSetWindowAttribThreadAware(GLFW_MOUSE_PASSTHROUGH, GLFW_FALSE);
-#else
-        glfwSetWindowAttrib(platform.handle, GLFW_MOUSE_PASSTHROUGH, GLFW_FALSE);
-#endif
+        if (RLGlfwSetWindowAttribThreadAware(GLFW_MOUSE_PASSTHROUGH, GLFW_FALSE))
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH);
+        #else
+        glfwSetWindowAttrib(pd->handle, GLFW_MOUSE_PASSTHROUGH, GLFW_FALSE);
         FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_MOUSE_PASSTHROUGH);
+        #endif
     }
 
     // State change: RL_E_FLAG_MSAA_4X_HINT
@@ -1969,18 +2227,26 @@ void RLClearWindowState(unsigned int flags)
 // NOTE 2: Image is scaled by the OS for all required sizes
 void RLSetWindowIcon(RLImage image)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window icon");
+        return;
+    }
+
     if (image.data == NULL)
     {
         // Revert to the default window icon, pass in an empty image array
 #if defined(_WIN32)
-        if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+        if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
         {
-            RLGlfwIconTask t = { 0, NULL };
-            RLGlfwRunOnEventThread(RLGlfwTask_SetWindowIcon, &t, true);
+            RLGlfwIconTask iconTask = { 0, NULL, 0 };
+            if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowIcon, &iconTask, true) || !iconTask.succeeded)
+                TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to reset window icon on event thread");
             return;
         }
 #endif
-        glfwSetWindowIcon(platform.handle, 0, NULL);
+        glfwSetWindowIcon(pd->handle, 0, NULL);
     }
     else
     {
@@ -1995,14 +2261,15 @@ void RLSetWindowIcon(RLImage image)
             // NOTE 1: Only one image icon supported
             // NOTE 2: The specified image data is copied before this function returns
 #if defined(_WIN32)
-            if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+            if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
             {
-                RLGlfwIconTask t = { 1, icon };
-                RLGlfwRunOnEventThread(RLGlfwTask_SetWindowIcon, &t, true);
+                RLGlfwIconTask iconTask = { 1, icon, 0 };
+                if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowIcon, &iconTask, true) || !iconTask.succeeded)
+                    TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window icon on event thread");
                 return;
             }
 #endif
-            glfwSetWindowIcon(platform.handle, 1, icon);
+            glfwSetWindowIcon(pd->handle, 1, icon);
         }
         else TRACELOG(RL_E_LOG_WARNING, "GLFW: Window icon image must be in R8G8B8A8 pixel format");
     }
@@ -2012,84 +2279,131 @@ void RLSetWindowIcon(RLImage image)
 // NOTE 1: Images must be in RGBA format, 8bit per channel
 // NOTE 2: The multiple images are used depending on provided sizes
 // Standard Windows icon sizes: 256, 128, 96, 64, 48, 32, 24, 16
-void RLSetWindowIcons(RLImage *images, int count)
+bool RLTrySetWindowIcons(RLImage *images, int count)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window icons");
+        return false;
+    }
+
     if ((images == NULL) || (count <= 0))
     {
         // Revert to the default window icon, pass in an empty image array
 #if defined(_WIN32)
-        if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+        if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
         {
-            RLGlfwIconTask t = { 0, NULL };
-            RLGlfwRunOnEventThread(RLGlfwTask_SetWindowIcon, &t, true);
-            return;
+            RLGlfwIconTask iconTask = { 0, NULL, 0 };
+            return RLGlfwRunOnEventThread(RLGlfwTask_SetWindowIcon, &iconTask, true) && (iconTask.succeeded != 0);
         }
 #endif
-        glfwSetWindowIcon(platform.handle, 0, NULL);
+        glfwSetWindowIcon(pd->handle, 0, NULL);
+        return true;
+    }
+
+    int validIconCount = 0;
+    GLFWimage *icons = (GLFWimage *)RL_CALLOC(count, sizeof(GLFWimage));
+    if (icons == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to allocate window icons array");
+        return false;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        if (images[i].format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
+        {
+            icons[validIconCount].width = images[i].width;
+            icons[validIconCount].height = images[i].height;
+            icons[validIconCount].pixels = (unsigned char *)images[i].data;
+            validIconCount++;
+        }
+        else TRACELOG(RL_E_LOG_WARNING, "GLFW: Window icon image must be in R8G8B8A8 pixel format");
+    }
+
+    // NOTE: Images data is copied internally before this function returns
+    bool setIconsSucceeded = true;
+#if defined(_WIN32)
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
+    {
+        RLGlfwIconTask iconTask = { validIconCount, icons, 0 };
+        setIconsSucceeded = RLGlfwRunOnEventThread(RLGlfwTask_SetWindowIcon, &iconTask, true) && (iconTask.succeeded != 0);
     }
     else
-    {
-        int valid = 0;
-        GLFWimage *icons = (GLFWimage *)RL_CALLOC(count, sizeof(GLFWimage));
-
-        for (int i = 0; i < count; i++)
-        {
-            if (images[i].format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
-            {
-                icons[valid].width = images[i].width;
-                icons[valid].height = images[i].height;
-                icons[valid].pixels = (unsigned char *)images[i].data;
-
-                valid++;
-            }
-            else TRACELOG(RL_E_LOG_WARNING, "GLFW: Window icon image must be in R8G8B8A8 pixel format");
-        }
-        // NOTE: Images data is copied internally before this function returns
-#if defined(_WIN32)
-        if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
-        {
-            RLGlfwIconTask t = { valid, icons };
-            RLGlfwRunOnEventThread(RLGlfwTask_SetWindowIcon, &t, true);
-        }
-        else
 #endif
-        glfwSetWindowIcon(platform.handle, valid, icons);
+    {
+        glfwSetWindowIcon(pd->handle, validIconCount, icons);
+    }
 
-        RL_FREE(icons);
+    RL_FREE(icons);
+    return setIconsSucceeded;
+}
+
+void RLSetWindowIcons(RLImage *images, int count)
+{
+    if (!RLTrySetWindowIcons(images, count))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window icons");
     }
 }
 
 // Set title for window
 void RLSetWindowTitle(const char *title)
 {
-    CORE.Window.title = title;
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (title == NULL))
+    {
+        if (pd == NULL) TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window title");
+        return;
+    }
+
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         // NOTE: title pointer is expected to be valid for the duration of this synchronous call.
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowTitle, (void *)title, true);
+        RLGlfwWindowTitleTask windowTitleTask = { title, 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowTitle, &windowTitleTask, true) || !windowTitleTask.succeeded)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window title on event thread");
+            return;
+        }
+        CORE.Window.title = title;
         return;
     }
 #endif
 
-    glfwSetWindowTitle(platform.handle, title);
+    glfwSetWindowTitle(pd->handle, title);
+    CORE.Window.title = title;
 }
 
 // Set window position on screen (windowed mode)
 void RLSetWindowPosition(int x, int y)
 {
-    // Update CORE.Window.position as well
-    CORE.Window.position.x = x;
-    CORE.Window.position.y = y;
-#if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
     {
-        int xy[2] = { x, y };
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowPos, xy, true);
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window position");
+        return;
+    }
+
+#if defined(_WIN32)
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
+    {
+        RLGlfwWindowPosTask windowPosTask = { x, y, 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowPos, &windowPosTask, true) || !windowPosTask.succeeded)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window position on event thread");
+            return;
+        }
+        CORE.Window.position.x = x;
+        CORE.Window.position.y = y;
         return;
     }
 #endif
-    glfwSetWindowPos(platform.handle, x, y);
+    glfwSetWindowPos(pd->handle, x, y);
+    CORE.Window.position.x = x;
+    CORE.Window.position.y = y;
 }
 
 // Set monitor for the current window
@@ -2098,15 +2412,26 @@ void RLSetWindowMonitor(int monitor)
     int monitorCount = 0;
 
 #if defined(_WIN32)
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window monitor");
+        return;
+    }
+
     // In event-thread mode, all GLFW monitor/window queries must run on the Win32 message thread.
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         RLGlfwMonitorInfo info = { 0 };
         info.index = monitor;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query selected monitor on event thread");
+            return;
+        }
         monitorCount = info.monitorCount;
 
-        if (!info.ok)
+        if (!info.isValid)
         {
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to find selected monitor");
             return;
@@ -2115,7 +2440,8 @@ void RLSetWindowMonitor(int monitor)
         if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE))
         {
             TRACELOG(RL_E_LOG_INFO, "GLFW: Selected fullscreen monitor: [%i] %s", monitor, info.name);
-            RLGlfwSetWindowMonitorThreadAware(info.monitor, 0, 0, info.modeW, info.modeH, info.refresh);
+            if (!RLGlfwSetWindowMonitorThreadAware(info.monitor, 0, 0, info.modeW, info.modeH, info.refresh))
+                TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set selected fullscreen monitor on event thread");
         }
         else
         {
@@ -2131,15 +2457,17 @@ void RLSetWindowMonitor(int monitor)
 
             if ((screenWidth >= monitorWorkareaWidth) || (screenHeight >= monitorWorkareaHeight))
             {
-                int xy[2] = { monitorWorkareaX, monitorWorkareaY };
-                RLGlfwRunOnEventThread(RLGlfwTask_SetWindowPos, xy, true);
+                RLGlfwWindowPosTask monitorWorkareaTask = { monitorWorkareaX, monitorWorkareaY, 0 };
+                if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowPos, &monitorWorkareaTask, true) || !monitorWorkareaTask.succeeded)
+                    TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to move window to monitor work area on event thread");
             }
             else
             {
                 const int x = monitorWorkareaX + (monitorWorkareaWidth/2) - (screenWidth/2);
                 const int y = monitorWorkareaY + (monitorWorkareaHeight/2) - (screenHeight/2);
-                int xy[2] = { x, y };
-                RLGlfwRunOnEventThread(RLGlfwTask_SetWindowPos, xy, true);
+                RLGlfwWindowPosTask centeredWindowTask = { x, y, 0 };
+                if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowPos, &centeredWindowTask, true) || !centeredWindowTask.succeeded)
+                    TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to center window on monitor on event thread");
             }
         }
         return;
@@ -2155,7 +2483,7 @@ void RLSetWindowMonitor(int monitor)
             TRACELOG(RL_E_LOG_INFO, "GLFW: Selected fullscreen monitor: [%i] %s", monitor, glfwGetMonitorName(monitors[monitor]));
 
             const GLFWvidmode *mode = glfwGetVideoMode(monitors[monitor]);
-            if (mode != NULL) glfwSetWindowMonitor(platform.handle, monitors[monitor], 0, 0, mode->width, mode->height, mode->refreshRate);
+            if (mode != NULL) glfwSetWindowMonitor(pd->handle, monitors[monitor], 0, 0, mode->width, mode->height, mode->refreshRate);
         }
         else
         {
@@ -2173,13 +2501,13 @@ void RLSetWindowMonitor(int monitor)
             // If the screen size is larger than the monitor workarea, anchor it on the top left corner, otherwise, center it
             if ((screenWidth >= monitorWorkareaWidth) || (screenHeight >= monitorWorkareaHeight))
             {
-                glfwSetWindowPos(platform.handle, monitorWorkareaX, monitorWorkareaY);
+                glfwSetWindowPos(pd->handle, monitorWorkareaX, monitorWorkareaY);
             }
             else
             {
                 const int x = monitorWorkareaX + (monitorWorkareaWidth/2) - (screenWidth/2);
                 const int y = monitorWorkareaY + (monitorWorkareaHeight/2) - (screenHeight/2);
-                glfwSetWindowPos(platform.handle, x, y);
+                glfwSetWindowPos(pd->handle, x, y);
             }
         }
     }
@@ -2189,62 +2517,98 @@ void RLSetWindowMonitor(int monitor)
 // Set window minimum dimensions (FLAG_WINDOW_RESIZABLE)
 void RLSetWindowMinSize(int width, int height)
 {
-    CORE.Window.screenMin.width = width;
-    CORE.Window.screenMin.height = height;
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window minimum size");
+        return;
+    }
 
-    int minWidth  = (CORE.Window.screenMin.width  == 0)? GLFW_DONT_CARE : (int)CORE.Window.screenMin.width;
-    int minHeight = (CORE.Window.screenMin.height == 0)? GLFW_DONT_CARE : (int)CORE.Window.screenMin.height;
+    int minWidth  = (width == 0)? GLFW_DONT_CARE : width;
+    int minHeight = (height == 0)? GLFW_DONT_CARE : height;
     int maxWidth  = (CORE.Window.screenMax.width  == 0)? GLFW_DONT_CARE : (int)CORE.Window.screenMax.width;
     int maxHeight = (CORE.Window.screenMax.height == 0)? GLFW_DONT_CARE : (int)CORE.Window.screenMax.height;
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        int lim[4] = { minWidth, minHeight, maxWidth, maxHeight };
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowSizeLimits, lim, true);
+        RLGlfwWindowSizeLimitsTask windowSizeLimitsTask = { minWidth, minHeight, maxWidth, maxHeight, 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowSizeLimits, &windowSizeLimitsTask, true) || !windowSizeLimitsTask.succeeded)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window minimum size on event thread");
+            return;
+        }
+        CORE.Window.screenMin.width = width;
+        CORE.Window.screenMin.height = height;
         return;
     }
 #endif
-    glfwSetWindowSizeLimits(platform.handle, minWidth, minHeight, maxWidth, maxHeight);
+    glfwSetWindowSizeLimits(pd->handle, minWidth, minHeight, maxWidth, maxHeight);
+    CORE.Window.screenMin.width = width;
+    CORE.Window.screenMin.height = height;
 }
 
 // Set window maximum dimensions (FLAG_WINDOW_RESIZABLE)
 void RLSetWindowMaxSize(int width, int height)
 {
-    CORE.Window.screenMax.width = width;
-    CORE.Window.screenMax.height = height;
-
     int minWidth  = (CORE.Window.screenMin.width  == 0)? GLFW_DONT_CARE : (int)CORE.Window.screenMin.width;
     int minHeight = (CORE.Window.screenMin.height == 0)? GLFW_DONT_CARE : (int)CORE.Window.screenMin.height;
-    int maxWidth  = (CORE.Window.screenMax.width  == 0)? GLFW_DONT_CARE : (int)CORE.Window.screenMax.width;
-    int maxHeight = (CORE.Window.screenMax.height == 0)? GLFW_DONT_CARE : (int)CORE.Window.screenMax.height;
+    int maxWidth  = (width == 0)? GLFW_DONT_CARE : width;
+    int maxHeight = (height == 0)? GLFW_DONT_CARE : height;
+
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window maximum size");
+        return;
+    }
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        int lim[4] = { minWidth, minHeight, maxWidth, maxHeight };
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowSizeLimits, lim, true);
+        RLGlfwWindowSizeLimitsTask windowSizeLimitsTask = { minWidth, minHeight, maxWidth, maxHeight, 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowSizeLimits, &windowSizeLimitsTask, true) || !windowSizeLimitsTask.succeeded)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window maximum size on event thread");
+            return;
+        }
+        CORE.Window.screenMax.width = width;
+        CORE.Window.screenMax.height = height;
         return;
     }
 #endif
-    glfwSetWindowSizeLimits(platform.handle, minWidth, minHeight, maxWidth, maxHeight);
+    glfwSetWindowSizeLimits(pd->handle, minWidth, minHeight, maxWidth, maxHeight);
+    CORE.Window.screenMax.width = width;
+    CORE.Window.screenMax.height = height;
 }
 
 // Set window dimensions
 void RLSetWindowSize(int width, int height)
 {
-    CORE.Window.screen.width = width;
-    CORE.Window.screen.height = height;
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window size");
+        return;
+    }
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if (pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        int wh[2] = { width, height };
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowSize, wh, true);
+        RLGlfwWindowSizeTask windowSizeTask = { width, height, 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowSize, &windowSizeTask, true) || !windowSizeTask.succeeded)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window size on event thread");
+            return;
+        }
+        CORE.Window.screen.width = width;
+        CORE.Window.screen.height = height;
         return;
     }
 #endif
-    glfwSetWindowSize(platform.handle, width, height);
+    glfwSetWindowSize(pd->handle, width, height);
+    CORE.Window.screen.width = width;
+    CORE.Window.screen.height = height;
 }
 
 // Set window opacity, value opacity is between 0.0 and 1.0
@@ -2253,28 +2617,45 @@ void RLSetWindowOpacity(float opacity)
     if (opacity >= 1.0f) opacity = 1.0f;
     else if (opacity <= 0.0f) opacity = 0.0f;
 
+    PlatformData *pd = RLGetPlatformDataPtr();
+
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        float op = opacity;
-        RLGlfwRunOnEventThread(RLGlfwTask_SetWindowOpacity, &op, true);
+        RLGlfwWindowOpacityTask windowOpacityTask = { opacity, 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetWindowOpacity, &windowOpacityTask, true) || !windowOpacityTask.succeeded)
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set window opacity on event thread");
         return;
     }
 #endif
-    glfwSetWindowOpacity(platform.handle, opacity);
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window opacity");
+        return;
+    }
+    glfwSetWindowOpacity(pd->handle, opacity);
 }
 
 // Set window focused
 void RLSetWindowFocused(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_FocusWindow, NULL, true);
+        RLGlfwWindowOpTask focusWindowTask = { 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_FocusWindow, &focusWindowTask, true) || !focusWindowTask.succeeded)
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to focus window on event thread");
         return;
     }
 #endif
-    glfwFocusWindow(platform.handle);
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window focus");
+        return;
+    }
+    glfwFocusWindow(pd->handle);
 }
 
 #if defined(__linux__) && defined(_GLFW_X11)
@@ -2286,9 +2667,16 @@ static XID X11WindowHandle;
 // Get native window handle
 void *RLGetWindowHandle(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for native window handle");
+        return NULL;
+    }
+
 #if defined(_WIN32)
     // NOTE: Returned handle is: void *HWND (windows.h)
-    return glfwGetWin32Window(platform.handle);
+    return glfwGetWin32Window(pd->handle);
 #endif
 #if defined(__linux__)
     #if defined(_GLFW_WAYLAND)
@@ -2296,26 +2684,26 @@ void *RLGetWindowHandle(void)
             int platformID = glfwGetPlatform();
             if (platformID == GLFW_PLATFORM_WAYLAND)
             {
-                return glfwGetWaylandWindow(platform.handle);
+                return glfwGetWaylandWindow(pd->handle);
             }
             else
             {
-                X11WindowHandle = glfwGetX11Window(platform.handle);
+                X11WindowHandle = glfwGetX11Window(pd->handle);
                 return &X11WindowHandle;
             }
         #else
-            return glfwGetWaylandWindow(platform.handle);
+            return glfwGetWaylandWindow(pd->handle);
         #endif
     #elif defined(_GLFW_X11)
         // Store the window handle localy and return a pointer to the variable instead
         // Reasoning detailed in the declaration of X11WindowHandle
-        X11WindowHandle = glfwGetX11Window(platform.handle);
+        X11WindowHandle = glfwGetX11Window(pd->handle);
         return &X11WindowHandle;
     #endif
 #endif
 #if defined(__APPLE__)
     // NOTE: Returned handle is: (objc_object *)
-    return (void *)glfwGetCocoaWindow(platform.handle);
+    return (void *)glfwGetCocoaWindow(pd->handle);
 #endif
 
     return NULL;
@@ -2378,7 +2766,7 @@ int RLWin32IsKnownWindowHandle_Internal(void *hwnd)
 }
 
 // --- Dispatch handlers (run on the HWND owner thread) ---
-typedef struct { const char* name; void* value; int ok; } RLWin32PropSetCall;
+typedef struct { const char* name; void* value; int succeeded; } RLWin32PropSetCall;
 typedef struct { const char* name; void* out; } RLWin32PropGetCall;
 
 static LRESULT RLWin32Dispatch_SetProp(GLFWwindow* window, HWND hWnd, void* user)
@@ -2386,8 +2774,8 @@ static LRESULT RLWin32Dispatch_SetProp(GLFWwindow* window, HWND hWnd, void* user
     (void)hWnd;
     RLWin32PropSetCall* callData = (RLWin32PropSetCall*)user;
     if (!callData) return 0;
-    callData->ok = glfwWin32SetWindowProp(window, callData->name, callData->value);
-    return (LRESULT)callData->ok;
+    callData->succeeded = glfwWin32SetWindowProp(window, callData->name, callData->value);
+    return (LRESULT)callData->succeeded;
 }
 
 static LRESULT RLWin32Dispatch_GetProp(GLFWwindow* window, HWND hWnd, void* user)
@@ -2450,25 +2838,76 @@ typedef struct RLWin32PropTask
     const char* name;
     void* value;
     void* out;
-    int ok;
+    int succeeded;
 } RLWin32PropTask;
 
 static void RLGlfwTask_Win32SetWindowProp(void* user)
 {
-    RLWin32PropTask* task = (RLWin32PropTask*) user;
-    task->ok = glfwWin32SetWindowProp(platform.handle, task->name, task->value);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLWin32PropTask* windowPropTask = (RLWin32PropTask*) user;
+    if (windowPropTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 set-window-prop task payload is null");
+        return;
+    }
+    if (pd == NULL)
+    {
+        windowPropTask->succeeded = 0;
+        return;
+    }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 set-window-prop task skipped: window handle unavailable");
+        windowPropTask->succeeded = 0;
+        return;
+    }
+    windowPropTask->succeeded = glfwWin32SetWindowProp(pd->handle, windowPropTask->name, windowPropTask->value);
 }
 
 static void RLGlfwTask_Win32GetWindowProp(void* user)
 {
-    RLWin32PropTask* task = (RLWin32PropTask*) user;
-    task->out = glfwWin32GetWindowProp(platform.handle, task->name);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLWin32PropTask* windowPropTask = (RLWin32PropTask*) user;
+    if (windowPropTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 get-window-prop task payload is null");
+        return;
+    }
+    if (pd == NULL)
+    {
+        windowPropTask->out = NULL;
+        return;
+    }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 get-window-prop task skipped: window handle unavailable");
+        windowPropTask->out = NULL;
+        return;
+    }
+    windowPropTask->out = glfwWin32GetWindowProp(pd->handle, windowPropTask->name);
 }
 
 static void RLGlfwTask_Win32RemoveWindowProp(void* user)
 {
-    RLWin32PropTask* task = (RLWin32PropTask*) user;
-    task->out = glfwWin32RemoveWindowProp(platform.handle, task->name);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLWin32PropTask* windowPropTask = (RLWin32PropTask*) user;
+    if (windowPropTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 remove-window-prop task payload is null");
+        return;
+    }
+    if (pd == NULL)
+    {
+        windowPropTask->out = NULL;
+        return;
+    }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 remove-window-prop task skipped: window handle unavailable");
+        windowPropTask->out = NULL;
+        return;
+    }
+    windowPropTask->out = glfwWin32RemoveWindowProp(pd->handle, windowPropTask->name);
 }
 
 typedef struct RLWin32HookToken
@@ -2483,87 +2922,128 @@ static int RLWin32MessageHookTrampoline(GLFWwindow* window,
                                        intptr_t* result, void* user)
 {
     (void) window;
-    RLWin32HookToken* tok = (RLWin32HookToken*) user;
-    if (!tok || !tok->hook) return 0;
-    return tok->hook((void*) hWnd, uMsg, wParam, lParam, result, tok->user) ? 1 : 0;
+    RLWin32HookToken* hookToken = (RLWin32HookToken*) user;
+    if (!hookToken || !hookToken->hook) return 0;
+    return hookToken->hook((void*) hWnd, uMsg, wParam, lParam, result, hookToken->user) ? 1 : 0;
 }
 
 typedef struct RLWin32HookTask
 {
-    RLWin32HookToken* tok;
-    int ok;
+    RLWin32HookToken* hookToken;
+    int succeeded;
 } RLWin32HookTask;
 
 static void RLGlfwTask_Win32AddMessageHook(void* user)
 {
-    RLWin32HookTask* t = (RLWin32HookTask*) user;
-    if (!t || !t->tok) { t->ok = 0; return; }
-    t->tok->glfwToken = glfwWin32AddMessageHook(platform.handle, RLWin32MessageHookTrampoline, t->tok);
-    t->ok = (t->tok->glfwToken != NULL);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLWin32HookTask* messageHookTask = (RLWin32HookTask*) user;
+    if (!messageHookTask || !messageHookTask->hookToken)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 add-message-hook task payload is invalid");
+        if (messageHookTask != NULL) messageHookTask->succeeded = 0;
+        return;
+    }
+    if (pd == NULL)
+    {
+        messageHookTask->hookToken->glfwToken = NULL;
+        messageHookTask->succeeded = 0;
+        return;
+    }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 add-message-hook task skipped: window handle unavailable");
+        messageHookTask->hookToken->glfwToken = NULL;
+        messageHookTask->succeeded = 0;
+        return;
+    }
+    messageHookTask->hookToken->glfwToken = glfwWin32AddMessageHook(pd->handle, RLWin32MessageHookTrampoline, messageHookTask->hookToken);
+    messageHookTask->succeeded = (messageHookTask->hookToken->glfwToken != NULL);
 }
 
 static void RLGlfwTask_Win32RemoveMessageHook(void* user)
 {
-    RLWin32HookTask* t = (RLWin32HookTask*) user;
-    if (!t || !t->tok || !t->tok->glfwToken) { t->ok = 0; return; }
-    t->ok = glfwWin32RemoveMessageHook(platform.handle, t->tok->glfwToken);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLWin32HookTask* messageHookTask = (RLWin32HookTask*) user;
+    if (!messageHookTask || !messageHookTask->hookToken || !messageHookTask->hookToken->glfwToken)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 remove-message-hook task payload is invalid");
+        if (messageHookTask != NULL) messageHookTask->succeeded = 0;
+        return;
+    }
+    if (pd == NULL)
+    {
+        messageHookTask->succeeded = 0;
+        return;
+    }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Win32 remove-message-hook task skipped: window handle unavailable");
+        messageHookTask->succeeded = 0;
+        return;
+    }
+    messageHookTask->succeeded = glfwWin32RemoveMessageHook(pd->handle, messageHookTask->hookToken->glfwToken);
 }
 
 int RLWin32SetWindowProp(const char* name, void* value)
 {
-    RLWin32PropTask t = { name, value, NULL, 0 };
-    RLGlfwRunOnEventThread(RLGlfwTask_Win32SetWindowProp, &t, true);
-    return t.ok;
+    RLWin32PropTask windowPropTask = { name, value, NULL, 0 };
+    if (!RLGlfwRunOnEventThread(RLGlfwTask_Win32SetWindowProp, &windowPropTask, true))
+        TRACELOG(RL_E_LOG_WARNING, "GLFW/WIN32: Failed to set window prop on event thread");
+    return windowPropTask.succeeded;
 }
 
 void* RLWin32GetWindowProp(const char* name)
 {
-    RLWin32PropTask t = { name, NULL, NULL, 0 };
-    RLGlfwRunOnEventThread(RLGlfwTask_Win32GetWindowProp, &t, true);
-    return t.out;
+    RLWin32PropTask windowPropTask = { name, NULL, NULL, 0 };
+    if (!RLGlfwRunOnEventThread(RLGlfwTask_Win32GetWindowProp, &windowPropTask, true))
+        TRACELOG(RL_E_LOG_WARNING, "GLFW/WIN32: Failed to get window prop on event thread");
+    return windowPropTask.out;
 }
 
 void* RLWin32RemoveWindowProp(const char* name)
 {
-    RLWin32PropTask t = { name, NULL, NULL, 0 };
-    RLGlfwRunOnEventThread(RLGlfwTask_Win32RemoveWindowProp, &t, true);
-    return t.out;
+    RLWin32PropTask windowPropTask = { name, NULL, NULL, 0 };
+    if (!RLGlfwRunOnEventThread(RLGlfwTask_Win32RemoveWindowProp, &windowPropTask, true))
+        TRACELOG(RL_E_LOG_WARNING, "GLFW/WIN32: Failed to remove window prop on event thread");
+    return windowPropTask.out;
 }
 
 void* RLWin32AddMessageHook(RLWin32MessageHook hook, void* user)
 {
     if (!hook) return NULL;
 
-    RLWin32HookToken* tok = (RLWin32HookToken*) RL_CALLOC(1, sizeof(RLWin32HookToken));
-    if (!tok) return NULL;
+    RLWin32HookToken* hookToken = (RLWin32HookToken*) RL_CALLOC(1, sizeof(RLWin32HookToken));
+    if (!hookToken) return NULL;
 
-    tok->hook = hook;
-    tok->user = user;
+    hookToken->hook = hook;
+    hookToken->user = user;
 
-    RLWin32HookTask task = { tok, 0 };
-    RLGlfwRunOnEventThread(RLGlfwTask_Win32AddMessageHook, &task, true);
+    RLWin32HookTask messageHookTask = { hookToken, 0 };
+    if (!RLGlfwRunOnEventThread(RLGlfwTask_Win32AddMessageHook, &messageHookTask, true))
+        TRACELOG(RL_E_LOG_WARNING, "GLFW/WIN32: Failed to add message hook on event thread");
 
-    if (!task.ok)
+    if (!messageHookTask.succeeded)
     {
-        RL_FREE(tok);
+        RL_FREE(hookToken);
         return NULL;
     }
 
-    return (void*) tok;
+    return (void*) hookToken;
 }
 
 int RLWin32RemoveMessageHook(void* token)
 {
-    RLWin32HookToken* tok = (RLWin32HookToken*) token;
-    if (!tok) return 0;
+    RLWin32HookToken* hookToken = (RLWin32HookToken*) token;
+    if (!hookToken) return 0;
 
-    RLWin32HookTask task = { tok, 0 };
-    RLGlfwRunOnEventThread(RLGlfwTask_Win32RemoveMessageHook, &task, true);
+    RLWin32HookTask messageHookTask = { hookToken, 0 };
+    if (!RLGlfwRunOnEventThread(RLGlfwTask_Win32RemoveMessageHook, &messageHookTask, true))
+        TRACELOG(RL_E_LOG_WARNING, "GLFW/WIN32: Failed to remove message hook on event thread");
 
-	// Only free the token if removal succeeded; otherwise it may still be referenced
-	// by the underlying GLFW hook trampoline.
-	if (task.ok) RL_FREE(tok);
-    return task.ok;
+    // Only free the token if removal succeeded; otherwise it may still be referenced
+    // by the underlying GLFW hook trampoline.
+    if (messageHookTask.succeeded) RL_FREE(hookToken);
+    return messageHookTask.succeeded;
 }
 
 // ------------------------------------------------------------
@@ -2619,7 +3099,7 @@ int RLWin32SetWindowPropByHandle(void* hwnd, const char* name, void* value)
     if (!RLWin32IsKnownWindowHandle_Internal(hNativeWindowHandle)) return 0;
     RLWin32PropSetCall callData = { name, value, 0 };
     (void)RLWin32DispatchToHwnd(hNativeWindowHandle, RLWin32Dispatch_SetProp, &callData);
-    return callData.ok;
+    return callData.succeeded;
 }
 
 void* RLWin32GetWindowPropByHandle(void* hwnd, const char* name)
@@ -3597,9 +4077,9 @@ int RLDeletePendingSharedGpuResourcesByHandle(void* hwnd, int wait)
 {
     if (!hwnd) return RLGlfwDeletePendingSharedGpuResourcesByHandleFail("invalid hwnd", hwnd, wait);
 
-    const intptr_t ok = RLInvokeOnWindowRenderThreadByHandle(
+    const intptr_t invokeSucceeded = RLInvokeOnWindowRenderThreadByHandle(
         hwnd, RLGlfwInvoke_DeletePendingSharedGpuResourcesOnRenderThread, NULL, wait);
-    if (ok == 0)
+    if (invokeSucceeded == 0)
     {
         return RLGlfwDeletePendingSharedGpuResourcesByHandleFail(
             "render-thread invoke rejected or target unavailable", hwnd, wait);
@@ -3761,11 +4241,13 @@ int RLResetNativeTaskQueueDiagStatsByHandle(void* hwnd, int wait)
 int RLGetMonitorCount(void)
 {
     int monitorCount = 0;
+    PlatformData *pd = RLGetPlatformDataPtr();
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorCount, &monitorCount, true);
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorCount, &monitorCount, true))
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor count on event thread");
         return monitorCount;
     }
 #endif
@@ -3778,14 +4260,23 @@ int RLGetMonitorCount(void)
 // Get current monitor where window is placed
 int RLGetCurrentMonitor(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         int idx = 0;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryCurrentMonitorIndex, &idx, true);
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryCurrentMonitorIndex, &idx, true))
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query current monitor on event thread");
         return idx;
     }
 #endif
+
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for current monitor query");
+        return 0;
+    }
 
     int index = 0;
     int monitorCount = 0;
@@ -3797,7 +4288,7 @@ int RLGetCurrentMonitor(void)
         if (RLIsWindowFullscreen())
         {
             // Get the handle of the monitor that the specified window is in full screen on
-            monitor = glfwGetWindowMonitor(platform.handle);
+            monitor = glfwGetWindowMonitor(pd->handle);
 
             for (int i = 0; i < monitorCount; i++)
             {
@@ -3821,7 +4312,7 @@ int RLGetCurrentMonitor(void)
             int wcx = 0;
             int wcy = 0;
 
-            glfwGetWindowPos(platform.handle, &wcx, &wcy);
+            glfwGetWindowPos(pd->handle, &wcx, &wcy);
             wcx += (int)CORE.Window.screen.width/2;
             wcy += (int)CORE.Window.screen.height/2;
 
@@ -3879,14 +4370,19 @@ RLVector2 RLGetMonitorPosition(int monitor)
 {
     int x = 0;
     int y = 0;
+    PlatformData *pd = RLGetPlatformDataPtr();
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         RLGlfwMonitorInfo info = { 0 };
         info.index = monitor;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
-        if (info.ok)
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor position on event thread");
+            return (RLVector2){ 0, 0 };
+        }
+        if (info.isValid)
         {
             x = info.posX;
             y = info.posY;
@@ -3914,14 +4410,19 @@ RLVector2 RLGetMonitorPosition(int monitor)
 int RLGetMonitorWidth(int monitor)
 {
     int width = 0;
+    PlatformData *pd = RLGetPlatformDataPtr();
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         RLGlfwMonitorInfo info = { 0 };
         info.index = monitor;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
-        if (info.ok) width = info.modeW;
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor width on event thread");
+            return width;
+        }
+        if (info.isValid) width = info.modeW;
         else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to find selected monitor");
         return width;
     }
@@ -3945,14 +4446,19 @@ int RLGetMonitorWidth(int monitor)
 int RLGetMonitorHeight(int monitor)
 {
     int height = 0;
+    PlatformData *pd = RLGetPlatformDataPtr();
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         RLGlfwMonitorInfo info = { 0 };
         info.index = monitor;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
-        if (info.ok) height = info.modeH;
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor height on event thread");
+            return height;
+        }
+        if (info.isValid) height = info.modeH;
         else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to find selected monitor");
         return height;
     }
@@ -3977,14 +4483,19 @@ int RLGetMonitorHeight(int monitor)
 int RLGetMonitorPhysicalWidth(int monitor)
 {
     int width = 0;
+    PlatformData *pd = RLGetPlatformDataPtr();
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         RLGlfwMonitorInfo info = { 0 };
         info.index = monitor;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
-        if (info.ok) width = info.physW;
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor physical width on event thread");
+            return width;
+        }
+        if (info.isValid) width = info.physW;
         else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to find selected monitor");
         return width;
     }
@@ -4003,14 +4514,19 @@ int RLGetMonitorPhysicalWidth(int monitor)
 int RLGetMonitorPhysicalHeight(int monitor)
 {
     int height = 0;
+    PlatformData *pd = RLGetPlatformDataPtr();
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         RLGlfwMonitorInfo info = { 0 };
         info.index = monitor;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
-        if (info.ok) height = info.physH;
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor physical height on event thread");
+            return height;
+        }
+        if (info.isValid) height = info.physH;
         else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to find selected monitor");
         return height;
     }
@@ -4029,14 +4545,19 @@ int RLGetMonitorPhysicalHeight(int monitor)
 int RLGetMonitorRefreshRate(int monitor)
 {
     int refresh = 0;
+    PlatformData *pd = RLGetPlatformDataPtr();
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         RLGlfwMonitorInfo info = { 0 };
         info.index = monitor;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
-        if (info.ok) refresh = info.refresh;
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor refresh rate on event thread");
+            return refresh;
+        }
+        if (info.isValid) refresh = info.refresh;
         else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to find selected monitor");
         return refresh;
     }
@@ -4062,14 +4583,19 @@ int RLGetMonitorRefreshRate(int monitor)
 const char *RLGetMonitorName(int monitor)
 {
     const char *name = "";
+    PlatformData *pd = RLGetPlatformDataPtr();
 
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
         RLGlfwMonitorInfo info = { 0 };
         info.index = monitor;
-        RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
-        if (info.ok) name = (info.name != NULL)? info.name : "";
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query monitor name on event thread");
+            return name;
+        }
+        if (info.isValid) name = (info.name != NULL)? info.name : "";
         else TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to find selected monitor");
         return name;
     }
@@ -4096,19 +4622,26 @@ RLVector2 RLGetWindowPosition(void)
 RLVector2 RLGetWindowScaleDPI(void)
 {
     RLVector2 scale = { 1.0f, 1.0f };
+    PlatformData *pd = RLGetPlatformDataPtr();
     if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI) && !FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE))
     {
 #if defined(_WIN32)
-        if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+        if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
         {
-            RLGlfwContentScaleTask t = { 1.0f, 1.0f };
-            RLGlfwRunOnEventThread(RLGlfwTask_GetWindowContentScale, &t, true);
-            scale.x = t.x;
-            scale.y = t.y;
+            RLGlfwContentScaleTask contentScaleTask = { 1.0f, 1.0f };
+            if (!RLGlfwRunOnEventThread(RLGlfwTask_GetWindowContentScale, &contentScaleTask, true))
+            {
+                TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query window content scale on event thread");
+                return scale;
+            }
+            scale.x = contentScaleTask.x;
+            scale.y = contentScaleTask.y;
         }
-        else glfwGetWindowContentScale(platform.handle, &scale.x, &scale.y);
+        else if ((pd != NULL) && (pd->handle != NULL)) glfwGetWindowContentScale(pd->handle, &scale.x, &scale.y);
+        else TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window content scale query");
 #else
-        glfwGetWindowContentScale(platform.handle, &scale.x, &scale.y);
+        if ((pd != NULL) && (pd->handle != NULL)) glfwGetWindowContentScale(pd->handle, &scale.x, &scale.y);
+        else TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window content scale query");
 #endif
     }
     return scale;
@@ -4117,29 +4650,48 @@ RLVector2 RLGetWindowScaleDPI(void)
 // Set clipboard text content
 void RLSetClipboardText(const char *text)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwRunOnEventThread(RLGlfwTask_SetClipboardText, (void *)text, true);
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_SetClipboardText, (void *)text, true))
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to set clipboard text on event thread");
         return;
     }
 #endif
-    glfwSetClipboardString(platform.handle, (text != NULL)? text : "");
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for clipboard text set");
+        return;
+    }
+    glfwSetClipboardString(pd->handle, (text != NULL)? text : "");
 }
 
 // Get clipboard text content
 // NOTE: returned string is allocated and freed by GLFW
 const char *RLGetClipboardText(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+
 #if defined(_WIN32)
-    if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+    if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
     {
-        RLGlfwClipboardGetTask t = { 0 };
-        RLGlfwRunOnEventThread(RLGlfwTask_GetClipboardText, &t, true);
-        return t.out;
+        RLGlfwClipboardGetTask clipboardTask = { 0 };
+        if (!RLGlfwRunOnEventThread(RLGlfwTask_GetClipboardText, &clipboardTask, true))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to get clipboard text on event thread");
+            return NULL;
+        }
+        return clipboardTask.out;
     }
 #endif
-    return glfwGetClipboardString(platform.handle);
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for clipboard text get");
+        return NULL;
+    }
+    return glfwGetClipboardString(pd->handle);
 }
 
 // Get clipboard image
@@ -4169,7 +4721,14 @@ RLImage RLGetClipboardImage(void)
 // Show mouse cursor
 void RLShowCursor(void)
 {
-    glfwSetInputMode(platform.handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for show cursor");
+        return;
+    }
+
+    glfwSetInputMode(pd->handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
     CORE.Input.Mouse.cursorHidden = false;
 }
@@ -4177,7 +4736,14 @@ void RLShowCursor(void)
 // Hides mouse cursor
 void RLHideCursor(void)
 {
-    glfwSetInputMode(platform.handle, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for hide cursor");
+        return;
+    }
+
+    glfwSetInputMode(pd->handle, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
     CORE.Input.Mouse.cursorHidden = true;
 }
@@ -4185,12 +4751,19 @@ void RLHideCursor(void)
 // Enables cursor (unlock cursor)
 void RLEnableCursor(void)
 {
-    glfwSetInputMode(platform.handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for enable cursor");
+        return;
+    }
+
+    glfwSetInputMode(pd->handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
     // Set cursor position in the middle
     RLSetMousePosition(CORE.Window.screen.width/2, CORE.Window.screen.height/2);
 
-    if (glfwRawMouseMotionSupported()) glfwSetInputMode(platform.handle, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
+    if (glfwRawMouseMotionSupported()) glfwSetInputMode(pd->handle, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
 
     CORE.Input.Mouse.cursorHidden = false;
     CORE.Input.Mouse.cursorLocked = false;
@@ -4199,12 +4772,19 @@ void RLEnableCursor(void)
 // Disables cursor (lock cursor)
 void RLDisableCursor(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for disable cursor");
+        return;
+    }
+
     // Reset mouse position within the window area before disabling cursor
     RLSetMousePosition(CORE.Window.screen.width/2, CORE.Window.screen.height/2);
 
-    glfwSetInputMode(platform.handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(pd->handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    if (glfwRawMouseMotionSupported()) glfwSetInputMode(platform.handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    if (glfwRawMouseMotionSupported()) glfwSetInputMode(pd->handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
     CORE.Input.Mouse.cursorHidden = true;
     CORE.Input.Mouse.cursorLocked = true;
@@ -4213,7 +4793,14 @@ void RLDisableCursor(void)
 // Swap back buffer with front buffer (screen drawing)
 void RLSwapScreenBuffer(void)
 {
-    glfwSwapBuffers(platform.handle);
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for swap buffers");
+        return;
+    }
+
+    glfwSwapBuffers(pd->handle);
 }
 
 //----------------------------------------------------------------------------------
@@ -4238,15 +4825,21 @@ void RLOpenURL(const char *url)
     if (strchr(url, '\'') != NULL) TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Provided URL could be potentially malicious, avoid [\'] character");
     else
     {
-        char *cmd = (char *)RL_CALLOC(strlen(url) + 32, sizeof(char));
+        size_t cmdCapacity = strlen(url) + 32u;
+        char *cmd = (char *)RL_CALLOC((unsigned int)cmdCapacity, sizeof(char));
+        if (cmd == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to allocate command buffer for OpenURL()");
+            return;
+        }
 #if defined(_WIN32)
-        sprintf(cmd, "explorer \"%s\"", url);
+        snprintf(cmd, cmdCapacity, "explorer \"%s\"", url);
 #endif
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-        sprintf(cmd, "xdg-open '%s'", url); // Alternatives: firefox, x-www-browser
+        snprintf(cmd, cmdCapacity, "xdg-open '%s'", url); // Alternatives: firefox, x-www-browser
 #endif
 #if defined(__APPLE__)
-        sprintf(cmd, "open '%s'", url);
+        snprintf(cmd, cmdCapacity, "open '%s'", url);
 #endif
         int result = system(cmd);
         if (result == -1) TRACELOG(RL_E_LOG_WARNING, "OpenURL() child process could not be created");
@@ -4273,22 +4866,36 @@ void RLSetGamepadVibration(int gamepad, float leftMotor, float rightMotor, float
 // Set mouse position XY
 void RLSetMousePosition(int x, int y)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for mouse position");
+        return;
+    }
+
     CORE.Input.Mouse.currentPosition = (RLVector2){ (float)x, (float)y };
     CORE.Input.Mouse.previousPosition = CORE.Input.Mouse.currentPosition;
 
     // NOTE: emscripten not implemented
-    glfwSetCursorPos(platform.handle, CORE.Input.Mouse.currentPosition.x, CORE.Input.Mouse.currentPosition.y);
+    glfwSetCursorPos(pd->handle, CORE.Input.Mouse.currentPosition.x, CORE.Input.Mouse.currentPosition.y);
 }
 
 // Set mouse cursor
 void RLSetMouseCursor(int cursor)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd == NULL) || (pd->handle == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for mouse cursor");
+        return;
+    }
+
     CORE.Input.Mouse.cursor = cursor;
-    if (cursor == RL_E_MOUSE_CURSOR_DEFAULT) glfwSetCursor(platform.handle, NULL);
+    if (cursor == RL_E_MOUSE_CURSOR_DEFAULT) glfwSetCursor(pd->handle, NULL);
     else
     {
         // NOTE: Mapping internal GLFW enum values to MouseCursor enum values
-        glfwSetCursor(platform.handle, glfwCreateStandardCursor(0x00036000 + cursor));
+        glfwSetCursor(pd->handle, glfwCreateStandardCursor(0x00036000 + cursor));
     }
 }
 
@@ -4446,7 +5053,8 @@ void RLPollInputEvents(void)
     RLGlfwPumpThreadTasksWithDiag();
 
 #if defined(_WIN32)
-    if (platform.useEventThread)
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd != NULL) && pd->useEventThread)
     {
         // In event-thread mode, the Win32 message thread performs glfwWaitEvents/glfwPollEvents.
         // The render thread only blocks on a dedicated wake event.
@@ -4454,18 +5062,18 @@ void RLPollInputEvents(void)
             (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_MINIMIZED) && !FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_ALWAYS_RUN)))
         {
             // Pause semantics: block the render thread while minimized/eventWaiting (like glfwWaitEvents()).
-            // NOTE: We only enable the timeout safety-net during shutdown (platform.closing), otherwise
+            // NOTE: We only enable the timeout safety-net during shutdown (pd->closing), otherwise
             // the periodic wake would let the main loop tick (render/audio) while minimized.
-            if (platform.renderWakeEvent != NULL)
+            if (pd->renderWakeEvent != NULL)
             {
-                if (platform.closing) (void)RLEventWaitTimeout(platform.renderWakeEvent, 250);
-                else (void)RLEventWait(platform.renderWakeEvent);
+                if (pd->closing) (void)RLEventWaitTimeout(pd->renderWakeEvent, 250);
+                else (void)RLEventWait(pd->renderWakeEvent);
             }
             CORE.Time.previous = RLGetTime();
         }
 
         // Close intent is forwarded through WindowCloseCallback -> RLGlfwTask_WindowClose.
-        if (platform.handle == NULL) CORE.Window.shouldClose = true;
+        if (pd->handle == NULL) CORE.Window.shouldClose = true;
         return;
     }
 #endif
@@ -4485,7 +5093,11 @@ void RLPollInputEvents(void)
         glfwPollEvents();      // Poll input events: keyboard/mouse/window events (callbacks) -> Update keys state
     }
 
-    CORE.Window.shouldClose = glfwWindowShouldClose(platform.handle);
+    {
+        PlatformData *pd = RLGetPlatformDataPtr();
+        if ((pd != NULL) && (pd->handle != NULL)) CORE.Window.shouldClose = glfwWindowShouldClose(pd->handle);
+        else TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for window close query");
+    }
 
     // Reset close status for next frame
 }
@@ -4515,6 +5127,9 @@ static void DeallocateWrapper(void *block, void *user)
 // Initialize platform: graphics, inputs and more
 int InitPlatform(void)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if (pd == NULL) return -1;
+
     glfwSetErrorCallback(ErrorCallback);
 
     // NOTE (Route2): glfwInit/glfwTerminate are process-global.
@@ -4523,7 +5138,7 @@ int InitPlatform(void)
     // be configured before the first glfwInit, which becomes hard to coordinate
     // across multiple threads). If you want them back, do it in the Stage-B plan.
     if (!RLGlfwGlobalAcquire()) { TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize GLFW"); return -1; }
-    platform.glfwAcquired = true;
+    pd->glfwAcquired = true;
 
 
     bool holdGlobalLock = false;
@@ -4561,19 +5176,19 @@ int InitPlatform(void)
 #if defined(_WIN32)
     // Win32 optional event-thread mode: run the GLFW event/message pump on a dedicated
     // thread while keeping rendering on the caller thread.
-    platform.useEventThread = FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_EVENT_THREAD);
-    platform.ownerCtx = RLGetCurrentContext();
-    platform.broadcastWake = FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE);
-    platform.renderThread = platform.useEventThread? glfwGetCurrentThread() : NULL;
-    platform.eventThread = NULL;
-    platform.createdEvent = NULL;
-    platform.renderWakeEvent = NULL;
-    platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
-    platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
-    platform.eventThreadHandle = NULL;
-    platform.eventThreadStop = 0;
-    platform.frameCallbackQueuedHint = 0;
-    platform.frameCallbackCriticalQueuedHint = 0;
+    pd->useEventThread = FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_EVENT_THREAD);
+    pd->ownerCtx = RLGetCurrentContext();
+    pd->broadcastWake = FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_BROADCAST_WAKE);
+    pd->renderThread = pd->useEventThread? glfwGetCurrentThread() : NULL;
+    pd->eventThread = NULL;
+    pd->createdEvent = NULL;
+    pd->renderWakeEvent = NULL;
+    pd->normalFrameCallbackSlotsAvailableSemaphore = NULL;
+    pd->criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+    pd->eventThreadHandle = NULL;
+    pd->eventThreadStop = 0;
+    pd->frameCallbackQueuedHint = 0;
+    pd->frameCallbackCriticalQueuedHint = 0;
 #endif
 
     // Check window creation flags
@@ -4700,7 +5315,7 @@ int InitPlatform(void)
     if ((CORE.Window.screen.width == 0) || (CORE.Window.screen.height == 0)) FLAG_SET(CORE.Window.flags, RL_E_FLAG_FULLSCREEN_MODE);
 
 #if defined(_WIN32)
-    if (platform.useEventThread)
+    if (pd->useEventThread)
     {
         RLContext *ctx = RLGetCurrentContext();
         GLFWwindow *shareWindow = RLGlfwResolveShareWindowForContext(ctx);
@@ -4710,7 +5325,7 @@ int InitPlatform(void)
         {
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: explicit share target is unavailable");
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             RLGlfwGlobalUnlock();
             holdGlobalLock = false;
             return -1;
@@ -4718,11 +5333,11 @@ int InitPlatform(void)
 
         // Enforce one-window-per-render-thread in event-thread mode.
         // This avoids undefined behavior from same-thread multi-window creation.
-        if (RLGlfwHasAnotherWindowOnRenderThread(platform.renderThread, &platform))
+        if (RLGlfwHasAnotherWindowOnRenderThread(pd->renderThread, pd))
         {
             TRACELOG(RL_E_LOG_WARNING, "GLFW: event-thread mode rejects multiple windows on the same render thread; create each window on a different thread");
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             RLGlfwGlobalUnlock();
             holdGlobalLock = false;
             return -1;
@@ -4733,43 +5348,43 @@ int InitPlatform(void)
         RLGlfwGlobalUnlock();
         holdGlobalLock = false;
 
-        platform.createdEvent = RLEventCreate(false);
-        platform.renderWakeEvent = RLEventCreate(false);
-        platform.normalFrameCallbackSlotsAvailableSemaphore =
+        pd->createdEvent = RLEventCreate(false);
+        pd->renderWakeEvent = RLEventCreate(false);
+        pd->normalFrameCallbackSlotsAvailableSemaphore =
             RLSemaphoreCreate(RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY, RL_FRAME_CALLBACK_NORMAL_QUEUE_CAPACITY);
-        platform.criticalFrameCallbackSlotsAvailableSemaphore =
+        pd->criticalFrameCallbackSlotsAvailableSemaphore =
             RLSemaphoreCreate(RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY, RL_FRAME_CALLBACK_CRITICAL_QUEUE_CAPACITY);
-        platform.eventThreadStop = 0;
-        platform.closing = 0;
-        platform.frameCallbackQueuedHint = 0;
-        platform.frameCallbackCriticalQueuedHint = 0;
+        pd->eventThreadStop = 0;
+        pd->closing = 0;
+        pd->frameCallbackQueuedHint = 0;
+        pd->frameCallbackCriticalQueuedHint = 0;
 
-        if ((platform.createdEvent == NULL) || (platform.renderWakeEvent == NULL) ||
-            (platform.normalFrameCallbackSlotsAvailableSemaphore == NULL) ||
-            (platform.criticalFrameCallbackSlotsAvailableSemaphore == NULL))
+        if ((pd->createdEvent == NULL) || (pd->renderWakeEvent == NULL) ||
+            (pd->normalFrameCallbackSlotsAvailableSemaphore == NULL) ||
+            (pd->criticalFrameCallbackSlotsAvailableSemaphore == NULL))
         {
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: event-thread synchronization allocation failed");
-            if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
-            if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
-            if (platform.normalFrameCallbackSlotsAvailableSemaphore)
+            if (pd->createdEvent) { RLEventDestroy(pd->createdEvent); pd->createdEvent = NULL; }
+            if (pd->renderWakeEvent) { RLEventDestroy(pd->renderWakeEvent); pd->renderWakeEvent = NULL; }
+            if (pd->normalFrameCallbackSlotsAvailableSemaphore)
             {
-                RLSemaphoreClose(platform.normalFrameCallbackSlotsAvailableSemaphore);
-                RLSemaphoreRelease(platform.normalFrameCallbackSlotsAvailableSemaphore);
-                platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+                RLSemaphoreClose(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                pd->normalFrameCallbackSlotsAvailableSemaphore = NULL;
             }
-            if (platform.criticalFrameCallbackSlotsAvailableSemaphore)
+            if (pd->criticalFrameCallbackSlotsAvailableSemaphore)
             {
-                RLSemaphoreClose(platform.criticalFrameCallbackSlotsAvailableSemaphore);
-                RLSemaphoreRelease(platform.criticalFrameCallbackSlotsAvailableSemaphore);
-                platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+                RLSemaphoreClose(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                pd->criticalFrameCallbackSlotsAvailableSemaphore = NULL;
             }
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             return -1;
         }
 
         // Register this platform so shutdown/close can broadcast-wake sleeping render threads.
-        RLGlfwPlatformRegister(&platform);
+        RLGlfwPlatformRegister(pd);
 
         // Bind this context to the correct share-group for deferred GPU deletes.
         // In event-thread mode the window is created on another thread, so bind before
@@ -4777,90 +5392,114 @@ int InitPlatform(void)
         if (!RLSharedGpuContextBindShareGroup(ctx, shareCtx))
         {
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: share-group bind failed");
-            if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
-            if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
-            if (platform.normalFrameCallbackSlotsAvailableSemaphore)
+            if (pd->createdEvent) { RLEventDestroy(pd->createdEvent); pd->createdEvent = NULL; }
+            if (pd->renderWakeEvent) { RLEventDestroy(pd->renderWakeEvent); pd->renderWakeEvent = NULL; }
+            if (pd->normalFrameCallbackSlotsAvailableSemaphore)
             {
-                RLSemaphoreClose(platform.normalFrameCallbackSlotsAvailableSemaphore);
-                RLSemaphoreRelease(platform.normalFrameCallbackSlotsAvailableSemaphore);
-                platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+                RLSemaphoreClose(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                pd->normalFrameCallbackSlotsAvailableSemaphore = NULL;
             }
-            if (platform.criticalFrameCallbackSlotsAvailableSemaphore)
+            if (pd->criticalFrameCallbackSlotsAvailableSemaphore)
             {
-                RLSemaphoreClose(platform.criticalFrameCallbackSlotsAvailableSemaphore);
-                RLSemaphoreRelease(platform.criticalFrameCallbackSlotsAvailableSemaphore);
-                platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+                RLSemaphoreClose(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                pd->criticalFrameCallbackSlotsAvailableSemaphore = NULL;
             }
-            RLGlfwPlatformUnregister(&platform);
+            RLGlfwPlatformUnregister(pd);
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             return -1;
         }
 
         RLGlfwEventThreadStart *start = (RLGlfwEventThreadStart *)RL_MALLOC(sizeof(RLGlfwEventThreadStart));
+        if (start == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to allocate event thread startup payload");
+            if (pd->createdEvent) { RLEventDestroy(pd->createdEvent); pd->createdEvent = NULL; }
+            if (pd->renderWakeEvent) { RLEventDestroy(pd->renderWakeEvent); pd->renderWakeEvent = NULL; }
+            if (pd->normalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                pd->normalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
+            if (pd->criticalFrameCallbackSlotsAvailableSemaphore)
+            {
+                RLSemaphoreClose(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                pd->criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+            }
+            RLGlfwPlatformUnregister(pd);
+            RLSharedGpuContextUnbindShareGroup(ctx);
+            pd->win32Hwnd = NULL;
+            RLGlfwGlobalRelease();
+            pd->glfwAcquired = false;
+            return -1;
+        }
         RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwEventThreadStart));
         start->ctx = RLGetCurrentContext();
 
-        platform.eventThreadHandle = RLThreadCreate(RLGlfwEventThreadMain, start);
-        if (platform.eventThreadHandle == NULL)
+        pd->eventThreadHandle = RLThreadCreate(RLGlfwEventThreadMain, start);
+        if (pd->eventThreadHandle == NULL)
         {
             RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_OTHER, sizeof(RLGlfwEventThreadStart));
             RL_FREE(start);
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to create event thread");
-            if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
-            if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
-            if (platform.normalFrameCallbackSlotsAvailableSemaphore)
+            if (pd->createdEvent) { RLEventDestroy(pd->createdEvent); pd->createdEvent = NULL; }
+            if (pd->renderWakeEvent) { RLEventDestroy(pd->renderWakeEvent); pd->renderWakeEvent = NULL; }
+            if (pd->normalFrameCallbackSlotsAvailableSemaphore)
             {
-                RLSemaphoreClose(platform.normalFrameCallbackSlotsAvailableSemaphore);
-                RLSemaphoreRelease(platform.normalFrameCallbackSlotsAvailableSemaphore);
-                platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+                RLSemaphoreClose(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                pd->normalFrameCallbackSlotsAvailableSemaphore = NULL;
             }
-            if (platform.criticalFrameCallbackSlotsAvailableSemaphore)
+            if (pd->criticalFrameCallbackSlotsAvailableSemaphore)
             {
-                RLSemaphoreClose(platform.criticalFrameCallbackSlotsAvailableSemaphore);
-                RLSemaphoreRelease(platform.criticalFrameCallbackSlotsAvailableSemaphore);
-                platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+                RLSemaphoreClose(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                pd->criticalFrameCallbackSlotsAvailableSemaphore = NULL;
             }
-            RLGlfwPlatformUnregister(&platform);
+            RLGlfwPlatformUnregister(pd);
             RLSharedGpuContextUnbindShareGroup(ctx);
-	    	platform.win32Hwnd = NULL;
+	    	pd->win32Hwnd = NULL;
             RLGlfwGlobalRelease();
-        	platform.glfwAcquired = false;
+        	pd->glfwAcquired = false;
             return -1;
         }
 
         // Wait until the event thread creates the window (or fails).
-        RLEventWait(platform.createdEvent);
+        RLEventWait(pd->createdEvent);
 
-        if (platform.handle == NULL)
+        if (pd->handle == NULL)
         {
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window (event thread)");
-            platform.eventThreadStop = 1;
+            pd->eventThreadStop = 1;
             RLGlfwWakeEventThread();
-            RLThreadJoin(platform.eventThreadHandle);
-            RLThreadDestroy(platform.eventThreadHandle);
-            platform.eventThreadHandle = NULL;
+            RLThreadJoin(pd->eventThreadHandle);
+            RLThreadDestroy(pd->eventThreadHandle);
+            pd->eventThreadHandle = NULL;
 
-            if (platform.createdEvent) { RLEventDestroy(platform.createdEvent); platform.createdEvent = NULL; }
-            if (platform.renderWakeEvent) { RLEventDestroy(platform.renderWakeEvent); platform.renderWakeEvent = NULL; }
-            if (platform.normalFrameCallbackSlotsAvailableSemaphore)
+            if (pd->createdEvent) { RLEventDestroy(pd->createdEvent); pd->createdEvent = NULL; }
+            if (pd->renderWakeEvent) { RLEventDestroy(pd->renderWakeEvent); pd->renderWakeEvent = NULL; }
+            if (pd->normalFrameCallbackSlotsAvailableSemaphore)
             {
-                RLSemaphoreClose(platform.normalFrameCallbackSlotsAvailableSemaphore);
-                RLSemaphoreRelease(platform.normalFrameCallbackSlotsAvailableSemaphore);
-                platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
+                RLSemaphoreClose(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->normalFrameCallbackSlotsAvailableSemaphore);
+                pd->normalFrameCallbackSlotsAvailableSemaphore = NULL;
             }
-            if (platform.criticalFrameCallbackSlotsAvailableSemaphore)
+            if (pd->criticalFrameCallbackSlotsAvailableSemaphore)
             {
-                RLSemaphoreClose(platform.criticalFrameCallbackSlotsAvailableSemaphore);
-                RLSemaphoreRelease(platform.criticalFrameCallbackSlotsAvailableSemaphore);
-                platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+                RLSemaphoreClose(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                RLSemaphoreRelease(pd->criticalFrameCallbackSlotsAvailableSemaphore);
+                pd->criticalFrameCallbackSlotsAvailableSemaphore = NULL;
             }
 
-            RLGlfwPlatformUnregister(&platform);
+            RLGlfwPlatformUnregister(pd);
             RLSharedGpuContextUnbindShareGroup(RLGetCurrentContext());
 
             RLGlfwGlobalRelease();
-        	platform.glfwAcquired = false;
+        	pd->glfwAcquired = false;
             return -1;
         }
 
@@ -4879,7 +5518,7 @@ int InitPlatform(void)
         {
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to get primary monitor");
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             RLGlfwGlobalUnlock();
             return -1;
         }
@@ -4915,24 +5554,24 @@ int InitPlatform(void)
         if (!RLGlfwHasResolvedRequiredShareWindow(ctx, shareWindow))
         {
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: explicit share target is unavailable");
             RLGlfwGlobalUnlock();
             return -1;
         }
 
-        platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", monitor, shareWindow);
-        if (!platform.handle)
+        pd->handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", monitor, shareWindow);
+        if (pd->handle == NULL)
         {
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window");
             RLGlfwGlobalUnlock();
             return -1;
         }
 
         // Bind this GLFW window to the current raylib context (Route2 multi-window)
-        glfwSetWindowUserPointer(platform.handle, (void *)RLGetCurrentContext());
+        glfwSetWindowUserPointer(pd->handle, (void *)RLGetCurrentContext());
 
     // Bind this context to a GPU share-group for share-wide lifetime tracking.
     // shareWindow is the GLFW share context window passed to glfwCreateWindow().
@@ -4941,10 +5580,10 @@ int InitPlatform(void)
         if (shareWindow) shareCtx = (RLContext *)glfwGetWindowUserPointer(shareWindow);
         if (!RLSharedGpuContextBindShareGroup(ctx, shareCtx))
         {
-            glfwDestroyWindow(platform.handle);
-            platform.handle = NULL;
+            glfwDestroyWindow(pd->handle);
+            pd->handle = NULL;
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: share-group bind failed");
             RLGlfwGlobalUnlock();
             return -1;
@@ -4963,24 +5602,24 @@ int InitPlatform(void)
         if (!RLGlfwHasResolvedRequiredShareWindow(ctx, shareWindow))
         {
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: explicit share target is unavailable");
             RLGlfwGlobalUnlock();
             return -1;
         }
 
-        platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", NULL, shareWindow);
-        if (!platform.handle)
+        pd->handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, (CORE.Window.title != 0)? CORE.Window.title : " ", NULL, shareWindow);
+        if (pd->handle == NULL)
         {
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window");
             RLGlfwGlobalUnlock();
             return -1;
         }
 
         // Bind this GLFW window to the current raylib context (Route2 multi-window)
-        glfwSetWindowUserPointer(platform.handle, (void *)RLGetCurrentContext());
+        glfwSetWindowUserPointer(pd->handle, (void *)RLGetCurrentContext());
 
 	    // Bind this context to a GPU share-group for share-wide lifetime tracking.
 	    // shareWindow is the GLFW share context window passed to glfwCreateWindow().
@@ -4989,10 +5628,10 @@ int InitPlatform(void)
 	        if (shareWindow) shareCtx = (RLContext *)glfwGetWindowUserPointer(shareWindow);
 	        if (!RLSharedGpuContextBindShareGroup(ctx, shareCtx))
 	        {
-	            glfwDestroyWindow(platform.handle);
-	            platform.handle = NULL;
+	            glfwDestroyWindow(pd->handle);
+	            pd->handle = NULL;
 	            RLGlfwGlobalRelease();
-	            platform.glfwAcquired = false;
+	            pd->glfwAcquired = false;
 	            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to initialize Window: share-group bind failed");
 	            RLGlfwGlobalUnlock();
 	            return -1;
@@ -5019,15 +5658,15 @@ int InitPlatform(void)
             if (CORE.Window.screen.width == 0) CORE.Window.screen.width = CORE.Window.display.width;
             if (CORE.Window.screen.height == 0) CORE.Window.screen.height = CORE.Window.display.height;
 
-            glfwSetWindowSize(platform.handle, CORE.Window.screen.width, CORE.Window.screen.height);
+            glfwSetWindowSize(pd->handle, CORE.Window.screen.width, CORE.Window.screen.height);
         }
         else
         {
             // The monitor for the window-manager-created window can not be determined, so it can not be centered
-            glfwDestroyWindow(platform.handle);
-            platform.handle = NULL;
+            glfwDestroyWindow(pd->handle);
+            pd->handle = NULL;
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
             TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to determine Monitor to center Window");
             RLGlfwGlobalUnlock();
             return -1;
@@ -5042,11 +5681,11 @@ _rlglfw_window_created:
 
     // Track primary window semantics and reset stale global quit when starting a fresh run.
 #if defined(_WIN32)
-    RLGlfwTrackWindowCreated(platform.handle, holdGlobalLock);
+    RLGlfwTrackWindowCreated(pd->handle, holdGlobalLock);
 
     // Cache HWND and ensure this PlatformData participates in the global registry.
-    if (platform.win32Hwnd == NULL) platform.win32Hwnd = (HWND)glfwGetWin32Window(platform.handle);
-    RLGlfwPlatformRegister(&platform);
+    if (pd->win32Hwnd == NULL) pd->win32Hwnd = (HWND)glfwGetWin32Window(pd->handle);
+    RLGlfwPlatformRegister(pd);
 
     // NOTE: In useEventThread mode the native window is created on the GLFW event thread.
     // Some Win32-specific behavior (like Snap Layout affordances) must be explicitly synced
@@ -5054,11 +5693,15 @@ _rlglfw_window_created:
     if (FLAG_IS_SET(requestedWindowFlags, RL_E_FLAG_WINDOW_SNAP_LAYOUT))
     {
         // Force-sync the GLFW window attribute to the requested flag.
-        RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_TRUE);
+        if (!RLGlfwSetWindowAttribThreadAware(GLFW_WIN32_SNAP_LAYOUT, GLFW_TRUE))
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to synchronize Win32 snap layout attribute after window creation");
+            FLAG_CLEAR(CORE.Window.flags, RL_E_FLAG_WINDOW_SNAP_LAYOUT);
+        }
     }
 #endif
 
-    glfwMakeContextCurrent(platform.handle);
+    glfwMakeContextCurrent(pd->handle);
     int result = glfwGetError(NULL);
     if ((result != GLFW_NO_WINDOW_CONTEXT) && (result != GLFW_PLATFORM_ERROR)) CORE.Window.ready = true; // Checking context activation
 
@@ -5098,7 +5741,7 @@ _rlglfw_window_created:
             else
             {
                 // Fallback for unexpected zero/invalid content scale values.
-                glfwGetFramebufferSize(platform.handle, &fbWidth, &fbHeight);
+                glfwGetFramebufferSize(pd->handle, &fbWidth, &fbHeight);
                 CORE.Window.screenScale = RLMatrixScale((float)fbWidth/CORE.Window.screen.width, (float)fbHeight/CORE.Window.screen.height, 1.0f);
 #if !defined(__APPLE__)
                 RLSetMouseScale((float)CORE.Window.screen.width/fbWidth, (float)CORE.Window.screen.height/fbHeight);
@@ -5129,12 +5772,14 @@ _rlglfw_window_created:
         int monitorIndex = RLGetCurrentMonitor();
 
 #if defined(_WIN32)
-        if (platform.useEventThread && !RLGlfwIsThread(platform.eventThread))
+        PlatformData *pd = RLGetPlatformDataPtr();
+        if ((pd != NULL) && pd->useEventThread && !RLGlfwIsThread(pd->eventThread))
         {
             RLGlfwMonitorInfo info = { 0 };
             info.index = monitorIndex;
-            RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true);
-            if (info.ok)
+            if (!RLGlfwRunOnEventThread(RLGlfwTask_QueryMonitorInfo, &info, true))
+                TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to query current monitor workarea on event thread");
+            if (info.isValid)
             {
                 monitorX = info.workX;
                 monitorY = info.workY;
@@ -5168,13 +5813,13 @@ _rlglfw_window_created:
     else
     {
         TRACELOG(RL_E_LOG_FATAL, "PLATFORM: Failed to initialize graphics device");
-        if (platform.handle != NULL)
+        if (pd->handle != NULL)
         {
-            glfwDestroyWindow(platform.handle);
-            platform.handle = NULL;
+            glfwDestroyWindow(pd->handle);
+            pd->handle = NULL;
         }
         RLGlfwGlobalRelease();
-        platform.glfwAcquired = false;
+        pd->glfwAcquired = false;
         RLGlfwGlobalUnlock();
         return -1;
     }
@@ -5191,34 +5836,34 @@ _rlglfw_window_created:
     //----------------------------------------------------------------------------
     // Set window callback events
 #if defined(_WIN32)
-    if (!platform.useEventThread)
+    if (!pd->useEventThread)
     {
 #endif
-        glfwSetWindowSizeCallback(platform.handle, WindowSizeCallback); // NOTE: Resizing is not enabled by default
-        glfwSetFramebufferSizeCallback(platform.handle, FramebufferSizeCallback);
-        glfwSetWindowPosCallback(platform.handle, WindowPosCallback);
-        glfwSetWindowMaximizeCallback(platform.handle, WindowMaximizeCallback);
+        glfwSetWindowSizeCallback(pd->handle, WindowSizeCallback); // NOTE: Resizing is not enabled by default
+        glfwSetFramebufferSizeCallback(pd->handle, FramebufferSizeCallback);
+        glfwSetWindowPosCallback(pd->handle, WindowPosCallback);
+        glfwSetWindowMaximizeCallback(pd->handle, WindowMaximizeCallback);
         if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK))
-            glfwSetWindowRefreshCallback(platform.handle, WindowRefreshCallback);
-        glfwSetWindowIconifyCallback(platform.handle, WindowIconifyCallback);
-        glfwSetWindowFocusCallback(platform.handle, WindowFocusCallback);
+            glfwSetWindowRefreshCallback(pd->handle, WindowRefreshCallback);
+        glfwSetWindowIconifyCallback(pd->handle, WindowIconifyCallback);
+        glfwSetWindowFocusCallback(pd->handle, WindowFocusCallback);
 #if defined(_WIN32)
         // Ensure we get a primary-close signal even in non-event-thread mode.
         // This is required to wake sleeping event-thread render loops for a clean shutdown.
-        glfwSetWindowCloseCallback(platform.handle, WindowCloseCallback);
+        glfwSetWindowCloseCallback(pd->handle, WindowCloseCallback);
 #endif
-        glfwSetDropCallback(platform.handle, WindowDropCallback);
-        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI)) glfwSetWindowContentScaleCallback(platform.handle, WindowContentScaleCallback);
+        glfwSetDropCallback(pd->handle, WindowDropCallback);
+        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI)) glfwSetWindowContentScaleCallback(pd->handle, WindowContentScaleCallback);
 
         // Set input callback events
-        glfwSetKeyCallback(platform.handle, KeyCallback);
-        glfwSetCharCallback(platform.handle, CharCallback);
-        glfwSetMouseButtonCallback(platform.handle, MouseButtonCallback);
-        glfwSetCursorPosCallback(platform.handle, MouseCursorPosCallback); // Track mouse position changes
-        glfwSetScrollCallback(platform.handle, MouseScrollCallback);
-        glfwSetCursorEnterCallback(platform.handle, CursorEnterCallback);
+        glfwSetKeyCallback(pd->handle, KeyCallback);
+        glfwSetCharCallback(pd->handle, CharCallback);
+        glfwSetMouseButtonCallback(pd->handle, MouseButtonCallback);
+        glfwSetCursorPosCallback(pd->handle, MouseCursorPosCallback); // Track mouse position changes
+        glfwSetScrollCallback(pd->handle, MouseScrollCallback);
+        glfwSetCursorEnterCallback(pd->handle, CursorEnterCallback);
         glfwSetJoystickCallback(JoystickCallback);
-        glfwSetInputMode(platform.handle, GLFW_LOCK_KEY_MODS, GLFW_TRUE); // Enable lock keys modifiers (CAPS, NUM)
+        glfwSetInputMode(pd->handle, GLFW_LOCK_KEY_MODS, GLFW_TRUE); // Enable lock keys modifiers (CAPS, NUM)
 #if defined(_WIN32)
     }
 #endif
@@ -5274,62 +5919,66 @@ _rlglfw_window_created:
 // Close platform
 void ClosePlatform(void)
 {
+    PlatformData *pd = RLGetPlatformDataRequired();
+    if (pd == NULL) return;
+
 #if defined(_WIN32)
     // Capture the handle value early (it may be nulled during destruction).
-    GLFWwindow *closingWindow = platform.handle;
+    GLFWwindow *closingWindow = pd->handle;
 #endif
 
     // Win32 event-thread mode: window must be destroyed on the Win32 message thread.
 #if defined(_WIN32)
-    if (platform.useEventThread)
+    if (pd->useEventThread)
     {
         // Mark closing early so callbacks stop posting non-critical tasks.
-        platform.closing = 1;
+        pd->closing = 1;
 
         // Closing the primary window implies a process-wide quit request.
-        if (RLGlfwIsPrimaryPlatform(&platform)) RLGlfwRequestGlobalQuit();
+        if (RLGlfwIsPrimaryPlatform(pd)) RLGlfwRequestGlobalQuit();
 
         // Wake behavior is configurable: default wakes only this window, but during shutdown
         // (or if RL_E_FLAG_WINDOW_BROADCAST_WAKE is set) we may broadcast to all windows.
-        RLGlfwSignalWakeByPolicy(&platform, true);
+        RLGlfwSignalWakeByPolicy(pd, true);
         // Detach GL context from the render thread.
-        if (glfwGetCurrentContext() == platform.handle) glfwMakeContextCurrent(NULL);
+        if (glfwGetCurrentContext() == pd->handle) glfwMakeContextCurrent(NULL);
 
         // Destroy the window on the message thread (synchronous).
-        if (platform.handle != NULL) RLGlfwRunOnEventThread(RLGlfwTask_DestroyWindow, NULL, true);
+        if ((pd->handle != NULL) && !RLGlfwRunOnEventThread(RLGlfwTask_DestroyWindow, NULL, true))
+            TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to destroy window on event thread during shutdown");
 
         // Stop and join the message thread.
-        platform.eventThreadStop = 1;
+        pd->eventThreadStop = 1;
         RLGlfwWakeEventThread();
-        if (platform.eventThreadHandle != NULL)
+        if (pd->eventThreadHandle != NULL)
         {
-            RLThreadJoin(platform.eventThreadHandle);
-            RLThreadDestroy(platform.eventThreadHandle);
-            platform.eventThreadHandle = NULL;
+            RLThreadJoin(pd->eventThreadHandle);
+            RLThreadDestroy(pd->eventThreadHandle);
+            pd->eventThreadHandle = NULL;
         }
 
         // Drain any pending render-thread tasks that were posted before the event thread stopped.
         // This prevents tasks from touching CORE/ctx after they are freed by higher-level teardown.
         RLGlfwDrainRenderThreadTasks();
         RLGlfwGlobalLock();
-        RLWin32CancelPendingInvokesLocked(&platform);
-        RLGlfwClearFrameCallbacksLocked(&platform);
+        RLWin32CancelPendingInvokesLocked(pd);
+        RLGlfwClearFrameCallbacksLocked(pd);
         RLGlfwGlobalUnlock();
 
         // Remove from the broadcast registry *before* destroying the wake events.
         // Otherwise another thread broadcasting a wake during shutdown could touch freed handles.
-        RLEvent *createdEvt = platform.createdEvent;
-        RLEvent *wakeEvt = platform.renderWakeEvent;
-        RLSemaphore *normalFrameCallbackSlotsSemaphore = platform.normalFrameCallbackSlotsAvailableSemaphore;
-        RLSemaphore *criticalFrameCallbackSlotsSemaphore = platform.criticalFrameCallbackSlotsAvailableSemaphore;
-        platform.createdEvent = NULL;
-        platform.renderWakeEvent = NULL;
-        platform.normalFrameCallbackSlotsAvailableSemaphore = NULL;
-        platform.criticalFrameCallbackSlotsAvailableSemaphore = NULL;
+        RLEvent *createdEvt = pd->createdEvent;
+        RLEvent *wakeEvt = pd->renderWakeEvent;
+        RLSemaphore *normalFrameCallbackSlotsSemaphore = pd->normalFrameCallbackSlotsAvailableSemaphore;
+        RLSemaphore *criticalFrameCallbackSlotsSemaphore = pd->criticalFrameCallbackSlotsAvailableSemaphore;
+        pd->createdEvent = NULL;
+        pd->renderWakeEvent = NULL;
+        pd->normalFrameCallbackSlotsAvailableSemaphore = NULL;
+        pd->criticalFrameCallbackSlotsAvailableSemaphore = NULL;
 
-        RLGlfwPlatformUnregister(&platform);
-        platform.eventThread = NULL;
-        platform.renderThread = NULL;
+        RLGlfwPlatformUnregister(pd);
+        pd->eventThread = NULL;
+        pd->renderThread = NULL;
 
         // Update global primary/window-count tracking after teardown.
         RLGlfwTrackWindowDestroyed(closingWindow, false);
@@ -5349,10 +5998,10 @@ void ClosePlatform(void)
 
 
         // Release global GLFW init refcount (only if we successfully acquired in InitPlatform).
-        if (platform.glfwAcquired)
+        if (pd->glfwAcquired)
         {
             RLGlfwGlobalRelease();
-            platform.glfwAcquired = false;
+            pd->glfwAcquired = false;
         }
 
 #if defined(_WIN32) && defined(SUPPORT_WINMM_HIGHRES_TIMER) && !defined(SUPPORT_BUSY_WAIT_LOOP)
@@ -5365,31 +6014,31 @@ void ClosePlatform(void)
     // Non event-thread path: serialize window destruction against other threads polling events
     // (glfwPollEvents/glfwWaitEvents are global and can race with glfwDestroyWindow).
     RLGlfwGlobalLock();
-    RLWin32CancelPendingInvokesLocked(&platform);
-    RLGlfwClearFrameCallbacksLocked(&platform);
+    RLWin32CancelPendingInvokesLocked(pd);
+    RLGlfwClearFrameCallbacksLocked(pd);
 
-    if (platform.handle)
+    if (pd->handle)
     {
-        if (glfwGetCurrentContext() == platform.handle) glfwMakeContextCurrent(NULL);
-        glfwDestroyWindow(platform.handle);
-        platform.handle = NULL;
+        if (glfwGetCurrentContext() == pd->handle) glfwMakeContextCurrent(NULL);
+        glfwDestroyWindow(pd->handle);
+        pd->handle = NULL;
     }
 
 #if defined(_WIN32)
     // Update global primary/window-count tracking while the global lock is held.
     RLGlfwTrackWindowDestroyed(closingWindow, true);
-    RLGlfwPlatformUnregister(&platform);
-    platform.win32Hwnd = NULL;
+    RLGlfwPlatformUnregister(pd);
+    pd->win32Hwnd = NULL;
 #endif
 
     RLGlfwGlobalUnlock();
 
 
     // Release global GLFW init refcount (only if we successfully acquired in InitPlatform).
-    if (platform.glfwAcquired)
+    if (pd->glfwAcquired)
     {
         RLGlfwGlobalRelease();
-        platform.glfwAcquired = false;
+        pd->glfwAcquired = false;
     }
 
 #if defined(_WIN32) && defined(SUPPORT_WINMM_HIGHRES_TIMER) && !defined(SUPPORT_BUSY_WAIT_LOOP)
@@ -5840,7 +6489,13 @@ static void WindowCloseCallback(GLFWwindow *window)
             }
             RL_DIAG_PAYLOAD_ALLOC(RL_DIAG_PAYLOAD_WINCLOSE, sizeof(RLGlfwWindowCloseEvent));
             closeEvent->shouldClose = 1;
-            RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowClose, closeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_CRITICAL, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER);
+            if (!RLGlfwRunOnRenderThread(ctx, RLGlfwTask_WindowClose, closeEvent, (unsigned char)GLFW_THREAD_TASK_CLASS_CRITICAL, false, RL_GLFW_RENDER_CALL_DROP_FREE_USER))
+            {
+                RL_DIAG_PAYLOAD_FREE(RL_DIAG_PAYLOAD_WINCLOSE, sizeof(RLGlfwWindowCloseEvent));
+                RL_FREE(closeEvent);
+                CORE.Window.shouldClose = true;
+                TRACELOG(RL_E_LOG_WARNING, "EVENTTHREAD: Failed to queue window-close task on render thread, falling back to local close state");
+            }
             RLGlfwSignalWakeByPolicy(pd, true);
             return;
         }
@@ -6054,7 +6709,12 @@ static void KeyCallback(GLFWwindow *window, int key, int scancode, int action, i
     }
 
     // Check the exit key to set close window
-    if ((key == CORE.Input.Keyboard.exitKey) && (action == GLFW_PRESS)) glfwSetWindowShouldClose(platform.handle, GLFW_TRUE);
+    if ((key == CORE.Input.Keyboard.exitKey) && (action == GLFW_PRESS))
+    {
+        PlatformData *pd = RLGetPlatformDataPtr();
+        if ((pd != NULL) && (pd->handle != NULL)) glfwSetWindowShouldClose(pd->handle, GLFW_TRUE);
+        else TRACELOG(RL_E_LOG_WARNING, "GLFW: PlatformData unavailable for exit-key close request");
+    }
 }
 
 // GLFW3: Char callback, runs on key pressed to get unicode codepoint value
@@ -6615,11 +7275,13 @@ static void RLGlfwTask_WindowFocus(void *user)
 static void RLGlfwTask_WindowRefresh(void *user)
 {
     (void)user;
+    PlatformData *pd = RLGetPlatformDataRequired();
+    if (pd == NULL) return;
     // In event-thread mode, this task must run on the render thread.
-    if (platform.useEventThread)
+    if (pd->useEventThread)
     {
-        RLGLFW_ASSERT(platform.renderThread != NULL);
-        RLGLFW_ASSERT(RLGlfwIsThread(platform.renderThread));
+        RLGLFW_ASSERT(pd->renderThread != NULL);
+        RLGLFW_ASSERT(RLGlfwIsThread(pd->renderThread));
     }
     RLGlfwInvokeUserWindowRefresh(false);
 }
@@ -6700,7 +7362,11 @@ static void RLGlfwTask_Key(void *user)
         CORE.Window.shouldClose = true;
 
 #if defined(_WIN32)
-        if (platform.useEventThread) RLGlfwRunOnEventThread(RLGlfwTask_SetWindowShouldCloseTrue, NULL, true);
+        {
+            PlatformData *pd = RLGetPlatformDataPtr();
+            if ((pd != NULL) && pd->useEventThread && !RLGlfwRunOnEventThread(RLGlfwTask_SetWindowShouldCloseTrue, NULL, true))
+                TRACELOG(RL_E_LOG_WARNING, "GLFW: Failed to signal window close on event thread");
+        }
 #endif
     }
 
@@ -6831,142 +7497,356 @@ static void RLGlfwTask_Joystick(void *user)
 static void RLGlfwTask_DestroyWindow(void *user)
 {
     (void)user;
-    if (platform.handle != NULL)
+    PlatformData *pd = RLGetPlatformDataRequired();
+    if (pd == NULL)
+    {
+        return;
+    }
+    if (pd->handle != NULL)
     {
         RLGlfwGlobalLock();
-        RLWin32CancelPendingInvokesLocked(&platform);
+        RLWin32CancelPendingInvokesLocked(pd);
         RLGlfwGlobalUnlock();
 
         // Disarm per-window callbacks first so no further render-thread tasks are enqueued.
-        glfwSetWindowUserPointer(platform.handle, NULL);
-        glfwSetWindowSizeCallback(platform.handle, NULL);
-        glfwSetFramebufferSizeCallback(platform.handle, NULL);
-        glfwSetWindowPosCallback(platform.handle, NULL);
-        glfwSetWindowMaximizeCallback(platform.handle, NULL);
-        glfwSetWindowIconifyCallback(platform.handle, NULL);
-        glfwSetWindowFocusCallback(platform.handle, NULL);
-        glfwSetWindowRefreshCallback(platform.handle, NULL);
-        glfwSetWindowCloseCallback(platform.handle, NULL);
-        glfwSetDropCallback(platform.handle, NULL);
-        glfwSetWindowContentScaleCallback(platform.handle, NULL);
-        glfwSetKeyCallback(platform.handle, NULL);
-        glfwSetCharCallback(platform.handle, NULL);
-        glfwSetMouseButtonCallback(platform.handle, NULL);
-        glfwSetCursorPosCallback(platform.handle, NULL);
-        glfwSetScrollCallback(platform.handle, NULL);
-        glfwSetCursorEnterCallback(platform.handle, NULL);
+        glfwSetWindowUserPointer(pd->handle, NULL);
+        glfwSetWindowSizeCallback(pd->handle, NULL);
+        glfwSetFramebufferSizeCallback(pd->handle, NULL);
+        glfwSetWindowPosCallback(pd->handle, NULL);
+        glfwSetWindowMaximizeCallback(pd->handle, NULL);
+        glfwSetWindowIconifyCallback(pd->handle, NULL);
+        glfwSetWindowFocusCallback(pd->handle, NULL);
+        glfwSetWindowRefreshCallback(pd->handle, NULL);
+        glfwSetWindowCloseCallback(pd->handle, NULL);
+        glfwSetDropCallback(pd->handle, NULL);
+        glfwSetWindowContentScaleCallback(pd->handle, NULL);
+        glfwSetKeyCallback(pd->handle, NULL);
+        glfwSetCharCallback(pd->handle, NULL);
+        glfwSetMouseButtonCallback(pd->handle, NULL);
+        glfwSetCursorPosCallback(pd->handle, NULL);
+        glfwSetScrollCallback(pd->handle, NULL);
+        glfwSetCursorEnterCallback(pd->handle, NULL);
 
-        glfwDestroyWindow(platform.handle);
-        platform.handle = NULL;
+        glfwDestroyWindow(pd->handle);
+        pd->handle = NULL;
     }
+    else TRACELOG(RL_E_LOG_WARNING, "GLFW: Destroy-window task skipped: window handle already null");
 
     // Make sure the render thread(s) unblock and can observe destruction/close.
-    RLGlfwSignalWakeByPolicy(&platform, true);
+    RLGlfwSignalWakeByPolicy(pd, true);
 }
 
 // Runs on event thread: mark GLFW close flag.
 static void RLGlfwTask_SetWindowShouldCloseTrue(void *user)
 {
     (void)user;
-    if (platform.handle != NULL) glfwSetWindowShouldClose(platform.handle, GLFW_TRUE);
+    PlatformData *pd = RLGetPlatformDataPtr();
+    if ((pd != NULL) && (pd->handle != NULL)) glfwSetWindowShouldClose(pd->handle, GLFW_TRUE);
 
     // Ensure the waiting render thread(s) can observe the close request.
-    RLGlfwSignalWakeByPolicy(&platform, true);
+    RLGlfwSignalWakeByPolicy(pd, true);
 }
 
 // Runs on event thread: window-affine operations used by thread-aware wrappers.
 static void RLGlfwTask_SetWindowPos(void *user)
 {
-    const int *xy = (const int *)user;
-    if ((platform.handle != NULL) && (xy != NULL)) glfwSetWindowPos(platform.handle, xy[0], xy[1]);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowPosTask *windowPosTask = (RLGlfwWindowPosTask *)user;
+    if (windowPosTask != NULL) windowPosTask->succeeded = 0;
+    if (windowPosTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-pos task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-pos task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowPos(pd->handle, windowPosTask->x, windowPosTask->y);
+    windowPosTask->succeeded = 1;
 }
 
 static void RLGlfwTask_SetWindowSize(void *user)
 {
-    const int *wh = (const int *)user;
-    if ((platform.handle != NULL) && (wh != NULL)) glfwSetWindowSize(platform.handle, wh[0], wh[1]);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowSizeTask *windowSizeTask = (RLGlfwWindowSizeTask *)user;
+    if (windowSizeTask != NULL) windowSizeTask->succeeded = 0;
+    if (windowSizeTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-size task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-size task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowSize(pd->handle, windowSizeTask->width, windowSizeTask->height);
+    windowSizeTask->succeeded = 1;
 }
 
 static void RLGlfwTask_SetWindowTitle(void *user)
 {
-    const char *title = (const char *)user;
-    if ((platform.handle != NULL) && (title != NULL)) glfwSetWindowTitle(platform.handle, title);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowTitleTask *windowTitleTask = (RLGlfwWindowTitleTask *)user;
+    if (windowTitleTask != NULL) windowTitleTask->succeeded = 0;
+    if ((windowTitleTask == NULL) || (windowTitleTask->title == NULL))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-title task payload is invalid");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-title task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowTitle(pd->handle, windowTitleTask->title);
+    windowTitleTask->succeeded = 1;
 }
 
 static void RLGlfwTask_SetWindowAttrib(void *user)
 {
-    const int *av = (const int *)user;
-    if ((platform.handle != NULL) && (av != NULL)) glfwSetWindowAttrib(platform.handle, av[0], av[1]);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowAttribTask *windowAttribTask = (RLGlfwWindowAttribTask *)user;
+    if (windowAttribTask != NULL) windowAttribTask->succeeded = 0;
+    if (windowAttribTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-attrib task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-attrib task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowAttrib(pd->handle, windowAttribTask->attrib, windowAttribTask->value);
+    windowAttribTask->succeeded = 1;
 }
 
 // Toggle GLFW refresh callback (thread-affine in Win32 event-thread mode)
 static void RLGlfwTask_SetWindowRefreshCallback(void *user)
 {
-    const int *enable = (const int *)user;
-    if ((platform.handle == NULL) || (enable == NULL)) return;
-    glfwSetWindowRefreshCallback(platform.handle, (*enable) ? WindowRefreshCallback : NULL);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowRefreshCallbackTask *refreshCallbackTask = (RLGlfwWindowRefreshCallbackTask *)user;
+    if (refreshCallbackTask != NULL) refreshCallbackTask->succeeded = 0;
+    if (refreshCallbackTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-refresh-callback task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-refresh-callback task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowRefreshCallback(pd->handle, refreshCallbackTask->enable ? WindowRefreshCallback : NULL);
+    refreshCallbackTask->succeeded = 1;
 }
 
 static void RLGlfwTask_SetWindowSizeLimits(void *user)
 {
-    const int *lim = (const int *)user;
-    if ((platform.handle != NULL) && (lim != NULL)) glfwSetWindowSizeLimits(platform.handle, lim[0], lim[1], lim[2], lim[3]);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowSizeLimitsTask *windowSizeLimitsTask = (RLGlfwWindowSizeLimitsTask *)user;
+    if (windowSizeLimitsTask != NULL) windowSizeLimitsTask->succeeded = 0;
+    if (windowSizeLimitsTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-size-limits task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-size-limits task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowSizeLimits(pd->handle, windowSizeLimitsTask->minWidth, windowSizeLimitsTask->minHeight, windowSizeLimitsTask->maxWidth, windowSizeLimitsTask->maxHeight);
+    windowSizeLimitsTask->succeeded = 1;
 }
 
 static void RLGlfwTask_SetWindowOpacity(void *user)
 {
-    const float *op = (const float *)user;
-    if ((platform.handle != NULL) && (op != NULL)) glfwSetWindowOpacity(platform.handle, *op);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowOpacityTask *windowOpacityTask = (RLGlfwWindowOpacityTask *)user;
+    if (windowOpacityTask != NULL) windowOpacityTask->succeeded = 0;
+    if (windowOpacityTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-opacity task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-opacity task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowOpacity(pd->handle, windowOpacityTask->opacity);
+    windowOpacityTask->succeeded = 1;
 }
 
 static void RLGlfwTask_SetWindowMonitor(void *user)
 {
-    const RLGlfwMonitorTask *t = (const RLGlfwMonitorTask *)user;
-    if ((platform.handle == NULL) || (t == NULL)) return;
-    glfwSetWindowMonitor(platform.handle, t->monitor, t->xpos, t->ypos, t->width, t->height, t->refreshRate);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwMonitorTask *monitorTask = (RLGlfwMonitorTask *)user;
+    if (monitorTask != NULL) monitorTask->succeeded = 0;
+    if (monitorTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-monitor task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-monitor task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowMonitor(pd->handle, monitorTask->monitor, monitorTask->xpos, monitorTask->ypos, monitorTask->width, monitorTask->height, monitorTask->refreshRate);
+    monitorTask->succeeded = 1;
 }
 
 static void RLGlfwTask_ShowWindow(void *user)
 {
-    (void)user;
-    if (platform.handle != NULL) glfwShowWindow(platform.handle);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowOpTask *showWindowTask = (RLGlfwWindowOpTask *)user;
+    if (showWindowTask != NULL) showWindowTask->succeeded = 0;
+    if (showWindowTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Show-window task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Show-window task skipped: window handle unavailable");
+        return;
+    }
+    glfwShowWindow(pd->handle);
+    showWindowTask->succeeded = 1;
 }
 
 static void RLGlfwTask_HideWindow(void *user)
 {
-    (void)user;
-    if (platform.handle != NULL) glfwHideWindow(platform.handle);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowOpTask *hideWindowTask = (RLGlfwWindowOpTask *)user;
+    if (hideWindowTask != NULL) hideWindowTask->succeeded = 0;
+    if (hideWindowTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Hide-window task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Hide-window task skipped: window handle unavailable");
+        return;
+    }
+    glfwHideWindow(pd->handle);
+    hideWindowTask->succeeded = 1;
 }
 
 static void RLGlfwTask_FocusWindow(void *user)
 {
-    (void)user;
-    if (platform.handle != NULL) glfwFocusWindow(platform.handle);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowOpTask *focusWindowTask = (RLGlfwWindowOpTask *)user;
+    if (focusWindowTask != NULL) focusWindowTask->succeeded = 0;
+    if (focusWindowTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Focus-window task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Focus-window task skipped: window handle unavailable");
+        return;
+    }
+    glfwFocusWindow(pd->handle);
+    focusWindowTask->succeeded = 1;
 }
 
 static void RLGlfwTask_IconifyWindow(void *user)
 {
-    (void)user;
-    if (platform.handle != NULL) glfwIconifyWindow(platform.handle);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowOpTask *iconifyWindowTask = (RLGlfwWindowOpTask *)user;
+    if (iconifyWindowTask != NULL) iconifyWindowTask->succeeded = 0;
+    if (iconifyWindowTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Iconify-window task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Iconify-window task skipped: window handle unavailable");
+        return;
+    }
+    glfwIconifyWindow(pd->handle);
+    iconifyWindowTask->succeeded = 1;
 }
 
 static void RLGlfwTask_MaximizeWindow(void *user)
 {
-    (void)user;
-    if (platform.handle != NULL) glfwMaximizeWindow(platform.handle);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowOpTask *maximizeWindowTask = (RLGlfwWindowOpTask *)user;
+    if (maximizeWindowTask != NULL) maximizeWindowTask->succeeded = 0;
+    if (maximizeWindowTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Maximize-window task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Maximize-window task skipped: window handle unavailable");
+        return;
+    }
+    glfwMaximizeWindow(pd->handle);
+    maximizeWindowTask->succeeded = 1;
 }
 
 static void RLGlfwTask_RestoreWindow(void *user)
 {
-    (void)user;
-    if (platform.handle != NULL) glfwRestoreWindow(platform.handle);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwWindowOpTask *restoreWindowTask = (RLGlfwWindowOpTask *)user;
+    if (restoreWindowTask != NULL) restoreWindowTask->succeeded = 0;
+    if (restoreWindowTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Restore-window task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Restore-window task skipped: window handle unavailable");
+        return;
+    }
+    glfwRestoreWindow(pd->handle);
+    restoreWindowTask->succeeded = 1;
 }
 
 static void RLGlfwTask_SetWindowIcon(void *user)
 {
-    const RLGlfwIconTask *t = (const RLGlfwIconTask *)user;
-    if ((platform.handle == NULL) || (t == NULL)) return;
-    glfwSetWindowIcon(platform.handle, t->count, t->icons);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    RLGlfwIconTask *iconTask = (RLGlfwIconTask *)user;
+    if (iconTask != NULL) iconTask->succeeded = 0;
+    if (iconTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-icon task payload is null");
+        return;
+    }
+    if (pd == NULL) return;
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-window-icon task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetWindowIcon(pd->handle, iconTask->count, iconTask->icons);
+    iconTask->succeeded = 1;
 }
 
 static void RLGlfwTask_QueryMonitorCount(void *user)
@@ -6986,7 +7866,7 @@ static void RLGlfwTask_QueryMonitorInfo(void *user)
     int monitorCount = 0;
     GLFWmonitor **monitors = glfwGetMonitors(&monitorCount);
     out->monitorCount = monitorCount;
-    out->ok = 0;
+    out->isValid = 0;
     out->monitor = NULL;
     out->name = "";
 
@@ -7015,26 +7895,39 @@ static void RLGlfwTask_QueryMonitorInfo(void *user)
             out->refresh = mode->refreshRate;
         }
 
-        out->ok = 1;
+        out->isValid = 1;
     }
 }
 
 static void RLGlfwTask_QueryCurrentMonitorIndex(void *user)
 {
+    PlatformData *pd = RLGetPlatformDataRequired();
     int *outIndex = (int *)user;
-    if (outIndex == NULL) return;
+    if (outIndex == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Query-current-monitor-index task payload is null");
+        return;
+    }
 
     int index = 0;
     int monitorCount = 0;
     GLFWmonitor **monitors = glfwGetMonitors(&monitorCount);
-    if ((monitors == NULL) || (monitorCount <= 0) || (platform.handle == NULL))
+    if ((monitors == NULL) || (monitorCount <= 0))
     {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Query-current-monitor-index task failed: no monitors available");
+        *outIndex = 0;
+        return;
+    }
+    if (pd == NULL) { *outIndex = 0; return; }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Query-current-monitor-index task failed: window handle unavailable");
         *outIndex = 0;
         return;
     }
 
     // If fullscreen, match window monitor.
-    GLFWmonitor *wm = glfwGetWindowMonitor(platform.handle);
+    GLFWmonitor *wm = glfwGetWindowMonitor(pd->handle);
     if (wm != NULL)
     {
         for (int i = 0; i < monitorCount; i++)
@@ -7047,8 +7940,8 @@ static void RLGlfwTask_QueryCurrentMonitorIndex(void *user)
 
     // Window center position.
     int wx = 0, wy = 0, ww = 0, wh = 0;
-    glfwGetWindowPos(platform.handle, &wx, &wy);
-    glfwGetWindowSize(platform.handle, &ww, &wh);
+    glfwGetWindowPos(pd->handle, &wx, &wy);
+    glfwGetWindowSize(pd->handle, &ww, &wh);
     const int wcx = wx + (ww/2);
     const int wcy = wy + (wh/2);
 
@@ -7083,24 +7976,67 @@ static void RLGlfwTask_QueryCurrentMonitorIndex(void *user)
 
 static void RLGlfwTask_SetClipboardText(void *user)
 {
+    PlatformData *pd = RLGetPlatformDataPtr();
     const char *text = (const char *)user;
-    if (platform.handle != NULL) glfwSetClipboardString(platform.handle, (text != NULL)? text : "");
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-clipboard-text task skipped: PlatformData unavailable");
+        return;
+    }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Set-clipboard-text task skipped: window handle unavailable");
+        return;
+    }
+    glfwSetClipboardString(pd->handle, (text != NULL)? text : "");
 }
 
 static void RLGlfwTask_GetClipboardText(void *user)
 {
-    RLGlfwClipboardGetTask *t = (RLGlfwClipboardGetTask *)user;
-    if (t == NULL) return;
-    t->out = (platform.handle != NULL)? glfwGetClipboardString(platform.handle) : NULL;
+    PlatformData *pd = RLGetPlatformDataPtr();
+    RLGlfwClipboardGetTask *clipboardTask = (RLGlfwClipboardGetTask *)user;
+    if (clipboardTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Get-clipboard-text task payload is null");
+        return;
+    }
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Get-clipboard-text task failed: PlatformData unavailable");
+        clipboardTask->out = NULL;
+        return;
+    }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Get-clipboard-text task failed: window handle unavailable");
+        clipboardTask->out = NULL;
+        return;
+    }
+    clipboardTask->out = glfwGetClipboardString(pd->handle);
 }
 
 static void RLGlfwTask_GetWindowContentScale(void *user)
 {
-    RLGlfwContentScaleTask *t = (RLGlfwContentScaleTask *)user;
-    if (t == NULL) return;
-    t->x = 1.0f;
-    t->y = 1.0f;
-    if (platform.handle != NULL) glfwGetWindowContentScale(platform.handle, &t->x, &t->y);
+    PlatformData *pd = RLGetPlatformDataPtr();
+    RLGlfwContentScaleTask *contentScaleTask = (RLGlfwContentScaleTask *)user;
+    if (contentScaleTask == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Get-window-content-scale task payload is null");
+        return;
+    }
+    contentScaleTask->x = 1.0f;
+    contentScaleTask->y = 1.0f;
+    if (pd == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Get-window-content-scale task falling back to 1.0: PlatformData unavailable");
+        return;
+    }
+    if (pd->handle == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "GLFW: Get-window-content-scale task falling back to 1.0: window handle unavailable");
+        return;
+    }
+    glfwGetWindowContentScale(pd->handle, &contentScaleTask->x, &contentScaleTask->y);
 }
 
 // Win32 message thread entry for event-thread mode.
@@ -7112,9 +8048,11 @@ static void RLGlfwEventThreadMain(void *p)
     if (ctx == NULL) return;
 
     RLSetCurrentContext(ctx);
+    PlatformData *pd = RLGetPlatformDataRequired();
+    if (pd == NULL) return;
 
     // Capture GLFW thread handle for this message thread.
-    platform.eventThread = glfwGetCurrentThread();
+    pd->eventThread = glfwGetCurrentThread();
 
     // Create window on the Win32 message thread.
     GLFWmonitor *monitor = NULL;
@@ -7144,7 +8082,7 @@ static void RLGlfwEventThreadMain(void *p)
     if (!RLGlfwHasResolvedRequiredShareWindow(ctx, shareWindow))
     {
         TRACELOG(RL_E_LOG_WARNING, "GLFW: event-thread window creation failed: explicit share target is unavailable");
-        if (platform.createdEvent != NULL) RLEventSignal(platform.createdEvent);
+        if (pd->createdEvent != NULL) RLEventSignal(pd->createdEvent);
         RLGlfwWakeRenderThread();
         return;
     }
@@ -7163,9 +8101,31 @@ static void RLGlfwEventThreadMain(void *p)
     if ((sharePd != NULL) && (sharePd->renderThread != NULL) && (sharePd->renderThread != glfwGetCurrentThread()))
     {
         shareBarrier = (RLGlfwShareCreateBarrier *)RL_CALLOC(1, sizeof(RLGlfwShareCreateBarrier));
+        if (shareBarrier == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "GLFW/WGL: Failed to allocate shared-context release barrier");
+            if (pd->createdEvent != NULL) RLEventSignal(pd->createdEvent);
+            RLGlfwWakeRenderThread();
+            return;
+        }
+
         shareBarrier->evtReleased = RLEventCreate(false);
         shareBarrier->evtResume = RLEventCreate(false);
         shareBarrier->evtDone = RLEventCreate(false);
+
+        if ((shareBarrier->evtReleased == NULL) ||
+            (shareBarrier->evtResume == NULL) ||
+            (shareBarrier->evtDone == NULL))
+        {
+            if (shareBarrier->evtReleased != NULL) RLEventDestroy(shareBarrier->evtReleased);
+            if (shareBarrier->evtResume != NULL) RLEventDestroy(shareBarrier->evtResume);
+            if (shareBarrier->evtDone != NULL) RLEventDestroy(shareBarrier->evtDone);
+            RL_FREE(shareBarrier);
+            TRACELOG(RL_E_LOG_WARNING, "GLFW/WGL: Failed to initialize shared-context release barrier");
+            if (pd->createdEvent != NULL) RLEventSignal(pd->createdEvent);
+            RLGlfwWakeRenderThread();
+            return;
+        }
 
         if (!RLGlfwPostTaskToThread(sharePd->renderThread, RLGlfwTask_HoldNoCurrentContext, shareBarrier, (unsigned char)GLFW_THREAD_TASK_CLASS_MAINTENANCE, false, NULL))
         {
@@ -7173,10 +8133,12 @@ static void RLGlfwEventThreadMain(void *p)
             RLEventDestroy(shareBarrier->evtResume);
             RLEventDestroy(shareBarrier->evtDone);
             RL_FREE(shareBarrier);
-            shareBarrier = NULL;
             TRACELOG(RL_E_LOG_WARNING, "GLFW/WGL: Failed to enqueue shared-context release barrier");
+            if (pd->createdEvent != NULL) RLEventSignal(pd->createdEvent);
+            RLGlfwWakeRenderThread();
+            return;
         }
-        if (shareBarrier != NULL) RLGlfwSignalOneRenderWake(sharePd);
+        RLGlfwSignalOneRenderWake(sharePd);
 
         // Wait until the shared context thread cleared its current context.
         // Use a bounded wait to avoid deadlocks in broken user setups.
@@ -7197,7 +8159,7 @@ static void RLGlfwEventThreadMain(void *p)
     }
 #endif
 
-    platform.handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, CORE.Window.title, monitor, shareWindow);
+    pd->handle = glfwCreateWindow(CORE.Window.screen.width, CORE.Window.screen.height, CORE.Window.title, monitor, shareWindow);
 
 #if defined(_WIN32)
     if (shareBarrier != NULL)
@@ -7213,48 +8175,48 @@ static void RLGlfwEventThreadMain(void *p)
     }
 #endif
 
-    if (platform.handle != NULL)
+    if (pd->handle != NULL)
     {
-        glfwSetWindowUserPointer(platform.handle, ctx);
+        glfwSetWindowUserPointer(pd->handle, ctx);
 
         // Cache HWND for cross-thread management APIs.
-        platform.win32Hwnd = (HWND)glfwGetWin32Window(platform.handle);
+        pd->win32Hwnd = (HWND)glfwGetWin32Window(pd->handle);
 
         // Register callbacks on the message thread.
-        glfwSetWindowSizeCallback(platform.handle, WindowSizeCallback);
-        glfwSetFramebufferSizeCallback(platform.handle, FramebufferSizeCallback);
-        glfwSetWindowPosCallback(platform.handle, WindowPosCallback);
-        glfwSetWindowMaximizeCallback(platform.handle, WindowMaximizeCallback);
+        glfwSetWindowSizeCallback(pd->handle, WindowSizeCallback);
+        glfwSetFramebufferSizeCallback(pd->handle, FramebufferSizeCallback);
+        glfwSetWindowPosCallback(pd->handle, WindowPosCallback);
+        glfwSetWindowMaximizeCallback(pd->handle, WindowMaximizeCallback);
         // In event-thread mode, the window refresh callback is optional and controlled by
         // FLAG_WINDOW_REFRESH_CALLBACK. When disabled, we still keep the event-thread mode
         // semantics (render thread runs normally) without injecting user refresh draws.
         if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_REFRESH_CALLBACK))
-            glfwSetWindowRefreshCallback(platform.handle, WindowRefreshCallback);
-        glfwSetWindowCloseCallback(platform.handle, WindowCloseCallback);
-        glfwSetWindowIconifyCallback(platform.handle, WindowIconifyCallback);
-        glfwSetWindowFocusCallback(platform.handle, WindowFocusCallback);
-        glfwSetDropCallback(platform.handle, WindowDropCallback);
-        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI)) glfwSetWindowContentScaleCallback(platform.handle, WindowContentScaleCallback);
+            glfwSetWindowRefreshCallback(pd->handle, WindowRefreshCallback);
+        glfwSetWindowCloseCallback(pd->handle, WindowCloseCallback);
+        glfwSetWindowIconifyCallback(pd->handle, WindowIconifyCallback);
+        glfwSetWindowFocusCallback(pd->handle, WindowFocusCallback);
+        glfwSetDropCallback(pd->handle, WindowDropCallback);
+        if (FLAG_IS_SET(CORE.Window.flags, RL_E_FLAG_WINDOW_HIGHDPI)) glfwSetWindowContentScaleCallback(pd->handle, WindowContentScaleCallback);
 
-        glfwSetKeyCallback(platform.handle, KeyCallback);
-        glfwSetCharCallback(platform.handle, CharCallback);
-        glfwSetMouseButtonCallback(platform.handle, MouseButtonCallback);
-        glfwSetCursorPosCallback(platform.handle, MouseCursorPosCallback);
-        glfwSetScrollCallback(platform.handle, MouseScrollCallback);
-        glfwSetCursorEnterCallback(platform.handle, CursorEnterCallback);
+        glfwSetKeyCallback(pd->handle, KeyCallback);
+        glfwSetCharCallback(pd->handle, CharCallback);
+        glfwSetMouseButtonCallback(pd->handle, MouseButtonCallback);
+        glfwSetCursorPosCallback(pd->handle, MouseCursorPosCallback);
+        glfwSetScrollCallback(pd->handle, MouseScrollCallback);
+        glfwSetCursorEnterCallback(pd->handle, CursorEnterCallback);
         glfwSetJoystickCallback(JoystickCallback);
-        glfwSetInputMode(platform.handle, GLFW_LOCK_KEY_MODS, GLFW_TRUE);
+        glfwSetInputMode(pd->handle, GLFW_LOCK_KEY_MODS, GLFW_TRUE);
     }
 
     // Wake render thread waiting for window creation.
-    if (platform.createdEvent != NULL) RLEventSignal(platform.createdEvent);
+    if (pd->createdEvent != NULL) RLEventSignal(pd->createdEvent);
     RLGlfwWakeRenderThread();
 
     // If creation failed, nothing else to do.
-    if (platform.handle == NULL) return;
+    if (pd->handle == NULL) return;
 
     // Main message loop: wait + pump posted tasks. Use a small timeout to ensure tasks drain.
-    while (!platform.eventThreadStop)
+    while (!pd->eventThreadStop)
     {
         glfwWaitEventsTimeout(0.05);
         RLGlfwPumpThreadTasksWithDiag();

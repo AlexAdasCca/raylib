@@ -367,11 +367,14 @@ RLImage RLLoadImageRaw(const char *fileName, int width, int height, int format, 
             if ((headerSize > 0) && ((headerSize + size) <= dataSize)) dataPtr += headerSize;
 
             image.data = RL_MALLOC(size);      // Allocate required memory in bytes
-            memcpy(image.data, dataPtr, size); // Copy required data to image
-            image.width = width;
-            image.height = height;
-            image.mipmaps = 1;
-            image.format = format;
+            if (image.data != NULL)
+            {
+                memcpy(image.data, dataPtr, size); // Copy required data to image
+                image.width = width;
+                image.height = height;
+                image.mipmaps = 1;
+                image.format = format;
+            }
         }
 
         RLUnloadFileData(fileData);
@@ -852,6 +855,7 @@ bool RLExportImageAsCode(RLImage image, const char *fileName)
 RLImage RLGenImageColor(int width, int height, RLColor color)
 {
     RLColor *pixels = (RLColor *)RL_CALLOC(width*height, sizeof(RLColor));
+    if (pixels == NULL) return (RLImage){ 0 };
 
     for (int i = 0; i < width*height; i++) pixels[i] = color;
 
@@ -874,6 +878,7 @@ RLImage RLGenImageColor(int width, int height, RLColor color)
 RLImage RLGenImageGradientLinear(int width, int height, int direction, RLColor start, RLColor end)
 {
     RLColor *pixels = (RLColor *)RL_MALLOC(width*height*sizeof(RLColor));
+    if (pixels == NULL) return (RLImage){ 0 };
 
     float radianDirection = (float)(90 - direction)/180.f*3.14159f;
     float cosDir = cosf(radianDirection);
@@ -922,6 +927,7 @@ RLImage RLGenImageGradientLinear(int width, int height, int direction, RLColor s
 RLImage RLGenImageGradientRadial(int width, int height, float density, RLColor inner, RLColor outer)
 {
     RLColor *pixels = (RLColor *)RL_MALLOC(width*height*sizeof(RLColor));
+    if (pixels == NULL) return (RLImage){ 0 };
     float radius = (width < height)? (float)width/2.0f : (float)height/2.0f;
 
     float centerX = (float)width/2.0f;
@@ -959,6 +965,7 @@ RLImage RLGenImageGradientRadial(int width, int height, float density, RLColor i
 RLImage RLGenImageGradientSquare(int width, int height, float density, RLColor inner, RLColor outer)
 {
     RLColor *pixels = (RLColor *)RL_MALLOC(width*height*sizeof(RLColor));
+    if (pixels == NULL) return (RLImage){ 0 };
 
     float centerX = (float)width/2.0f;
     float centerY = (float)height/2.0f;
@@ -1008,6 +1015,7 @@ RLImage RLGenImageGradientSquare(int width, int height, float density, RLColor i
 RLImage RLGenImageChecked(int width, int height, int checksX, int checksY, RLColor col1, RLColor col2)
 {
     RLColor *pixels = (RLColor *)RL_MALLOC(width*height*sizeof(RLColor));
+    if (pixels == NULL) return (RLImage){ 0 };
 
     for (int y = 0; y < height; y++)
     {
@@ -1034,6 +1042,7 @@ RLImage RLGenImageChecked(int width, int height, int checksX, int checksY, RLCol
 RLImage RLGenImageWhiteNoise(int width, int height, float factor)
 {
     RLColor *pixels = (RLColor *)RL_MALLOC(width*height*sizeof(RLColor));
+    if (pixels == NULL) return (RLImage){ 0 };
 
     for (int i = 0; i < width*height; i++)
     {
@@ -1056,6 +1065,7 @@ RLImage RLGenImageWhiteNoise(int width, int height, float factor)
 RLImage RLGenImagePerlinNoise(int width, int height, int offsetX, int offsetY, float scale)
 {
     RLColor *pixels = (RLColor *)RL_MALLOC(width*height*sizeof(RLColor));
+    if (pixels == NULL) return (RLImage){ 0 };
 
     float aspectRatio = (float)width/(float)height;
 
@@ -1107,12 +1117,18 @@ RLImage RLGenImagePerlinNoise(int width, int height, int offsetX, int offsetY, f
 RLImage RLGenImageCellular(int width, int height, int tileSize)
 {
     RLColor *pixels = (RLColor *)RL_MALLOC(width*height*sizeof(RLColor));
+    if (pixels == NULL) return (RLImage){ 0 };
 
     int seedsPerRow = width/tileSize;
     int seedsPerCol = height/tileSize;
     int seedCount = seedsPerRow*seedsPerCol;
 
     RLVector2 *seeds = (RLVector2 *)RL_MALLOC(seedCount*sizeof(RLVector2));
+    if (seeds == NULL)
+    {
+        RL_FREE(pixels);
+        return (RLImage){ 0 };
+    }
 
     for (int i = 0; i < seedCount; i++)
     {
@@ -1181,7 +1197,7 @@ RLImage RLGenImageText(int width, int height, const char *text)
     image.data = RL_CALLOC(imageSize, 1);
     image.mipmaps = 1;
 
-    if (text != NULL)
+    if ((image.data != NULL) && (text != NULL))
     {
         int textLength = (int)strlen(text);
         memcpy(image.data, text, (textLength > imageSize)? imageSize : textLength);
@@ -1244,7 +1260,7 @@ RLImage RLImageFromImage(RLImage image, RLRectangle rec)
     result.format = image.format;
     result.mipmaps = 1;
 
-    for (int y = 0; y < (int)rec.height; y++)
+    for (int y = 0; (result.data != NULL) && (y < (int)rec.height); y++)
     {
         memcpy(((unsigned char *)result.data) + y*(int)rec.width*bytesPerPixel, ((unsigned char *)image.data) + ((y + (int)rec.y)*image.width + (int)rec.x)*bytesPerPixel, (int)rec.width*bytesPerPixel);
     }
@@ -1277,6 +1293,11 @@ void RLImageCrop(RLImage *image, RLRectangle crop)
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
 
         unsigned char *croppedData = (unsigned char *)RL_MALLOC((int)(crop.width*crop.height)*bytesPerPixel);
+        if (croppedData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate crop buffer");
+            return;
+        }
 
         // OPTION 1: Move cropped data line-by-line
         for (int y = (int)crop.y, offsetSize = 0; y < (int)(crop.y + crop.height); y++)
@@ -1304,6 +1325,343 @@ void RLImageCrop(RLImage *image, RLRectangle crop)
     }
 }
 
+static bool RLImageIsUncompressedFormat(int format)
+{
+    return ((format > 0) && (format < RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB));
+}
+
+static void RLImageCommitReplacement(RLImage *dst, RLImage *replacement)
+{
+    if ((dst == NULL) || (replacement == NULL)) return;
+
+    RL_FREE(dst->data);
+    *dst = *replacement;
+    replacement->data = NULL;
+}
+
+static void RLImageDiscardReplacement(RLImage *replacement)
+{
+    if (replacement == NULL) return;
+
+    RL_FREE(replacement->data);
+    replacement->data = NULL;
+    replacement->width = 0;
+    replacement->height = 0;
+    replacement->mipmaps = 0;
+    replacement->format = 0;
+}
+
+static void RLImageResetToBaseLevel(RLImage *image)
+{
+    if (image == NULL) return;
+
+    image->mipmaps = 1;
+}
+
+static int RLImageGetRequiredMipCount(int width, int height)
+{
+    int mipCount = 1;
+    int mipWidth = width;
+    int mipHeight = height;
+
+    while ((mipWidth != 1) || (mipHeight != 1))
+    {
+        if (mipWidth != 1) mipWidth /= 2;
+        if (mipHeight != 1) mipHeight /= 2;
+        if (mipWidth < 1) mipWidth = 1;
+        if (mipHeight < 1) mipHeight = 1;
+        mipCount++;
+    }
+
+    return mipCount;
+}
+
+static bool RLImageRegenerateMipmapsIfNeeded(RLImage *image, int originalMipmaps)
+{
+    if (image == NULL) return false;
+
+    RLImageResetToBaseLevel(image);
+
+#if defined(SUPPORT_IMAGE_MANIPULATION)
+    if (originalMipmaps > 1)
+    {
+        const int requiredMipmaps = RLImageGetRequiredMipCount(image->width, image->height);
+        RLImageMipmaps(image);
+        return (image->mipmaps == requiredMipmaps);
+    }
+#else
+    (void)originalMipmaps;
+#endif
+
+    return true;
+}
+
+static bool RLImageCommitReplacementPreservingMipmaps(RLImage *image, RLImage *replacement, int originalMipmaps)
+{
+    if ((image == NULL) || (replacement == NULL) || (replacement->data == NULL)) return false;
+
+    if (!RLImageRegenerateMipmapsIfNeeded(replacement, originalMipmaps))
+    {
+        RLImageDiscardReplacement(replacement);
+        return false;
+    }
+
+    RLImageCommitReplacement(image, replacement);
+    return true;
+}
+
+static bool RLImageTryConvertToFormat(const RLImage *src, int newFormat, RLImage *outImage)
+{
+    if ((src == NULL) || (outImage == NULL) || (src->data == NULL) || (src->width == 0) || (src->height == 0)) return false;
+    if (!RLImageIsUncompressedFormat(src->format) || !RLImageIsUncompressedFormat(newFormat)) return false;
+
+    RLImage result = { 0 };
+    result.width = src->width;
+    result.height = src->height;
+    result.mipmaps = 1;
+    result.format = newFormat;
+
+    if (src->format == newFormat)
+    {
+        const int baseDataSize = RLGetPixelDataSize(src->width, src->height, src->format);
+        result.data = RL_MALLOC(baseDataSize);
+        if (result.data == NULL) return false;
+        memcpy(result.data, src->data, baseDataSize);
+        *outImage = result;
+        return true;
+    }
+
+    RLVector4 *pixels = LoadImageDataNormalized(*src);     // Supports 8 to 32 bit per channel
+    if (pixels == NULL) return false;
+
+    switch (newFormat)
+    {
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+        {
+            result.data = (unsigned char *)RL_MALLOC(src->width*src->height*sizeof(unsigned char));
+            if (result.data == NULL) break;
+
+            for (int i = 0; i < src->width*src->height; i++)
+            {
+                ((unsigned char *)result.data)[i] = (unsigned char)((pixels[i].x*0.299f + pixels[i].y*0.587f + pixels[i].z*0.114f)*255.0f);
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+        {
+            result.data = (unsigned char *)RL_MALLOC(src->width*src->height*2*sizeof(unsigned char));
+            if (result.data == NULL) break;
+
+            for (int i = 0, k = 0; i < src->width*src->height*2; i += 2, k++)
+            {
+                ((unsigned char *)result.data)[i] = (unsigned char)((pixels[k].x*0.299f + (float)pixels[k].y*0.587f + (float)pixels[k].z*0.114f)*255.0f);
+                ((unsigned char *)result.data)[i + 1] = (unsigned char)(pixels[k].w*255.0f);
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+        {
+            result.data = (unsigned short *)RL_MALLOC(src->width*src->height*sizeof(unsigned short));
+            if (result.data == NULL) break;
+
+            unsigned char r = 0;
+            unsigned char g = 0;
+            unsigned char b = 0;
+
+            for (int i = 0; i < src->width*src->height; i++)
+            {
+                r = (unsigned char)(round(pixels[i].x*31.0f));
+                g = (unsigned char)(round(pixels[i].y*63.0f));
+                b = (unsigned char)(round(pixels[i].z*31.0f));
+
+                ((unsigned short *)result.data)[i] = (unsigned short)r << 11 | (unsigned short)g << 5 | (unsigned short)b;
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+        {
+            result.data = (unsigned char *)RL_MALLOC(src->width*src->height*3*sizeof(unsigned char));
+            if (result.data == NULL) break;
+
+            for (int i = 0, k = 0; i < src->width*src->height*3; i += 3, k++)
+            {
+                ((unsigned char *)result.data)[i] = (unsigned char)(pixels[k].x*255.0f);
+                ((unsigned char *)result.data)[i + 1] = (unsigned char)(pixels[k].y*255.0f);
+                ((unsigned char *)result.data)[i + 2] = (unsigned char)(pixels[k].z*255.0f);
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+        {
+            result.data = (unsigned short *)RL_MALLOC(src->width*src->height*sizeof(unsigned short));
+            if (result.data == NULL) break;
+
+            unsigned char r = 0;
+            unsigned char g = 0;
+            unsigned char b = 0;
+            unsigned char a = 0;
+
+            for (int i = 0; i < src->width*src->height; i++)
+            {
+                r = (unsigned char)(round(pixels[i].x*31.0f));
+                g = (unsigned char)(round(pixels[i].y*31.0f));
+                b = (unsigned char)(round(pixels[i].z*31.0f));
+                a = (pixels[i].w > ((float)PIXELFORMAT_UNCOMPRESSED_R5G5B5A1_ALPHA_THRESHOLD/255.0f))? 1 : 0;
+
+                ((unsigned short *)result.data)[i] = (unsigned short)r << 11 | (unsigned short)g << 6 | (unsigned short)b << 1 | (unsigned short)a;
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+        {
+            result.data = (unsigned short *)RL_MALLOC(src->width*src->height*sizeof(unsigned short));
+            if (result.data == NULL) break;
+
+            unsigned char r = 0;
+            unsigned char g = 0;
+            unsigned char b = 0;
+            unsigned char a = 0;
+
+            for (int i = 0; i < src->width*src->height; i++)
+            {
+                r = (unsigned char)(round(pixels[i].x*15.0f));
+                g = (unsigned char)(round(pixels[i].y*15.0f));
+                b = (unsigned char)(round(pixels[i].z*15.0f));
+                a = (unsigned char)(round(pixels[i].w*15.0f));
+
+                ((unsigned short *)result.data)[i] = (unsigned short)r << 12 | (unsigned short)g << 8 | (unsigned short)b << 4 | (unsigned short)a;
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+        {
+            result.data = (unsigned char *)RL_MALLOC(src->width*src->height*4*sizeof(unsigned char));
+            if (result.data == NULL) break;
+
+            for (int i = 0, k = 0; i < src->width*src->height*4; i += 4, k++)
+            {
+                ((unsigned char *)result.data)[i] = (unsigned char)(pixels[k].x*255.0f);
+                ((unsigned char *)result.data)[i + 1] = (unsigned char)(pixels[k].y*255.0f);
+                ((unsigned char *)result.data)[i + 2] = (unsigned char)(pixels[k].z*255.0f);
+                ((unsigned char *)result.data)[i + 3] = (unsigned char)(pixels[k].w*255.0f);
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
+        {
+            result.data = (float *)RL_MALLOC(src->width*src->height*sizeof(float));
+            if (result.data == NULL) break;
+
+            for (int i = 0; i < src->width*src->height; i++)
+            {
+                ((float *)result.data)[i] = (float)(pixels[i].x*0.299f + pixels[i].y*0.587f + pixels[i].z*0.114f);
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+        {
+            result.data = (float *)RL_MALLOC(src->width*src->height*3*sizeof(float));
+            if (result.data == NULL) break;
+
+            for (int i = 0, k = 0; i < src->width*src->height*3; i += 3, k++)
+            {
+                ((float *)result.data)[i] = pixels[k].x;
+                ((float *)result.data)[i + 1] = pixels[k].y;
+                ((float *)result.data)[i + 2] = pixels[k].z;
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+        {
+            result.data = (float *)RL_MALLOC(src->width*src->height*4*sizeof(float));
+            if (result.data == NULL) break;
+
+            for (int i = 0, k = 0; i < src->width*src->height*4; i += 4, k++)
+            {
+                ((float *)result.data)[i] = pixels[k].x;
+                ((float *)result.data)[i + 1] = pixels[k].y;
+                ((float *)result.data)[i + 2] = pixels[k].z;
+                ((float *)result.data)[i + 3] = pixels[k].w;
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
+        {
+            result.data = (unsigned short *)RL_MALLOC(src->width*src->height*sizeof(unsigned short));
+            if (result.data == NULL) break;
+
+            for (int i = 0; i < src->width*src->height; i++)
+            {
+                ((unsigned short *)result.data)[i] = FloatToHalf((float)(pixels[i].x*0.299f + pixels[i].y*0.587f + pixels[i].z*0.114f));
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
+        {
+            result.data = (unsigned short *)RL_MALLOC(src->width*src->height*3*sizeof(unsigned short));
+            if (result.data == NULL) break;
+
+            for (int i = 0, k = 0; i < src->width*src->height*3; i += 3, k++)
+            {
+                ((unsigned short *)result.data)[i] = FloatToHalf(pixels[k].x);
+                ((unsigned short *)result.data)[i + 1] = FloatToHalf(pixels[k].y);
+                ((unsigned short *)result.data)[i + 2] = FloatToHalf(pixels[k].z);
+            }
+        } break;
+        case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
+        {
+            result.data = (unsigned short *)RL_MALLOC(src->width*src->height*4*sizeof(unsigned short));
+            if (result.data == NULL) break;
+
+            for (int i = 0, k = 0; i < src->width*src->height*4; i += 4, k++)
+            {
+                ((unsigned short *)result.data)[i] = FloatToHalf(pixels[k].x);
+                ((unsigned short *)result.data)[i + 1] = FloatToHalf(pixels[k].y);
+                ((unsigned short *)result.data)[i + 2] = FloatToHalf(pixels[k].z);
+                ((unsigned short *)result.data)[i + 3] = FloatToHalf(pixels[k].w);
+            }
+        } break;
+        default: break;
+    }
+
+    RL_FREE(pixels);
+
+    if (result.data == NULL) return false;
+
+    *outImage = result;
+    return true;
+}
+
+static bool RLImageBuildReplacementFromRgbaBase(void *rgbaData, int width, int height, int desiredFormat, RLImage *outReplacement)
+{
+    if (outReplacement != NULL) *outReplacement = (RLImage){ 0 };
+    if ((rgbaData == NULL) || (width <= 0) || (height <= 0) || (outReplacement == NULL)) return false;
+
+    RLImage staging = { 0 };
+    staging.data = rgbaData;
+    staging.width = width;
+    staging.height = height;
+    staging.mipmaps = 1;
+    staging.format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+
+    if ((desiredFormat != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) && RLImageIsUncompressedFormat(desiredFormat))
+    {
+        if (!RLImageTryConvertToFormat(&staging, desiredFormat, outReplacement))
+        {
+            RL_FREE(staging.data);
+            return false;
+        }
+
+        RL_FREE(staging.data);
+    }
+    else
+    {
+        *outReplacement = staging;
+    }
+
+    return true;
+}
+
+static bool RLImageTryCommitRgbaBaseReplacement(RLImage *image, void *rgbaData, int width, int height, int desiredFormat)
+{
+    RLImage replacement = { 0 };
+    const int originalMipmaps = ((image != NULL) && (image->mipmaps > 0)) ? image->mipmaps : 1;
+
+    if (!RLImageBuildReplacementFromRgbaBase(rgbaData, width, height, desiredFormat, &replacement)) return false;
+    if (!RLImageCommitReplacementPreservingMipmaps(image, &replacement, originalMipmaps)) return false;
+
+    return true;
+}
+
 // Convert image data to desired format
 void RLImageFormat(RLImage *image, int newFormat)
 {
@@ -1312,200 +1670,20 @@ void RLImageFormat(RLImage *image, int newFormat)
 
     if ((newFormat != 0) && (image->format != newFormat))
     {
-        if ((image->format < RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) && (newFormat < RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB))
+        if (RLImageIsUncompressedFormat(image->format) && RLImageIsUncompressedFormat(newFormat))
         {
-            RLVector4 *pixels = LoadImageDataNormalized(*image);     // Supports 8 to 32 bit per channel
-
-            RL_FREE(image->data);      // WARNING! Loosing mipmaps data --> Regenerated at the end
-            image->data = NULL;
-            image->format = newFormat;
-
-            switch (image->format)
+            RLImage converted = { 0 };
+            const int originalMipmaps = (image->mipmaps > 0)? image->mipmaps : 1;
+            if (!RLImageTryConvertToFormat(image, newFormat, &converted))
             {
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
-                {
-                    image->data = (unsigned char *)RL_MALLOC(image->width*image->height*sizeof(unsigned char));
-
-                    for (int i = 0; i < image->width*image->height; i++)
-                    {
-                        ((unsigned char *)image->data)[i] = (unsigned char)((pixels[i].x*0.299f + pixels[i].y*0.587f + pixels[i].z*0.114f)*255.0f);
-                    }
-
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
-                {
-                    image->data = (unsigned char *)RL_MALLOC(image->width*image->height*2*sizeof(unsigned char));
-
-                    for (int i = 0, k = 0; i < image->width*image->height*2; i += 2, k++)
-                    {
-                        ((unsigned char *)image->data)[i] = (unsigned char)((pixels[k].x*0.299f + (float)pixels[k].y*0.587f + (float)pixels[k].z*0.114f)*255.0f);
-                        ((unsigned char *)image->data)[i + 1] = (unsigned char)(pixels[k].w*255.0f);
-                    }
-
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
-                {
-                    image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
-
-                    unsigned char r = 0;
-                    unsigned char g = 0;
-                    unsigned char b = 0;
-
-                    for (int i = 0; i < image->width*image->height; i++)
-                    {
-                        r = (unsigned char)(round(pixels[i].x*31.0f));
-                        g = (unsigned char)(round(pixels[i].y*63.0f));
-                        b = (unsigned char)(round(pixels[i].z*31.0f));
-
-                        ((unsigned short *)image->data)[i] = (unsigned short)r << 11 | (unsigned short)g << 5 | (unsigned short)b;
-                    }
-
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
-                {
-                    image->data = (unsigned char *)RL_MALLOC(image->width*image->height*3*sizeof(unsigned char));
-
-                    for (int i = 0, k = 0; i < image->width*image->height*3; i += 3, k++)
-                    {
-                        ((unsigned char *)image->data)[i] = (unsigned char)(pixels[k].x*255.0f);
-                        ((unsigned char *)image->data)[i + 1] = (unsigned char)(pixels[k].y*255.0f);
-                        ((unsigned char *)image->data)[i + 2] = (unsigned char)(pixels[k].z*255.0f);
-                    }
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
-                {
-                    image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
-
-                    unsigned char r = 0;
-                    unsigned char g = 0;
-                    unsigned char b = 0;
-                    unsigned char a = 0;
-
-                    for (int i = 0; i < image->width*image->height; i++)
-                    {
-                        r = (unsigned char)(round(pixels[i].x*31.0f));
-                        g = (unsigned char)(round(pixels[i].y*31.0f));
-                        b = (unsigned char)(round(pixels[i].z*31.0f));
-                        a = (pixels[i].w > ((float)PIXELFORMAT_UNCOMPRESSED_R5G5B5A1_ALPHA_THRESHOLD/255.0f))? 1 : 0;
-
-                        ((unsigned short *)image->data)[i] = (unsigned short)r << 11 | (unsigned short)g << 6 | (unsigned short)b << 1 | (unsigned short)a;
-                    }
-
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
-                {
-                    image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
-
-                    unsigned char r = 0;
-                    unsigned char g = 0;
-                    unsigned char b = 0;
-                    unsigned char a = 0;
-
-                    for (int i = 0; i < image->width*image->height; i++)
-                    {
-                        r = (unsigned char)(round(pixels[i].x*15.0f));
-                        g = (unsigned char)(round(pixels[i].y*15.0f));
-                        b = (unsigned char)(round(pixels[i].z*15.0f));
-                        a = (unsigned char)(round(pixels[i].w*15.0f));
-
-                        ((unsigned short *)image->data)[i] = (unsigned short)r << 12 | (unsigned short)g << 8 | (unsigned short)b << 4 | (unsigned short)a;
-                    }
-
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
-                {
-                    image->data = (unsigned char *)RL_MALLOC(image->width*image->height*4*sizeof(unsigned char));
-
-                    for (int i = 0, k = 0; i < image->width*image->height*4; i += 4, k++)
-                    {
-                        ((unsigned char *)image->data)[i] = (unsigned char)(pixels[k].x*255.0f);
-                        ((unsigned char *)image->data)[i + 1] = (unsigned char)(pixels[k].y*255.0f);
-                        ((unsigned char *)image->data)[i + 2] = (unsigned char)(pixels[k].z*255.0f);
-                        ((unsigned char *)image->data)[i + 3] = (unsigned char)(pixels[k].w*255.0f);
-                    }
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32:
-                {
-                    // WARNING: Image is converted to GRAYSCALE equivalent 32bit
-
-                    image->data = (float *)RL_MALLOC(image->width*image->height*sizeof(float));
-
-                    for (int i = 0; i < image->width*image->height; i++)
-                    {
-                        ((float *)image->data)[i] = (float)(pixels[i].x*0.299f + pixels[i].y*0.587f + pixels[i].z*0.114f);
-                    }
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
-                {
-                    image->data = (float *)RL_MALLOC(image->width*image->height*3*sizeof(float));
-
-                    for (int i = 0, k = 0; i < image->width*image->height*3; i += 3, k++)
-                    {
-                        ((float *)image->data)[i] = pixels[k].x;
-                        ((float *)image->data)[i + 1] = pixels[k].y;
-                        ((float *)image->data)[i + 2] = pixels[k].z;
-                    }
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
-                {
-                    image->data = (float *)RL_MALLOC(image->width*image->height*4*sizeof(float));
-
-                    for (int i = 0, k = 0; i < image->width*image->height*4; i += 4, k++)
-                    {
-                        ((float *)image->data)[i] = pixels[k].x;
-                        ((float *)image->data)[i + 1] = pixels[k].y;
-                        ((float *)image->data)[i + 2] = pixels[k].z;
-                        ((float *)image->data)[i + 3] = pixels[k].w;
-                    }
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16:
-                {
-                    // WARNING: Image is converted to GRAYSCALE equivalent 16bit
-
-                    image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
-
-                    for (int i = 0; i < image->width*image->height; i++)
-                    {
-                        ((unsigned short *)image->data)[i] = FloatToHalf((float)(pixels[i].x*0.299f + pixels[i].y*0.587f + pixels[i].z*0.114f));
-                    }
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16:
-                {
-                    image->data = (unsigned short *)RL_MALLOC(image->width*image->height*3*sizeof(unsigned short));
-
-                    for (int i = 0, k = 0; i < image->width*image->height*3; i += 3, k++)
-                    {
-                        ((unsigned short *)image->data)[i] = FloatToHalf(pixels[k].x);
-                        ((unsigned short *)image->data)[i + 1] = FloatToHalf(pixels[k].y);
-                        ((unsigned short *)image->data)[i + 2] = FloatToHalf(pixels[k].z);
-                    }
-                } break;
-                case RL_E_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16:
-                {
-                    image->data = (unsigned short *)RL_MALLOC(image->width*image->height*4*sizeof(unsigned short));
-
-                    for (int i = 0, k = 0; i < image->width*image->height*4; i += 4, k++)
-                    {
-                        ((unsigned short *)image->data)[i] = FloatToHalf(pixels[k].x);
-                        ((unsigned short *)image->data)[i + 1] = FloatToHalf(pixels[k].y);
-                        ((unsigned short *)image->data)[i + 2] = FloatToHalf(pixels[k].z);
-                        ((unsigned short *)image->data)[i + 3] = FloatToHalf(pixels[k].w);
-                    }
-                } break;
-                default: break;
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate image buffer for format conversion");
+                return;
             }
 
-            RL_FREE(pixels);
-            pixels = NULL;
-
-            // In case original image had mipmaps, generate mipmaps for formatted image
-            // NOTE: Original mipmaps are replaced by new ones, if custom mipmaps were used, they are lost
-            if (image->mipmaps > 1)
+            if (!RLImageCommitReplacementPreservingMipmaps(image, &converted, originalMipmaps))
             {
-                image->mipmaps = 1;
-            #if defined(SUPPORT_IMAGE_MANIPULATION)
-                if (image->data != NULL) RLImageMipmaps(image);
-            #endif
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to regenerate mipmaps for format conversion");
+                return;
             }
         }
         else TRACELOG(RL_E_LOG_WARNING, "IMAGE: Data format is compressed, can not be converted");
@@ -1653,6 +1831,7 @@ RLImage RLImageFromChannel(RLImage image, int selectedChannel)
     result.mipmaps = 1;
 
     unsigned char *pixels = (unsigned char *)RL_CALLOC(image.width*image.height, sizeof(unsigned char)); // Values from 0 to 255
+    if (pixels == NULL) return result;
 
     if (image.format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
     else
@@ -1770,6 +1949,13 @@ void RLImageResizeNN(RLImage *image, int newWidth, int newHeight)
 
     RLColor *pixels = RLLoadImageColors(*image);
     RLColor *output = (RLColor *)RL_MALLOC(newWidth*newHeight*sizeof(RLColor));
+    if ((pixels == NULL) || (output == NULL))
+    {
+        RLUnloadImageColors(pixels);
+        RL_FREE(output);
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate resize buffers");
+        return;
+    }
 
     // EDIT: added +1 to account for an early rounding problem
     int xRatio = (int)((image->width << 16)/newWidth) + 1;
@@ -1789,15 +1975,8 @@ void RLImageResizeNN(RLImage *image, int newWidth, int newHeight)
     }
 
     int format = image->format;
-
-    RL_FREE(image->data);
-
-    image->data = output;
-    image->width = newWidth;
-    image->height = newHeight;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-
-    RLImageFormat(image, format);  // Reformat 32bit RGBA image to original format
+    if (!RLImageTryCommitRgbaBaseReplacement(image, output, newWidth, newHeight, format))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit resized image");
 
     RLUnloadImageColors(pixels);
 }
@@ -1820,6 +1999,11 @@ void RLImageResize(RLImage *image, int newWidth, int newHeight)
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
         unsigned char *output = (unsigned char *)RL_MALLOC(newWidth*newHeight*bytesPerPixel);
+        if (output == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate resize buffer");
+            return;
+        }
 
         switch (image->format)
         {
@@ -1830,16 +2014,27 @@ void RLImageResize(RLImage *image, int newWidth, int newHeight)
             default: break;
         }
 
-        RL_FREE(image->data);
-        image->data = output;
-        image->width = newWidth;
-        image->height = newHeight;
+        RLImage replacement = { 0 };
+        replacement.data = output;
+        replacement.width = newWidth;
+        replacement.height = newHeight;
+        replacement.mipmaps = 1;
+        replacement.format = image->format;
+        if (!RLImageCommitReplacementPreservingMipmaps(image, &replacement, image->mipmaps))
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to regenerate mipmaps for resized image");
     }
     else
     {
         // Get data as Color pixels array to work with it
         RLColor *pixels = RLLoadImageColors(*image);
         RLColor *output = (RLColor *)RL_MALLOC(newWidth*newHeight*sizeof(RLColor));
+        if ((pixels == NULL) || (output == NULL))
+        {
+            RLUnloadImageColors(pixels);
+            RL_FREE(output);
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate resize buffers");
+            return;
+        }
 
         // NOTE: Color data is cast to (unsigned char *), there shouldn't been any problem...
         stbir_resize_uint8_linear((unsigned char *)pixels, image->width, image->height, 0, (unsigned char *)output, newWidth, newHeight, 0, (stbir_pixel_layout)4);
@@ -1847,14 +2042,8 @@ void RLImageResize(RLImage *image, int newWidth, int newHeight)
         int format = image->format;
 
         RLUnloadImageColors(pixels);
-        RL_FREE(image->data);
-
-        image->data = output;
-        image->width = newWidth;
-        image->height = newHeight;
-        image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-
-        RLImageFormat(image, format);  // Reformat 32bit RGBA image to original format
+        if (!RLImageTryCommitRgbaBaseReplacement(image, output, newWidth, newHeight, format))
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit resized image");
     }
 }
 
@@ -1893,6 +2082,11 @@ void RLImageResizeCanvas(RLImage *image, int newWidth, int newHeight, int offset
 
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
         unsigned char *resizedData = (unsigned char *)RL_CALLOC(newWidth*newHeight*bytesPerPixel, 1);
+        if (resizedData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate resize canvas buffer");
+            return;
+        }
 
         // Fill resized canvas with fill color
         // Set first pixel with image->format
@@ -2076,12 +2270,36 @@ void RLImageAlphaMask(RLImage *image, RLImage alphaMask)
     {
         // Force mask to be Grayscale
         RLImage mask = RLImageCopy(alphaMask);
-        if (mask.format != RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) RLImageFormat(&mask, RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE);
+        if (mask.data == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate alpha mask copy");
+            return;
+        }
+
+        if (mask.format != RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE)
+        {
+            RLImage formattedMask = { 0 };
+            if (!RLImageTryConvertToFormat(&mask, RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE, &formattedMask))
+            {
+                RLUnloadImage(mask);
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to convert alpha mask to grayscale");
+                return;
+            }
+
+            RLUnloadImage(mask);
+            mask = formattedMask;
+        }
 
         // In case image is only grayscale, just add alpha channel
         if (image->format == RL_E_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE)
         {
             unsigned char *data = (unsigned char *)RL_MALLOC(image->width*image->height*2);
+            if (data == NULL)
+            {
+                RLUnloadImage(mask);
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate alpha mask buffer");
+                return;
+            }
 
             // Apply alpha mask to alpha channel
             for (int i = 0, k = 0; (i < mask.width*mask.height) || (i < image->width*image->height); i++, k += 2)
@@ -2090,19 +2308,40 @@ void RLImageAlphaMask(RLImage *image, RLImage alphaMask)
                 data[k + 1] = ((unsigned char *)mask.data)[i];
             }
 
-            RL_FREE(image->data);
-            image->data = data;
-            image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA;
+            RLImage replacement = { 0 };
+            replacement.data = data;
+            replacement.width = image->width;
+            replacement.height = image->height;
+            replacement.mipmaps = 1;
+            replacement.format = RL_E_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA;
+            if (!RLImageCommitReplacementPreservingMipmaps(image, &replacement, image->mipmaps))
+            {
+                RLUnloadImage(mask);
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to regenerate mipmaps for alpha mask result");
+                return;
+            }
         }
         else
         {
-            // Convert image to RGBA
-            if (image->format != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) RLImageFormat(image, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+            RLColor *pixels = RLLoadImageColors(*image);
+            if (pixels == NULL)
+            {
+                RLUnloadImage(mask);
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate RGBA buffer for alpha mask");
+                return;
+            }
 
             // Apply alpha mask to alpha channel
             for (int i = 0, k = 3; (i < mask.width*mask.height) || (i < image->width*image->height); i++, k += 4)
             {
-                ((unsigned char *)image->data)[k] = ((unsigned char *)mask.data)[i];
+                ((unsigned char *)pixels)[k] = ((unsigned char *)mask.data)[i];
+            }
+
+            if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8))
+            {
+                RLUnloadImage(mask);
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit alpha mask result");
+                return;
             }
         }
 
@@ -2118,6 +2357,11 @@ void RLImageAlphaPremultiply(RLImage *image)
 
     float alpha = 0.0f;
     RLColor *pixels = RLLoadImageColors(*image);
+    if (pixels == NULL)
+    {
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate color buffer for alpha premultiply");
+        return;
+    }
 
     for (int i = 0; i < image->width*image->height; i++)
     {
@@ -2136,13 +2380,9 @@ void RLImageAlphaPremultiply(RLImage *image)
         }
     }
 
-    RL_FREE(image->data);
-
     int format = image->format;
-    image->data = pixels;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-
-    RLImageFormat(image, format);
+    if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, format))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit alpha premultiply result");
 }
 
 // Apply box blur to image
@@ -2158,6 +2398,14 @@ void RLImageBlurGaussian(RLImage *image, int blurSize)
     // Loop switches between pixelsCopy1 and pixelsCopy2
     RLVector4 *pixelsCopy1 = (RLVector4 *)RL_MALLOC((image->height)*(image->width)*sizeof(RLVector4));
     RLVector4 *pixelsCopy2 = (RLVector4 *)RL_MALLOC((image->height)*(image->width)*sizeof(RLVector4));
+    if ((pixels == NULL) || (pixelsCopy1 == NULL) || (pixelsCopy2 == NULL))
+    {
+        RLUnloadImageColors(pixels);
+        RL_FREE(pixelsCopy1);
+        RL_FREE(pixelsCopy2);
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate gaussian blur buffers");
+        return;
+    }
 
     for (int i = 0; i < (image->height*image->width); i++)
     {
@@ -2279,14 +2527,10 @@ void RLImageBlurGaussian(RLImage *image, int blurSize)
     }
 
     int format = image->format;
-    RL_FREE(image->data);
     RL_FREE(pixelsCopy1);
     RL_FREE(pixelsCopy2);
-
-    image->data = pixels;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-
-    RLImageFormat(image, format);
+    if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, format))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit gaussian blur result");
 }
 
 // Apply custom square convolution kernel to image
@@ -2307,6 +2551,14 @@ void RLImageKernelConvolution(RLImage *image, const float *kernel, int kernelSiz
 
     RLVector4 *imageCopy2 = (RLVector4 *)RL_MALLOC((image->height)*(image->width)*sizeof(RLVector4));
     RLVector4 *temp = (RLVector4 *)RL_MALLOC(kernelSize*sizeof(RLVector4));
+    if ((pixels == NULL) || (imageCopy2 == NULL) || (temp == NULL))
+    {
+        RLUnloadImageColors(pixels);
+        RL_FREE(imageCopy2);
+        RL_FREE(temp);
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate convolution buffers");
+        return;
+    }
 
     for (int i = 0; i < kernelSize; i++)
     {
@@ -2410,13 +2662,10 @@ void RLImageKernelConvolution(RLImage *image, const float *kernel, int kernelSiz
     }
 
     int format = image->format;
-    RL_FREE(image->data);
     RL_FREE(imageCopy2);
     RL_FREE(temp);
-
-    image->data = pixels;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-    RLImageFormat(image, format);
+    if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, format))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit convolution result");
 }
 
 // Generate all mipmap levels for a provided image
@@ -2453,6 +2702,11 @@ void RLImageMipmaps(RLImage *image)
     {
         // Create second buffer and copy data manually to it
         void *temp = RL_CALLOC(mipSize, 1);
+        if (temp == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate mipmaps buffer");
+            return;
+        }
         memcpy(temp, image->data, RLGetPixelDataSize(image->width, image->height, image->format));
         RL_FREE(image->data);
         image->data = temp;
@@ -2482,6 +2736,12 @@ void RLImageMipmaps(RLImage *image)
 
             TRACELOG(RL_E_LOG_DEBUG, "IMAGE: Generating mipmap level: %i (%i x %i) - size: %i - offset: 0x%x", i, mipWidth, mipHeight, mipSize, nextmip);
             RLImageResize(&imCopy, mipWidth, mipHeight); // Uses internally Mitchell cubic downscale filter
+            if ((imCopy.data == NULL) || (imCopy.width != mipWidth) || (imCopy.height != mipHeight))
+            {
+                TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to generate mipmap level %i", i);
+                mipCount = i;
+                break;
+            }
             memcpy(nextmip, imCopy.data, mipSize);
         }
 
@@ -2513,8 +2773,11 @@ void RLImageDither(RLImage *image, int rBpp, int gBpp, int bBpp, int aBpp)
     else
     {
         RLColor *pixels = RLLoadImageColors(*image);
-
-        RL_FREE(image->data);      // free old image data
+        if (pixels == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate image colors for dithering");
+            return;
+        }
 
         if ((image->format != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) && (image->format != RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8))
         {
@@ -2522,17 +2785,23 @@ void RLImageDither(RLImage *image, int rBpp, int gBpp, int bBpp, int aBpp)
         }
 
         // Define new image format, check if desired bpp match internal known format
-        if ((rBpp == 5) && (gBpp == 6) && (bBpp == 5) && (aBpp == 0)) image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5;
-        else if ((rBpp == 5) && (gBpp == 5) && (bBpp == 5) && (aBpp == 1)) image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1;
-        else if ((rBpp == 4) && (gBpp == 4) && (bBpp == 4) && (aBpp == 4)) image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4;
+        int newFormat = 0;
+        if ((rBpp == 5) && (gBpp == 6) && (bBpp == 5) && (aBpp == 0)) newFormat = RL_E_PIXELFORMAT_UNCOMPRESSED_R5G6B5;
+        else if ((rBpp == 5) && (gBpp == 5) && (bBpp == 5) && (aBpp == 1)) newFormat = RL_E_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1;
+        else if ((rBpp == 4) && (gBpp == 4) && (bBpp == 4) && (aBpp == 4)) newFormat = RL_E_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4;
         else
         {
-            image->format = 0;
             TRACELOG(RL_E_LOG_WARNING, "IMAGE: Unsupported dithered OpenGL internal format: %ibpp (R%iG%iB%iA%i)", (rBpp+gBpp+bBpp+aBpp), rBpp, gBpp, bBpp, aBpp);
         }
 
         // NOTE: Storing the dithered data as unsigned short (16bpp)
-        image->data = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
+        unsigned short *ditheredData = (unsigned short *)RL_MALLOC(image->width*image->height*sizeof(unsigned short));
+        if (ditheredData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate dither buffer");
+            RLUnloadImageColors(pixels);
+            return;
+        }
 
         RLColor oldPixel = WHITE;
         RLColor newPixel = WHITE;
@@ -2601,11 +2870,14 @@ void RLImageDither(RLImage *image, int rBpp, int gBpp, int bBpp, int aBpp)
                 bPixel = (unsigned short)newPixel.b;
                 aPixel = (unsigned short)newPixel.a;
 
-                ((unsigned short *)image->data)[y*image->width + x] = (rPixel << (gBpp + bBpp + aBpp)) | (gPixel << (bBpp + aBpp)) | (bPixel << aBpp) | aPixel;
+                ditheredData[y*image->width + x] = (rPixel << (gBpp + bBpp + aBpp)) | (gPixel << (bBpp + aBpp)) | (bPixel << aBpp) | aPixel;
             }
         }
 
         RLUnloadImageColors(pixels);
+        RL_FREE(image->data);
+        image->data = ditheredData;
+        image->format = newFormat;
     }
 }
 
@@ -2621,6 +2893,11 @@ void RLImageFlipVertical(RLImage *image)
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
         unsigned char *flippedData = (unsigned char *)RL_MALLOC(image->width*image->height*bytesPerPixel);
+        if (flippedData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate vertical flip buffer");
+            return;
+        }
 
         for (int i = (image->height - 1), offsetSize = 0; i >= 0; i--)
         {
@@ -2645,6 +2922,11 @@ void RLImageFlipHorizontal(RLImage *image)
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
         unsigned char *flippedData = (unsigned char *)RL_MALLOC(image->width*image->height*bytesPerPixel);
+        if (flippedData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate horizontal flip buffer");
+            return;
+        }
 
         for (int y = 0; y < image->height; y++)
         {
@@ -2697,6 +2979,11 @@ void RLImageRotate(RLImage *image, int degrees)
 
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
         unsigned char *rotatedData = (unsigned char *)RL_CALLOC(width*height, bytesPerPixel);
+        if (rotatedData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate rotation buffer");
+            return;
+        }
 
         for (int y = 0; y < height; y++)
         {
@@ -2749,6 +3036,11 @@ void RLImageRotateCW(RLImage *image)
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
         unsigned char *rotatedData = (unsigned char *)RL_MALLOC(image->width*image->height*bytesPerPixel);
+        if (rotatedData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate clockwise rotation buffer");
+            return;
+        }
 
         for (int y = 0; y < image->height; y++)
         {
@@ -2781,6 +3073,11 @@ void RLImageRotateCCW(RLImage *image)
     {
         int bytesPerPixel = RLGetPixelDataSize(1, 1, image->format);
         unsigned char *rotatedData = (unsigned char *)RL_MALLOC(image->width*image->height*bytesPerPixel);
+        if (rotatedData == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to allocate counter-clockwise rotation buffer");
+            return;
+        }
 
         for (int y = 0; y < image->height; y++)
         {
@@ -2808,6 +3105,7 @@ void RLImageColorTint(RLImage *image, RLColor color)
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
     RLColor *pixels = RLLoadImageColors(*image);
+    if (pixels == NULL) return;
 
     for (int i = 0; i < image->width*image->height; i++)
     {
@@ -2823,12 +3121,8 @@ void RLImageColorTint(RLImage *image, RLColor color)
     }
 
     int format = image->format;
-    RL_FREE(image->data);
-
-    image->data = pixels;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-
-    RLImageFormat(image, format);
+    if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, format))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit tint result");
 }
 
 // Modify image color: invert
@@ -2838,6 +3132,7 @@ void RLImageColorInvert(RLImage *image)
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
     RLColor *pixels = RLLoadImageColors(*image);
+    if (pixels == NULL) return;
 
     for (int i = 0; i < image->width*image->height; i++)
     {
@@ -2847,12 +3142,8 @@ void RLImageColorInvert(RLImage *image)
     }
 
     int format = image->format;
-    RL_FREE(image->data);
-
-    image->data = pixels;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-
-    RLImageFormat(image, format);
+    if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, format))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit invert result");
 }
 
 // Modify image color: grayscale
@@ -2875,6 +3166,7 @@ void RLImageColorContrast(RLImage *image, float contrast)
     contrast *= contrast;
 
     RLColor *pixels = RLLoadImageColors(*image);
+    if (pixels == NULL) return;
 
     for (int i = 0; i < image->width*image->height; i++)
     {
@@ -2908,12 +3200,8 @@ void RLImageColorContrast(RLImage *image, float contrast)
     }
 
     int format = image->format;
-    RL_FREE(image->data);
-
-    image->data = pixels;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-
-    RLImageFormat(image, format);
+    if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, format))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit contrast result");
 }
 
 // Modify image color: brightness
@@ -2927,6 +3215,7 @@ void RLImageColorBrightness(RLImage *image, int brightness)
     if (brightness > 255) brightness = 255;
 
     RLColor *pixels = RLLoadImageColors(*image);
+    if (pixels == NULL) return;
 
     for (int i = 0; i < image->width*image->height; i++)
     {
@@ -2949,12 +3238,8 @@ void RLImageColorBrightness(RLImage *image, int brightness)
     }
 
     int format = image->format;
-    RL_FREE(image->data);
-
-    image->data = pixels;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-
-    RLImageFormat(image, format);
+    if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, format))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit brightness result");
 }
 
 // Modify image color: replace color
@@ -2964,6 +3249,7 @@ void RLImageColorReplace(RLImage *image, RLColor color, RLColor replace)
     if ((image->data == NULL) || (image->width == 0) || (image->height == 0)) return;
 
     RLColor *pixels = RLLoadImageColors(*image);
+    if (pixels == NULL) return;
 
     for (int i = 0; i < image->width*image->height; i++)
     {
@@ -2980,10 +3266,7 @@ void RLImageColorReplace(RLImage *image, RLColor color, RLColor replace)
     }
 
     int format = image->format;
-    RL_FREE(image->data);
-
-    image->data = pixels;
-    image->format = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    int targetFormat = RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
     // Only convert back to original format if it supported alpha
     if ((format == RL_E_PIXELFORMAT_UNCOMPRESSED_R8G8B8) ||
@@ -2994,7 +3277,10 @@ void RLImageColorReplace(RLImage *image, RLColor color, RLColor replace)
         (format == RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) ||
         (format == RL_E_PIXELFORMAT_COMPRESSED_ETC1_RGB) ||
         (format == RL_E_PIXELFORMAT_COMPRESSED_ETC2_RGB) ||
-        (format == RL_E_PIXELFORMAT_COMPRESSED_PVRT_RGB)) RLImageFormat(image, format);
+        (format == RL_E_PIXELFORMAT_COMPRESSED_PVRT_RGB)) targetFormat = format;
+
+    if (!RLImageTryCommitRgbaBaseReplacement(image, pixels, image->width, image->height, targetFormat))
+        TRACELOG(RL_E_LOG_WARNING, "IMAGE: Failed to commit color replace result");
 }
 #endif      // SUPPORT_IMAGE_MANIPULATION
 
@@ -3005,6 +3291,7 @@ RLColor *RLLoadImageColors(RLImage image)
     if ((image.width == 0) || (image.height == 0)) return NULL;
 
     RLColor *pixels = (RLColor *)RL_MALLOC(image.width*image.height*sizeof(RLColor));
+    if (pixels == NULL) return NULL;
 
     if (image.format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
     else
@@ -3161,6 +3448,11 @@ RLColor *RLLoadImagePalette(RLImage image, int maxPaletteSize, int *colorCount)
     if (pixels != NULL)
     {
         palette = (RLColor *)RL_MALLOC(maxPaletteSize*sizeof(RLColor));
+        if (palette == NULL)
+        {
+            RLUnloadImageColors(pixels);
+            return NULL;
+        }
 
         for (int i = 0; i < maxPaletteSize; i++) palette[i] = BLANK;   // Set all colors to BLANK
 
@@ -5730,6 +6022,7 @@ static unsigned short FloatToHalf(float x)
 static RLVector4 *LoadImageDataNormalized(RLImage image)
 {
     RLVector4 *pixels = (RLVector4 *)RL_MALLOC(image.width*image.height*sizeof(RLVector4));
+    if (pixels == NULL) return NULL;
 
     if (image.format >= RL_E_PIXELFORMAT_COMPRESSED_DXT1_RGB) TRACELOG(RL_E_LOG_WARNING, "IMAGE: Pixel data retrieval not supported for compressed image formats");
     else

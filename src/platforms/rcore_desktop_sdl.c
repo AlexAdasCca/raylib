@@ -800,9 +800,19 @@ void RLSetWindowIcon(RLImage image)
 }
 
 // Set icon for window
+bool RLTrySetWindowIcons(RLImage *images, int count)
+{
+    (void)images;
+    (void)count;
+    return false;
+}
+
 void RLSetWindowIcons(RLImage *images, int count)
 {
-    TRACELOG(RL_E_LOG_WARNING, "SetWindowIcons() not available on target platform");
+    if (!RLTrySetWindowIcons(images, count))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowIcons() not available on target platform");
+    }
 }
 
 // Set title for window
@@ -1289,6 +1299,7 @@ int RLSetGamepadMappings(const char *mappings)
 {
     const int mappingsLength = strlen(mappings);
     char *buffer = (char *)RL_CALLOC(mappingsLength + 1, sizeof(char));
+    if (buffer == NULL) return false;
     memcpy(buffer, mappings, mappingsLength);
     char *p = strtok(buffer, "\n");
     bool succeed = true;
@@ -1432,8 +1443,10 @@ void RLPollInputEvents(void)
                     // at the moment we limit the number of drops at once to 1024 files but this behaviour should probably be reviewed
                     // TODO: Pointers should probably be reallocated for any new file added...
                     CORE.Window.dropFilepaths = (char **)RL_CALLOC(1024, sizeof(char *));
+                    if (CORE.Window.dropFilepaths == NULL) break;
 
                     CORE.Window.dropFilepaths[CORE.Window.dropFileCount] = (char *)RL_CALLOC(MAX_FILEPATH_LENGTH, sizeof(char));
+                    if (CORE.Window.dropFilepaths[CORE.Window.dropFileCount] == NULL) break;
 
                 #if defined(USING_VERSION_SDL3)
                     // const char *data;   // The text for SDL_EVENT_DROP_TEXT and the file name for SDL_EVENT_DROP_FILE, NULL for other events
@@ -1451,6 +1464,7 @@ void RLPollInputEvents(void)
                 else if (CORE.Window.dropFileCount < 1024)
                 {
                     CORE.Window.dropFilepaths[CORE.Window.dropFileCount] = (char *)RL_CALLOC(MAX_FILEPATH_LENGTH, sizeof(char));
+                    if (CORE.Window.dropFilepaths[CORE.Window.dropFileCount] == NULL) break;
 
                 #if defined(USING_VERSION_SDL3)
                     strncpy(CORE.Window.dropFilepaths[CORE.Window.dropFileCount], event.drop.data, MAX_FILEPATH_LENGTH - 1);

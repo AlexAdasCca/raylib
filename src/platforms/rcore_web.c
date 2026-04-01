@@ -635,9 +635,19 @@ void RLSetWindowIcon(RLImage image)
 }
 
 // Set icon for window, multiple images
+bool RLTrySetWindowIcons(RLImage *images, int count)
+{
+    (void)images;
+    (void)count;
+    return false;
+}
+
 void RLSetWindowIcons(RLImage *images, int count)
 {
-    TRACELOG(RL_E_LOG_WARNING, "SetWindowIcons() not available on target platform");
+    if (!RLTrySetWindowIcons(images, count))
+    {
+        TRACELOG(RL_E_LOG_WARNING, "SetWindowIcons() not available on target platform");
+    }
 }
 
 // Set title for window
@@ -1510,10 +1520,20 @@ static void WindowDropCallback(GLFWwindow *window, int count, const char **paths
         // WARNING: Paths are freed by GLFW when the callback returns, an internal copy must freed
         CORE.Window.dropFileCount = count;
         CORE.Window.dropFilepaths = (char **)RL_CALLOC(CORE.Window.dropFileCount, sizeof(char *));
+        if (CORE.Window.dropFilepaths == NULL)
+        {
+            CORE.Window.dropFileCount = 0;
+            return;
+        }
 
         for (unsigned int i = 0; i < CORE.Window.dropFileCount; i++)
         {
             CORE.Window.dropFilepaths[i] = (char *)RL_CALLOC(MAX_FILEPATH_LENGTH, sizeof(char));
+            if (CORE.Window.dropFilepaths[i] == NULL)
+            {
+                CORE.Window.dropFileCount = i;
+                return;
+            }
             strncpy(CORE.Window.dropFilepaths[i], paths[i], MAX_FILEPATH_LENGTH - 1);
         }
     }

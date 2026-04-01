@@ -1943,7 +1943,9 @@ extern void ClosePlatform(void);        // Close platform
 static void InitTimer(void);                                // Initialize timer, hi-resolution if available (required by InitPlatform())
 static void SetupViewport(int width, int height);           // Set viewport for a provided width and height
 
+#if !defined(_WIN32)
 static void ScanDirectoryFiles(const char *basePath, RLFilePathList *list, const char *filter, unsigned int expectedFileCount, bool scanSubdirs); // Scan all files and directories in a base path
+#endif
 
 #if defined(SUPPORT_AUTOMATION_EVENTS)
 static void RecordAutomationEvent(void); // Record frame events (to internal events array)
@@ -4952,7 +4954,10 @@ RLShader RLLoadShaderFromMemory(const char *vsCode, const char *fsCode)
         // Shader could not be loaded but we still load the location points to avoid potential crashes
         // NOTE: All locations set to -1 (no location)
         shader.locs = (int *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(int));
-        for (int i = 0; i < RL_MAX_SHADER_LOCATIONS; i++) shader.locs[i] = -1;
+        if (shader.locs != NULL)
+        {
+            for (int i = 0; i < RL_MAX_SHADER_LOCATIONS; i++) shader.locs[i] = -1;
+        }
     }
     else if (shader.id == rlGetShaderIdDefault()) shader.locs = rlGetShaderLocsDefault();
     else if (shader.id > 0)
@@ -4973,6 +4978,12 @@ RLShader RLLoadShaderFromMemory(const char *vsCode, const char *fsCode)
         // Load shader locations array
         // NOTE: All locations set to -1 (no location)
         shader.locs = (int *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(int));
+        if (shader.locs == NULL)
+        {
+            TRACELOG(RL_E_LOG_WARNING, "SHADER: Failed to allocate shader locations array");
+            return shader;
+        }
+
         for (int i = 0; i < RL_MAX_SHADER_LOCATIONS; i++) shader.locs[i] = -1;
 
         // Get handles to GLSL input attribute locations
@@ -5757,6 +5768,7 @@ int *RLLoadRandomSequence(unsigned int count, int min, int max)
     if (count > ((unsigned int)abs(max - min) + 1)) return values;  // Security check
 
     values = (int *)RL_CALLOC(count, sizeof(int));
+    if (values == NULL) return NULL;
 
     int value = 0;
     bool dupValue = false;
@@ -5932,6 +5944,31 @@ static int RLWin32CreateDirectoryUtf8(const char *pathUtf8)
     return RLWin32PathCreateDirectoryUtf8(pathUtf8);
 }
 
+static int RLWin32DeleteFileUtf8(const char *pathUtf8)
+{
+    return RLWin32PathDeleteFileUtf8(pathUtf8);
+}
+
+static int RLWin32CopyFileUtf8(const char *srcPathUtf8, const char *dstPathUtf8, int overwriteExisting)
+{
+    return RLWin32PathCopyFileUtf8(srcPathUtf8, dstPathUtf8, overwriteExisting);
+}
+
+static int RLWin32MoveFileUtf8(const char *srcPathUtf8, const char *dstPathUtf8, int replaceExisting, int allowCopy)
+{
+    return RLWin32PathMoveFileUtf8(srcPathUtf8, dstPathUtf8, replaceExisting, allowCopy);
+}
+
+static int RLWin32IsFileUtf8(const char *pathUtf8, int *outIsFile)
+{
+    return RLWin32PathIsFileUtf8(pathUtf8, outIsFile);
+}
+
+static int RLWin32EnumerateDirectoryUtf8(const char *basePathUtf8, int scanSubdirs, RLWin32PathDirectoryVisitor visitor, void *userData)
+{
+    return RLWin32PathEnumerateDirectoryUtf8(basePathUtf8, scanSubdirs, visitor, userData);
+}
+
 static int RLWin32GetCurrentDirectoryUtf8(char *outUtf8, int outUtf8Capacity)
 {
     int requiredChars = 0;
@@ -6045,13 +6082,20 @@ bool RLSaveFileData(const char *fileName, void *data, int dataSize)
             // WARNING: fwrite() returns a size_t value, usually 'unsigned int' (32bit compilation) and 'unsigned long long' (64bit compilation)
             // and expects a size_t input value but as dataSize is limited to INT_MAX (2147483647 bytes), there shouldn't be a problem
             int count = (int)fwrite(data, sizeof(unsigned char), dataSize, file);
+            bool writeOk = false;
 
             if (count == 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write file", fileName);
             else if (count != dataSize) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] File partially written", fileName);
-            else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File saved successfully", fileName);
+            else
+            {
+                TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] File saved successfully", fileName);
+                writeOk = true;
+            }
 
             int result = fclose(file);
-            if (result == 0) success = true;
+            if (result != 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to close file after writing", fileName);
+
+            success = writeOk && (result == 0);
         }
         else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open file", fileName);
 #else
@@ -6143,20 +6187,26 @@ char *RLLoadFileText(const char *fileName)
             // text mode causes carriage return-linefeed translation...
             // ...but using fseek() should return correct byte-offset
             fseek(file, 0, SEEK_END);
-            unsigned int size = (unsigned int)ftell(file);
+            long sizeLong = ftell(file);
             fseek(file, 0, SEEK_SET);
 
-            if (size > 0)
+            if (sizeLong > 0)
             {
+                size_t size = (size_t)sizeLong;
                 text = (char *)RL_CALLOC(size + 1, sizeof(char));
 
                 if (text != NULL)
                 {
-                    unsigned int count = (unsigned int)fread(text, sizeof(char), size, file);
+                    size_t count = fread(text, sizeof(char), size, file);
 
                     // WARNING: \r\n is converted to \n on reading, so,
                     // read bytes count gets reduced by the number of lines
-                    if (count < size) text = (char *)RL_REALLOC(text, count + 1);
+                    if (count < size)
+                    {
+                        char *shrunkText = (char *)RL_REALLOC(text, count + 1);
+                        if (shrunkText != NULL) text = shrunkText;
+                        else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to shrink text buffer after partial read", fileName);
+                    }
 
                     // Zero-terminate the string
                     text[count] = '\0';
@@ -6165,6 +6215,7 @@ char *RLLoadFileText(const char *fileName)
                 }
                 else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to allocated memory for file reading", fileName);
             }
+            else if (sizeLong < 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to get text file size", fileName);
             else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to read text file", fileName);
 
             fclose(file);
@@ -6190,7 +6241,7 @@ bool RLSaveFileText(const char *fileName, const char *text)
 {
     bool success = false;
 
-    if (fileName != NULL)
+    if ((fileName != NULL) && (text != NULL))
     {
         if (saveFileText)
         {
@@ -6207,19 +6258,26 @@ bool RLSaveFileText(const char *fileName, const char *text)
         if (file != NULL)
         {
             int count = fprintf(file, "%s", text);
+            bool writeOk = false;
 
             if (count < 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to write text file", fileName);
-            else TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Text file saved successfully", fileName);
+            else
+            {
+                TRACELOG(RL_E_LOG_INFO, "FILEIO: [%s] Text file saved successfully", fileName);
+                writeOk = true;
+            }
 
             int result = fclose(file);
-            if (result == 0) success = true;
+            if (result != 0) TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to close text file after writing", fileName);
+
+            success = writeOk && (result == 0);
         }
         else TRACELOG(RL_E_LOG_WARNING, "FILEIO: [%s] Failed to open text file", fileName);
 #else
     TRACELOG(RL_E_LOG_WARNING, "FILEIO: Standard file io not supported, use custom file callback");
 #endif
     }
-    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name provided is not valid");
+    else TRACELOG(RL_E_LOG_WARNING, "FILEIO: File name or text provided is not valid");
 
     return success;
 }
@@ -6251,15 +6309,64 @@ void RLSetSaveFileTextCallback(RLSaveFileTextCallback callback)
     saveFileText = callback;
 }
 
+static bool RLPathHasAnySeparator(const char *path)
+{
+    if (path == NULL) return false;
+    return (strpbrk(path, "\\/") != NULL);
+}
+
+static bool RLPathLooksAbsolute(const char *path)
+{
+    if ((path == NULL) || (path[0] == '\0')) return false;
+    if ((((path[0] >= 'A') && (path[0] <= 'Z')) || ((path[0] >= 'a') && (path[0] <= 'z'))) && (path[1] == ':')) return true;
+    if ((path[0] == '\\') || (path[0] == '/')) return true;
+    return false;
+}
+
+static char *RLBuildRenameDestinationPath(const char *srcPath, const char *renameTarget)
+{
+    if ((srcPath == NULL) || (renameTarget == NULL) || (renameTarget[0] == '\0')) return NULL;
+    if (RLPathLooksAbsolute(renameTarget) || RLPathHasAnySeparator(renameTarget))
+    {
+        size_t targetLen = strlen(renameTarget);
+        char *result = (char *)RL_CALLOC((unsigned int)(targetLen + 1u), sizeof(char));
+        if (result != NULL) memcpy(result, renameTarget, targetLen + 1u);
+        return result;
+    }
+
+    const char *lastSlash = strrchr(srcPath, '/');
+    const char *lastBackslash = strrchr(srcPath, '\\');
+    const char *lastSeparator = lastSlash;
+    if ((lastBackslash != NULL) && ((lastSeparator == NULL) || (lastBackslash > lastSeparator))) lastSeparator = lastBackslash;
+
+    size_t dirLen = (lastSeparator != NULL) ? (size_t)(lastSeparator - srcPath + 1) : 0u;
+    size_t targetLen = strlen(renameTarget);
+    char *result = (char *)RL_CALLOC((unsigned int)(dirLen + targetLen + 1u), sizeof(char));
+    if (result == NULL) return NULL;
+
+    if (dirLen != 0u) memcpy(result, srcPath, dirLen);
+    memcpy(result + dirLen, renameTarget, targetLen + 1u);
+    return result;
+}
+
 // Rename file (if exists)
-// NOTE: Only rename file name required, not full path
 int RLFileRename(const char *fileName, const char *fileRename)
 {
     int result = 0;
 
     if (RLFileExists(fileName))
     {
+#if defined(_WIN32)
+        char *dstPath = RLBuildRenameDestinationPath(fileName, fileRename);
+        if (dstPath == NULL) result = -1;
+        else
+        {
+            result = RLWin32MoveFileUtf8(fileName, dstPath, 1, 0) ? 0 : -1;
+            RL_FREE(dstPath);
+        }
+#else
         result = rename(fileName, fileRename);
+#endif
     }
     else result = -1;
 
@@ -6273,7 +6380,11 @@ int RLFileRemove(const char *fileName)
 
     if (RLFileExists(fileName))
     {
+#if defined(_WIN32)
+        result = RLWin32DeleteFileUtf8(fileName) ? 0 : -1;
+#else
         result = remove(fileName);
+#endif
     }
     else result = -1;
 
@@ -6285,8 +6396,6 @@ int RLFileRemove(const char *fileName)
 int RLFileCopy(const char *srcPath, const char *dstPath)
 {
     int result = 0;
-    int srcDataSize = 0;
-    unsigned char *srcFileData = RLLoadFileData(srcPath, &srcDataSize);
 
     // Create required paths if they do not exist
     if (!RLDirectoryExists(RLGetDirectoryPath(dstPath)))
@@ -6294,11 +6403,18 @@ int RLFileCopy(const char *srcPath, const char *dstPath)
 
     if (result == 0) // Directory created successfully (or already exists)
     {
+#if defined(_WIN32)
+        result = RLWin32CopyFileUtf8(srcPath, dstPath, 1) ? 0 : -1;
+#else
+        int srcDataSize = 0;
+        unsigned char *srcFileData = RLLoadFileData(srcPath, &srcDataSize);
         if ((srcFileData != NULL) && (srcDataSize > 0))
             result = RLSaveFileData(dstPath, srcFileData, srcDataSize);
-    }
+        else result = -1;
 
-    RLUnloadFileData(srcFileData);
+        RLUnloadFileData(srcFileData);
+#endif
+    }
 
     return result;
 }
@@ -6311,8 +6427,14 @@ int RLFileMove(const char *srcPath, const char *dstPath)
 
     if (RLFileExists(srcPath))
     {
-        RLFileCopy(srcPath, dstPath);
-        RLFileRemove(srcPath);
+#if defined(_WIN32)
+        if (!RLDirectoryExists(RLGetDirectoryPath(dstPath)))
+            result = RLMakeDirectory(RLGetDirectoryPath(dstPath));
+        if (result == 0) result = RLWin32MoveFileUtf8(srcPath, dstPath, 1, 1) ? 0 : -1;
+#else
+        result = RLFileCopy(srcPath, dstPath);
+        if (result == 0) result = RLFileRemove(srcPath);
+#endif
     }
     else result = -1;
 
@@ -6408,6 +6530,7 @@ bool RLIsFileExtension(const char *fileName, const char *ext)
         int extCount = 1;
         int extLength = (int)strlen(ext);
         char *extList = (char *)RL_CALLOC(extLength + 1, 1);
+        if (extList == NULL) return false;
         char *extListPtrs[MAX_FILE_EXTENSIONS] = { 0 };
         strncpy(extList, ext, extLength);
         extListPtrs[0] = extList;
@@ -6808,6 +6931,66 @@ const char *RLGetApplicationDirectory(void)
     return appDir;
 }
 
+static bool RLDirectoryFilterIncludesDirectories(const char *filter)
+{
+    if (filter == NULL) return false;
+    if (strstr(filter, FILE_FILTER_TAG_ALL) != NULL) return true;
+    if (strstr(filter, FILE_FILTER_TAG_DIR_ONLY) != NULL) return true;
+    return false;
+}
+
+static bool RLDirectoryFilterAcceptPath(const char *path, bool isDirectory, const char *filter)
+{
+    if (isDirectory) return RLDirectoryFilterIncludesDirectories(filter);
+    if ((filter == NULL) || (strstr(filter, FILE_FILTER_TAG_ALL) != NULL) ||
+        (strstr(filter, FILE_FILTER_TAG_FILE_ONLY) != NULL)) return true;
+    return RLIsFileExtension(path, filter);
+}
+
+#if defined(_WIN32)
+typedef struct RLWin32DirectoryCountContext
+{
+    const char *filter;
+    unsigned int count;
+} RLWin32DirectoryCountContext;
+
+typedef struct RLWin32DirectoryScanContext
+{
+    RLFilePathList *files;
+    const char *filter;
+    unsigned int expectedFileCount;
+    bool allocFailed;
+} RLWin32DirectoryScanContext;
+
+static int RLWin32CountDirectoryEntryCallback(const char *entryPathUtf8, int isDirectory, void *userData)
+{
+    RLWin32DirectoryCountContext *ctx = (RLWin32DirectoryCountContext *)userData;
+    if ((ctx != NULL) && RLDirectoryFilterAcceptPath(entryPathUtf8, isDirectory != 0, ctx->filter)) ctx->count++;
+    return 1;
+}
+
+static int RLWin32ScanDirectoryEntryCallback(const char *entryPathUtf8, int isDirectory, void *userData)
+{
+    RLWin32DirectoryScanContext *ctx = (RLWin32DirectoryScanContext *)userData;
+    if (ctx == NULL) return 0;
+    if (!RLDirectoryFilterAcceptPath(entryPathUtf8, isDirectory != 0, ctx->filter)) return 1;
+    if (ctx->files->count >= ctx->expectedFileCount) return 1;
+
+    size_t pathLen = strlen(entryPathUtf8);
+    char *pathCopy = (char *)RL_CALLOC((unsigned int)(pathLen + 1u), sizeof(char));
+    if (pathCopy == NULL)
+    {
+        ctx->allocFailed = true;
+        return 0;
+    }
+
+    memcpy(pathCopy, entryPathUtf8, pathLen + 1u);
+    ctx->files->paths[ctx->files->count] = pathCopy;
+    ctx->files->count++;
+    return 1;
+}
+#endif
+
 // Load directory filepaths
 // NOTE: Base path is prepended to the scanned filepaths
 // WARNING: Directory is scanned twice, first time to get files count
@@ -6827,22 +7010,25 @@ RLFilePathList RLLoadDirectoryFilesEx(const char *basePath, const char *filter, 
 
     if (RLDirectoryExists(basePath)) // It's a directory
     {
-        // SCAN 1: Count files
         unsigned int fileCounter = RLGetDirectoryFileCountEx(basePath, filter, scanSubdirs);
-
-        // Memory allocation for dirFileCount
         files.paths = (char **)RL_CALLOC(fileCounter, sizeof(char *));
-        for (unsigned int i = 0; i < fileCounter; i++) files.paths[i] = (char *)RL_CALLOC(MAX_FILEPATH_LENGTH, sizeof(char));
 
-        // SCAN 2: Read filepaths
-        // WARNING: basePath is always prepended to scanned paths
+#if defined(_WIN32)
+        RLWin32DirectoryScanContext ctx = { 0 };
+        ctx.files = &files;
+        ctx.filter = filter;
+        ctx.expectedFileCount = fileCounter;
+        if (!RLWin32EnumerateDirectoryUtf8(basePath, scanSubdirs ? 1 : 0, RLWin32ScanDirectoryEntryCallback, &ctx))
+            TRACELOG(RL_E_LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);
+        if (ctx.allocFailed)
+            TRACELOG(RL_E_LOG_WARNING, "FILEIO: Out of memory while enumerating directory (%s)", basePath);
+#else
         ScanDirectoryFiles(basePath, &files, filter, fileCounter, scanSubdirs);
+#endif
 
-        // Security check: read files.count should match fileCounter
         if (files.count != fileCounter)
         {
             TRACELOG(RL_E_LOG_WARNING, "FILEIO: Read files count (%u) does not match capacity allocated (%u)", files.count, fileCounter);
-            files.count = fileCounter; // Avoid memory leak when unloading this FilePathList
         }
     }
     else TRACELOG(RL_E_LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
@@ -6941,10 +7127,16 @@ bool RLChangeDirectory(const char *dirPath)
 // Check if a given path point to a file
 bool RLIsPathFile(const char *path)
 {
+#if defined(_WIN32)
+    int isFile = 0;
+    if (RLWin32IsFileUtf8(path, &isFile)) return isFile ? true : false;
+    return false;
+#else
     struct stat result = { 0 };
     stat(path, &result);
 
     return S_ISREG(result.st_mode);
+#endif
 }
 
 // Check if fileName is valid for the platform/OS
@@ -7051,6 +7243,13 @@ unsigned int RLGetDirectoryFileCountEx(const char *basePath, const char *filter,
 {
     unsigned int fileCounter = 0;
 
+#if defined(_WIN32)
+    RLWin32DirectoryCountContext ctx = { 0 };
+    ctx.filter = filter;
+    if (!RLWin32EnumerateDirectoryUtf8(basePath, scanSubdirs ? 1 : 0, RLWin32CountDirectoryEntryCallback, &ctx))
+        TRACELOG(RL_E_LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);
+    return ctx.count;
+#else
     // WARNING: Path can not be static or it will be reused between recursive function calls!
     char path[MAX_FILEPATH_LENGTH] = { 0 };
     memset(path, 0, MAX_FILEPATH_LENGTH);
@@ -7092,6 +7291,7 @@ unsigned int RLGetDirectoryFileCountEx(const char *basePath, const char *filter,
     }
     else TRACELOG(RL_E_LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
     return fileCounter;
+#endif
 }
 
 //----------------------------------------------------------------------------------
@@ -7110,6 +7310,14 @@ unsigned char *RLCompressData(const unsigned char *data, int dataSize, int *comp
     struct sdefl *sdefl = (struct sdefl *)RL_CALLOC(1, sizeof(struct sdefl));   // WARNING: Possible stack overflow, struct sdefl is almost 1MB
     int bounds = sdefl_bound(dataSize);
     compData = (unsigned char *)RL_CALLOC(bounds, 1);
+    if ((sdefl == NULL) || (compData == NULL))
+    {
+        RL_FREE(compData);
+        RL_FREE(sdefl);
+        if (compDataSize != NULL) *compDataSize = 0;
+        TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to allocate compression buffers");
+        return NULL;
+    }
 
     *compDataSize = sdeflate(sdefl, compData, data, dataSize, COMPRESSION_QUALITY_DEFLATE);   // Compression level 8, same as stbiw
     RL_FREE(sdefl);
@@ -7128,12 +7336,35 @@ unsigned char *RLDecompressData(const unsigned char *compData, int compDataSize,
 #if defined(SUPPORT_COMPRESSION_API)
     // Decompress data from a valid DEFLATE stream
     unsigned char *data0 = (unsigned char *)RL_CALLOC(MAX_DECOMPRESSION_SIZE*1024*1024, 1);
+    if (data0 == NULL)
+    {
+        if (dataSize != NULL) *dataSize = 0;
+        TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to allocate decompression scratch buffer");
+        return NULL;
+    }
+
     int size = sinflate(data0, MAX_DECOMPRESSION_SIZE*1024*1024, compData, compDataSize);
+    if (size <= 0)
+    {
+        RL_FREE(data0);
+        if (dataSize != NULL) *dataSize = 0;
+        TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to decompress data");
+        return NULL;
+    }
 
     // WARNING: RL_REALLOC can make (and leave) data copies in memory,
     // that can be a security concern in case of compression of sensitive data
     // So, we use a second buffer to copy data manually, wiping original buffer memory
     data = (unsigned char *)RL_CALLOC(size, 1);
+    if (data == NULL)
+    {
+        memset(data0, 0, MAX_DECOMPRESSION_SIZE*1024*1024);
+        RL_FREE(data0);
+        if (dataSize != NULL) *dataSize = 0;
+        TRACELOG(RL_E_LOG_WARNING, "SYSTEM: Failed to allocate decompression output buffer");
+        return NULL;
+    }
+
     memcpy(data, data0, size);
     memset(data0, 0, MAX_DECOMPRESSION_SIZE*1024*1024); // Wipe memory, is memset() safe?
     RL_FREE(data0);
@@ -7371,6 +7602,7 @@ unsigned int *RLComputeMD5(unsigned char *data, int dataSize)
     int newDataSize = ((((dataSize + 8)/64) + 1)*64) - 8;
 
     unsigned char *msg = (unsigned char *)RL_CALLOC(newDataSize + 64, 1); // Initialize with '0' bits, allocating 64 extra bytes
+    if (msg == NULL) return NULL;
     memcpy(msg, data, dataSize);
     msg[dataSize] = 128; // Write the '1' bit
 
@@ -7461,6 +7693,7 @@ unsigned int *RLComputeSHA1(unsigned char *data, int dataSize)
     int newDataSize = ((((dataSize + 8)/64) + 1)*64);
 
     unsigned char *msg = (unsigned char *)RL_CALLOC(newDataSize, 1); // Initialize with '0' bits
+    if (msg == NULL) return NULL;
     memcpy(msg, data, dataSize);
     msg[dataSize] = 128; // Write the '1' bit
 
@@ -7585,6 +7818,7 @@ unsigned int *RLComputeSHA256(unsigned char *data, int dataSize)
     unsigned long long int paddedSize = dataSize + sizeof(dataSize);
     paddedSize += (64 - (paddedSize%64));
     unsigned char *buffer = (unsigned char *)RL_CALLOC(paddedSize, sizeof(unsigned char));
+    if (buffer == NULL) return NULL;
 
     memcpy(buffer, data, dataSize);
     buffer[dataSize] = 0x80;
@@ -7777,6 +8011,7 @@ bool RLExportAutomationEventList(RLAutomationEventList list, const char *fileNam
     // Export events as text
     // NOTE: Save to memory buffer and SaveFileText()
     char *txtData = (char *)RL_CALLOC(256*list.count + 2048, sizeof(char)); // 256 characters per line plus some header
+    if (txtData == NULL) return false;
 
     int byteCount = 0;
     byteCount += sprintf(txtData + byteCount, "#\n");
@@ -8384,6 +8619,7 @@ void SetupViewport(int width, int height)
 // Scan all files and directories in a base path
 // WARNING: files.paths[] must be previously allocated and
 // contain enough space to store all required paths
+#if !defined(_WIN32)
 static void ScanDirectoryFiles(const char *basePath, RLFilePathList *files, const char *filter, unsigned int expectedFileCount, bool scanSubdirs)
 {
     // WARNING: Path can not be static or it will be reused between recursive function calls!
@@ -8436,6 +8672,7 @@ static void ScanDirectoryFiles(const char *basePath, RLFilePathList *files, cons
     }
     else TRACELOG(RL_E_LOG_WARNING, "FILEIO: Directory cannot be opened (%s)", basePath);  // Maybe it's a file...
 }
+#endif
 
 #if defined(SUPPORT_AUTOMATION_EVENTS)
 // Automation event recording

@@ -22,6 +22,7 @@ RLAPI void RLMaximizeWindow(void);                                  // Set windo
 RLAPI void RLMinimizeWindow(void);                                  // Set window state: minimized, if resizable
 RLAPI void RLRestoreWindow(void);                                   // Restore window from being minimized/maximized
 RLAPI void RLSetWindowIcon(RLImage image);                            // Set icon for window (single image, RGBA 32bit)
+RLAPI bool RLTrySetWindowIcons(RLImage *images, int count);           // Try to set icons for window (multiple images, RGBA 32bit), returns success/failure
 RLAPI void RLSetWindowIcons(RLImage *images, int count);              // Set icon for window (multiple images, RGBA 32bit)
 RLAPI void RLSetWindowTitle(const char *title);                     // Set title for window
 RLAPI void RLSetWindowPosition(int x, int y);                       // Set window position on screen

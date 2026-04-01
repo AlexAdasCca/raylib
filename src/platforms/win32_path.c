@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdint.h>
 
 #ifndef MAX_FILEPATH_LENGTH
 #define MAX_FILEPATH_LENGTH 4096
@@ -30,6 +31,12 @@
 #ifndef ERROR_ALREADY_EXISTS
 #define ERROR_ALREADY_EXISTS 183u
 #endif
+#ifndef ERROR_FILE_NOT_FOUND
+#define ERROR_FILE_NOT_FOUND 2u
+#endif
+#ifndef ERROR_NO_MORE_FILES
+#define ERROR_NO_MORE_FILES 18u
+#endif
 
 __declspec(dllimport) unsigned long __stdcall GetFullPathNameW(const wchar_t *lpFileName, unsigned long nBufferLength, wchar_t *lpBuffer, wchar_t **lpFilePart);
 __declspec(dllimport) unsigned long __stdcall GetCurrentDirectoryW(unsigned long nBufferLength, wchar_t *lpBuffer);
@@ -37,6 +44,12 @@ __declspec(dllimport) int __stdcall SetCurrentDirectoryW(const wchar_t *lpPathNa
 __declspec(dllimport) int __stdcall CreateDirectoryW(const wchar_t *lpPathName, void *lpSecurityAttributes);
 __declspec(dllimport) unsigned long __stdcall GetFileAttributesW(const wchar_t *lpFileName);
 __declspec(dllimport) int __stdcall GetFileAttributesExW(const wchar_t *lpFileName, int fInfoLevelId, void *lpFileInformation);
+__declspec(dllimport) void *__stdcall FindFirstFileW(const wchar_t *lpFileName, void *lpFindFileData);
+__declspec(dllimport) int __stdcall FindNextFileW(void *hFindFile, void *lpFindFileData);
+__declspec(dllimport) int __stdcall FindClose(void *hFindFile);
+__declspec(dllimport) int __stdcall CopyFileW(const wchar_t *lpExistingFileName, const wchar_t *lpNewFileName, int bFailIfExists);
+__declspec(dllimport) int __stdcall DeleteFileW(const wchar_t *lpFileName);
+__declspec(dllimport) int __stdcall MoveFileExW(const wchar_t *lpExistingFileName, const wchar_t *lpNewFileName, unsigned long dwFlags);
 __declspec(dllimport) unsigned long __stdcall GetLastError(void);
 __declspec(dllimport) int __stdcall WideCharToMultiByte(unsigned int cp, unsigned long flags, const wchar_t *widestr, int cchwide, char *str, int cbmb, const char *defchar, int *used_default);
 __declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int CodePage, unsigned long dwFlags, const char *lpMultiByteStr, int cbMultiByte, wchar_t *lpWideCharStr, int cchWideChar);
@@ -57,8 +70,34 @@ typedef struct RLWin32FileAttributeData
     unsigned long nFileSizeLow;
 } RLWin32FileAttributeData;
 
+typedef struct RLWin32FindData
+{
+    unsigned long dwFileAttributes;
+    RLWin32FileTime ftCreationTime;
+    RLWin32FileTime ftLastAccessTime;
+    RLWin32FileTime ftLastWriteTime;
+    unsigned long nFileSizeHigh;
+    unsigned long nFileSizeLow;
+    unsigned long dwReserved0;
+    unsigned long dwReserved1;
+    wchar_t cFileName[260];
+    wchar_t cAlternateFileName[14];
+} RLWin32FindData;
+
 #ifndef RL_WIN32_GETFILEEXINFO_STANDARD
 #define RL_WIN32_GETFILEEXINFO_STANDARD 0
+#endif
+
+#ifndef INVALID_HANDLE_VALUE
+#define INVALID_HANDLE_VALUE ((void *)(intptr_t)-1)
+#endif
+
+#ifndef MOVEFILE_REPLACE_EXISTING
+#define MOVEFILE_REPLACE_EXISTING 0x00000001u
+#endif
+
+#ifndef MOVEFILE_COPY_ALLOWED
+#define MOVEFILE_COPY_ALLOWED 0x00000002u
 #endif
 
 void RLWin32PathErrorReset(RLWin32PathError *err, const char *inputUtf8)
@@ -107,6 +146,26 @@ static wchar_t *RLWin32Utf8ToWideAlloc(const char *utf8, unsigned long flags)
     }
 
     return wide;
+}
+
+static char *RLWin32WideToUtf8Alloc(const wchar_t *wide)
+{
+    if (wide == NULL) return NULL;
+
+    int requiredChars = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
+    if (requiredChars <= 0) return NULL;
+
+    char *utf8 = (char *)RL_CALLOC((unsigned int)requiredChars, sizeof(char));
+    if (utf8 == NULL) return NULL;
+
+    int convertedChars = WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, requiredChars, NULL, NULL);
+    if (convertedChars <= 0)
+    {
+        RL_FREE(utf8);
+        return NULL;
+    }
+
+    return utf8;
 }
 
 static wchar_t *RLWin32GetFullPathAlloc(const wchar_t *path)
@@ -217,6 +276,54 @@ static wchar_t *RLWin32ToExtendedPathAlloc(const wchar_t *absolutePath)
     memcpy(out, RLWin32PathIsUnc(absolutePath) ? prefixUnc : prefixLocal, prefixLen*sizeof(wchar_t));
     memcpy(out + prefixLen, absolutePath + skip, (pathLen - skip + 1u)*sizeof(wchar_t));
     return out;
+}
+
+static int RLWin32PrepareNormalizedPathPair(const char *pathUtf8, wchar_t **absoluteWideOut, wchar_t **extendedWideOut)
+{
+    if ((pathUtf8 == NULL) || (absoluteWideOut == NULL) || (extendedWideOut == NULL)) return 0;
+    *absoluteWideOut = NULL;
+    *extendedWideOut = NULL;
+
+    wchar_t *pathWide = RLWin32Utf8ToWideAlloc(pathUtf8, MB_ERR_INVALID_CHARS);
+    if (pathWide == NULL) return 0;
+
+    wchar_t *absoluteWide = RLWin32NormalizeAbsolutePathAlloc(pathWide, NULL, NULL);
+    RL_FREE(pathWide);
+    if (absoluteWide == NULL) return 0;
+
+    wchar_t *extendedWide = RLWin32ToExtendedPathAlloc(absoluteWide);
+    if (extendedWide == NULL)
+    {
+        RL_FREE(absoluteWide);
+        return 0;
+    }
+
+    *absoluteWideOut = absoluteWide;
+    *extendedWideOut = extendedWide;
+    return 1;
+}
+
+static int RLWin32PathNeedsSeparator(const wchar_t *path)
+{
+    size_t len = (path != NULL) ? wcslen(path) : 0u;
+    if (len == 0u) return 0;
+    return (path[len - 1u] != L'\\') && (path[len - 1u] != L'/');
+}
+
+static wchar_t *RLWin32JoinWidePathAlloc(const wchar_t *baseWide, const wchar_t *childWide)
+{
+    if ((baseWide == NULL) || (childWide == NULL)) return NULL;
+
+    size_t baseLen = wcslen(baseWide);
+    size_t childLen = wcslen(childWide);
+    size_t separatorLen = RLWin32PathNeedsSeparator(baseWide) ? 1u : 0u;
+    wchar_t *joined = (wchar_t *)RL_CALLOC((unsigned int)(baseLen + separatorLen + childLen + 1u), sizeof(wchar_t));
+    if (joined == NULL) return NULL;
+
+    memcpy(joined, baseWide, baseLen*sizeof(wchar_t));
+    if (separatorLen != 0u) joined[baseLen] = L'\\';
+    memcpy(joined + baseLen + separatorLen, childWide, (childLen + 1u)*sizeof(wchar_t));
+    return joined;
 }
 
 static int RLWin32ConvertModeToWide(const char *mode, wchar_t *modeWide, int modeWideCapacity, RLWin32PathError *err)
@@ -607,6 +714,181 @@ int RLWin32PathGetFileModTimeUtf8(const char *pathUtf8, long *outUnixSeconds)
     }
 
     return 1;
+}
+
+int RLWin32PathIsFileUtf8(const char *pathUtf8, int *outIsFile)
+{
+    if ((pathUtf8 == NULL) || (outIsFile == NULL)) return 0;
+
+    unsigned long attrs = 0;
+    if (!RLWin32PathGetPathAttributesUtf8(pathUtf8, &attrs)) return 0;
+
+    *outIsFile = ((attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) ? 1 : 0;
+    return 1;
+}
+
+int RLWin32PathDeleteFileUtf8(const char *pathUtf8)
+{
+    wchar_t *absoluteWide = NULL;
+    wchar_t *extendedWide = NULL;
+    if (!RLWin32PrepareNormalizedPathPair(pathUtf8, &absoluteWide, &extendedWide)) return 0;
+
+    int ok = DeleteFileW(extendedWide);
+    if (!ok) ok = DeleteFileW(absoluteWide);
+
+    RL_FREE(extendedWide);
+    RL_FREE(absoluteWide);
+    return ok ? 1 : 0;
+}
+
+int RLWin32PathCopyFileUtf8(const char *srcPathUtf8, const char *dstPathUtf8, int overwriteExisting)
+{
+    wchar_t *srcAbsoluteWide = NULL;
+    wchar_t *srcExtendedWide = NULL;
+    wchar_t *dstAbsoluteWide = NULL;
+    wchar_t *dstExtendedWide = NULL;
+
+    if (!RLWin32PrepareNormalizedPathPair(srcPathUtf8, &srcAbsoluteWide, &srcExtendedWide)) return 0;
+    if (!RLWin32PrepareNormalizedPathPair(dstPathUtf8, &dstAbsoluteWide, &dstExtendedWide))
+    {
+        RL_FREE(srcExtendedWide);
+        RL_FREE(srcAbsoluteWide);
+        return 0;
+    }
+
+    int failIfExists = overwriteExisting ? 0 : 1;
+    int ok = CopyFileW(srcExtendedWide, dstExtendedWide, failIfExists);
+    if (!ok) ok = CopyFileW(srcAbsoluteWide, dstAbsoluteWide, failIfExists);
+
+    RL_FREE(dstExtendedWide);
+    RL_FREE(dstAbsoluteWide);
+    RL_FREE(srcExtendedWide);
+    RL_FREE(srcAbsoluteWide);
+    return ok ? 1 : 0;
+}
+
+int RLWin32PathMoveFileUtf8(const char *srcPathUtf8, const char *dstPathUtf8, int replaceExisting, int allowCopy)
+{
+    wchar_t *srcAbsoluteWide = NULL;
+    wchar_t *srcExtendedWide = NULL;
+    wchar_t *dstAbsoluteWide = NULL;
+    wchar_t *dstExtendedWide = NULL;
+
+    if (!RLWin32PrepareNormalizedPathPair(srcPathUtf8, &srcAbsoluteWide, &srcExtendedWide)) return 0;
+    if (!RLWin32PrepareNormalizedPathPair(dstPathUtf8, &dstAbsoluteWide, &dstExtendedWide))
+    {
+        RL_FREE(srcExtendedWide);
+        RL_FREE(srcAbsoluteWide);
+        return 0;
+    }
+
+    unsigned long flags = 0u;
+    if (replaceExisting) flags |= MOVEFILE_REPLACE_EXISTING;
+    if (allowCopy) flags |= MOVEFILE_COPY_ALLOWED;
+
+    int ok = MoveFileExW(srcExtendedWide, dstExtendedWide, flags);
+    if (!ok) ok = MoveFileExW(srcAbsoluteWide, dstAbsoluteWide, flags);
+
+    RL_FREE(dstExtendedWide);
+    RL_FREE(dstAbsoluteWide);
+    RL_FREE(srcExtendedWide);
+    RL_FREE(srcAbsoluteWide);
+    return ok ? 1 : 0;
+}
+
+typedef struct RLWin32PathEnumerateContext
+{
+    int scanSubdirs;
+    RLWin32PathDirectoryVisitor visitor;
+    void *userData;
+} RLWin32PathEnumerateContext;
+
+static int RLWin32EnumerateDirectoryWideInternal(const wchar_t *absoluteBaseWide, const wchar_t *extendedBaseWide, RLWin32PathEnumerateContext *ctx)
+{
+    if ((absoluteBaseWide == NULL) || (extendedBaseWide == NULL) || (ctx == NULL) || (ctx->visitor == NULL)) return 0;
+
+    wchar_t *searchPatternExtended = RLWin32JoinWidePathAlloc(extendedBaseWide, L"*");
+    wchar_t *searchPatternAbsolute = RLWin32JoinWidePathAlloc(absoluteBaseWide, L"*");
+    if ((searchPatternExtended == NULL) || (searchPatternAbsolute == NULL))
+    {
+        RL_FREE(searchPatternAbsolute);
+        RL_FREE(searchPatternExtended);
+        return 0;
+    }
+
+    RLWin32FindData findData = { 0 };
+    void *findHandle = FindFirstFileW(searchPatternExtended, &findData);
+    if (findHandle == INVALID_HANDLE_VALUE) findHandle = FindFirstFileW(searchPatternAbsolute, &findData);
+
+    RL_FREE(searchPatternAbsolute);
+    RL_FREE(searchPatternExtended);
+
+    if (findHandle == INVALID_HANDLE_VALUE)
+    {
+        unsigned long findError = GetLastError();
+        if ((findError == ERROR_FILE_NOT_FOUND) || (findError == ERROR_NO_MORE_FILES)) return 1;
+        return 0;
+    }
+
+    int ok = 1;
+    do
+    {
+        const wchar_t *entryNameWide = findData.cFileName;
+        if ((wcscmp(entryNameWide, L".") == 0) || (wcscmp(entryNameWide, L"..") == 0)) continue;
+
+        int isDirectory = ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) ? 1 : 0;
+        wchar_t *entryAbsoluteWide = RLWin32JoinWidePathAlloc(absoluteBaseWide, entryNameWide);
+        wchar_t *entryExtendedWide = RLWin32JoinWidePathAlloc(extendedBaseWide, entryNameWide);
+        char *entryUtf8 = NULL;
+        if ((entryAbsoluteWide == NULL) || (entryExtendedWide == NULL))
+        {
+            ok = 0;
+        }
+        else
+        {
+            entryUtf8 = RLWin32WideToUtf8Alloc(entryAbsoluteWide);
+            if (entryUtf8 == NULL) ok = 0;
+        }
+
+        if (ok && !ctx->visitor(entryUtf8, isDirectory, ctx->userData)) ok = 0;
+
+        if (ok && isDirectory && ctx->scanSubdirs)
+        {
+            if (!RLWin32EnumerateDirectoryWideInternal(entryAbsoluteWide, entryExtendedWide, ctx)) ok = 0;
+        }
+
+        RL_FREE(entryUtf8);
+        RL_FREE(entryExtendedWide);
+        RL_FREE(entryAbsoluteWide);
+    } while (ok && FindNextFileW(findHandle, &findData));
+
+    if (ok)
+    {
+        unsigned long nextError = GetLastError();
+        if (nextError != ERROR_NO_MORE_FILES) ok = 0;
+    }
+
+    FindClose(findHandle);
+    return ok ? 1 : 0;
+}
+
+int RLWin32PathEnumerateDirectoryUtf8(const char *basePathUtf8, int scanSubdirs, RLWin32PathDirectoryVisitor visitor, void *userData)
+{
+    wchar_t *absoluteWide = NULL;
+    wchar_t *extendedWide = NULL;
+    if ((basePathUtf8 == NULL) || (visitor == NULL)) return 0;
+    if (!RLWin32PrepareNormalizedPathPair(basePathUtf8, &absoluteWide, &extendedWide)) return 0;
+
+    RLWin32PathEnumerateContext ctx = { 0 };
+    ctx.scanSubdirs = scanSubdirs ? 1 : 0;
+    ctx.visitor = visitor;
+    ctx.userData = userData;
+
+    int ok = RLWin32EnumerateDirectoryWideInternal(absoluteWide, extendedWide, &ctx);
+
+    RL_FREE(extendedWide);
+    RL_FREE(absoluteWide);
+    return ok ? 1 : 0;
 }
 
 #endif // _WIN32
