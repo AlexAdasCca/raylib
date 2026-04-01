@@ -7,6 +7,7 @@
 - `examples/core/core_shared_gpu_context.c`
 - `examples/core/core_event_thread_diagnostics.c`
 - `examples/core/core_memdiag_event_automation.c`
+- `examples/core/core_long_path_utf8_fileio.c`
 - `examples/audio/audio_module_playing.c`
 - `examples/core/core_glfw_event_thread_diagnostics.cpp`
 - `examples/core/core_glfw_refresh_callback_diagnostics.c`
@@ -39,6 +40,22 @@ Validates `RLResetAllFrameCallbackDiagStats()` by creating two event-thread wind
 
 ### `core_memdiag_event_automation`
 Validates automated input playback under memory diagnostics and checks shutdown leak summary output.
+
+### `core_long_path_utf8_fileio [rootOverride] [uncRootOverride]`
+Validates long-path and UTF-8 file I/O behavior for:
+- directory creation
+- text and binary save/load
+- directory enumeration
+- rename and move
+- file existence and directory existence
+- working-directory changes
+- path parsing helpers
+- optional UNC root path access
+
+Notes:
+- The program prints a single JSON summary line.
+- `renameOk`, `moveOk`, and `listCountOk` are strict pass fields in the JSON summary.
+- `movedPathLen` reports the final moved destination path length after the rename + move chain.
 
 ## 3. How to Use Diagnostics APIs
 
@@ -138,4 +155,5 @@ RLSetTrackedObjectDiagFlags(
 8. Re-run shared-resource examples and verify no ownership split warnings.
 9. Re-run event-thread examples and verify no close-waiter enqueue succeeds.
 10. Re-run memory-diagnostics automation example and verify `NO_LEAK_DETECTED`.
-11. Start the audio multi-window example and verify secondary-thread window creation and shutdown still work.
+11. Run the long-path / UTF-8 file I/O example and inspect the JSON summary for failed stages.
+12. Start the audio multi-window example and verify secondary-thread window creation and shutdown still work.

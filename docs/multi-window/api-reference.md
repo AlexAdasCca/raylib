@@ -13,6 +13,7 @@ It is not a replacement for `src/raylib.h`. It is the contract-level companion f
 - `wait == 0`: asynchronous post and immediate return
 - `wait != 0`: synchronous wait until completion
 3. Queue wait timeout values are internal policy constants and are not provided through these `wait` parameters.
+4. On Win32, this branch also standardizes long-path and UTF-8 handling for the generic file-I/O paths exercised by `core_long_path_utf8_fileio`; that work is validated by example coverage rather than by dedicated entries on this page.
 
 ## Related Types
 

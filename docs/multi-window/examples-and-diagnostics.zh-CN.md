@@ -9,6 +9,7 @@
 | `examples/core/core_shared_gpu_context.c` | 共享上下文、共享着色器、所有权转移与认领、日志回调重入隔离 |
 | `examples/core/core_event_thread_diagnostics.c` | 事件线程、队列压力、关闭等待者、信号量行为 |
 | `examples/core/core_memdiag_event_automation.c` | 自动化输入回放下的内存诊断统计与关闭阶段泄漏检查 |
+| `examples/core/core_long_path_utf8_fileio.c` | 长路径、UTF-8 路径、文件读写与路径解析辅助函数 |
 | `examples/audio/audio_module_playing.c` | 音频模块在多窗口/多线程场景下的窗口、消息钩子和关闭行为 |
 | `examples/core/core_glfw_refresh_callback_diagnostics.c` | Win32 模态循环刷新回调 |
 
@@ -56,6 +57,20 @@
 验证：
 1. 自动化输入脚本驱动下的内存分配/释放统计。
 2. 关闭和销毁阶段是否最终输出 `NO_LEAK_DETECTED`。
+
+### `core_long_path_utf8_fileio [rootOverride] [uncRootOverride]`
+验证：
+1. 长路径目录创建。
+2. UTF-8 路径下的文本和二进制读写。
+3. 长路径目录枚举。
+4. 长路径重命名与移动。
+5. 文件/目录存在性检查、工作目录切换和路径解析辅助函数。
+6. 可选 UNC 根路径访问。
+
+说明：
+- 程序会输出一行 JSON 汇总结果。
+- `renameOk`、`moveOk` 和 `listCountOk` 现在都属于严格通过字段。
+- `movedPathLen` 表示 rename + move 完成后的目标路径长度。
 
 ## 3. 诊断 API 用法
 
@@ -175,6 +190,7 @@ RLSharedGpuTrackingRejectDiagStats rejectStats = RLGetSharedGpuTrackingRejectDia
 6. `core_event_thread_diagnostics --native-task-queue-selftest`
 7. `core_event_thread_diagnostics --frame-callback-reset-all-selftest`
 8. `core_memdiag_event_automation`
+9. `core_long_path_utf8_fileio`
 
 需要手动验证以下功能：
 1. 事件线程模式下的创建与关闭。
