@@ -15,6 +15,11 @@
           "name": "BUILD_SHARED_LIBS",
           "value": "True",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
+          "value": "MultiThreadedDebugDLL",
+          "type": "STRING"
         }
       ]
     },
@@ -33,6 +38,11 @@
           "name": "BUILD_SHARED_LIBS",
           "value": "True",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
+          "value": "MultiThreadedDLL",
+          "type": "STRING"
         }
       ]
     },
@@ -51,6 +61,11 @@
           "name": "BUILD_SHARED_LIBS",
           "value": "False",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
+          "value": "MultiThreadedDebugDLL",
+          "type": "STRING"
         }
       ]
     },
@@ -69,6 +84,11 @@
           "name": "BUILD_SHARED_LIBS",
           "value": "False",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
+          "value": "MultiThreadedDLL",
+          "type": "STRING"
         }
       ]
     },
@@ -124,6 +144,11 @@
           "name": "BUILD_SHARED_LIBS",
           "value": "True",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
+          "value": "MultiThreadedDebugDLL",
+          "type": "STRING"
         }
       ]
     },
@@ -139,6 +164,11 @@
           "name": "BUILD_SHARED_LIBS",
           "value": "True",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
+          "value": "MultiThreadedDLL",
+          "type": "STRING"
         }
       ]
     },
@@ -154,6 +184,11 @@
           "name": "BUILD_SHARED_LIBS",
           "value": "False",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
+          "value": "MultiThreadedDebugDLL",
+          "type": "STRING"
         }
       ]
     },
@@ -172,7 +207,7 @@
         },
         {
           "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
-          "value": "MultiThreaded",
+          "value": "MultiThreadedDebug",
           "type": "STRING"
         }
       ]
@@ -189,6 +224,11 @@
           "name": "BUILD_SHARED_LIBS",
           "value": "False",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_MSVC_RUNTIME_LIBRARY",
+          "value": "MultiThreadedDLL",
+          "type": "STRING"
         }
       ]
     },
